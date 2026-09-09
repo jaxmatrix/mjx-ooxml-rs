@@ -97,8 +97,8 @@ impl Continuation {
     pub fn encode(self) -> [u8; STATE_BYTES] {
         let mut state = [0_u8; STATE_BYTES];
         state[0] = VERSION;
-        state[1..5].copy_from_slice(&self.position.paragraph.to_le_bytes());
-        state[5..9].copy_from_slice(&self.position.line.to_le_bytes());
+        state[1..5].copy_from_slice(&self.position.block.to_le_bytes());
+        state[5..9].copy_from_slice(&self.position.unit.to_le_bytes());
         state[9..13].copy_from_slice(&self.paragraphs.to_le_bytes());
         state[13..21].copy_from_slice(&self.page_number.to_le_bytes());
         state[21..29].copy_from_slice(&self.line_number.to_le_bytes());
@@ -131,7 +131,7 @@ impl Continuation {
         Ok(Checkpoint::new(
             model,
             page,
-            address::paragraph(self.position.paragraph as usize),
+            address::paragraph(self.position.block as usize),
             self.encode().to_vec(),
         )?)
     }
@@ -180,8 +180,8 @@ impl Continuation {
         };
         Ok(Self {
             position: FlowPosition {
-                paragraph: word(1),
-                line: word(5),
+                block: word(1),
+                unit: word(5),
             },
             paragraphs: recorded,
             page_number: long(13),

@@ -85,7 +85,9 @@
 //!    a fixed point and the hardest thing in this crate. Its termination argument is written out in
 //!    that module, in full, because an undocumented fixed-point loop is where a hang lives.
 //! 4. the **body** ([`crate::paginate`]) — one or more column groups, balanced at a `continuous`
-//!    break.
+//!    break, filled with **blocks** ([`crate::block`]) that are paragraphs or tables
+//!    ([`crate::table`]), around the **floats** ([`crate::float`]) each one anchors and the
+//!    **exclusions** they contribute ([`crate::wrap`]).
 //! 5. the **generated marks** ([`crate::numbering`]) — line numbers in the margin, which nothing in
 //!    the run stream contains and nothing above this crate will ever draw.
 //!
@@ -95,8 +97,11 @@
 //!
 //! # What is deliberately not here
 //!
-//! * **Tables and floating objects** — MJXOFF-176 (R21). A table's own paragraphs are not walked at
-//!   all: [`mjx_docx::DocumentFormatting::paragraphs`] is the body's top level.
+//! * **A chart's or a picture's own content.** MJXOFF-176 places the *frame* — a floating object's
+//!   rectangle, an inline one's extent — and what goes inside it is MJXOFF-179 (R23). An inline
+//!   drawing's own **advance** is not measured either, and that is a declared gap rather than an
+//!   oversight: reserving one means a fixed advance on a composer run, and `mjx_layout::TextRun` has
+//!   no such field. See [`crate::float::inline_height`], which says so at the site.
 //! * **Fields, numbering, revision marks and OMML** — MJXOFF-177/178 (R22). A list's *number* is not
 //!   drawn; its indents are, because they are ordinary `w:pPr` members the ladder already resolved.
 //!   The same line separates the three generated marks this crate meets: a **page** number is
@@ -121,12 +126,15 @@
 //! ECMA-376 says what the attributes are and is nearly silent on what a renderer does with them, so
 //! a number of behaviours here are readings rather than facts. Every one is marked `GUESS:` at the
 //! site that makes the choice, and the sharpest are collected in [`crate::style`],
-//! [`crate::tabs`], [`crate::justify`], [`crate::paginate`], [`crate::section`], [`crate::notes`]
-//! and [`crate::numbering`]: where a tab stop is measured from, whether the space above a paragraph
-//! survives a page break, which face a hyphen takes, what a kashida alignment falls back to, which
-//! characters an East Asian line is stretched around, whether an absent `w:type` is a page break,
-//! whether "an even page" means an even page *number*, whether a header taller than its margin
-//! pushes the body down, where a footnote area's gap goes, and what `w:countBy` counts from.
+//! [`crate::tabs`], [`crate::justify`], [`crate::paginate`], [`crate::section`], [`crate::notes`],
+//! [`crate::numbering`], [`crate::table`], [`crate::wrap`] and [`crate::float`]: where a tab stop is
+//! measured from, whether the space above a paragraph survives a page break, which face a hyphen
+//! takes, what a kashida alignment falls back to, which characters an East Asian line is stretched
+//! around, whether an absent `w:type` is a page break, whether "an even page" means an even page
+//! *number*, whether a header taller than its margin pushes the body down, where a footnote area's
+//! gap goes, what `w:countBy` counts from — and, sharpest of all, **what unit a `wp:wrapPolygon`'s
+//! coordinates are in**, where inside a row a page break may fall, and which side of an off-centre
+//! object a `largest` wrap keeps.
 //!
 //! Confirmation is a human sitting against real Microsoft Word on Windows
 //! (`docs/validation/07-the-reference-pack.md`). LibreOffice is a change detector and not a
@@ -135,9 +143,11 @@
 #![forbid(unsafe_code)]
 
 pub mod address;
+pub mod block;
 pub mod checkpoint;
 pub mod decoration;
 pub mod error;
+pub mod float;
 pub mod flow;
 pub mod justify;
 pub mod measure;
@@ -148,13 +158,17 @@ pub mod paginate;
 pub mod section;
 pub mod stream;
 pub mod style;
+pub mod table;
 pub mod tabs;
 pub mod text;
+pub mod wrap;
 
+pub use block::{BlockConstraints, BlockLayout};
 pub use checkpoint::{Continuation, STATE_BYTES, VERSION};
 pub use decoration::{stroke_rect, DecorationCatalogue, ParagraphDecoration, Rule};
 pub use error::DocumentLayoutError;
-pub use flow::{lay_out, FlowContext, LaidOutLine, ParagraphLayout};
+pub use float::{inline_height, place as place_float, place_table, Anchorage, PlacedFloat};
+pub use flow::{lay_out, FlowContext, LaidOutLine, ParagraphLayout, BAND_COMPOSITIONS};
 pub use justify::{
     expansion_points, is_east_asian, place, LineContext, LinePlacement, PlacedLeader, PlacedSegment,
 };
@@ -166,14 +180,22 @@ pub use model::{
 pub use notes::{DemandedNote, NoteArea, NoteCarry, NoteContent, PlacedNote};
 pub use numbering::{format_number, is_numbered, is_written_exactly, LARGEST_ROMAN};
 pub use paginate::{
-    assemble, fill_column, widow_control, ColumnEnd, ColumnFill, ColumnShape, FlowPosition,
-    LayoutCache, PageAssembly, PageShape, PlacedParagraph,
+    assemble, cache_key, fill_column, widow_control, ColumnEnd, ColumnFill, ColumnShape,
+    FlowPosition, FlowProgram, LayoutCache, LayoutRequest, PageAssembly, PageShape, PlacedBlock,
+    NO_FLOATS,
 };
 pub use section::{required_parity, starts_a_page, ColumnBand, Parity, SectionGeometry};
 pub use stream::{lay_out_stream, StreamLayout, StreamLine, UNBOUNDED_HEIGHT};
 pub use style::{Alignment, LineHeight, ParagraphStyle, RunStyle, ASSUMED_FONT_SIZE_POINTS};
+pub use table::{
+    lay_out as lay_out_table, CellLayout, PlacedCellBlock, RowLayout, Slice, TableContext,
+    TableLayout, UNBOUNDED_MEASURE,
+};
 pub use tabs::{leader_character, TabKind, TabRuler, TabStop, DECIMAL_SEPARATOR};
 pub use text::{cut, CutPolicy, StyledItem, TextEngine, HYPHEN};
+pub use wrap::{
+    free_runs, next_clear_edge, run_for, span_in_band, Exclusion, WrapSide, WRAP_POLYGON_UNITS,
+};
 
 /// The constraints a caller lays a document out under, from one section's own page geometry.
 ///

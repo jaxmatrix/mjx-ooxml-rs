@@ -61,14 +61,19 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use mjx_ooxml_core::{FromXml, Interner};
+use mjx_ooxml_types::shared::{RelativeHorizontalAlignment, RelativeVerticalAlignment};
+use mjx_ooxml_types::wordprocessingdrawing::{
+    HorizontalAlignment, HorizontalRelativeFrom, VerticalAlignment, VerticalRelativeFrom, WrapText,
+};
 use mjx_ooxml_types::wordprocessingml::{
     BreakType, EndnotePosition, FootnoteEndnoteType, FootnotePosition, HeaderFooterType,
-    LineNumberRestart, NumberFormat, NumberingRestartLocation, SectionBreakType,
-    VerticalJustification,
+    HeightRule, HorizontalAnchor, LineNumberRestart, MergedCellType, NumberFormat,
+    NumberingRestartLocation, SectionBreakType, TableJustification, TableLayoutType,
+    TableWidthUnit, TextFlowDirection, VerticalAnchor, VerticalJustification,
 };
 
 use super::annotations::{Endnotes, Footnotes};
-use super::body::{Paragraph, ParagraphContent, Run, RunInnerContent};
+use super::body::{BlockContent, Paragraph, ParagraphContent, Run, RunInnerContent};
 use super::effective::{
     attr, combine_paragraph_tiers, combine_run_tiers, extract_numbering_reference,
     extract_paragraph_properties, extract_run_properties, extract_style_paragraph_properties,
@@ -84,6 +89,8 @@ use super::sections::{SectionProperties, SectionSpan};
 use super::styles::{
     DefaultParagraphProperties, DefaultRunProperties, DocumentDefaults, StyleSheet,
 };
+use super::table_properties::{CellMargins, TableCellMargins, TableProperties, TableWidth};
+use super::tables::CellProperties;
 use super::{Document, MainDocument, StyleIndex};
 use crate::address::RunPath;
 use crate::error::DocxError;
@@ -149,6 +156,7 @@ pub struct ParagraphFormatting {
     runs: Vec<RunFormatting>,
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
+    drawings: Vec<DrawingFormatting>,
     properties: EffectiveParagraphProperties,
     style_id: Option<String>,
 }
@@ -177,6 +185,16 @@ impl ParagraphFormatting {
     #[must_use]
     pub fn note_references(&self) -> &[NoteReference] {
         &self.note_references
+    }
+
+    /// Every `w:drawing` anchored in it, in run order — inline and floating alike.
+    ///
+    /// **Resolved to plain numbers**, never to a `mjx-dml` type: a box model above this crate reads
+    /// extents, distances, anchors and wrap polygons and has no business parsing DrawingML. That is
+    /// the same line [`ParagraphFormatting::properties`] already draws for `w:pPr`.
+    #[must_use]
+    pub fn drawings(&self) -> &[DrawingFormatting] {
+        &self.drawings
     }
 
     /// Every `CT_PPrBase` member, resolved across the whole ladder.
@@ -485,6 +503,7 @@ impl Default for DocumentLayoutSettings {
 pub struct HeaderFooterFormatting {
     part: mjx_opc::PartName,
     paragraphs: Vec<ParagraphFormatting>,
+    blocks: Vec<BlockFormatting>,
 }
 
 impl HeaderFooterFormatting {
@@ -494,10 +513,17 @@ impl HeaderFooterFormatting {
         &self.part
     }
 
-    /// Its paragraphs, in document order, resolved exactly as a body paragraph is.
+    /// Its paragraphs, in document order, resolved exactly as a body paragraph is — its top-level
+    /// ones first, then any inside its own tables' cells.
     #[must_use]
     pub fn paragraphs(&self) -> &[ParagraphFormatting] {
         &self.paragraphs
+    }
+
+    /// Its content in document order, indexing [`HeaderFooterFormatting::paragraphs`].
+    #[must_use]
+    pub fn blocks(&self) -> &[BlockFormatting] {
+        &self.blocks
     }
 }
 
@@ -507,6 +533,7 @@ pub struct NoteFormatting {
     id: i64,
     kind: FootnoteEndnoteType,
     paragraphs: Vec<ParagraphFormatting>,
+    blocks: Vec<BlockFormatting>,
 }
 
 impl NoteFormatting {
@@ -539,6 +566,12 @@ impl NoteFormatting {
     pub fn paragraphs(&self) -> &[ParagraphFormatting] {
         &self.paragraphs
     }
+
+    /// Its content in document order, indexing [`NoteFormatting::paragraphs`].
+    #[must_use]
+    pub fn blocks(&self) -> &[BlockFormatting] {
+        &self.blocks
+    }
 }
 
 /// A whole document, parsed once and resolved once: what a box model lays out.
@@ -549,7 +582,9 @@ impl NoteFormatting {
 /// and the caller re-reads.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocumentFormatting {
+    top_level_paragraphs: usize,
     paragraphs: Vec<ParagraphFormatting>,
+    blocks: Vec<BlockFormatting>,
     sections: Vec<SectionFormatting>,
     settings: DocumentLayoutSettings,
     header_footer_streams: Vec<HeaderFooterFormatting>,
@@ -558,14 +593,39 @@ pub struct DocumentFormatting {
 }
 
 impl DocumentFormatting {
-    /// Every paragraph of the body, in document order.
+    /// Every paragraph of the body: its **top-level** ones first, in document order, and then the
+    /// paragraphs inside its tables' cells.
     ///
-    /// Paragraphs inside a table are **not** here: a table is a different layout discipline and its
-    /// own child (MJXOFF-176, R21). [`super::body::Body::paragraphs`] is what this walks, and that
-    /// walks the body's top level.
+    /// # The order is a guarantee, not an accident
+    ///
+    /// The first [`DocumentFormatting::top_level_paragraph_count`] entries are exactly what
+    /// [`super::body::Body::paragraphs`] yields, in exactly that order, because a `w:sectPr`'s span
+    /// is numbered against *that* walk — a cell's paragraph interleaved into it would move every
+    /// section boundary in the document. Cell paragraphs follow, in the order
+    /// [`DocumentFormatting::blocks`] reaches them, and [`SectionFormatting`] says nothing about
+    /// them.
+    ///
+    /// This is one list because the ladder resolves once, for every paragraph in the document,
+    /// whichever stream and whatever depth it came from; see this module's own documentation.
     #[must_use]
     pub fn paragraphs(&self) -> &[ParagraphFormatting] {
         &self.paragraphs
+    }
+
+    /// How many of [`DocumentFormatting::paragraphs`] are at the body's top level.
+    #[must_use]
+    pub fn top_level_paragraph_count(&self) -> usize {
+        self.top_level_paragraphs
+    }
+
+    /// The body's content in document order: paragraphs and tables interleaved as the file has them.
+    ///
+    /// **This, and not [`DocumentFormatting::paragraphs`], is what a box model lays out.** A
+    /// paragraph list cannot say that a table sits between two paragraphs, and a document whose
+    /// tables were dropped paginates differently from the one the author wrote.
+    #[must_use]
+    pub fn blocks(&self) -> &[BlockFormatting] {
+        &self.blocks
     }
 
     /// Every section, in document order.
@@ -652,30 +712,59 @@ struct DirectParagraph {
     runs: Vec<DirectRun>,
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
+    drawings: Vec<DrawingFormatting>,
     direct: EffectiveParagraphProperties,
     style_id: Option<String>,
     own_numbering: Option<EffectiveNumberingReference>,
+    /// Which table style and conditional regions govern it, when it is inside a cell.
+    table_style: Option<TableStyleContext>,
 }
 
 /// Where one stream's paragraphs sit in the one flat list `Document::formatting` resolves.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct StreamSpan {
     start: usize,
     length: usize,
+    /// The stream's own block tree, whose paragraph indices are **stream-local** — that is, already
+    /// rebased by `start`, so a caller of [`HeaderFooterFormatting::blocks`] indexes
+    /// [`HeaderFooterFormatting::paragraphs`] and never the flat list this span was cut from.
+    blocks: Vec<BlockFormatting>,
 }
 
 impl StreamSpan {
     /// This stream's paragraphs, cloned out of the resolved list.
-    fn slice(self, all: &[ParagraphFormatting]) -> Vec<ParagraphFormatting> {
+    fn slice(&self, all: &[ParagraphFormatting]) -> Vec<ParagraphFormatting> {
         all.get(self.start..self.start + self.length)
             .unwrap_or_default()
             .to_vec()
     }
 }
 
+/// `blocks`, with every paragraph index moved down by `start`.
+fn rebased(blocks: Vec<BlockFormatting>, start: usize) -> Vec<BlockFormatting> {
+    blocks
+        .into_iter()
+        .map(|block| match block {
+            BlockFormatting::Paragraph(index) => {
+                BlockFormatting::Paragraph(index.saturating_sub(start))
+            }
+            BlockFormatting::Table(mut table) => {
+                for row in &mut table.as_mut().rows {
+                    for cell in &mut row.cells {
+                        cell.content = rebased(std::mem::take(&mut cell.content), start);
+                    }
+                }
+                BlockFormatting::Table(table)
+            }
+        })
+        .collect()
+}
+
 /// What one parse of `word/document.xml` yields.
 struct DirectRead {
     paragraphs: Vec<DirectParagraph>,
+    /// The body's block tree, indexing `paragraphs`.
+    blocks: Vec<BlockFormatting>,
     sections: Vec<SectionFormatting>,
     /// Every `r:id` a section's resolved header/footer slots name, in first-seen order; the slots
     /// hold indices into this until `Document::formatting` turns each into a stream index.
@@ -703,6 +792,7 @@ impl NoteStreams {
                 id: note.id,
                 kind: note.kind,
                 paragraphs: note.span.slice(all),
+                blocks: rebased(note.span.blocks.clone(), note.span.start),
             })
             .collect()
     }
@@ -735,6 +825,7 @@ impl Document {
         let settings = self.read_layout_settings()?;
         let DirectRead {
             paragraphs: body,
+            blocks,
             mut sections,
             header_footer_relationships,
         } = self.read_direct(&theme, settings.even_and_odd_headers)?;
@@ -772,13 +863,21 @@ impl Document {
         // would be a second orchestration of the ladder, which is the one thing this module exists
         // to prevent — and a header's paragraphs are `w:p`s of exactly the same shape as the body's.
         let mut direct_paragraphs = body;
+        // Everything up to here is the body: its top-level paragraphs first (whose indices the
+        // section spans are stated in) and then the paragraphs inside its tables' cells, which
+        // `read_direct`'s second pass appended.
         let body_count = direct_paragraphs.len();
+        let top_level_paragraphs = blocks
+            .iter()
+            .filter(|block| matches!(block, BlockFormatting::Paragraph(_)))
+            .count();
         let mut stream_spans: Vec<StreamSpan> = Vec::with_capacity(header_footer_parts.len());
         for part in &header_footer_parts {
-            let stream = self.read_header_footer_direct(part, &theme)?;
+            let (stream, stream_blocks) = self.read_header_footer_direct(part, &theme)?;
             stream_spans.push(StreamSpan {
                 start: direct_paragraphs.len(),
                 length: stream.len(),
+                blocks: stream_blocks,
             });
             direct_paragraphs.extend(stream);
         }
@@ -789,9 +888,17 @@ impl Document {
             let index = StyleIndex::build(sheet, interner)?;
             let cache = ChainCache::new(&index, interner);
             let defaults = LadderDefaults::read(sheet, &theme, interner)?;
+            let mut tables: HashMap<TableStyleContext, TableStyleTier> = HashMap::new();
             let mut tiers = Vec::with_capacity(direct_paragraphs.len());
             for paragraph in &direct_paragraphs {
-                tiers.push(ParagraphTiers::read(paragraph, &cache, &theme, interner)?);
+                tiers.push(ParagraphTiers::read(
+                    paragraph,
+                    &cache,
+                    &index,
+                    &mut tables,
+                    &theme,
+                    interner,
+                )?);
             }
             Ok((defaults, tiers))
         })?;
@@ -835,6 +942,7 @@ impl Document {
                 &paragraph.direct,
                 &tier.paragraph,
                 &numbering.paragraph,
+                &tier.table_paragraph,
                 &defaults.paragraph,
             );
             let runs = paragraph
@@ -850,9 +958,7 @@ impl Document {
                         &tier.character_from_paragraph_style,
                         &numbering.character,
                         &defaults.character,
-                        // No table style applies outside a table cell; a table's own paragraphs are
-                        // R21's, and this reader does not descend into one.
-                        &EffectiveCharacterProperties::default(),
+                        &tier.table_character,
                     ),
                 })
                 .collect();
@@ -861,6 +967,7 @@ impl Document {
                 runs,
                 hard_breaks: paragraph.hard_breaks,
                 note_references: paragraph.note_references,
+                drawings: paragraph.drawings,
                 properties,
                 style_id: paragraph.style_id,
             });
@@ -870,10 +977,11 @@ impl Document {
         // need every length again; cutting by recorded span needs none of them.
         let header_footer_streams = header_footer_parts
             .into_iter()
-            .zip(&stream_spans)
+            .zip(stream_spans)
             .map(|(part, span)| HeaderFooterFormatting {
                 part,
                 paragraphs: span.slice(&paragraphs),
+                blocks: rebased(span.blocks.clone(), span.start),
             })
             .collect();
         let footnotes = footnotes.resolved(&paragraphs);
@@ -881,7 +989,9 @@ impl Document {
         paragraphs.truncate(body_count);
 
         Ok(DocumentFormatting {
+            top_level_paragraphs,
             paragraphs,
+            blocks,
             sections,
             settings,
             header_footer_streams,
@@ -904,10 +1014,25 @@ impl Document {
         let body = main.body().ok_or(DocxError::NoBody)?;
         let interner = &doc.interner;
 
+        // **Two passes, and the order is load-bearing.** The first reads the body's *top-level*
+        // paragraphs in exactly the order `Body::paragraphs` yields them, because that order is what
+        // `sections_in` numbers a `w:sectPr` against — a cell's paragraph interleaved here would
+        // move every section boundary in the document. The second walks the same content as a block
+        // tree, hands each top-level paragraph the index it already has, and appends only what the
+        // first pass could not see: the paragraphs inside cells.
         let mut paragraphs = Vec::new();
         for paragraph in body.paragraphs() {
             paragraphs.push(read_direct_paragraph(paragraph, theme, interner)?);
         }
+        let mut assigned = 0..paragraphs.len();
+        let blocks = walk_blocks(
+            body.content(),
+            theme,
+            interner,
+            None,
+            &mut assigned,
+            &mut paragraphs,
+        )?;
 
         let spans = super::sections::sections_in(body);
         let mut relationships: Vec<String> = Vec::new();
@@ -934,6 +1059,7 @@ impl Document {
         }
         Ok(DirectRead {
             paragraphs,
+            blocks,
             sections,
             header_footer_relationships: relationships,
         })
@@ -949,18 +1075,27 @@ impl Document {
         &mut self,
         part: &mjx_opc::PartName,
         theme: &ThemeContext,
-    ) -> Result<Vec<DirectParagraph>, DocxError> {
+    ) -> Result<(Vec<DirectParagraph>, Vec<BlockFormatting>), DocxError> {
         let Ok(doc) = self.package.part_tree(part) else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         };
         let Ok(content) = HdrFtr::from_xml(&doc.root, &doc.interner) else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         };
         let mut paragraphs = Vec::new();
         for paragraph in content.paragraphs() {
             paragraphs.push(read_direct_paragraph(paragraph, theme, &doc.interner)?);
         }
-        Ok(paragraphs)
+        let mut assigned = 0..paragraphs.len();
+        let blocks = walk_blocks(
+            content.content(),
+            theme,
+            &doc.interner,
+            None,
+            &mut assigned,
+            &mut paragraphs,
+        )?;
+        Ok((paragraphs, blocks))
     }
 
     /// `word/footnotes.xml` (or `word/endnotes.xml`), read: one entry per note, its paragraphs
@@ -984,7 +1119,12 @@ impl Document {
         // Both parts have the identical `CT_Footnotes`/`CT_Endnotes` shape, and the discriminant is
         // the root's own name rather than anything inside it — which is exactly why `mjx-docx` keeps
         // the two Rust types apart. Reading each through its own type keeps that distinction here.
-        let entries: Vec<(i64, FootnoteEndnoteType, Vec<DirectParagraph>)> = if footnotes {
+        let entries: Vec<(
+            i64,
+            FootnoteEndnoteType,
+            Vec<DirectParagraph>,
+            Vec<BlockFormatting>,
+        )> = if footnotes {
             let read = Footnotes::from_xml(&doc.root, interner)?;
             let mut collected = Vec::new();
             for note in read.footnotes() {
@@ -1001,13 +1141,14 @@ impl Document {
         };
 
         let mut streams = NoteStreams::default();
-        for (id, kind, paragraphs) in entries {
+        for (id, kind, paragraphs, blocks) in entries {
             streams.entries.push(NoteStream {
                 id,
                 kind,
                 span: StreamSpan {
                     start: into.len(),
                     length: paragraphs.len(),
+                    blocks,
                 },
             });
             into.extend(paragraphs);
@@ -1140,6 +1281,11 @@ struct ParagraphTiers {
     character_from_paragraph_style: EffectiveCharacterProperties,
     characters: Vec<EffectiveCharacterProperties>,
     style_numbering: Option<EffectiveNumberingReference>,
+    /// The table style's own contribution, already folded across every conditional region that
+    /// covers this paragraph's cell. All-`None` outside a table, which is the identity.
+    table_paragraph: EffectiveParagraphProperties,
+    /// The same for a run.
+    table_character: EffectiveCharacterProperties,
 }
 
 impl ParagraphTiers {
@@ -1150,12 +1296,16 @@ impl ParagraphTiers {
             character_from_paragraph_style: EffectiveCharacterProperties::default(),
             characters: vec![EffectiveCharacterProperties::default(); runs],
             style_numbering: None,
+            table_paragraph: EffectiveParagraphProperties::default(),
+            table_character: EffectiveCharacterProperties::default(),
         }
     }
 
     fn read(
         paragraph: &DirectParagraph,
         cache: &ChainCache<'_>,
+        index: &StyleIndex<'_>,
+        tables: &mut HashMap<TableStyleContext, TableStyleTier>,
         theme: &ThemeContext,
         interner: &Interner,
     ) -> Result<Self, DocxError> {
@@ -1171,11 +1321,64 @@ impl ParagraphTiers {
             };
             characters.push(merge_character_chain(&character_chain, theme, interner)?);
         }
+        let table = match &paragraph.table_style {
+            Some(context) => {
+                if !tables.contains_key(context) {
+                    let resolved = TableStyleTier::resolve(context, index, theme, interner)?;
+                    tables.insert(context.clone(), resolved);
+                }
+                tables.get(context).cloned().unwrap_or_default()
+            }
+            None => TableStyleTier::default(),
+        };
         Ok(Self {
             paragraph: merge_paragraph_chain(&chain, theme, interner)?,
             character_from_paragraph_style: merge_character_chain(&chain, theme, interner)?,
             characters,
             style_numbering: numbering_reference_from_chain(&chain, interner)?,
+            table_paragraph: table.paragraph,
+            table_character: table.character,
+        })
+    }
+}
+
+/// One table style's contribution to the ladder, folded over the regions that cover a cell.
+#[derive(Clone, Default)]
+struct TableStyleTier {
+    paragraph: EffectiveParagraphProperties,
+    character: EffectiveCharacterProperties,
+}
+
+impl TableStyleTier {
+    /// Resolves `context` against the style sheet, once per distinct `(style, regions)` pair.
+    ///
+    /// A `w:tblStyle` naming a style the document does not define contributes **nothing** rather
+    /// than refusing the document — the same leniency `numbering_tier` states for a `w:numPr` naming
+    /// a list that is not defined.
+    fn resolve(
+        context: &TableStyleContext,
+        index: &StyleIndex<'_>,
+        theme: &ThemeContext,
+        interner: &Interner,
+    ) -> Result<Self, DocxError> {
+        let chain = match index.based_on_chain(&context.style_id, interner) {
+            Ok(chain) => chain,
+            Err(DocxError::UnknownStyleId(_)) => return Ok(Self::default()),
+            Err(other) => return Err(other),
+        };
+        Ok(Self {
+            paragraph: super::table_regions::paragraph_properties_tier(
+                &chain,
+                &context.regions,
+                theme,
+                interner,
+            )?,
+            character: super::table_regions::run_properties_tier(
+                &chain,
+                &context.regions,
+                theme,
+                interner,
+            )?,
         })
     }
 }
@@ -1218,9 +1421,11 @@ fn read_direct_paragraph(
         runs: collected.runs,
         hard_breaks: collected.hard_breaks,
         note_references: collected.note_references,
+        drawings: collected.drawings,
         direct,
         style_id,
         own_numbering,
+        table_style: None,
     })
 }
 
@@ -1231,6 +1436,7 @@ struct Collected {
     runs: Vec<DirectRun>,
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
+    drawings: Vec<DrawingFormatting>,
 }
 
 /// Walks a paragraph's content the way `paragraph_content_text` does — descending into every
@@ -1343,6 +1549,16 @@ fn read_run(
                     id: attr(reference.id(interner))?,
                     endnote: true,
                 });
+            }
+            RunInnerContent::Drawing(drawing) => {
+                if let Some(read) = read_drawing(
+                    drawing,
+                    collected.text.len(),
+                    collected.runs.len(),
+                    interner,
+                ) {
+                    collected.drawings.push(read);
+                }
             }
             RunInnerContent::Break(value) => {
                 if let Some(kind @ (BreakType::Page | BreakType::Column)) =
@@ -1550,7 +1766,15 @@ fn read_note(
     note: &super::annotations::FootnoteEndnote,
     theme: &ThemeContext,
     interner: &Interner,
-) -> Result<(i64, FootnoteEndnoteType, Vec<DirectParagraph>), DocxError> {
+) -> Result<
+    (
+        i64,
+        FootnoteEndnoteType,
+        Vec<DirectParagraph>,
+        Vec<BlockFormatting>,
+    ),
+    DocxError,
+> {
     let id = attr(note.id(interner))?;
     // A `w:type` that is present but not one of `ST_FtnEdn`'s four values is read as `normal`, which
     // is `FootnoteEndnote::is_user_visible`'s own leniency: an untrusted file's violation of its own
@@ -1564,7 +1788,16 @@ fn read_note(
     for paragraph in note.paragraphs() {
         paragraphs.push(read_direct_paragraph(paragraph, theme, interner)?);
     }
-    Ok((id, kind, paragraphs))
+    let mut assigned = 0..paragraphs.len();
+    let blocks = walk_blocks(
+        note.content(),
+        theme,
+        interner,
+        None,
+        &mut assigned,
+        &mut paragraphs,
+    )?;
+    Ok((id, kind, paragraphs, blocks))
 }
 
 fn read_page_size(
@@ -1579,4 +1812,949 @@ fn read_page_margins(
     interner: &Interner,
 ) -> Result<Option<PageMargins>, DocxError> {
     attr(properties.page_margins(interner))
+}
+
+// =================================================================================================
+// MJXOFF-176 (R21) — drawings and tables, resolved to plain numbers.
+//
+// Everything below answers one question: *what does a box model above this crate need to know about
+// a `w:drawing` and a `w:tbl` that it must not re-derive?* The answer has the same shape the rest of
+// this module already has — every wire string parsed once, every inheritance resolved once, and no
+// `mjx-dml` type in the surface, because `mjx-layout-docx` deliberately does not depend on
+// DrawingML (see its own `Cargo.toml`, which states that as a decision rather than an omission).
+// =================================================================================================
+
+/// Four distances in EMU, in the order `w:drawing`'s own attributes name them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DrawingDistances {
+    /// `distT`.
+    pub top: i64,
+    /// `distB`.
+    pub bottom: i64,
+    /// `distL`.
+    pub left: i64,
+    /// `distR`.
+    pub right: i64,
+}
+
+/// One axis of a floating drawing's position: a named alignment or an explicit offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AxisPlacement<A> {
+    /// `wp:align` — a keyword resolved against whatever `relativeFrom` names.
+    Aligned(A),
+    /// `wp:posOffset` — a signed offset in EMU from that same origin.
+    Offset(i64),
+}
+
+/// `wp:positionH`, resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HorizontalAnchoring {
+    /// `@relativeFrom` — the frame the placement is measured in.
+    pub relative_to: HorizontalRelativeFrom,
+    /// Where in that frame.
+    pub placement: AxisPlacement<HorizontalAlignment>,
+}
+
+/// `wp:positionV`, resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerticalAnchoring {
+    /// `@relativeFrom`.
+    pub relative_to: VerticalRelativeFrom,
+    /// Where in that frame.
+    pub placement: AxisPlacement<VerticalAlignment>,
+}
+
+/// How text behaves around a floating drawing.
+///
+/// The five `wp:wrap*` elements, with the two that carry a real polygon keeping it. **The polygon's
+/// coordinates travel exactly as the file wrote them** — this module does not decide what unit they
+/// are in, because that decision is a layout reading rather than a fact and belongs beside the rest
+/// of them (`mjx_layout_docx::wrap`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WrapFormatting {
+    /// `wp:wrapNone` — the text is not displaced at all; the drawing sits behind it or in front of
+    /// it, which [`AnchoredDrawing::behind_text`] decides.
+    None,
+    /// `wp:wrapSquare` — the drawing's bounding box, plus its distances, displaces text.
+    Square {
+        /// `@wrapText` — which sides text may flow down.
+        side: WrapText,
+        /// `wp:wrapSquare`'s own four distances, which override the anchor's.
+        distance: DrawingDistances,
+    },
+    /// `wp:wrapTight` — text follows the polygon, and does not enter it.
+    Tight {
+        /// `@wrapText`.
+        side: WrapText,
+        /// `wp:wrapPolygon`'s points, in the file's own coordinates.
+        polygon: Vec<(i64, i64)>,
+        /// `@distL`.
+        distance_left: i64,
+        /// `@distR`.
+        distance_right: i64,
+    },
+    /// `wp:wrapThrough` — the same, except that text may also enter a concavity that opens to the
+    /// side, which is the whole difference between the two.
+    Through {
+        /// `@wrapText`.
+        side: WrapText,
+        /// `wp:wrapPolygon`'s points.
+        polygon: Vec<(i64, i64)>,
+        /// `@distL`.
+        distance_left: i64,
+        /// `@distR`.
+        distance_right: i64,
+    },
+    /// `wp:wrapTopAndBottom` — no text beside the drawing at all; the band it occupies is cleared
+    /// across the whole measure.
+    TopAndBottom {
+        /// `@distT`.
+        distance_top: i64,
+        /// `@distB`.
+        distance_bottom: i64,
+    },
+}
+
+/// A `wp:anchor`, resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnchoredDrawing {
+    /// The anchor's own four distances.
+    pub distance: DrawingDistances,
+    /// `wp:effectExtent` — how far the drawing's effects reach past its extent.
+    pub effect_extent: DrawingDistances,
+    /// `@behindDoc`.
+    pub behind_text: bool,
+    /// `@allowOverlap`.
+    pub allow_overlap: bool,
+    /// `@layoutInCell` — whether a drawing anchored inside a table cell is positioned against the
+    /// cell or against the page.
+    pub layout_in_cell: bool,
+    /// `@relativeHeight` — the z order.
+    pub relative_height: u32,
+    /// `@hidden`.
+    pub hidden: bool,
+    /// `wp:positionH`.
+    pub horizontal: HorizontalAnchoring,
+    /// `wp:positionV`.
+    pub vertical: VerticalAnchoring,
+    /// The wrap mode.
+    pub wrap: WrapFormatting,
+}
+
+/// Whether a drawing sits in the line or floats beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DrawingPlacement {
+    /// `wp:inline` — the drawing is a character of the line, with its own four distances.
+    Inline(DrawingDistances),
+    /// `wp:anchor` — the drawing floats.
+    Anchored(Box<AnchoredDrawing>),
+}
+
+/// One `w:drawing` in a run stream, resolved to plain numbers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrawingFormatting {
+    /// The byte of [`ParagraphFormatting::text`] the drawing sits at.
+    ///
+    /// **It contributes no character**, for the same reason a `w:footnoteReference` mark does not:
+    /// what the residency knows is *where* the object is anchored, and what it looks like is a
+    /// question for whatever draws it. See [`NoteReference`]'s own doc comment, which states the
+    /// rule this follows.
+    pub at: usize,
+    /// Which entry of [`ParagraphFormatting::runs`] holds it.
+    pub run: usize,
+    /// `wp:extent/@cx`, in EMU.
+    pub width: i64,
+    /// `wp:extent/@cy`, in EMU.
+    pub height: i64,
+    /// Inline or floating.
+    pub placement: DrawingPlacement,
+}
+
+/// One block of body content: a paragraph, or a table.
+///
+/// # Why a paragraph is an index and a table is a value
+///
+/// Every paragraph in the document — the body's own, a table cell's, a header's, a note's — lives in
+/// **one** flat list, resolved through the ladder in one pass, which is the whole reason this module
+/// exists. A block tree that owned its paragraphs would be a second copy of that list; a block tree
+/// that indexes into it is free. A table has no such list to live in, so it is owned here, and its
+/// cells hold [`BlockFormatting`]s of their own — which is exactly what makes a nested table a
+/// nested table with nothing further written for it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BlockFormatting {
+    /// The paragraph at this index of whichever list this block tree belongs to —
+    /// [`DocumentFormatting::paragraphs`] for the body, [`HeaderFooterFormatting::paragraphs`] for a
+    /// header or footer, [`NoteFormatting::paragraphs`] for a note.
+    Paragraph(usize),
+    /// A table.
+    ///
+    /// Boxed because a `TableFormatting` is two orders of magnitude larger than a paragraph index,
+    /// and a body of ten thousand paragraphs with three tables in it would otherwise pay the table's
+    /// size ten thousand times over.
+    Table(Box<TableFormatting>),
+}
+
+/// `w:tblW` and its five siblings, resolved to a unit and a number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WidthSpecification {
+    /// Which unit `value` is in.
+    pub unit: TableWidthUnit,
+    /// The number itself: twips for [`TableWidthUnit::Twips`], fiftieths of a percent for
+    /// [`TableWidthUnit::Percent`], and meaningless for the other two.
+    pub value: i64,
+}
+
+impl WidthSpecification {
+    /// The width in twips, or `None` when this specification does not state one.
+    #[must_use]
+    pub fn twips(self) -> Option<i64> {
+        match self.unit {
+            TableWidthUnit::Twips => Some(self.value),
+            _ => None,
+        }
+    }
+
+    /// The width as a fraction of its container, or `None` when it is not a percentage.
+    ///
+    /// `w:tblW@type="pct"` is in **fiftieths of a percent** (`5000` is 100 %), which is the one
+    /// place in WordprocessingML where a percentage is not `ST_Percentage`'s thousandths.
+    #[must_use]
+    pub fn fraction(self) -> Option<f64> {
+        match self.unit {
+            #[allow(clippy::cast_precision_loss)]
+            TableWidthUnit::Percent => Some(self.value as f64 / 5000.0),
+            _ => None,
+        }
+    }
+}
+
+/// One row's height request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowHeightSpecification {
+    /// `w:trHeight/@val`, in twips.
+    pub twips: i64,
+    /// `w:trHeight/@hRule`.
+    pub rule: HeightRule,
+}
+
+/// A cell's four margins, each stated or inherited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CellMarginsSpecification {
+    /// `w:top`, in twips.
+    pub top: Option<i64>,
+    /// `w:bottom`.
+    pub bottom: Option<i64>,
+    /// `w:start`/`w:left`.
+    pub start: Option<i64>,
+    /// `w:end`/`w:right`.
+    pub end: Option<i64>,
+}
+
+impl CellMarginsSpecification {
+    /// Word's own default cell margins: nothing above or below, `0.08"` (115 twips) each side.
+    ///
+    /// **`GUESS:`** ECMA-376 states no default for `w:tblCellMar`. 115 twips is what every table
+    /// Word creates writes explicitly, and a table with no side margins at all sets its text hard
+    /// against its own rules, which is immediately visible.
+    pub const WORD_DEFAULT: Self = Self {
+        top: Some(0),
+        bottom: Some(0),
+        start: Some(115),
+        end: Some(115),
+    };
+
+    /// This specification with every side `other` states and this one does not.
+    #[must_use]
+    pub fn or(self, other: Self) -> Self {
+        Self {
+            top: self.top.or(other.top),
+            bottom: self.bottom.or(other.bottom),
+            start: self.start.or(other.start),
+            end: self.end.or(other.end),
+        }
+    }
+
+    /// Every side settled as `(top, bottom, start, end)`, falling back to
+    /// [`CellMarginsSpecification::WORD_DEFAULT`].
+    #[must_use]
+    pub fn settled(self) -> (i64, i64, i64, i64) {
+        let filled = self.or(Self::WORD_DEFAULT);
+        (
+            filled.top.unwrap_or(0),
+            filled.bottom.unwrap_or(0),
+            filled.start.unwrap_or(0),
+            filled.end.unwrap_or(0),
+        )
+    }
+}
+
+/// `w:tblpPr`, resolved — a floating table's own anchoring.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FloatingTableAnchoring {
+    /// `@horzAnchor`.
+    pub horizontal_anchor: Option<HorizontalAnchor>,
+    /// `@vertAnchor`.
+    pub vertical_anchor: Option<VerticalAnchor>,
+    /// `@tblpXSpec`, when the position is a keyword.
+    pub x_alignment: Option<RelativeHorizontalAlignment>,
+    /// `@tblpX`, in twips, when it is a number.
+    pub x_twips: Option<i64>,
+    /// `@tblpYSpec`.
+    pub y_alignment: Option<RelativeVerticalAlignment>,
+    /// `@tblpY`, in twips.
+    pub y_twips: Option<i64>,
+    /// `@leftFromText`, in twips.
+    pub left_from_text: i64,
+    /// `@rightFromText`.
+    pub right_from_text: i64,
+    /// `@topFromText`.
+    pub top_from_text: i64,
+    /// `@bottomFromText`.
+    pub bottom_from_text: i64,
+}
+
+/// One `w:tc`, resolved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CellFormatting {
+    /// `w:gridSpan` — how many grid columns it covers. Never below one.
+    pub grid_span: usize,
+    /// `w:vMerge` — `Some(true)` for the anchor (`restart`), `Some(false)` for a covered
+    /// continuation, `None` for a cell in no vertical merge.
+    pub vertical_merge_anchor: Option<bool>,
+    /// `w:tcW`.
+    pub width: Option<WidthSpecification>,
+    /// `w:tcMar`, before the table's own `w:tblCellMar` fills the gaps.
+    pub margins: CellMarginsSpecification,
+    /// `w:vAlign`.
+    pub vertical_alignment: Option<VerticalJustification>,
+    /// `w:textDirection`.
+    pub text_direction: Option<TextFlowDirection>,
+    /// `w:noWrap`.
+    pub no_wrap: bool,
+    /// What is in it: paragraphs and, recursively, tables.
+    pub content: Vec<BlockFormatting>,
+}
+
+/// One `w:tr`, resolved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RowFormatting {
+    /// Its cells, in order.
+    pub cells: Vec<CellFormatting>,
+    /// `w:cantSplit` — the row moves whole to the next page rather than breaking across one.
+    pub cannot_split: bool,
+    /// `w:tblHeader` — the row repeats at the top of every page the table spans.
+    pub repeat_as_header: bool,
+    /// `w:trHeight`.
+    pub height: Option<RowHeightSpecification>,
+    /// `w:gridBefore` — grid columns left empty before the first cell.
+    pub grid_before: usize,
+    /// `w:gridAfter`.
+    pub grid_after: usize,
+    /// `w:hidden`.
+    pub hidden: bool,
+}
+
+/// One `w:tbl`, resolved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TableFormatting {
+    /// `w:tblGrid/w:gridCol/@w`, in twips, in order. The authority on how many columns there are.
+    pub grid_twips: Vec<i64>,
+    /// `w:tblLayout/@type` — absent reads as [`TableLayoutType::Autofit`], which is §17.4.52's own
+    /// default.
+    pub layout: TableLayoutType,
+    /// `w:tblW`.
+    pub width: Option<WidthSpecification>,
+    /// `w:tblInd`, in twips.
+    pub indent_twips: i64,
+    /// `w:tblCellSpacing`, in twips.
+    pub cell_spacing_twips: i64,
+    /// `w:tblCellMar` — the table-wide cell margins a cell's own `w:tcMar` overrides.
+    pub cell_margins: CellMarginsSpecification,
+    /// `w:jc` — how the table sits in its column.
+    pub alignment: Option<TableJustification>,
+    /// `w:tblpPr`, when the table floats.
+    pub floating: Option<FloatingTableAnchoring>,
+    /// `w:tblStyle/@val` — the id, for whatever resolves conditional formatting.
+    pub style_id: Option<String>,
+    /// Its rows, in order.
+    pub rows: Vec<RowFormatting>,
+}
+
+impl TableFormatting {
+    /// How many grid columns it has.
+    #[must_use]
+    pub fn column_count(&self) -> usize {
+        self.grid_twips.len()
+    }
+}
+
+/// Reads one `w:drawing` into plain numbers, or `None` when it states neither placement.
+fn read_drawing(
+    drawing: &super::drawing::Drawing,
+    at: usize,
+    run: usize,
+    interner: &Interner,
+) -> Option<DrawingFormatting> {
+    if let Some(inline) = drawing.inline() {
+        let extent = inline.extent(interner);
+        return Some(DrawingFormatting {
+            at,
+            run,
+            width: extent.map_or(0, |size| size.width.emu()),
+            height: extent.map_or(0, |size| size.height.emu()),
+            placement: DrawingPlacement::Inline(DrawingDistances {
+                top: emu_or_zero(inline.distance_top(interner)),
+                bottom: emu_or_zero(inline.distance_bottom(interner)),
+                left: emu_or_zero(inline.distance_left(interner)),
+                right: emu_or_zero(inline.distance_right(interner)),
+            }),
+        });
+    }
+    let anchor = drawing.anchor()?;
+    let extent = anchor.extent(interner);
+    let effect = anchor.effect_extent(interner);
+    let horizontal = anchor
+        .position_horizontal(interner)
+        .and_then(|position| {
+            Some(HorizontalAnchoring {
+                relative_to: position.relative_from()?,
+                placement: match position.value()? {
+                    mjx_dml::wordprocessing_drawing::PositionValue::Align(alignment) => {
+                        AxisPlacement::Aligned(alignment)
+                    }
+                    mjx_dml::wordprocessing_drawing::PositionValue::Offset(offset) => {
+                        AxisPlacement::Offset(offset.emu())
+                    }
+                },
+            })
+        })
+        .unwrap_or(HorizontalAnchoring {
+            // A malformed `wp:positionH` is read as *no displacement from the column* rather than
+            // refused: an anchor whose position will not parse still has an extent, and dropping the
+            // whole drawing would lose an object a reader can see.
+            relative_to: HorizontalRelativeFrom::Column,
+            placement: AxisPlacement::Offset(0),
+        });
+    let vertical = anchor
+        .position_vertical(interner)
+        .and_then(|position| {
+            Some(VerticalAnchoring {
+                relative_to: position.relative_from()?,
+                placement: match position.value()? {
+                    mjx_dml::wordprocessing_drawing::PositionValue::Align(alignment) => {
+                        AxisPlacement::Aligned(alignment)
+                    }
+                    mjx_dml::wordprocessing_drawing::PositionValue::Offset(offset) => {
+                        AxisPlacement::Offset(offset.emu())
+                    }
+                },
+            })
+        })
+        .unwrap_or(VerticalAnchoring {
+            relative_to: VerticalRelativeFrom::Paragraph,
+            placement: AxisPlacement::Offset(0),
+        });
+    let distance = DrawingDistances {
+        top: emu_or_zero(anchor.distance_top(interner)),
+        bottom: emu_or_zero(anchor.distance_bottom(interner)),
+        left: emu_or_zero(anchor.distance_left(interner)),
+        right: emu_or_zero(anchor.distance_right(interner)),
+    };
+    Some(DrawingFormatting {
+        at,
+        run,
+        width: extent.map_or(0, |size| size.width.emu()),
+        height: extent.map_or(0, |size| size.height.emu()),
+        placement: DrawingPlacement::Anchored(Box::new(AnchoredDrawing {
+            distance,
+            effect_extent: DrawingDistances {
+                top: effect.as_ref().map_or(0, |extent| {
+                    extent
+                        .top(interner)
+                        .ok()
+                        .map_or(0, mjx_ooxml_core::measure::Emu::emu)
+                }),
+                bottom: effect.as_ref().map_or(0, |extent| {
+                    extent
+                        .bottom(interner)
+                        .ok()
+                        .map_or(0, mjx_ooxml_core::measure::Emu::emu)
+                }),
+                left: effect.as_ref().map_or(0, |extent| {
+                    extent
+                        .left(interner)
+                        .ok()
+                        .map_or(0, mjx_ooxml_core::measure::Emu::emu)
+                }),
+                right: effect.as_ref().map_or(0, |extent| {
+                    extent
+                        .right(interner)
+                        .ok()
+                        .map_or(0, mjx_ooxml_core::measure::Emu::emu)
+                }),
+            },
+            behind_text: anchor.behind_doc(interner).ok().unwrap_or(false),
+            allow_overlap: anchor.allow_overlap(interner).ok().unwrap_or(true),
+            layout_in_cell: anchor.layout_in_cell(interner).ok().unwrap_or(true),
+            relative_height: anchor.relative_height(interner).ok().unwrap_or(0),
+            hidden: anchor.hidden(interner).ok().flatten().unwrap_or(false),
+            horizontal,
+            vertical,
+            wrap: read_wrap(anchor, distance, interner),
+        })),
+    })
+}
+
+/// Which of the five `wp:wrap*` elements the anchor carries, resolved.
+///
+/// An anchor with no wrap element at all is read as `wp:wrapNone`: the schema requires one, a file
+/// that states none has told us nothing about displacement, and *not displacing text* is the reading
+/// that cannot move a line that Word would have left alone.
+fn read_wrap(
+    anchor: &mjx_dml::wordprocessing_drawing::Anchor,
+    inherited: DrawingDistances,
+    interner: &Interner,
+) -> WrapFormatting {
+    use mjx_dml::wordprocessing_drawing::Wrap;
+    let Some(wrap) = anchor.wrap(interner) else {
+        return WrapFormatting::None;
+    };
+    match wrap {
+        Wrap::None(_) => WrapFormatting::None,
+        Wrap::Square(square) => WrapFormatting::Square {
+            side: square
+                .wrap_text(interner)
+                .ok()
+                .unwrap_or(WrapText::BothSides),
+            distance: DrawingDistances {
+                top: square
+                    .distance_top(interner)
+                    .ok()
+                    .flatten()
+                    .map_or(inherited.top, mjx_ooxml_core::measure::Emu::emu),
+                bottom: square
+                    .distance_bottom(interner)
+                    .ok()
+                    .flatten()
+                    .map_or(inherited.bottom, mjx_ooxml_core::measure::Emu::emu),
+                left: square
+                    .distance_left(interner)
+                    .ok()
+                    .flatten()
+                    .map_or(inherited.left, mjx_ooxml_core::measure::Emu::emu),
+                right: square
+                    .distance_right(interner)
+                    .ok()
+                    .flatten()
+                    .map_or(inherited.right, mjx_ooxml_core::measure::Emu::emu),
+            },
+        },
+        Wrap::Tight(outline) => {
+            let (side, polygon, left, right) = read_outline(&outline, inherited, interner);
+            WrapFormatting::Tight {
+                side,
+                polygon,
+                distance_left: left,
+                distance_right: right,
+            }
+        }
+        Wrap::Through(outline) => {
+            let (side, polygon, left, right) = read_outline(&outline, inherited, interner);
+            WrapFormatting::Through {
+                side,
+                polygon,
+                distance_left: left,
+                distance_right: right,
+            }
+        }
+        Wrap::TopAndBottom(band) => WrapFormatting::TopAndBottom {
+            distance_top: band
+                .distance_top(interner)
+                .ok()
+                .flatten()
+                .map_or(inherited.top, mjx_ooxml_core::measure::Emu::emu),
+            distance_bottom: band
+                .distance_bottom(interner)
+                .ok()
+                .flatten()
+                .map_or(inherited.bottom, mjx_ooxml_core::measure::Emu::emu),
+        },
+    }
+}
+
+/// The half of `wp:wrapTight`/`wp:wrapThrough` the two share.
+fn read_outline(
+    outline: &mjx_dml::wordprocessing_drawing::WrapOutline,
+    inherited: DrawingDistances,
+    interner: &Interner,
+) -> (WrapText, Vec<(i64, i64)>, i64, i64) {
+    let mut polygon: Vec<(i64, i64)> = Vec::new();
+    if let Some(path) = outline.polygon(interner) {
+        if let Some(start) = path.start(interner) {
+            polygon.push((start.x.emu(), start.y.emu()));
+        }
+        for point in path.line_to(interner) {
+            polygon.push((point.x.emu(), point.y.emu()));
+        }
+    }
+    (
+        outline
+            .wrap_text(interner)
+            .ok()
+            .unwrap_or(WrapText::BothSides),
+        polygon,
+        outline
+            .distance_left(interner)
+            .ok()
+            .flatten()
+            .map_or(inherited.left, mjx_ooxml_core::measure::Emu::emu),
+        outline
+            .distance_right(interner)
+            .ok()
+            .flatten()
+            .map_or(inherited.right, mjx_ooxml_core::measure::Emu::emu),
+    )
+}
+
+/// A `ST_TwipsMeasure` wire value in twips, or `None` when it will not parse.
+///
+/// The union's second arm is a `ST_UniversalMeasure` string — `w:tblGrid/w:gridCol@w="0.5in"` is
+/// schema-legal — which is exactly why this goes through `mjx_ooxml_types::support` rather than
+/// through `parse::<i64>`.
+fn twips_of(measure: &mjx_ooxml_types::shared::TwipsMeasure) -> Option<i64> {
+    mjx_ooxml_types::support::universal_measure::twips_from_wire(measure.to_wire())
+}
+
+/// The same for `ST_SignedTwipsMeasure`, whose bare arm may be negative.
+fn signed_twips_of(measure: &mjx_ooxml_types::wordprocessingml::SignedTwipsMeasure) -> Option<i64> {
+    mjx_ooxml_types::support::universal_measure::twips_from_wire(measure.to_wire())
+}
+
+/// An optional EMU attribute, in EMU, treating both absence and a value that will not parse as zero.
+fn emu_or_zero(
+    read: Result<Option<mjx_ooxml_core::measure::Emu>, mjx_ooxml_core::AttributeError>,
+) -> i64 {
+    read.ok()
+        .flatten()
+        .map_or(0, mjx_ooxml_core::measure::Emu::emu)
+}
+
+/// One `CT_TblWidth`-shaped element, resolved.
+///
+/// A `w` without a `type` is not readable — [`TableWidth::measure`] is what enforces that — so a
+/// malformed one contributes nothing rather than a number in a unit nobody stated.
+fn read_width(width: Option<&TableWidth>, interner: &Interner) -> Option<WidthSpecification> {
+    let measure = width?.measure(interner).ok()?;
+    let raw = measure.value.0.trim().to_owned();
+    let value = match measure.unit {
+        TableWidthUnit::Twips => {
+            mjx_ooxml_types::support::universal_measure::twips_from_wire(&raw)?
+        }
+        TableWidthUnit::Percent => {
+            // `pct` is fiftieths of a percent as a bare number, and Word also writes `"50%"` here;
+            // both are legal `ST_MeasurementOrPercent` and both mean the same thing.
+            match raw.strip_suffix('%') {
+                Some(number) => number.trim().parse::<f64>().ok().map(|percent| {
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        (percent * 50.0).round() as i64
+                    }
+                })?,
+                None => raw.parse::<i64>().ok()?,
+            }
+        }
+        TableWidthUnit::Auto | TableWidthUnit::Nil => 0,
+    };
+    Some(WidthSpecification {
+        unit: measure.unit,
+        value,
+    })
+}
+
+/// `w:tblCellMar` or `w:tcMar`, resolved — a table's four sides.
+fn read_table_cell_margins(
+    margins: Option<&TableCellMargins>,
+    interner: &Interner,
+) -> CellMarginsSpecification {
+    let Some(margins) = margins else {
+        return CellMarginsSpecification::default();
+    };
+    CellMarginsSpecification {
+        top: read_width(margins.top(), interner).and_then(WidthSpecification::twips),
+        bottom: read_width(margins.bottom(), interner).and_then(WidthSpecification::twips),
+        start: read_width(margins.start().or_else(|| margins.left()), interner)
+            .and_then(WidthSpecification::twips),
+        end: read_width(margins.end().or_else(|| margins.right()), interner)
+            .and_then(WidthSpecification::twips),
+    }
+}
+
+/// The same for a single cell's `w:tcMar`.
+fn read_cell_margins(
+    margins: Option<&CellMargins>,
+    interner: &Interner,
+) -> CellMarginsSpecification {
+    let Some(margins) = margins else {
+        return CellMarginsSpecification::default();
+    };
+    CellMarginsSpecification {
+        top: read_width(margins.top(), interner).and_then(WidthSpecification::twips),
+        bottom: read_width(margins.bottom(), interner).and_then(WidthSpecification::twips),
+        start: read_width(margins.start().or_else(|| margins.left()), interner)
+            .and_then(WidthSpecification::twips),
+        end: read_width(margins.end().or_else(|| margins.right()), interner)
+            .and_then(WidthSpecification::twips),
+    }
+}
+
+/// Which table style, and which of its conditional regions, a cell's paragraph is under.
+///
+/// Recorded during the direct read and resolved once per distinct `(style, regions)` pair in the one
+/// pass that has the [`StyleIndex`] — the same "read once, resolve many" shape every other tier in
+/// this module already has. A paragraph outside a table carries `None`, which is the identity.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct TableStyleContext {
+    style_id: String,
+    regions: Vec<super::table_regions::ConditionalFormatRegion>,
+}
+
+/// Walks a block-level content list, appending every paragraph it finds to `paragraphs` and
+/// returning the block tree that indexes them.
+///
+/// `assigned` is the index the *next* top-level paragraph already has: a stream's own paragraphs were
+/// read into `paragraphs` before this walk (they are what [`Body::paragraphs`] and therefore
+/// `sections_in` number), so this walk must hand them their existing indices rather than reading
+/// them a second time. A paragraph inside a cell has no such index, so it is read here and appended.
+fn walk_blocks(
+    content: &[BlockContent],
+    theme: &ThemeContext,
+    interner: &Interner,
+    style: Option<&TableStyleContext>,
+    assigned: &mut std::ops::Range<usize>,
+    paragraphs: &mut Vec<DirectParagraph>,
+) -> Result<Vec<BlockFormatting>, DocxError> {
+    let mut blocks = Vec::new();
+    for item in content {
+        match item {
+            BlockContent::Paragraph(paragraph) => {
+                let index = match assigned.next() {
+                    Some(index) => index,
+                    None => {
+                        let mut read = read_direct_paragraph(paragraph, theme, interner)?;
+                        read.table_style = style.cloned();
+                        paragraphs.push(read);
+                        paragraphs.len() - 1
+                    }
+                };
+                blocks.push(BlockFormatting::Paragraph(index));
+            }
+            BlockContent::Table(table) => {
+                blocks.push(BlockFormatting::Table(Box::new(read_table(
+                    table, theme, interner, paragraphs,
+                )?)));
+            }
+            _ => {}
+        }
+    }
+    Ok(blocks)
+}
+
+/// One `w:tbl`, resolved — its grid, its properties, and every row and cell beneath it.
+fn read_table(
+    table: &super::tables::Table,
+    theme: &ThemeContext,
+    interner: &Interner,
+    paragraphs: &mut Vec<DirectParagraph>,
+) -> Result<TableFormatting, DocxError> {
+    let properties = table.properties();
+    let grid_twips: Vec<i64> = table.grid().map_or_else(Vec::new, |grid| {
+        grid.columns()
+            .map(|column| {
+                column
+                    .width(interner)
+                    .ok()
+                    .flatten()
+                    .and_then(|measure| twips_of(&measure))
+                    .unwrap_or(0)
+            })
+            .collect()
+    });
+    let style_id = properties
+        .map(|value| attr(value.style_id(interner)))
+        .transpose()?
+        .flatten();
+    let look = super::table_regions::TableLookFlags::from_look(
+        properties.and_then(TableProperties::look),
+        interner,
+    )
+    .map_err(|error| DocxError::from(mjx_ooxml_core::FromXmlError::from(error)))?;
+    let row_band_size = properties
+        .map(|value| attr(value.effective_row_band_size(interner)))
+        .transpose()?
+        .unwrap_or(1);
+    let column_band_size = properties
+        .map(|value| attr(value.effective_column_band_size(interner)))
+        .transpose()?
+        .unwrap_or(1);
+
+    let row_count = table.row_count();
+    let column_count = grid_twips.len().max(table.column_count());
+    let mut rows = Vec::with_capacity(row_count);
+    for (row_index, row) in table.rows().enumerate() {
+        let row_properties = row.properties();
+        let mut cells = Vec::new();
+        let mut column_index = row_properties
+            .and_then(|value| value.grid_before(interner).ok().flatten())
+            .map_or(0_usize, |value| usize::try_from(value).unwrap_or(0));
+        for cell in row.cells() {
+            let cell_properties = cell.properties();
+            let span = cell.column_span(interner);
+            let regions = style_id.as_ref().map(|id| TableStyleContext {
+                style_id: id.clone(),
+                regions: super::table_regions::applicable_regions(
+                    row_index,
+                    column_index,
+                    row_count,
+                    column_count,
+                    look,
+                    row_band_size,
+                    column_band_size,
+                ),
+            });
+            let mut nothing = 0..0;
+            let content = walk_blocks(
+                cell.content(),
+                theme,
+                interner,
+                regions.as_ref(),
+                &mut nothing,
+                paragraphs,
+            )?;
+            cells.push(CellFormatting {
+                grid_span: span,
+                vertical_merge_anchor: cell
+                    .vertical_merge_kind(interner)
+                    .map(|kind| matches!(kind, MergedCellType::Restart)),
+                width: read_width(cell_properties.and_then(CellProperties::width), interner),
+                margins: read_cell_margins(
+                    cell_properties.and_then(CellProperties::margins),
+                    interner,
+                ),
+                vertical_alignment: cell_properties
+                    .and_then(CellProperties::vertical_alignment)
+                    .map(|value| attr(value.value(interner)))
+                    .transpose()?,
+                text_direction: cell_properties
+                    .and_then(CellProperties::text_direction)
+                    .map(|value| attr(value.value(interner)))
+                    .transpose()?
+                    .flatten(),
+                no_wrap: cell_properties
+                    .map(|value| attr(value.no_wrap(interner)))
+                    .transpose()?
+                    .flatten()
+                    .unwrap_or(false),
+                content,
+            });
+            column_index += span;
+        }
+        rows.push(RowFormatting {
+            cells,
+            cannot_split: row_properties
+                .map(|value| attr(value.cant_split(interner)))
+                .transpose()?
+                .flatten()
+                .unwrap_or(false),
+            repeat_as_header: row_properties
+                .map(|value| attr(value.table_header(interner)))
+                .transpose()?
+                .flatten()
+                .unwrap_or(false),
+            height: row_properties
+                .and_then(super::table_properties::RowProperties::height)
+                .and_then(|height| {
+                    let twips = twips_of(&height.height(interner).ok().flatten()?)?;
+                    Some(RowHeightSpecification {
+                        twips,
+                        rule: height
+                            .rule(interner)
+                            .ok()
+                            .flatten()
+                            .unwrap_or(HeightRule::AtLeast),
+                    })
+                }),
+            grid_before: row_properties
+                .and_then(|value| value.grid_before(interner).ok().flatten())
+                .map_or(0, |value| usize::try_from(value).unwrap_or(0)),
+            grid_after: row_properties
+                .and_then(|value| value.grid_after(interner).ok().flatten())
+                .map_or(0, |value| usize::try_from(value).unwrap_or(0)),
+            hidden: row_properties
+                .map(|value| attr(value.hidden(interner)))
+                .transpose()?
+                .flatten()
+                .unwrap_or(false),
+        });
+    }
+
+    Ok(TableFormatting {
+        grid_twips,
+        layout: properties
+            .and_then(TableProperties::layout)
+            .and_then(|value| value.layout(interner).ok().flatten())
+            .unwrap_or(TableLayoutType::Autofit),
+        width: read_width(properties.and_then(TableProperties::width), interner),
+        indent_twips: read_width(properties.and_then(TableProperties::indent), interner)
+            .and_then(WidthSpecification::twips)
+            .unwrap_or(0),
+        cell_spacing_twips: read_width(
+            properties.and_then(TableProperties::cell_spacing),
+            interner,
+        )
+        .and_then(WidthSpecification::twips)
+        .unwrap_or(0),
+        cell_margins: read_table_cell_margins(
+            properties.and_then(TableProperties::cell_margins),
+            interner,
+        ),
+        alignment: properties
+            .and_then(TableProperties::justification)
+            .map(|value| attr(value.value(interner)))
+            .transpose()?,
+        floating: properties
+            .and_then(TableProperties::floating_position)
+            .map(|position| -> Result<FloatingTableAnchoring, DocxError> {
+                Ok(FloatingTableAnchoring {
+                    horizontal_anchor: attr(position.horizontal_anchor(interner))?,
+                    vertical_anchor: attr(position.vertical_anchor(interner))?,
+                    x_alignment: attr(position.x_alignment(interner))?,
+                    x_twips: attr(position.x(interner))?
+                        .as_ref()
+                        .and_then(signed_twips_of),
+                    y_alignment: attr(position.y_alignment(interner))?,
+                    y_twips: attr(position.y(interner))?
+                        .as_ref()
+                        .and_then(signed_twips_of),
+                    left_from_text: attr(position.left_from_text(interner))?
+                        .as_ref()
+                        .and_then(twips_of)
+                        .unwrap_or(0),
+                    right_from_text: attr(position.right_from_text(interner))?
+                        .as_ref()
+                        .and_then(twips_of)
+                        .unwrap_or(0),
+                    top_from_text: attr(position.top_from_text(interner))?
+                        .as_ref()
+                        .and_then(twips_of)
+                        .unwrap_or(0),
+                    bottom_from_text: attr(position.bottom_from_text(interner))?
+                        .as_ref()
+                        .and_then(twips_of)
+                        .unwrap_or(0),
+                })
+            })
+            .transpose()?,
+        style_id,
+        rows,
+    })
 }

@@ -54,23 +54,28 @@ use mjx_layout::{
 use mjx_ooxml_core::measure::Emu;
 use mjx_ooxml_types::wordprocessingml::{
     EndnotePosition, FootnoteEndnoteType, FootnotePosition, LineNumberRestart, NumberFormat,
-    NumberingRestartLocation,
+    NumberingRestartLocation, VerticalJustification,
 };
 use mjx_text::{
     FeatureSet, FontResolver, FontSize, GlyphRasteriser, Hyphenator, ShapingRequest, TextScript,
 };
 
 use crate::address;
+use crate::block::BlockLayout;
 use crate::checkpoint::Continuation;
 use crate::decoration::{DecorationCatalogue, ParagraphDecoration};
 use crate::error::DocumentLayoutError;
+use crate::float::Anchorage;
 use crate::flow::{lay_out, FlowContext, ParagraphLayout};
 use crate::justify::points;
 use crate::notes::{self, DemandedNote, NoteArea, NoteCarry, NoteContent};
 use crate::numbering::{format_number, is_numbered};
-use crate::paginate::{assemble, FlowPosition, LayoutCache, PageAssembly, PageShape};
+use crate::paginate::{
+    assemble, FlowPosition, FlowProgram, LayoutCache, LayoutRequest, PageAssembly, PageShape,
+};
 use crate::section::{required_parity, starts_a_page, SectionGeometry};
 use crate::stream::{lay_out_stream, StreamLayout};
+use crate::table::{self, TableContext};
 use crate::tabs::leader_character;
 use crate::text::TextEngine;
 
@@ -113,6 +118,7 @@ struct FlowSection {
 pub struct DocumentFlow {
     formatting: DocumentFormatting,
     program: Vec<ParagraphFormatting>,
+    blocks: Vec<mjx_docx::BlockFormatting>,
     origins: Vec<FlowOrigin>,
     sections: Vec<FlowSection>,
     footnote_prefix: Vec<u32>,
@@ -131,11 +137,12 @@ impl DocumentFlow {
     /// The same from a [`DocumentFormatting`] a caller already holds.
     #[must_use]
     pub fn from_formatting(formatting: DocumentFormatting) -> Self {
-        let (program, origins, sections) = build_program(&formatting);
-        let footnote_prefix = prefix_of_references(&program, false);
+        let (program, blocks, origins, sections) = build_program(&formatting);
+        let footnote_prefix = prefix_of_references(&program, &blocks, false);
         Self {
             formatting,
             program,
+            blocks,
             origins,
             sections,
             footnote_prefix,
@@ -170,10 +177,42 @@ impl DocumentFlow {
         self.origins.get(index).copied()
     }
 
-    /// How many paragraphs the flow holds — the number the continuation state guards against.
+    /// How many paragraphs the flow holds.
     #[must_use]
     pub fn paragraph_count(&self) -> usize {
         self.program.len()
+    }
+
+    /// The blocks the flow lays out, in order: the body's paragraphs and tables, with each endnote's
+    /// paragraphs spliced in at the end of the scope it belongs to.
+    #[must_use]
+    pub fn blocks(&self) -> &[mjx_docx::BlockFormatting] {
+        &self.blocks
+    }
+
+    /// How many blocks the flow holds — the number the continuation state guards against, because a
+    /// [`FlowPosition`] addresses a **block** and not a paragraph.
+    #[must_use]
+    pub fn block_count(&self) -> usize {
+        self.blocks.len()
+    }
+
+    /// Which paragraph of [`DocumentFlow::flowed_paragraphs`] block `index` is, when it is one.
+    #[must_use]
+    pub fn paragraph_of_block(&self, index: usize) -> Option<usize> {
+        match self.blocks.get(index)? {
+            mjx_docx::BlockFormatting::Paragraph(at) => Some(*at),
+            mjx_docx::BlockFormatting::Table(_) => None,
+        }
+    }
+
+    /// The program a column is filled from.
+    #[must_use]
+    pub fn flow_program(&self) -> FlowProgram<'_> {
+        FlowProgram {
+            blocks: &self.blocks,
+            paragraphs: &self.program,
+        }
     }
 
     /// Which section governs flow index `index`.
@@ -202,34 +241,83 @@ impl DocumentFlow {
     }
 }
 
-/// The flow's paragraphs, where each came from, and the sections in flow indices.
+/// The flow's paragraphs, its blocks, where each paragraph came from, and the sections in flow
+/// indices.
+///
+/// # Why the paragraph list is copied whole and the block list is rebuilt
+///
+/// `mjx-docx` already holds every paragraph of the document in **one** flat list, resolved once —
+/// the body's top-level ones first, then the ones inside its tables' cells — and a
+/// [`mjx_docx::BlockFormatting`] indexes into it. That list is taken verbatim, so a block's
+/// paragraph index means the same thing here as it does there and no renumbering is possible. What
+/// *is* rebuilt is the block list, because the flow is not the body: an endnote's paragraphs are
+/// spliced into it at the end of the scope they belong to (§17.11.3), and they have no place in the
+/// body's own order.
 fn build_program(
     formatting: &DocumentFormatting,
-) -> (Vec<ParagraphFormatting>, Vec<FlowOrigin>, Vec<FlowSection>) {
+) -> (
+    Vec<ParagraphFormatting>,
+    Vec<mjx_docx::BlockFormatting>,
+    Vec<FlowOrigin>,
+    Vec<FlowSection>,
+) {
+    use mjx_docx::BlockFormatting;
+
     let body = formatting.paragraphs();
-    let mut program: Vec<ParagraphFormatting> = Vec::with_capacity(body.len());
-    let mut origins: Vec<FlowOrigin> = Vec::with_capacity(body.len());
+    let body_blocks = formatting.blocks();
+    let mut program: Vec<ParagraphFormatting> = body.to_vec();
+    let mut origins: Vec<FlowOrigin> = (0..program.len()).map(FlowOrigin::Body).collect();
+    let mut blocks: Vec<BlockFormatting> = Vec::with_capacity(body_blocks.len());
     let mut sections: Vec<FlowSection> = Vec::new();
     let mut deferred: Vec<usize> = Vec::new();
 
+    // Where each top-level body paragraph sits in the body's own block list, so a section stated in
+    // paragraph indices can be turned into one stated in block indices.
+    let mut block_of_paragraph: Vec<usize> = vec![0; formatting.top_level_paragraph_count()];
+    for (position, block) in body_blocks.iter().enumerate() {
+        if let BlockFormatting::Paragraph(index) = block {
+            if let Some(slot) = block_of_paragraph.get_mut(*index) {
+                *slot = position;
+            }
+        }
+    }
+    let section_count = formatting.sections().len();
+
+    // A running cursor over the body's blocks, so that every block belongs to exactly one section
+    // and nothing between two paragraphs is orphaned. A section stated in *paragraph* indices ends
+    // at the block its last paragraph is; the tables after it belong to the section that follows,
+    // which is what a `w:sectPr` inside a `w:pPr` means — it ends the section **at that paragraph**.
+    let mut cursor = 0_usize;
     let mut placed_notes: Vec<bool> = vec![false; formatting.endnotes().len()];
     for (index, section) in formatting.sections().iter().enumerate() {
-        let first = program.len();
-        let Some(last_body) = section.last_paragraph else {
+        let first = blocks.len();
+        let last_section = index + 1 == section_count;
+        let to = match section.last_paragraph {
+            Some(last_body) if !last_section => block_of_paragraph
+                .get(last_body.min(block_of_paragraph.len().saturating_sub(1)))
+                .copied()
+                .map_or(cursor, |at| at + 1),
+            // The last section runs to the end of the body whatever its paragraph span says, so a
+            // trailing table is not orphaned — and a section that governs no paragraph at all still
+            // takes the blocks between it and the next one.
+            Some(_) | None if last_section => body_blocks.len(),
+            _ => cursor,
+        };
+        if to <= cursor && !last_section {
             sections.push(FlowSection {
                 section: index,
                 first,
                 last: None,
             });
             continue;
-        };
-        for body_index in section.first_paragraph..=last_body.min(body.len().saturating_sub(1)) {
-            let Some(paragraph) = body.get(body_index) else {
+        }
+        for position in cursor..to {
+            let Some(block) = body_blocks.get(position) else {
                 break;
             };
-            program.push(paragraph.clone());
-            origins.push(FlowOrigin::Body(body_index));
+            blocks.push(block.clone());
         }
+        cursor = to.max(cursor);
         // §17.11.3: `sectEnd` puts this section's endnotes here; anything else (including nothing,
         // which is the schema's silence) puts them at the end of the document.
         let at_section_end = section.notes.endnote_position == Some(EndnotePosition::SectionEnd)
@@ -240,7 +328,13 @@ fn build_program(
                 continue;
             }
             if at_section_end {
-                splice_note(formatting.endnotes(), note, &mut program, &mut origins);
+                splice_note(
+                    formatting.endnotes(),
+                    note,
+                    &mut program,
+                    &mut blocks,
+                    &mut origins,
+                );
                 if let Some(slot) = placed_notes.get_mut(note) {
                     *slot = true;
                 }
@@ -251,17 +345,23 @@ fn build_program(
         sections.push(FlowSection {
             section: index,
             first,
-            last: program.len().checked_sub(1).filter(|last| *last >= first),
+            last: blocks.len().checked_sub(1).filter(|last| *last >= first),
         });
     }
 
     if !deferred.is_empty() {
-        let first = program.len();
+        let first = blocks.len();
         for note in deferred {
             if placed_notes.get(note).copied().unwrap_or(true) {
                 continue;
             }
-            splice_note(formatting.endnotes(), note, &mut program, &mut origins);
+            splice_note(
+                formatting.endnotes(),
+                note,
+                &mut program,
+                &mut blocks,
+                &mut origins,
+            );
             if let Some(slot) = placed_notes.get_mut(note) {
                 *slot = true;
             }
@@ -270,8 +370,8 @@ fn build_program(
         // sheet the section that precedes them uses, which is what Word does and what a reader
         // expects — the endnote page of a landscape document is landscape.
         if let Some(last) = sections.last_mut() {
-            if program.len() > first {
-                last.last = Some(program.len() - 1);
+            if blocks.len() > first {
+                last.last = Some(blocks.len() - 1);
             }
         }
     }
@@ -279,17 +379,14 @@ fn build_program(
     if sections.is_empty() {
         // A body with no `w:sectPr` anywhere. One section governing everything, so the caller's own
         // constraints are what every page is laid out under.
-        for (index, paragraph) in body.iter().enumerate() {
-            program.push(paragraph.clone());
-            origins.push(FlowOrigin::Body(index));
-        }
+        blocks.extend(body_blocks.iter().cloned());
         sections.push(FlowSection {
             section: usize::MAX,
             first: 0,
-            last: program.len().checked_sub(1),
+            last: blocks.len().checked_sub(1),
         });
     }
-    (program, origins, sections)
+    (program, blocks, origins, sections)
 }
 
 /// Every endnote the paragraphs of `section` refer to, in reference order.
@@ -324,11 +421,16 @@ fn splice_note(
     notes: &[NoteFormatting],
     note: usize,
     program: &mut Vec<ParagraphFormatting>,
+    blocks: &mut Vec<mjx_docx::BlockFormatting>,
     origins: &mut Vec<FlowOrigin>,
 ) {
     let Some(entry) = notes.get(note) else {
         return;
     };
+    // A note's own paragraphs are appended to the flow's paragraph list — they are not in the body's
+    // — and its block tree is rebased on to where they landed, so a table inside an endnote flows
+    // exactly as one in the body does.
+    let base = program.len();
     for (index, paragraph) in entry.paragraphs().iter().enumerate() {
         program.push(paragraph.clone());
         origins.push(FlowOrigin::Endnote {
@@ -336,18 +438,41 @@ fn splice_note(
             paragraph: index,
         });
     }
+    for block in entry.blocks() {
+        blocks.push(shifted(block, base));
+    }
 }
 
-/// How many footnote (or endnote) references precede each paragraph, as a prefix sum.
-///
-/// One pass of the document, and it is what makes a note's *number* free: the *n*th reference in
-/// document order is note *n*, so no page needs to know how the pages before it were broken.
-fn prefix_of_references(program: &[ParagraphFormatting], endnotes: bool) -> Vec<u32> {
-    let mut prefix = Vec::with_capacity(program.len() + 1);
-    let mut running = 0_u32;
-    prefix.push(0);
-    for paragraph in program {
-        running = running.saturating_add(
+/// `block`, with every paragraph index in it moved up by `base`.
+fn shifted(block: &mjx_docx::BlockFormatting, base: usize) -> mjx_docx::BlockFormatting {
+    use mjx_docx::BlockFormatting;
+    match block {
+        BlockFormatting::Paragraph(index) => BlockFormatting::Paragraph(index + base),
+        BlockFormatting::Table(table) => {
+            let mut moved = table.as_ref().clone();
+            for row in &mut moved.rows {
+                for cell in &mut row.cells {
+                    cell.content = cell
+                        .content
+                        .iter()
+                        .map(|inner| shifted(inner, base))
+                        .collect();
+                }
+            }
+            BlockFormatting::Table(Box::new(moved))
+        }
+    }
+}
+
+/// How many footnote (or endnote) references one block holds, cells included.
+fn references_in(
+    program: &[ParagraphFormatting],
+    block: &mjx_docx::BlockFormatting,
+    endnotes: bool,
+) -> u32 {
+    use mjx_docx::BlockFormatting;
+    match block {
+        BlockFormatting::Paragraph(index) => program.get(*index).map_or(0, |paragraph| {
             u32::try_from(
                 paragraph
                     .note_references()
@@ -355,8 +480,33 @@ fn prefix_of_references(program: &[ParagraphFormatting], endnotes: bool) -> Vec<
                     .filter(|reference| reference.endnote == endnotes)
                     .count(),
             )
-            .unwrap_or(0),
-        );
+            .unwrap_or(0)
+        }),
+        BlockFormatting::Table(table) => table
+            .rows
+            .iter()
+            .flat_map(|row| row.cells.iter())
+            .flat_map(|cell| cell.content.iter())
+            .fold(0_u32, |total, inner| {
+                total.saturating_add(references_in(program, inner, endnotes))
+            }),
+    }
+}
+
+/// How many footnote (or endnote) references precede each paragraph, as a prefix sum.
+///
+/// One pass of the document, and it is what makes a note's *number* free: the *n*th reference in
+/// document order is note *n*, so no page needs to know how the pages before it were broken.
+fn prefix_of_references(
+    program: &[ParagraphFormatting],
+    blocks: &[mjx_docx::BlockFormatting],
+    endnotes: bool,
+) -> Vec<u32> {
+    let mut prefix = Vec::with_capacity(blocks.len() + 1);
+    let mut running = 0_u32;
+    prefix.push(0);
+    for block in blocks {
+        running = running.saturating_add(references_in(program, block, endnotes));
         prefix.push(running);
     }
     prefix
@@ -537,12 +687,15 @@ impl DocumentBoxModel {
         self.dirty_from
     }
 
-    /// Lays a paragraph out. Every call is one unit of the work the counter reports.
-    fn lay_out_paragraph(
+    /// Lays one paragraph of the flow's paragraph list out. Every call is one unit of the work the
+    /// counter reports.
+    fn lay_out_paragraph_at(
         &mut self,
         content: &DocumentFlow,
         index: usize,
         column: LayoutRect,
+        top: Emu,
+        exclusions: &[crate::wrap::Exclusion],
     ) -> Result<ParagraphLayout, DocumentLayoutError> {
         let Some(paragraph) = content.program.get(index) else {
             return Err(DocumentLayoutError::EmptyContentArea {
@@ -571,8 +724,91 @@ impl DocumentBoxModel {
                 column,
                 settings: content.formatting().settings(),
                 hyphenator: hyphenator.as_deref(),
+                top,
+                exclusions,
             },
         )?)
+    }
+
+    /// Lays one block of `content` out at `request`, without paginating anything.
+    ///
+    /// The measurement half of the box model, exposed because a caller sometimes needs a block's
+    /// size before it has a page to put it on — a table's solved column widths, a paragraph's line
+    /// count at a trial measure — and re-deriving either above this crate would be a second layout
+    /// engine.
+    ///
+    /// # Errors
+    /// [`DocumentLayoutError`] when a face will not shape, or when `block` is past the end of the
+    /// flow.
+    pub fn lay_out_block(
+        &mut self,
+        content: &DocumentFlow,
+        block: usize,
+        request: LayoutRequest<'_>,
+    ) -> Result<BlockLayout, DocumentLayoutError> {
+        self.lay_out_block_inner(content, block, request)
+    }
+
+    /// Lays one **block** of the flow out — a paragraph, or a whole table.
+    ///
+    /// A table's own cells are laid out through the same paragraph path, at the cell's measure, which
+    /// is what keeps one line-breaking engine in the crate rather than two.
+    fn lay_out_block_inner(
+        &mut self,
+        content: &DocumentFlow,
+        index: usize,
+        request: LayoutRequest<'_>,
+    ) -> Result<BlockLayout, DocumentLayoutError> {
+        let column = LayoutRect::from_edges(
+            Emu::ZERO,
+            Emu::ZERO,
+            request.width,
+            crate::stream::UNBOUNDED_HEIGHT,
+        );
+        match content.blocks.get(index) {
+            Some(mjx_docx::BlockFormatting::Paragraph(at)) => {
+                let at = *at;
+                Ok(BlockLayout::Paragraph(self.lay_out_paragraph_at(
+                    content,
+                    at,
+                    column,
+                    request.top,
+                    request.exclusions,
+                )?))
+            }
+            Some(mjx_docx::BlockFormatting::Table(table)) => {
+                let table = table.clone();
+                let settings = *content.formatting().settings();
+                let mut cell_of = |paragraph: usize, request: LayoutRequest<'_>| {
+                    self.lay_out_paragraph_at(
+                        content,
+                        paragraph,
+                        LayoutRect::from_edges(
+                            Emu::ZERO,
+                            Emu::ZERO,
+                            request.width,
+                            crate::stream::UNBOUNDED_HEIGHT,
+                        ),
+                        request.top,
+                        request.exclusions,
+                    )
+                };
+                let laid = table::lay_out(
+                    &table,
+                    TableContext {
+                        available: request.width,
+                        paragraphs: &content.program,
+                        settings: &settings,
+                    },
+                    &mut cell_of,
+                )?;
+                Ok(BlockLayout::Table(Box::new(laid)))
+            }
+            None => Err(DocumentLayoutError::EmptyContentArea {
+                width: request.width.emu(),
+                height: Emu::ZERO.emu(),
+            }),
+        }
     }
 
     /// Lays a secondary stream out — a header, a footer or a note.
@@ -611,7 +847,7 @@ impl DocumentBoxModel {
 /// A page holds more than one only after a `continuous` section break, which is what "continuous"
 /// means — the next section carries on **below** this one on the same sheet, with its own column
 /// count. That is why a page is a stack of groups rather than a list of columns.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 struct ColumnGroup {
     section: usize,
     geometry: SectionGeometry,
@@ -635,7 +871,7 @@ struct BodyPlan {
 }
 
 /// What filling one page's body produced.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 struct BodyFill {
     groups: Vec<ColumnGroup>,
     next: Option<FlowPosition>,
@@ -697,13 +933,13 @@ impl DocumentBoxModel {
     ) -> Result<LaidPage, DocumentLayoutError> {
         let settings = *content.formatting().settings();
         let section = content
-            .section_at(state.position.paragraph as usize)
+            .section_at(state.position.block as usize)
             .unwrap_or(0);
         let first_of_section = content
             .sections
             .get(section)
-            .is_some_and(|span| span.first == state.position.paragraph as usize)
-            && state.position.line == 0;
+            .is_some_and(|span| span.first == state.position.block as usize)
+            && state.position.unit == 0;
         let geometry = SectionGeometry::of(
             content.section(section),
             constraints,
@@ -941,28 +1177,50 @@ impl DocumentBoxModel {
             // ticket names: a multi-column section that simply runs out of document keeps its short
             // last column, and adding a trailing continuous break is the thing that levels them.
             let balance = following_is_continuous(content, current);
+            let column_width = widths.first().copied().unwrap_or_else(|| body.width());
+            // The frames a float anchored on this page is measured against, in the **column's** own
+            // coordinates: `x` from the column's left edge, `y` from the top of this column group.
+            // A page-relative anchor therefore reaches negative x, which is exactly right — the
+            // page's left edge is to the left of the text.
+            let frame = Anchorage {
+                column_width,
+                // The **body's** height and not this assembly's, so that a float's position does not
+                // move when the note area's reservation does — see `crate::paginate::fill_at`, which
+                // is where the reason is written out, and `crate::notes` for the proof it preserves.
+                column_height: body.height(),
+                page_left: Emu::ZERO - body.left,
+                page_right: geometry.page.width - body.left,
+                page_top: Emu::ZERO - body.top - y,
+                page_bottom: geometry.page.height - body.top - y,
+                // The margin box's own left edge, in the column's coordinates: the body area
+                // *is* the margin box, so this is zero by construction rather than by choice.
+                margin_left: Emu::ZERO,
+                margin_right: body.width(),
+                margin_top: Emu::ZERO - y,
+                margin_bottom: body.height() - y,
+                paragraph_top: Emu::ZERO,
+                paragraph_left: Emu::ZERO,
+            };
             let shape = PageShape {
                 height: available,
                 columns: geometry.column_count(),
                 widths: &widths,
-                width: widths.first().copied().unwrap_or_else(|| body.width()),
+                width: column_width,
                 section_last,
                 balance,
+                frame,
             };
             let assembly = {
-                let mut layout_of = |index: usize, measure: Emu| {
-                    self.lay_out_paragraph(
-                        content,
-                        index,
-                        LayoutRect::from_edges(
-                            Emu::ZERO,
-                            Emu::ZERO,
-                            measure,
-                            crate::stream::UNBOUNDED_HEIGHT,
-                        ),
-                    )
+                let mut layout_of = |index: usize, request: LayoutRequest<'_>| {
+                    self.lay_out_block_inner(content, index, request)
                 };
-                assemble(&content.program, start, shape, layouts, &mut layout_of)?
+                assemble(
+                    content.flow_program(),
+                    start,
+                    shape,
+                    layouts,
+                    &mut layout_of,
+                )?
             };
             let used = assembly.used();
             let next = assembly.next;
@@ -1098,19 +1356,28 @@ impl DocumentBoxModel {
         body: LayoutRect,
         full: Emu,
     ) -> Result<Emu, DocumentLayoutError> {
-        let index = position.paragraph as usize;
-        if index >= content.program.len() {
+        let index = position.block as usize;
+        if index >= content.blocks.len() {
             // No body content is left at all, so there is no first line to protect and the notes may
             // have the sheet. This is the case that lets a document whose last footnote is taller
             // than a page finish at all.
             return Ok(full);
         }
-        let layout = self.lay_out_paragraph(content, index, body)?;
-        let first = layout
-            .lines
-            .get(position.line as usize)
-            .or_else(|| layout.lines.first())
-            .map_or(Emu::ZERO, |line| line.height);
+        let layout = self.lay_out_block_inner(
+            content,
+            index,
+            LayoutRequest {
+                width: body.width(),
+                top: Emu::ZERO,
+                exclusions: &[],
+            },
+        )?;
+        let first = layout.unit_height(position.unit as usize);
+        let first = if first > Emu::ZERO {
+            first
+        } else {
+            layout.unit_height(0)
+        };
         Ok((full - first).maximum(Emu::ZERO))
     }
 
@@ -1189,21 +1456,30 @@ fn demanded_notes(
     let mut on_page = 0_i64;
     for group in &fill.groups {
         for (column, block) in group.assembly.blocks() {
-            let Some(paragraph) = content.program.get(block.paragraph) else {
-                continue;
-            };
             let width = group.geometry.column(column).width();
-            let Some(layout) = layouts.get(&(block.paragraph, width.emu())) else {
+            let Some(layout) = layouts.get(&(block.block, width.emu(), block.key_top)) else {
                 continue;
             };
-            let Some(span) = byte_span(layout, block.lines.clone()) else {
+            // A table's footnote references belong to the paragraphs inside its cells, and which
+            // *slice* of the table they landed on is a question about a cell's own lines. Reported
+            // rather than guessed: see this crate's own documentation.
+            let Some(layout) = layout.as_paragraph() else {
+                continue;
+            };
+            let Some(at) = content.paragraph_of_block(block.block) else {
+                continue;
+            };
+            let Some(paragraph) = content.program.get(at) else {
+                continue;
+            };
+            let Some(span) = byte_span(layout, block.units.clone()) else {
                 continue;
             };
             // A reference at the very end of a paragraph sits at `text.len()`, which is one past the
             // last line's own range — so the last line of a paragraph owns its closing edge and every
             // other line does not. Reading the range as half-open everywhere loses the reference of
             // every paragraph that ends with one, which is where an author actually puts them.
-            let closes_paragraph = block.lines.end == layout.lines.len();
+            let closes_paragraph = block.units.end == layout.lines.len();
             let mut within = 0_i64;
             for reference in paragraph.note_references() {
                 if reference.endnote {
@@ -1232,7 +1508,7 @@ fn demanded_notes(
                     continue;
                 }
                 on_page += 1;
-                let before = i64::from(content.footnotes_before(block.paragraph));
+                let before = i64::from(content.footnotes_before(block.block));
                 let ordinal = match rules.footnote_restart {
                     NumberingRestartLocation::EachPage => on_page,
                     NumberingRestartLocation::EachSection => {
@@ -1301,16 +1577,22 @@ fn line_numbers(
     for group in &fill.groups {
         for (column, block) in group.assembly.blocks() {
             let width = group.geometry.column(column).width();
-            let Some(layout) = layouts.get(&(block.paragraph, width.emu())) else {
+            let Some(layout) = layouts.get(&(block.block, width.emu(), block.key_top)) else {
+                continue;
+            };
+            // **A table's rows are not numbered lines.** §17.6.10 numbers *lines of text in the
+            // body*, and Word does not number a table's rows; a table therefore advances nothing,
+            // which is why this asks for a paragraph rather than for a unit count.
+            let Some(layout) = layout.as_paragraph() else {
                 continue;
             };
             if layout.style.suppress_line_numbers {
                 continue;
             }
-            for line in block.lines.clone() {
+            for line in block.units.clone() {
                 if is_numbered(counter, rules.count_by, rules.start) {
                     marks.push(LineMark {
-                        paragraph: block.paragraph,
+                        paragraph: block.block,
                         line,
                         number: counter,
                         distance,
@@ -1336,10 +1618,10 @@ fn next_state(
             area.carry?;
             // The body is finished and a note is not. The page after this one is note-only, which is
             // a page Word prints too: a footnote longer than the space its own page had left.
-            FlowPosition::at(content.program.len())
+            FlowPosition::at(content.blocks.len())
         }
     };
-    let next_section = content.section_at(position.paragraph as usize);
+    let next_section = content.section_at(position.block as usize);
     let restart = next_section
         .filter(|index| *index != fill.last_section)
         .and_then(|index| content.section(index))
@@ -1670,18 +1952,275 @@ impl DocumentBoxModel {
                 let width = band.width();
                 let column_top = laid.body.top + group.top + offset;
                 for block in &column.blocks {
-                    let Some(layout) = laid.layouts.get(&(block.paragraph, width.emu())) else {
-                        continue;
-                    };
-                    let Some(paragraph) = content.program.get(block.paragraph) else {
+                    let Some(layout) = laid.layouts.get(&(block.block, width.emu(), block.key_top))
+                    else {
                         continue;
                     };
                     let top = column_top + block.top;
-                    let height = layout.height_of(block.lines.clone());
-                    let rect = LayoutRect::from_edges(band.left, top, band.right, top + height);
-                    let decoration =
-                        catalogue.intern(ParagraphDecoration::of(paragraph.properties()));
-                    let stream = match content.origin(block.paragraph) {
+                    match layout {
+                        BlockLayout::Paragraph(layout) => {
+                            let Some(at) = content.paragraph_of_block(block.block) else {
+                                continue;
+                            };
+                            let Some(paragraph) = content.program.get(at) else {
+                                continue;
+                            };
+                            let height = layout.height_of(block.units.clone());
+                            let rect =
+                                LayoutRect::from_edges(band.left, top, band.right, top + height);
+                            let decoration =
+                                catalogue.intern(ParagraphDecoration::of(paragraph.properties()));
+                            let stream = match content.origin(at) {
+                                Some(FlowOrigin::Endnote { note, paragraph }) => {
+                                    Stream::Secondary {
+                                        part: address::ENDNOTES,
+                                        container: note,
+                                        paragraph,
+                                    }
+                                }
+                                _ => Stream::Body,
+                            };
+                            let body = builder.push_simple(
+                                page,
+                                stream.paragraph(block.block),
+                                rect,
+                                Fragment::Box(BoxFragment {
+                                    decoration,
+                                    cell: None,
+                                }),
+                            );
+                            self.emit_lines(
+                                builder,
+                                body,
+                                stream,
+                                block.block,
+                                layout,
+                                block.units.clone(),
+                                band.left,
+                                top,
+                                width,
+                                Some((band.left, &laid.line_marks)),
+                            )?;
+                        }
+                        BlockLayout::Table(table) => {
+                            self.emit_table(
+                                builder, catalogue, page, content, table, block, band.left, top,
+                            )?;
+                        }
+                    }
+                }
+                for float in &column.floats {
+                    let rect = LayoutRect::from_edges(
+                        band.left + float.left,
+                        column_top + float.top,
+                        band.left + float.left + float.width,
+                        column_top + float.top + float.height,
+                    );
+                    builder.push_simple(
+                        page,
+                        address::paragraph(float.paragraph),
+                        rect,
+                        Fragment::Box(BoxFragment {
+                            decoration: catalogue.intern(ParagraphDecoration::default()),
+                            cell: None,
+                        }),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// One table, or the slices of it that landed on this page.
+    ///
+    /// # Why a continuation redraws its heading rows here rather than in the paginator
+    ///
+    /// `w:tblHeader` is *height* to the paginator — it reserved room for it through
+    /// [`crate::block::BlockLayout::repeated_height`] — and *fragments* here. Splitting the
+    /// responsibility that way is what lets `PlacedBlock` stay a range of units: the header is not
+    /// in the range, it is drawn above it, and every assertion about which row is on which page can
+    /// therefore be made against the range without the header confusing it.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_table(
+        &mut self,
+        builder: &mut FragmentTreeBuilder,
+        catalogue: &mut DecorationCatalogue,
+        page: Option<mjx_layout::FragmentId>,
+        content: &DocumentFlow,
+        table: &crate::table::TableLayout,
+        block: &crate::paginate::PlacedBlock,
+        left: Emu,
+        top: Emu,
+    ) -> Result<(), DocumentLayoutError> {
+        let height = block.repeated_header + table.height_of(block.units.clone());
+        let rect = LayoutRect::from_edges(
+            left + table.left,
+            top,
+            left + table.left + table.width(),
+            top + height,
+        );
+        let frame = builder.push_simple(
+            page,
+            address::paragraph(block.block),
+            rect,
+            Fragment::Box(BoxFragment {
+                decoration: catalogue.intern(ParagraphDecoration::default()),
+                cell: None,
+            }),
+        );
+
+        let mut y = top;
+        if block.repeated_header > Emu::ZERO {
+            for unit in 0..table.repeated_slices {
+                self.emit_slice(
+                    builder,
+                    catalogue,
+                    frame,
+                    content,
+                    table,
+                    block.block,
+                    unit,
+                    left,
+                    &mut y,
+                )?;
+            }
+        }
+        for unit in block.units.clone() {
+            self.emit_slice(
+                builder,
+                catalogue,
+                frame,
+                content,
+                table,
+                block.block,
+                unit,
+                left,
+                &mut y,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// One slice of a table: every cell of its row that this slice actually covers.
+    ///
+    /// A row split across a page contributes one fragment per slice, and each carries the **same**
+    /// [`mjx_layout::TableCell`] coordinates — because it is the same cell, seen twice. That is what
+    /// lets a hit test on the second page of a split table still answer "row 9, column 2".
+    #[allow(clippy::too_many_arguments)]
+    fn emit_slice(
+        &mut self,
+        builder: &mut FragmentTreeBuilder,
+        catalogue: &mut DecorationCatalogue,
+        parent: Option<mjx_layout::FragmentId>,
+        content: &DocumentFlow,
+        table: &crate::table::TableLayout,
+        block: usize,
+        unit: usize,
+        left: Emu,
+        y: &mut Emu,
+    ) -> Result<(), DocumentLayoutError> {
+        let Some(slice) = table.slices.get(unit) else {
+            return Ok(());
+        };
+        let Some(row) = table.rows.get(slice.row) else {
+            return Ok(());
+        };
+        let within = slice.top - row.top;
+        let table_left = left + table.left;
+        for cell in &row.cells {
+            let rect = LayoutRect::from_edges(
+                table_left + cell.left,
+                *y,
+                table_left + cell.left + cell.width,
+                *y + slice.height,
+            );
+            let node = builder.push_simple(
+                parent,
+                address::paragraph(block),
+                rect,
+                Fragment::Box(BoxFragment {
+                    decoration: catalogue.intern(ParagraphDecoration::default()),
+                    cell: Some(mjx_layout::TableCell {
+                        column: u16::try_from(cell.column).unwrap_or(u16::MAX),
+                        row: u32::try_from(slice.row).unwrap_or(u32::MAX),
+                        column_span: u16::try_from(cell.span).unwrap_or(1),
+                        row_span: 1,
+                    }),
+                }),
+            );
+            // `w:vAlign`, applied once for the whole cell rather than per slice: a cell centred in
+            // a row that is split across a page has no single answer, so the shift is computed from
+            // the row's own height and the same shift is used on every slice — which keeps a
+            // continuation's content where the first page's left off.
+            //
+            // **`GUESS:`** ECMA-376 §17.4.83 states the three values and says nothing about a split
+            // row. Shifting each slice independently would move the text at the boundary, which is
+            // the one thing a reader of a split table would notice.
+            let slack = (row.height - cell.content_height).maximum(Emu::ZERO);
+            let shift = match cell.vertical_alignment {
+                VerticalJustification::Center => slack.divided_by(2),
+                VerticalJustification::Bottom => slack,
+                // `both` justifies the cell's *paragraphs* vertically, which needs the space between
+                // them rather than above them; read as `top` until something distributes it.
+                VerticalJustification::Top | VerticalJustification::Justified => Emu::ZERO,
+            };
+            self.emit_cell(
+                builder,
+                catalogue,
+                node,
+                content,
+                cell,
+                block,
+                table_left,
+                *y - within + shift,
+                within - shift,
+                slice.height,
+            )?;
+        }
+        *y += slice.height;
+        Ok(())
+    }
+
+    /// A cell's own content, clipped to the vertical band `within..within + height` of the cell.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_cell(
+        &mut self,
+        builder: &mut FragmentTreeBuilder,
+        catalogue: &mut DecorationCatalogue,
+        parent: Option<mjx_layout::FragmentId>,
+        content: &DocumentFlow,
+        cell: &crate::table::CellLayout,
+        block: usize,
+        table_left: Emu,
+        cell_top: Emu,
+        within: Emu,
+        height: Emu,
+    ) -> Result<(), DocumentLayoutError> {
+        let base = cell_top + cell.content_top;
+        for placed in &cell.content {
+            let block_top = base + placed.top;
+            match placed.layout.as_ref() {
+                BlockLayout::Paragraph(layout) => {
+                    // Which of the paragraph's lines fall inside this slice. A line is drawn on the
+                    // page its own box starts on, which is the same rule a body paragraph follows.
+                    let mut line_top = block_top;
+                    let mut first: Option<usize> = None;
+                    let mut last = 0_usize;
+                    for (index, line) in layout.lines.iter().enumerate() {
+                        let bottom = line_top + line.height;
+                        if bottom > cell_top + within && line_top < cell_top + within + height {
+                            if first.is_none() {
+                                first = Some(index);
+                            }
+                            last = index + 1;
+                        }
+                        line_top = bottom;
+                    }
+                    let Some(from) = first else {
+                        continue;
+                    };
+                    let skipped = layout.height_of(0..from);
+                    let stream = match placed.paragraph.and_then(|at| content.origin(at)) {
                         Some(FlowOrigin::Endnote { note, paragraph }) => Stream::Secondary {
                             part: address::ENDNOTES,
                             container: note,
@@ -1689,9 +2228,26 @@ impl DocumentBoxModel {
                         },
                         _ => Stream::Body,
                     };
-                    let body = builder.push_simple(
-                        page,
-                        stream.paragraph(block.paragraph),
+                    let decoration = match placed.paragraph.and_then(|at| content.program.get(at)) {
+                        Some(paragraph) => {
+                            catalogue.intern(ParagraphDecoration::of(paragraph.properties()))
+                        }
+                        None => catalogue.intern(ParagraphDecoration::default()),
+                    };
+                    let rect = LayoutRect::from_edges(
+                        table_left + cell.content_left,
+                        block_top + skipped,
+                        table_left + cell.content_left + cell.content_width,
+                        block_top + skipped + layout.height_of(from..last),
+                    );
+                    // **Every fragment inside a table is addressed under the table's own block**,
+                    // and its *cell* coordinates travel on `mjx_layout::TableCell` instead. A cell's
+                    // paragraph index is an index into the document's flat paragraph list, which
+                    // shares its number space with a block index — addressing a cell's line by it
+                    // would make a hit test on a table answer with an unrelated body paragraph.
+                    let box_id = builder.push_simple(
+                        parent,
+                        stream.paragraph(block),
                         rect,
                         Fragment::Box(BoxFragment {
                             decoration,
@@ -1700,15 +2256,45 @@ impl DocumentBoxModel {
                     );
                     self.emit_lines(
                         builder,
-                        body,
+                        box_id,
                         stream,
-                        block.paragraph,
+                        block,
                         layout,
-                        block.lines.clone(),
-                        band.left,
-                        top,
-                        width,
-                        Some((band.left, &laid.line_marks)),
+                        from..last,
+                        table_left + cell.content_left,
+                        block_top + skipped,
+                        cell.content_width,
+                        None,
+                    )?;
+                }
+                BlockLayout::Table(inner) => {
+                    // A nested table is drawn whole on the page its cell's slice reaches: it is
+                    // atomic inside its cell, which is why `crate::table::slice` gives it one split
+                    // offset and not several.
+                    if block_top + inner.height() <= cell_top + within
+                        || block_top >= cell_top + within + height
+                    {
+                        continue;
+                    }
+                    let nested = crate::paginate::PlacedBlock {
+                        block,
+                        units: 0..inner.slices.len(),
+                        top: Emu::ZERO,
+                        space_before: Emu::ZERO,
+                        repeated_header: Emu::ZERO,
+                        key_top: crate::paginate::NO_FLOATS,
+                        continued: false,
+                        continues: false,
+                    };
+                    self.emit_table(
+                        builder,
+                        catalogue,
+                        parent,
+                        content,
+                        inner,
+                        &nested,
+                        table_left + cell.content_left,
+                        block_top,
                     )?;
                 }
             }

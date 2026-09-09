@@ -309,8 +309,8 @@ and OMML mathematical layout (its own typesetter, closer to TeX than to prose).
 > flow core — line layout against a per-line measure, the five alignments with inter-word and
 > inter-character expansion, the three line rules, the five tab kinds with leaders and the implicit
 > grid, hyphenation, and pagination honouring `w:pageBreakBefore`, `w:keepLines`, `w:widowControl`
-> and `w:keepNext`. **Tables and floating objects are R21; fields, numbering, revision marks and OMML
-> R22**, and neither is partly done.
+> and `w:keepNext`. **Tables and floating objects are R21 (below); fields, numbering, revision marks
+> and OMML are R22**, and neither is partly done.
 > Nothing in it is parity with Word: every behaviour chosen rather than read is marked `GUESS:` at
 > its site, and `crates/mjx-layout-docx/tests/the_provenance_is_declared.rs` prints the split of
 > where every expected value came from on every run.
@@ -342,6 +342,33 @@ and OMML mathematical layout (its own typesetter, closer to TeX than to prose).
 > caller could read the geometry and pass it; with several it cannot, because which section page 200
 > is in is not knowable without laying out the 199 before it. A section that states nothing still
 > inherits the caller's page — our defaults fill in only where the file is silent.
+
+> **Extended in MJXOFF-176 (R21), part 3.** Tables — the grid with both layout algorithms, row
+> heights, cell margins and spacing, `gridSpan` and `vMerge`, tables that **split across pages** with
+> repeating heading rows and `w:cantSplit`, nested tables to arbitrary depth, and floating tables —
+> together with floating objects and text wrapping: `square`, `tight`, `through`, `topAndBottom`,
+> `behind` and `inFrontOf`, **real `wp:wrapPolygon` polygons**, distance-from-text on all four sides,
+> the largest-side rule, and anchoring relative to page, margin, column, paragraph or character.
+> Four new modules, twenty-one in all.
+>
+> **Both features are trivially shippable unimplemented, which is why every gate is written against
+> the value that would be identical either way.** A table that fits on one page is laid out
+> identically by an engine that cannot split a table; `w:tblHeader` is invisible unless the table
+> splits; a float with `wp:wrapNone` changes no line; and `tight` wrapping against a *bounding box*
+> looks almost right. So the fixtures split, repeat a heading, carry a `vMerge` across the break, and
+> assert **line measures in EMU** beside a triangle — with the bounding-box reading substituted in a
+> test of its own, to prove the gate can fail.
+>
+> **A table is a block with units, exactly as a paragraph is.** Its units are *slices* — row
+> boundaries, and inside a splittable row the line boundaries every one of its cells agrees on — so
+> the paginator did not need a second loop: `w:cantSplit` makes a row one slice and `w:tblHeader` a
+> repeating prefix. That is why `w:keepNext` still works *across* a table.
+>
+> **The footnote fixed point survives, and the reason is written down.** A float anchored to the
+> bottom of its column would move when the note reservation changed, and the second body assembly
+> could then place text the first did not — content that is not a prefix, and an iteration with no
+> bound. So a float's frame is resolved against the page's **body** height and never against the
+> assembly's own reduced height, and `notes.rs` carries the amended argument. The bound is still two.
 
 **`mjx-layout-xlsx` — grid.** Row/column geometry with hidden and auto-fit sizing, merged regions,
 the **number-format engine** (`numFmt` → display string, locale-aware, both 1900 and 1904 date

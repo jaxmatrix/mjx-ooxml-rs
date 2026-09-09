@@ -155,6 +155,15 @@ pub use document::{
     ColumnFormatting, HeaderFooterFormatting, HeaderFooterSlots, NoteFormatting, NoteReference,
     SectionColumns, SectionLineNumbering, SectionNoteRules, SectionPageNumbering,
 };
+// MJXOFF-176 (R21): the body as a *block* tree rather than a paragraph list, tables resolved to
+// plain numbers, and every `w:drawing`'s extent, anchoring and wrap resolved with no `mjx-dml` type
+// in the surface — a box model above this crate reads numbers, not DrawingML.
+pub use document::{
+    AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
+    DrawingDistances, DrawingFormatting, DrawingPlacement, FloatingTableAnchoring,
+    HorizontalAnchoring, RowFormatting, RowHeightSpecification, TableFormatting, VerticalAnchoring,
+    WidthSpecification, WrapFormatting,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

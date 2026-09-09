@@ -1473,11 +1473,13 @@ pub(super) fn combine_paragraph_tiers(
     direct: &EffectiveParagraphProperties,
     paragraph_tier: &EffectiveParagraphProperties,
     numbering: &EffectiveParagraphProperties,
+    table: &EffectiveParagraphProperties,
     doc_defaults: &EffectiveParagraphProperties,
 ) -> EffectiveParagraphProperties {
     direct
         .merge_under(paragraph_tier)
         .merge_under(numbering)
+        .merge_under(table)
         .merge_under(doc_defaults)
 }
 
@@ -1496,10 +1498,17 @@ pub(super) fn combine_run_tiers(
     doc_defaults: &EffectiveCharacterProperties,
     table: &EffectiveCharacterProperties,
 ) -> EffectiveCharacterProperties {
+    // **The table tier is merged, not merely recombined.** Until MJXOFF-176 every caller passed the
+    // all-`None` identity here, so the missing `merge_under` was invisible; it is not invisible to a
+    // cell whose table style states a font. `Document::effective_cell_run_properties` has always
+    // merged it in exactly this position — after the numbering level, before `w:docDefaults` — and
+    // two orchestrations of one ladder is precisely the shape `tests/residency.rs` exists to keep
+    // honest.
     let mut merged = direct
         .merge_under(character_tier)
         .merge_under(paragraph_tier)
         .merge_under(numbering)
+        .merge_under(table)
         .merge_under(doc_defaults);
     recombine_toggles(
         &mut merged,
@@ -1827,6 +1836,9 @@ impl Document {
             &direct,
             &paragraph_tier,
             &numbering_effective,
+            // This reader addresses a *body* paragraph, and no table style applies to one. The
+            // table tier is `Document::formatting`'s, which does descend into cells.
+            &EffectiveParagraphProperties::default(),
             &doc_defaults,
         ))
     }

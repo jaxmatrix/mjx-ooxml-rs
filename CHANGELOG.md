@@ -58,6 +58,80 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.152] - 2026-09-09
+
+**Tables that split across pages, floating objects, and the text that flows around them
+(MJXOFF-176, R21).**
+
+The two features the plan names as consistently under-estimated, in one child because they interact:
+a float anchored in a table cell wraps against the cell, and a table that splits across a page has to
+re-run every wrap on the continuation. Both are also the easiest features in a Word renderer to ship
+*unimplemented* — a table that fits on one page is laid out identically by an engine that cannot
+split a table at all, and a float with `wp:wrapNone` changes no line — so every gate here is written
+against the value that would be identical either way.
+
+### Added
+
+- **`mjx-docx` reads the body as a block tree.** `DocumentFormatting::blocks` interleaves paragraphs
+  and tables in document order, which a paragraph list structurally cannot: a document whose tables
+  were dropped paginates differently from the one its author wrote. Tables, rows and cells are
+  resolved to plain numbers (`TableFormatting`, `RowFormatting`, `CellFormatting`), a cell's content
+  is a block tree of its own — which is the whole of *nested tables to arbitrary depth* — and
+  `ParagraphFormatting::drawings` resolves every `w:drawing`'s extent, anchoring, wrap mode and wrap
+  polygon **without a `mjx-dml` type in the surface**, because the box model above deliberately does
+  not depend on DrawingML.
+- **Every paragraph in the document still resolves through one ladder, in one pass.** A cell's
+  paragraphs are appended to the same flat list the body's live in, so `blocks()` indexes it and
+  nothing is copied; the first `top_level_paragraph_count()` entries keep the order `w:sectPr` spans
+  are numbered against, which a cell paragraph interleaved into them would have moved.
+- **The table style's own tier now reaches a cell**, folded across the six conditional regions
+  `table_regions::applicable_regions` already resolved. Its **run** properties change text
+  *measurement*, so a bold heading row breaks its lines where Word breaks them rather than where an
+  unstyled one would.
+- **Four modules in `mjx-layout-docx`, and the split between them is the design.** `wrap` is geometry
+  with no document in it — polygons, bands, the largest-side rule; `float` turns a `wp:anchor` into a
+  rectangle in a column; `table` is the grid, the two layout algorithms and the slices a page break
+  falls between; `block` is the one abstraction that lets a paragraph and a table go through the same
+  paginator, which is why `w:keepNext` still works *across* a table.
+- **Auto-fit is a constraint solve over content widths**, not a heuristic: every cell is measured at
+  an unbounded measure and at one EMU, and the columns take the unique assignment that puts each the
+  same fraction of the way from its minimum to its maximum. Fixed layout reads `w:tblGrid` and stops.
+  `tests/a_table_grid_is_solved.rs` asserts the two produce **different numbers for the same
+  content**, which an engine that returned the declared grid for both would fail.
+- **`w:cantSplit` is an ordering constraint and `w:tblHeader` a repeating prefix**, and neither is
+  special-cased inside the paginator: a row that may not split contributes **one** slice, so it moves
+  whole through the same arithmetic `w:keepLines` already used, and a repeated heading adds a
+  constant to a continuation's height.
+- **Real wrap polygons.** `wp:wrapTight` and `wp:wrapThrough` take the polygon rather than the
+  bounding box, exactly rather than by sampling, and the two elements genuinely differ: `tight` takes
+  the outline's outermost crossings and `through` keeps every covered interval, so text enters a
+  concavity in one and not the other.
+
+### Fixed
+
+- **`combine_run_tiers` never merged the table-style tier it was given.** Every caller passed the
+  all-`None` identity until this child, so the missing `merge_under` was invisible;
+  `Document::effective_cell_run_properties` has always merged it in that position, and two
+  orchestrations of one ladder is precisely the shape `crates/mjx-docx/tests/residency.rs` exists to
+  keep honest.
+
+### Notes
+
+- **A float's frame is resolved against the page's body height and never against the assembly's own
+  reduced height.** That is not a detail: the footnote fixed point's two-assembly proof rests on *the
+  body content placed is non-increasing in the reservation*, which would be false if a float anchored
+  to the bottom of its column moved between the two assemblies. `crates/mjx-layout-docx/src/notes.rs`
+  carries the amended argument in full.
+- **An inline drawing's advance is not measured**, and it is declared rather than approximated:
+  reserving one means a fixed advance on a composer run and `mjx_layout::TextRun` has no such field.
+  A line carrying an inline drawing is measured as if the drawing were not on it. It is the same
+  shape as R20's footnote-mark gap and belongs to the same later child.
+- **Nothing here is parity with Word.** The provenance ledger prints on every run: **40 `SpecCode`,
+  23 `DocumentedBehaviour`, 61 `EngineDerived`** over 124 rows. R21's own share is the weakest in the
+  crate for a nameable reason — *there is no external standard for text wrapping at all*. The
+  sharpest guess is what unit a `wp:wrapPolygon`'s coordinates are in: the schema says EMU and Word
+  writes 21600ths of the extent, and both readings are implemented with the choice made per object.
+
 ## [0.0.151] - 2026-09-09
 
 **Sections, columns, headers, footers and footnotes — and the fixed point between a note and the

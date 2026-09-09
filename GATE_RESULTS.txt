@@ -1,18 +1,53 @@
-MJXOFF-175 (R20) — gate results
-branch:   pipeline/r20-sections-notes
-version:  version = "0.0.151"
-started:  2026-09-09T10:59:36Z
+MJXOFF-176 (R21) — gate run
+branch:  pipeline/r21-tables-floats
+version: 0.0.152
+started: 2026-09-09T14:00:13Z
 
-fmt                                exit 0    2026-09-09T10:59:36Z -> 2026-09-09T10:59:41Z
-test-workspace                     exit 0    2026-09-09T10:59:42Z -> 2026-09-09T11:09:08Z
-clippy                             exit 0    2026-09-09T11:09:08Z -> 2026-09-09T11:09:18Z
-layering                           exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:18Z
-escape-hatches                     exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:18Z
-unsafe-allowance                   exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:19Z
-tokens-check                       exit 0    2026-09-09T11:09:19Z -> 2026-09-09T11:09:19Z
-suppress-naming                    exit 0    2026-09-09T11:09:19Z -> 2026-09-09T11:09:20Z
-rustdoc                            exit 0    2026-09-09T11:09:20Z -> 2026-09-09T11:09:49Z
+cargo fmt --all -- --check                     exit=0   2026-09-09T14:00:13Z -> 2026-09-09T14:00:19Z
+cargo test --workspace                         exit=0   2026-09-09T14:00:19Z -> 2026-09-09T14:18:06Z
+cargo clippy --workspace --all-targets         exit=0   2026-09-09T14:18:06Z -> 2026-09-09T14:18:31Z
+cargo test -p xtask --test layering            exit=0   2026-09-09T14:18:31Z -> 2026-09-09T14:18:32Z
+cargo test -p xtask --test escape_hatches      exit=0   2026-09-09T14:18:32Z -> 2026-09-09T14:18:33Z
+cargo test -p xtask --test unsafe_allowance    exit=0   2026-09-09T14:18:33Z -> 2026-09-09T14:18:34Z
+cargo run -p xtask -- tokens --check           exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:34Z
+check-suppress-naming.sh                       exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:34Z
+cargo doc --workspace --no-deps                exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:40Z
 
-finished: 2026-09-09T11:09:49Z
-cases:    4493 passing
-binaries: 428
+finished: 2026-09-09T14:18:40Z
+
+Two earlier passes, recorded because a record that mentions only the green run is not a record of
+what happened.
+
+13:38:22Z -> 13:54:51Z, red once. The first shape of this child's own new sentinel gate wrote the
+direct assertion as `assert!(NO_FLOATS < 0)`, and clippy refused it as `assertions_on_constants` —
+correctly, and the fix is better than the lint required: the property that matters is not the
+sentinel's sign but that **no reachable column top keys the same way**, so it is now stated over
+real positions (0, 0.001, 1, 10 and 100 inches) rather than over the constant. `cargo test
+--workspace` was green in that pass (13:38:27Z -> 13:54:24Z).
+
+12:34:07Z -> 13:05:51Z, red twice, both mechanical and both in this child's own new code:
+
+  cargo clippy --workspace --all-targets     exit=101  14 lints in mjx-layout-docx: eleven
+                                                       `assign_op_pattern` (`x = x + y` on `Emu`),
+                                                       one `eq_op` (`body.left - body.left`, written
+                                                       to say "zero by construction" and better said
+                                                       as `Emu::ZERO`), one `too_many_arguments` on
+                                                       `Exclusion::from_polygon`, and one
+                                                       `chunks_exact_to_as_chunks`.
+  cargo doc --workspace --no-deps            exit=101  one broken intra-doc link: `[`Emu::MAX`]`,
+                                                       which does not exist.
+
+`cargo test --workspace` was green in that pass too (12:34:12Z -> 13:03:45Z), so no behaviour changed
+across any of the three runs — only lints, and then the sentinel gate that should have been there
+from the start.
+
+The mutation this gate exists for, run both ways before the commit:
+
+  NO_FLOATS = i64::MIN (as committed)   cargo test -p mjx-layout-docx  ->  exit 0
+  NO_FLOATS = 0        (the collision)  cargo test -p mjx-layout-docx  ->  exit 101, and the two
+                                        failures are exactly the two new assertions:
+                                          a_float_at_the_very_top_of_a_column_still_displaces_its_own_paragraph
+                                          the_float_free_cache_key_is_not_a_key_a_column_top_can_take
+                                        The behavioural one reports the symptom rather than the
+                                        value: "the anchoring paragraph's own first line starts past
+                                        the object it anchors ... would put it at 0 instead: 0".
