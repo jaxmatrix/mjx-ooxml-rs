@@ -22,27 +22,110 @@ one entry on that space; its members are reached by descending into it, as deep 
 
 Both convert from a bare `u32`, so `slide.into()` is the whole ceremony for the common case.
 
-```
+<!-- guide-example: addressing_a_deck rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Deck, PresetShapeType, ShapeBounds, ShapePath, SlideSize, Surface};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let slide = Surface::Slide(deck.add_slide()?);   // `add_slide_from_layout` would copy the layout's placeholders too
-deck.add_shape(slide, PresetShapeType::Rectangle, ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0))?;
-deck.add_shape(slide, PresetShapeType::Ellipse, ShapeBounds::from_inches(4.0, 1.0, 2.0, 1.0))?;
+// `add_slide_from_layout` would copy the layout's placeholders too.
+let slide = Surface::Slide(deck.add_slide()?);
+let rectangle = ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0);
+let ellipse = ShapeBounds::from_inches(4.0, 1.0, 2.0, 1.0);
+deck.add_shape(slide, PresetShapeType::Rectangle, rectangle)?;
+deck.add_shape(slide, PresetShapeType::Ellipse, ellipse)?;
 assert_eq!(deck.shape_count(slide)?, 2);
 
+// The group itself is one entry on the surface's index space.
 let group: ShapePath = deck.group_shapes(slide, &[0.into(), 1.into()])?;
-assert!(group.is_top_level(), "the group itself is one entry on the surface's index space");
+assert!(group.is_top_level());
 
-let member = group.child(1);           // member 1 of that group, one step deeper
+// Member 1 of that group, one step deeper.
+let member = group.child(1);
 assert_eq!(member.depth(), 2);
-assert_eq!(member.parent(), Some(group.clone()));
-assert!(!member.is_top_level());
 assert_eq!(member.indices().len(), 2);
+assert!(!member.is_top_level());
+assert_eq!(member.parent(), Some(group.clone()));
+
+let saved = deck.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_deck python -->
+```python
+from mjx_ooxml import Deck, PresetShapeType, ShapeBounds, SlideSize, Surface
+
+deck = Deck.blank(SlideSize.widescreen())
+# `add_slide_from_layout` would copy the layout's placeholders too.
+slide = Surface.slide(deck.add_slide())
+rectangle = ShapeBounds.from_inches(1.0, 1.0, 2.0, 1.0)
+ellipse = ShapeBounds.from_inches(4.0, 1.0, 2.0, 1.0)
+deck.add_shape(slide, PresetShapeType.Rectangle, rectangle)
+deck.add_shape(slide, PresetShapeType.Ellipse, ellipse)
+assert deck.shape_count(slide) == 2
+
+# The group itself is one entry on the surface's index space.
+group = deck.group_shapes(slide, [0, 1])
+assert group.is_top_level
+
+# Member 1 of that group, one step deeper.
+member = group.child(1)
+assert member.depth == 2
+assert len(member.indices) == 2
+assert not member.is_top_level
+assert member.parent == group
+
+saved = deck.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_deck js -->
+```js
+import { Deck, PresetShapeType, ShapeBounds, SlideSize, Surface } from "@mjx/ooxml";
+
+const deck = Deck.blank(SlideSize.widescreen());
+// `addSlideFromLayout` would copy the layout's placeholders too.
+const slide = Surface.slide(deck.addSlide());
+const rectangle = ShapeBounds.fromInches(1.0, 1.0, 2.0, 1.0);
+const ellipse = ShapeBounds.fromInches(4.0, 1.0, 2.0, 1.0);
+deck.addShape(slide, PresetShapeType.Rectangle, rectangle);
+deck.addShape(slide, PresetShapeType.Ellipse, ellipse);
+if (deck.shapeCount(slide) !== 2) {
+  throw new Error("the slide should carry two shapes");
+}
+
+// The group itself is one entry on the surface's index space.
+const group = deck.groupShapes(slide, [0, 1]);
+// Member 1 of that group, one step deeper.
+const member = group.child(1);
+const parent = member.parent;
+if (!group.isTopLevel || member.isTopLevel) {
+  throw new Error("the group is top level and its member is not");
+}
+if (member.depth !== 2 || member.indices.length !== 2) {
+  throw new Error("a group member's address is two indices deep");
+}
+if (!parent.equals(group)) {
+  throw new Error("a member's parent is the group it belongs to");
+}
+
+const saved = deck.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [deck, slide, rectangle, ellipse, group, member, parent]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+Three differences between those blocks are the languages rather than this library, and they recur on
+every page below. A Rust enumeration variant carrying a payload — `Surface::Slide(0)` — is a static
+constructor in both bindings, because neither Python nor JavaScript has one; a Rust method that
+answers a question, `depth()`, is a property, `depth` and `.depth`; and JavaScript has no operator
+overloading, so two addresses are compared with `equals` where the other two use `==`. Every call in
+front of those is the same call with the same arguments, which is exactly what these blocks being
+copies of three running files is here to keep true.
 
 A top-level path — one index, no descent — is stored inline and **never allocates**; only a path
 that descends into a group allocates, once, on its way down. That matters because these values are
