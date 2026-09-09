@@ -96,17 +96,59 @@ relationship pointing at a part that is not there, a content-type override for a
 exist, a `sheetId` two tabs share. The refusal is [`ErrorCode::InvalidDocument`], and
 [`Error::detail`] names where.
 
-```
-use mjx_ooxml::{Deck, SlideSize};
+The same three calls in each of the three languages the API ships in. **None of these blocks was
+typed here.** Each is a copy of a sentinel-delimited region of a file a test runner executes —
+`crates/mjx-ooxml/examples/guide_saving_validates.rs` under `cargo run`,
+`bindings/mjx-python/tests/guide_examples/saving_validates.py` under `pytest`, and
+`bindings/mjx-wasm/tests/node/guide_examples/saving_validates.mjs` under `node --test` — copied in
+by `cargo run -p xtask -- guide-examples` and held to its source by `xtask/tests/guide_examples.rs`.
+The three runs are compared to each other part by part, so a block that is out of date, or a
+language that has quietly stopped agreeing with the other two, is a test failure rather than a
+paragraph somebody has to notice.
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
+<!-- guide-example: saving_validates rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{detect_format, Deck, Format, SlideSize};
+
 let deck = Deck::blank(SlideSize::widescreen())?;
-deck.validate()?;                      // the same check `save` runs
-let bytes = deck.save()?;
-assert_eq!(mjx_ooxml::detect_format(&bytes)?, mjx_ooxml::Format::Presentation);
+deck.validate()?; // the same check `save` runs
+let saved = deck.save()?;
+assert_eq!(detect_format(&saved)?, Format::Presentation);
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: saving_validates python -->
+```python
+from mjx_ooxml import Deck, Format, SlideSize, detect_format
+
+deck = Deck.blank(SlideSize.widescreen())
+deck.validate()  # the same check `save` runs
+saved = deck.save()
+assert detect_format(saved) == Format.Presentation
+```
+<!-- guide-example end -->
+
+<!-- guide-example: saving_validates js -->
+```js
+import { Deck, Format, SlideSize, detectFormat } from "@mjx/ooxml";
+
+const deck = Deck.blank(SlideSize.widescreen());
+deck.validate(); // the same check `save` runs
+const saved = deck.save();
+if (detectFormat(saved) !== Format.Presentation) {
+  throw new Error("the saved package is not a presentation");
+}
+deck.free(); // a wasm handle owns memory the garbage collector cannot see
+```
+<!-- guide-example end -->
+
+The JavaScript block is one line longer than the other two, and the extra line is not decoration: a
+wasm handle owns memory on the WebAssembly heap that the JavaScript garbage collector cannot see, so
+a caller frees it. That is the one shape difference between the three surfaces here, and it is
+visible precisely because these blocks are copies of files rather than translations of each other.
 
 [`Deck::save_unchecked`], [`Document::save_unchecked`] and [`Workbook::save_unchecked`] are the
 deliberate escape hatch, and there is exactly one situation they are for: **writing back a container

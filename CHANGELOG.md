@@ -60,6 +60,68 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.154] - 2026-09-09
+
+### The guide holds markers, not code: one example in Rust, Python and JavaScript, kept equal by copying (MJXOFF-254, H10)
+
+Phase H §4 asks for every example in every language the API ships in, and its own warning is why this
+child built a mechanism rather than blocks: *three code blocks that drift apart are worse than one,
+because two of them become confidently wrong.* A transcription is held together by whoever last
+remembered to update all three, and Phase G's lesson is that prose is not checked — a code block in a
+`.md` is prose that looks like code.
+
+So a guide example is now **three real files a real toolchain runs**, each carrying a
+`guide-example:start` / `guide-example:end` region:
+
+| Language | File | Runner |
+|---|---|---|
+| Rust | `crates/mjx-ooxml/examples/guide_<name>.rs` | `cargo run --example`, and the same region again as a doctest under `cargo test --doc -p mjx-ooxml` |
+| Python | `bindings/mjx-python/tests/guide_examples/<name>.py` | `pytest`, through `bindings/mjx-python/tests/test_guide_examples.py` |
+| JavaScript | `bindings/mjx-wasm/tests/node/guide_examples/<name>.mjs` | `node --test`, through `bindings/mjx-wasm/tests/node/guide_examples.mjs` |
+
+**`cargo run -p xtask -- guide-examples`** copies each region verbatim into the block that marks it;
+`--check` writes nothing and reports whether the committed blocks are current. The output is
+committed, never a `build.rs` — the rule `CLAUDE.md` already states for `mjx-ooxml-types`. A block a
+reader sees cannot differ from a file a harness ran, *because it is a copy of one*.
+
+Generation was considered and rejected. Emitting Python from Rust needs a model of the binding
+projection, and the projection is not mechanical — a `CellInput` becomes a `CellWrite` constructor,
+an `ErrorCode` becomes a string on `.code`, a range argument becomes two numbers, a `Format` accessor
+becomes a free function. `xtask/tests/facade_curation.rs`'s own verdict applies: a translator that is
+subtly wrong in that layer is worse than none. Copying has no model to be wrong about.
+
+**`xtask/tests/guide_examples.rs` is the gate.** It holds four populations equal in both directions —
+the markers in every `.md` in the repository, and the three source directories, all derived from the
+filesystem rather than listed — and it also checks that every committed block byte-equals its
+source's region today, that every half really has a region, that the three halves agree about whether
+the example produces a package, and that each binding harness runs the Rust example and reads both
+packages through that binding's one shared payload reader. Neither harness may name an individual
+example: the population comes from the directory. Five mutations were run and each reddens a named
+test; the verbatim output is in the pull request.
+
+It inherits `walkthrough_triples.rs`'s limit **exactly, and says so in its module comment**: it
+cannot verify that the two payload maps a harness reads are then asserted equal, because that is an
+assertion in a language `xtask` cannot execute. What establishes that is the same discipline —
+`SlideSize::widescreen` swapped for `SlideSize::standard` in one language at a time reddens that
+binding's comparison and names `ppt/presentation.xml` and `ppt/slideMasters/slideMaster1.xml`.
+
+**One example is carried end to end: `saving_validates`**, the blank/validate/save/detect block in
+`crates/mjx-ooxml/docs/guide/opening_and_saving.md`. It produces a package, so the output comparison
+is real rather than vacuous — but it starts from `Deck::blank`, so **every part it compares was
+authored by this library and none was preserved from an input file**. It is the same blind spot
+`crates/mjx-ooxml/examples/build_a_document.rs` has, and an example that opens a committed fixture is
+the first item of the backlog for exactly that reason. The remaining eighteen blocks are mechanical.
+
+**`@mjx/ooxml` now resolves inside the Node test suite.** `build-npm.sh` links `npm/` into
+`tests/node/node_modules/@mjx/ooxml`, the way `npm link` would, so the specifier the guide shows is
+the specifier a consumer writes and the one the example really imports. `node_modules` is git-ignored;
+nothing is committed.
+
+**One latent defect fixed on the way.** `xtask/tests/entry_points.rs` decided whether a crate hosts a
+guide with `source.contains("pub mod guide")` — a prefix match, so `xtask`'s new `pub mod
+guide_examples` classified the one crate that deliberately has no guide as hosting one. It now
+matches the declaration `pub mod guide;` as a whole line.
+
 ## [0.0.153] - 2026-09-09
 
 ### The Word walkthrough was claimed to be compared byte for byte in both bindings, and was compared by nothing (MJXOFF-239, H9)

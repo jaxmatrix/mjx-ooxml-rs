@@ -36,6 +36,14 @@ for target in bundler web; do
 done
 
 cp README.md npm/README.md
+
+# `npm link`, by hand, for the Node test suite. Without it a test can only reach the package by a
+# relative path into `npm/dist/`, and `bindings/mjx-wasm/tests/node/guide_examples/` cannot: its
+# files are copied verbatim into the guide, so the specifier they import has to be the one a
+# consumer writes. `node_modules` is git-ignored, so nothing here is committed.
+mkdir -p tests/node/node_modules/@mjx
+ln -sfn ../../../../npm tests/node/node_modules/@mjx/ooxml
+
 echo
 echo "==> built:"
 find npm/dist -type f | sort

@@ -170,6 +170,17 @@ because a helper copied per file is a comparison that can go missing from a file
 gate cannot check is that the two payload maps are then asserted equal; what establishes *that* is
 breaking each walkthrough by one argument and confirming the comparison reddens and names the part.
 
+**A guide example is the same idea one layer up** (MJXOFF-254). The facade guide's code blocks are
+*copies*, not transcriptions: an example is three files carrying a `guide-example` region — a `cargo`
+example, a `pytest` module and a `node --test` module — and
+`cargo run -p xtask -- guide-examples` copies each region into the block that marks it, committed
+output and never a `build.rs`. `xtask/tests/guide_examples.rs` holds the four populations (the
+markers and the three directories) equal in both directions, fails on a hand-edited block, and fails
+when one half stops producing the package the other two compare against. It inherits
+`walkthrough_triples.rs`'s limit exactly: it cannot tell that a comparison it can see asserts
+anything. **One example is carried end to end today — `saving_validates`; the remaining eighteen
+blocks are a mechanical backlog on MJXOFF-254.**
+
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
 
@@ -202,6 +213,8 @@ cargo build  --workspace
 cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from References/ (local only)
+cargo run -p xtask -- guide-examples  # copy each guide example's region into the blocks the guide commits
+cargo run -p xtask -- guide-examples --check   # write nothing; report whether those blocks are current
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
 

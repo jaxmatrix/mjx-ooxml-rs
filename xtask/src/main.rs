@@ -8,6 +8,9 @@
 //! - `codegen` — regenerate `mjx-ooxml-types` from the local `References/` XSD schemas.
 //!   `codegen --check` writes nothing and reports whether the committed output is what the
 //!   generator produces today (MJXOFF-224).
+//! - `guide-examples` — copy each guide example's sentinel-delimited region out of the three files
+//!   a test runner executes and into the code blocks the guide commits (MJXOFF-254).
+//!   `guide-examples --check` writes nothing and reports whether the committed blocks are current.
 //! - `fuzz` — run the campaign against the untrusted-input entry points (MJXOFF-146).
 //! - `corpus` — (re)build the large-file benchmarking corpus; `corpus --mem <format>` runs its
 //!   peak-RSS checkpoints (MJXOFF-147).
@@ -35,7 +38,7 @@ use anyhow::{bail, Result};
 // integration test cannot see a binary's modules and both have suites written against their tables:
 // `xtask/tests/validation_index.rs` against the area catalogue, and `xtask/tests/codegen_drift.rs`
 // against the generator's own artefacts. See `src/lib.rs`.
-use xtask::{codegen, validation};
+use xtask::{codegen, guide_examples, validation};
 
 fn main() -> Result<()> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -45,17 +48,26 @@ fn main() -> Result<()> {
             Some("--check") => codegen::check(),
             Some(other) => bail!("unknown codegen argument {other:?}. Available: --check"),
         },
+        Some("guide-examples") => match arguments.get(1).map(String::as_str) {
+            None => guide_examples::run(),
+            Some("--check") => guide_examples::check(),
+            Some(other) => bail!("unknown guide-examples argument {other:?}. Available: --check"),
+        },
         Some("fuzz") => fuzz::run(&arguments[1..]),
         Some("corpus") => corpus::run(&arguments[1..]),
         Some("validation-artefacts") => validation::run(&arguments[1..]),
         Some(other) => bail!(
-            "unknown command {other:?}. Available: codegen, fuzz, corpus, validation-artefacts"
+            "unknown command {other:?}. Available: codegen, guide-examples, fuzz, corpus, \
+             validation-artefacts"
         ),
         None => {
             println!(
                 "xtask — developer automation\n\nCommands:\n  \
                  codegen   regenerate mjx-ooxml-types from References/\n            \
                  --check  write nothing; report whether the committed output is current\n  \
+                 guide-examples\n            \
+                 copy each guide example's region into the blocks the guide commits\n            \
+                 --check  write nothing; report whether the committed blocks are current\n  \
                  fuzz      campaign against the untrusted-input entry points (--list for targets)\n  \
                  corpus    (re)build the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)\n  \
                  validation-artefacts\n            \
