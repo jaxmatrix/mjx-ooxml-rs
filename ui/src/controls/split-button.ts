@@ -223,6 +223,18 @@ export class MjxSplitButton extends HTMLElement {
     this.#explanationElement = explanation;
   }
 
+  /**
+   * Focus the **primary** region. See `MjxButton.focus` for why this exists at all.
+   *
+   * The primary rather than the arrow, because a split button's name is the primary's name and a
+   * programmatic focus that landed on *More X options* would be a different command from the one
+   * the caller asked for.
+   */
+  override focus(options?: FocusOptions): void {
+    if (this.#primary === undefined) super.focus(options);
+    else this.#primary.focus(options);
+  }
+
   #onPrimaryClick = (event: MouseEvent): void => {
     if (refusesActivation(this)) {
       event.preventDefault();

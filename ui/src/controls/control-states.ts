@@ -644,6 +644,38 @@ export const controlBaseCss = `
 `;
 
 /**
+ * **The levers a container may pull on a control it does not own** (MJXOFF-183).
+ *
+ * A ribbon group has to make its commands smaller when it is short of width, and there are exactly
+ * three ways it could: reach into the control's shadow root (impossible, and wrong), rewrite the
+ * control's `size` attribute from a resize handler (JavaScript-measured layout, which MJXOFF-183
+ * rules out by name), or have the control **publish** the handful of properties a container is
+ * allowed to influence and read them itself. This is the third.
+ *
+ * Every one is a custom property whose fallback is *exactly what the size already says*, so a
+ * control with nothing set above it computes byte-for-byte what it computed before these existed —
+ * which is why MJXOFF-182's suites did not move when they were added. A container that wants a
+ * `large` command to lay itself out like a `small` one sets `--mjx-control-orientation: row`, and
+ * the control's own rules do the rest. Custom properties inherit through the flat tree, so this is
+ * the one channel that reaches a slotted component's shadow root at all.
+ *
+ * ⚠ **The icon is deliberately not a lever.** Fluent draws each size separately and
+ * `src/icons/manifest.ts` says so: choosing a drawing is not a scale factor, and a container query
+ * cannot change an attribute. A reduced `large` command therefore keeps its 24px drawing beside a
+ * one-line label, which is a real shape rather than a scaled-down one.
+ */
+export const controlLevers = {
+  /** `column` or `row` — what a `large` command's icon and label do relative to each other. */
+  orientation: '--mjx-control-orientation',
+  /** How many lines the label may wrap to. */
+  labelLines: '--mjx-control-label-lines',
+  /** The `large` shape's width floor. Never set it below `--mjx-hit-target`. */
+  minInline: '--mjx-control-min-inline',
+  /** The `large` shape's width ceiling, or `none`. */
+  maxInline: '--mjx-control-max-inline',
+} as const;
+
+/**
  * The size rules, generated from `controlSizes` so a size cannot be styled but undeclared.
  *
  * These are **not** wrapped in `:where()`, and the reason is the same specificity argument stated
@@ -656,18 +688,18 @@ export const controlSizeCss = controlSizeNames
     const spec = controlSizes[size];
     const width =
       size === 'large'
-        ? `  min-inline-size: ${spacingMultiple(largeControlWidthUnits.min)};\n` +
-          `  max-inline-size: ${spacingMultiple(largeControlWidthUnits.max)};\n` +
+        ? `  min-inline-size: var(${controlLevers.minInline}, ${spacingMultiple(largeControlWidthUnits.min)});\n` +
+          `  max-inline-size: var(${controlLevers.maxInline}, ${spacingMultiple(largeControlWidthUnits.max)});\n` +
           `  padding-block: var(--mjx-density-step);\n`
         : '';
     return (
       `.control[data-size='${size}'] {\n` +
-      `  flex-direction: ${spec.orientation};\n` +
+      `  flex-direction: var(${controlLevers.orientation}, ${spec.orientation});\n` +
       width +
       `}\n` +
       `.control[data-size='${size}'] .label {\n` +
-      `  -webkit-line-clamp: ${String(spec.labelLines)};\n` +
-      `  line-clamp: ${String(spec.labelLines)};\n` +
+      `  -webkit-line-clamp: var(${controlLevers.labelLines}, ${String(spec.labelLines)});\n` +
+      `  line-clamp: var(${controlLevers.labelLines}, ${String(spec.labelLines)});\n` +
       `}`
     );
   })

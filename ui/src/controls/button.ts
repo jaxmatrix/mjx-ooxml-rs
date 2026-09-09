@@ -143,6 +143,20 @@ export class MjxButton extends HTMLElement {
     return undefined;
   }
 
+  /**
+   * Focus the control this element *is* (MJXOFF-183).
+   *
+   * The host carries no `tabindex` and is not itself focusable, so `host.focus()` would otherwise
+   * be a silent no-op — and a ribbon group that has to move focus into a command it holds would be
+   * left querying another component's shadow root, which is exactly the coupling `part` and the
+   * event surface exist to avoid. Sequential navigation still reaches the inner button on its own;
+   * this is only for the programmatic case, which is what a popup's focus trap is made of.
+   */
+  override focus(options?: FocusOptions): void {
+    if (this.#button === undefined) super.focus(options);
+    else this.#button.focus(options);
+  }
+
   /** The inner button, for a test and for a subclass. `undefined` before the first connection. */
   protected get control(): HTMLButtonElement | undefined {
     return this.#button;

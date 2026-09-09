@@ -14,6 +14,7 @@ import { defineFoundationProbes } from '../dev/foundation-probes.ts';
 import { defineIcon } from '../src/icons/icon.ts';
 import { defineSurface } from '../src/foundations/surface.ts';
 import { defineControls } from '../src/controls/index.ts';
+import { defineRibbonElements } from '../src/ribbon/index.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
 
@@ -26,6 +27,8 @@ defineSurface();
 // `<mjx-icon>` is: a component that is only defined by the story that happens to import it is a
 // component whose absence looks like a rendering bug in a *different* story.
 defineControls();
+// MJXOFF-183's ribbon structure, registered here for the same reason.
+defineRibbonElements();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
