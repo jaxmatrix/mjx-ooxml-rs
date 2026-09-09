@@ -22,27 +22,110 @@ one entry on that space; its members are reached by descending into it, as deep 
 
 Both convert from a bare `u32`, so `slide.into()` is the whole ceremony for the common case.
 
-```
+<!-- guide-example: addressing_a_deck rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Deck, PresetShapeType, ShapeBounds, ShapePath, SlideSize, Surface};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let slide = Surface::Slide(deck.add_slide()?);   // `add_slide_from_layout` would copy the layout's placeholders too
-deck.add_shape(slide, PresetShapeType::Rectangle, ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0))?;
-deck.add_shape(slide, PresetShapeType::Ellipse, ShapeBounds::from_inches(4.0, 1.0, 2.0, 1.0))?;
+// `add_slide_from_layout` would copy the layout's placeholders too.
+let slide = Surface::Slide(deck.add_slide()?);
+let rectangle = ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0);
+let ellipse = ShapeBounds::from_inches(4.0, 1.0, 2.0, 1.0);
+deck.add_shape(slide, PresetShapeType::Rectangle, rectangle)?;
+deck.add_shape(slide, PresetShapeType::Ellipse, ellipse)?;
 assert_eq!(deck.shape_count(slide)?, 2);
 
+// The group itself is one entry on the surface's index space.
 let group: ShapePath = deck.group_shapes(slide, &[0.into(), 1.into()])?;
-assert!(group.is_top_level(), "the group itself is one entry on the surface's index space");
+assert!(group.is_top_level());
 
-let member = group.child(1);           // member 1 of that group, one step deeper
+// Member 1 of that group, one step deeper.
+let member = group.child(1);
 assert_eq!(member.depth(), 2);
-assert_eq!(member.parent(), Some(group.clone()));
-assert!(!member.is_top_level());
 assert_eq!(member.indices().len(), 2);
+assert!(!member.is_top_level());
+assert_eq!(member.parent(), Some(group.clone()));
+
+let saved = deck.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_deck python -->
+```python
+from mjx_ooxml import Deck, PresetShapeType, ShapeBounds, SlideSize, Surface
+
+deck = Deck.blank(SlideSize.widescreen())
+# `add_slide_from_layout` would copy the layout's placeholders too.
+slide = Surface.slide(deck.add_slide())
+rectangle = ShapeBounds.from_inches(1.0, 1.0, 2.0, 1.0)
+ellipse = ShapeBounds.from_inches(4.0, 1.0, 2.0, 1.0)
+deck.add_shape(slide, PresetShapeType.Rectangle, rectangle)
+deck.add_shape(slide, PresetShapeType.Ellipse, ellipse)
+assert deck.shape_count(slide) == 2
+
+# The group itself is one entry on the surface's index space.
+group = deck.group_shapes(slide, [0, 1])
+assert group.is_top_level
+
+# Member 1 of that group, one step deeper.
+member = group.child(1)
+assert member.depth == 2
+assert len(member.indices) == 2
+assert not member.is_top_level
+assert member.parent == group
+
+saved = deck.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_deck js -->
+```js
+import { Deck, PresetShapeType, ShapeBounds, SlideSize, Surface } from "@mjx/ooxml";
+
+const deck = Deck.blank(SlideSize.widescreen());
+// `addSlideFromLayout` would copy the layout's placeholders too.
+const slide = Surface.slide(deck.addSlide());
+const rectangle = ShapeBounds.fromInches(1.0, 1.0, 2.0, 1.0);
+const ellipse = ShapeBounds.fromInches(4.0, 1.0, 2.0, 1.0);
+deck.addShape(slide, PresetShapeType.Rectangle, rectangle);
+deck.addShape(slide, PresetShapeType.Ellipse, ellipse);
+if (deck.shapeCount(slide) !== 2) {
+  throw new Error("the slide should carry two shapes");
+}
+
+// The group itself is one entry on the surface's index space.
+const group = deck.groupShapes(slide, [0, 1]);
+// Member 1 of that group, one step deeper.
+const member = group.child(1);
+const parent = member.parent;
+if (!group.isTopLevel || member.isTopLevel) {
+  throw new Error("the group is top level and its member is not");
+}
+if (member.depth !== 2 || member.indices.length !== 2) {
+  throw new Error("a group member's address is two indices deep");
+}
+if (!parent.equals(group)) {
+  throw new Error("a member's parent is the group it belongs to");
+}
+
+const saved = deck.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [deck, slide, rectangle, ellipse, group, member, parent]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+Three differences between those blocks are the languages rather than this library, and they recur on
+every page below. A Rust enumeration variant carrying a payload — `Surface::Slide(0)` — is a static
+constructor in both bindings, because neither Python nor JavaScript has one; a Rust method that
+answers a question, `depth()`, is a property, `depth` and `.depth`; and JavaScript has no operator
+overloading, so two addresses are compared with `equals` where the other two use `==`. Every call in
+front of those is the same call with the same arguments, which is exactly what these blocks being
+copies of three running files is here to keep true.
 
 A top-level path — one index, no descent — is stored inline and **never allocates**; only a path
 that descends into a group allocates, once, on its way down. That matters because these values are
@@ -60,10 +143,11 @@ A Word document has one body, so nothing names the part. A [`BlockPath`] names a
 a paragraph inside a table cell, inside a content control, inside another table, is a path with a
 segment per level.
 
-```
+<!-- guide-example: addressing_a_document rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Document, PageSize};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut document = Document::blank(PageSize::a4())?;
 document.append_paragraph()?;
 document.append_run(0, "Quarterly ")?;
@@ -71,9 +155,51 @@ document.append_run(0, "results")?;
 assert_eq!(document.run_count(0)?, 2);
 assert_eq!(document.run_text(0, 1)?, "results");
 assert_eq!(document.paragraph_text(0)?, "Quarterly results");
+
+let saved = document.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_document python -->
+```python
+from mjx_ooxml import Document, PageSize
+
+document = Document.blank(PageSize.a4())
+document.append_paragraph()
+document.append_run(0, "Quarterly ")
+document.append_run(0, "results")
+assert document.run_count(0) == 2
+assert document.run_text(0, 1) == "results"
+assert document.paragraph_text(0) == "Quarterly results"
+
+saved = document.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_document js -->
+```js
+import { Document, PageSize } from "@mjx/ooxml";
+
+const document = Document.blank(PageSize.a4());
+document.appendParagraph();
+document.appendRun(0, "Quarterly ");
+document.appendRun(0, "results");
+if (document.runCount(0) !== 2) {
+  throw new Error("the paragraph should carry two runs");
+}
+if (document.runText(0, 1) !== "results") {
+  throw new Error("run 1 is the second run of paragraph 0");
+}
+if (document.paragraphText(0) !== "Quarterly results") {
+  throw new Error("a paragraph's text is its runs, concatenated");
+}
+
+const saved = document.save();
+document.free(); // a wasm handle owns memory the garbage collector cannot see
+```
+<!-- guide-example end -->
 
 **Twenty-three of the `Document` methods take `impl Into<BlockPath>` rather than the concrete path**,
 which is how `document.append_run(0, "…")` above compiles with a bare integer where the `Deck`
@@ -133,20 +259,70 @@ indices, so taking the row first would put each offset beside the wrong one. The
 down the element it writes, which is the same reason `mjx_sml::CellReference::relative` takes
 `(column, row)`.
 
-```
+<!-- guide-example: the_calls_that_take_the_column_first rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{ChartData, ChartKind, ResizingBehavior, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut workbook = Workbook::blank()?;
 let chart = ChartData::new(ChartKind::Bar)
     .categories(["Q1", "Q2"])
     .series("North", [12.5, 18.0]);
-// from column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
-let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", ResizingBehavior::MoveAndResizeWithAnchorCells)?;
+
+// From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+let resizing = ResizingBehavior::MoveAndResizeWithAnchorCells;
+let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", resizing)?;
 assert_eq!(workbook.chart_anchor_indices(0)?, vec![anchor]);
+
+let saved = workbook.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: the_calls_that_take_the_column_first python -->
+```python
+from mjx_ooxml import ChartData, ChartKind, ResizingBehavior, Workbook
+
+workbook = Workbook.blank()
+chart = ChartData(ChartKind.Bar).categories(["Q1", "Q2"]).series("North", [12.5, 18.0])
+
+# From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+resizing = ResizingBehavior.MoveAndResizeWithAnchorCells
+anchor = workbook.add_chart(0, chart, 1, 1, 7, 16, "Revenue", resizing)
+assert workbook.chart_anchor_indices(0) == [anchor]
+
+saved = workbook.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: the_calls_that_take_the_column_first js -->
+```js
+import { ChartData, ChartKind, ResizingBehavior, Workbook } from "@mjx/ooxml";
+
+const workbook = Workbook.blank();
+const chart = new ChartData(ChartKind.Bar).categories(["Q1", "Q2"]).series("North", [12.5, 18.0]);
+
+// From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+const resizing = ResizingBehavior.MoveAndResizeWithAnchorCells;
+const anchor = workbook.addChart(0, chart, 1, 1, 7, 16, "Revenue", resizing);
+const anchors = workbook.chartAnchorIndices(0);
+if (anchors.length !== 1 || anchors[0] !== anchor) {
+  throw new Error("the sheet should carry exactly the chart just added");
+}
+
+const saved = workbook.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [workbook, chart]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+The three saved workbooks are compared to each other part by part, which matters more here than
+anywhere else on this page: a transposed `(column, row)` pair is still four valid numbers, so it
+raises nothing and changes exactly one part, `xl/drawings/drawing1.xml`. That is the failure a
+comparison catches and a reader cannot.
 
 There is no compiler that will catch a caller who transposes those, because both arguments are
 `u32`. That is the cost of the asymmetry, it is recorded rather than papered over, and changing it is

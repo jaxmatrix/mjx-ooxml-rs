@@ -60,6 +60,53 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.155] - 2026-09-09
+
+### Eight more guide examples in three languages each, and the one that finally exercises preservation (MJXOFF-254, H11)
+
+0.0.154 built the mechanism and carried one example through it. This one drains the mechanical part
+of its backlog: **eight** guide blocks stop being prose that looks like code and become three real
+files a runner executes — `the_round_trip`, `authoring_from_nothing`, `addressing_a_deck`,
+`addressing_a_document`, `the_calls_that_take_the_column_first`, `preserved_rather_than_modelled`,
+`the_same_chart_on_all_three` and `one_authoring_vocabulary`.
+
+`the_round_trip` was taken first, and not by alphabet. Every example the mechanism carried until now
+authored every part it compared, so the whole arrangement said **nothing** about copy-on-write or
+verbatim re-emission — the contract this library exists for. `the_round_trip` opens
+`tests/fixtures/sample.xlsx`, which this project did not write, and each of its three halves asserts
+preservation *inside the block a reader sees*: the same part names before and after, and
+byte-identical payloads for every one of them. That placement is the point. Three languages agreeing
+with each other cannot establish preservation; each half is checked against the input file instead,
+and the harness comparison on top is a second, different fact — that all three preserved it the same
+way. One `rename_sheet` inserted into the Python half fails the example's own assertion with
+`/xl/workbook.xml changed` before the harness comparison is reached.
+
+### The extractor grows a hidden Rust prelude
+
+Reading a file is the caller's job — every guide page says so, and `build_a_deck.rs` keeps its own
+`std::fs::read` outside the code the guide shows. Python and JavaScript get that for free, because
+whatever they do above their sentinel is not in the block; a Rust half cannot, because its block is
+*also* a compiled doctest and one that names `original` without binding it does not compile. So a
+Rust half may carry an earlier region emitted as rustdoc's `#` lines: compiled, run, never shown.
+`a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts` reports one in another language
+rather than ignoring it, because there it would be a no-op that reads like a feature.
+
+### Two of the ten turned out not to be mechanical, and were not forced
+
+The backlog called all ten name-for-name projections. Two are not, and neither can have a binding
+half at all:
+
+* **`the_escape_hatches`** — `Deck::presentation_mut`, `Document::document_mut` and
+  `Workbook::workbook_mut` are Rust-only *by decision*, which is the whole point of the page the
+  block sits on. Neither binding exposes one, and `bindings/mjx-wasm/src/deck.rs` says so in a
+  comment.
+* **`the_round_trip_contract`** — the block compares a deck edit through `mjx_opc::Package`, and the
+  package is sealed at this facade deliberately. A `Deck` has no general part door in any language,
+  which `fidelity_and_gaps.md`'s own gaps table already states.
+
+Both move to the unit that decides how the guide *says* a shape differs, and both need something the
+mechanism does not have: a spelling for a block with a Rust half and no other.
+
 ## [0.0.154] - 2026-09-09
 
 ### The guide holds markers, not code: one example in Rust, Python and JavaScript, kept equal by copying (MJXOFF-254, H10)

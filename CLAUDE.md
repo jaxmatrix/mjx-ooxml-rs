@@ -178,8 +178,20 @@ output and never a `build.rs`. `xtask/tests/guide_examples.rs` holds the four po
 markers and the three directories) equal in both directions, fails on a hand-edited block, and fails
 when one half stops producing the package the other two compare against. It inherits
 `walkthrough_triples.rs`'s limit exactly: it cannot tell that a comparison it can see asserts
-anything. **One example is carried end to end today — `saving_validates`; the remaining eighteen
-blocks are a mechanical backlog on MJXOFF-254.**
+anything. A Rust half may also carry a **hidden prelude** region, emitted as rustdoc's `#` lines, so
+an example that starts from a file can bind its bytes without showing a reader how this repository
+finds its fixtures; the other two languages need none, because whatever they do above their sentinel
+is already invisible.
+
+**The examples carried end to end are exactly the files under the three directories** — no list
+anywhere states which, by design. What remains a backlog on MJXOFF-254 is every *other* fenced Rust
+block in `crates/mjx-ooxml/docs/guide/`, and the ones left are there because their projection is not
+name for name: an `ErrorCode` is a string on `.code`, a `CellInput` is a `CellWrite` constructor, a
+`Format` accessor is a free function in wasm — and two blocks have **no** binding half at all, the
+escape hatches (`presentation_mut` and its two siblings are Rust-only by decision) and the
+`mjx_opc::Package` comparison in *The contract* (the package is sealed, and a `Deck` has no part
+door in any language). Those need a written decision about how the guide says the shape differs, and
+the mechanism needs a spelling for a Rust-only block, which it does not have.
 
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
