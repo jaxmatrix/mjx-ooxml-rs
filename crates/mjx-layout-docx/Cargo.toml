@@ -23,6 +23,10 @@ mjx-text.workspace = true
 # consumer of. Also `LineComposer`, which fits a line against a measure; this crate never implements
 # line breaking.
 mjx-layout.workspace = true
+# The chart engine — rank 3.55, one step below this crate (MJXOFF-178). A chart in a Word document,
+# a chart in a slide and a chart on a worksheet are the same chart, so it is laid out once; this edge
+# points down and the reverse one is refused by rank.
+mjx-layout-chart.workspace = true
 # Rank 1.0. `Justification`, `LineSpacingRule`, `TabStopType`, `TabStopLeader`, `BreakType` — the
 # WordprocessingML vocabulary a paragraph's own layout is stated in — and the two wire-string
 # measure parsers (`support::universal_measure`, `support::half_point_measure`), which are here and

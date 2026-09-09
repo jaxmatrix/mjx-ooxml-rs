@@ -68,3 +68,27 @@ mjx-schema-gate.workspace = true
 # the crate every writer can reach; this edge is what keeps there being one copy of it. Another
 # downward edge from a host-only binary nothing depends on.
 mjx-tokens.workspace = true
+
+# ── The one-engine-three-formats gate (MJXOFF-178) ────────────────────────────────────────────────
+#
+# `xtask/tests/one_engine_three_formats.rs` is the assertion that proves R23's premise: the same
+# chart, reached through PowerPoint's, Word's and Excel's box models, produces the same geometry. It
+# has to name all three format crates **and** all three box models at once, and `xtask` is the only
+# member that may: it is host-only, `publish = false`, outside the shipped graph and depended on by
+# nothing, which is exactly the licence `xtask/tests/layering.rs` grants it and grants nothing else.
+#
+# It could not live in `mjx-layout-chart`: that crate's own seam gate refuses every format crate in
+# **both** dependency sections, on the ground that an engine which never opens a package cannot learn
+# what one is. Nor in a box model: each of the three refuses the other two by name, because an edge
+# between two box models is sideways. The test that compares all three therefore belongs above all
+# three, and above all three is here.
+[dev-dependencies]
+mjx-docx.workspace = true
+mjx-xlsx.workspace = true
+mjx-chart.workspace = true
+mjx-layout.workspace = true
+mjx-layout-chart.workspace = true
+mjx-layout-pptx.workspace = true
+mjx-layout-docx.workspace = true
+mjx-layout-xlsx.workspace = true
+mjx-text.workspace = true

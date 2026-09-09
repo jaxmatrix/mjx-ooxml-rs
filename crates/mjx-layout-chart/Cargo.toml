@@ -1,0 +1,33 @@
+[package]
+name = "mjx-layout-chart"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Chart and diagram layout, shared by all three box models."
+
+[lints]
+workspace = true
+
+[dependencies]
+# `Emu` and `Angle` — lengths and angles, not markup.
+mjx-ooxml-core.workspace = true
+# The chart part is XML and this crate parses it, so that the three box models hand it *bytes* and
+# no two of them can disagree about what a `c:chartSpace` says. Rank 0.1.
+mjx-xml.workspace = true
+# The box model contract: `FragmentTree`, `LayoutRect`, the handle vocabulary. Rank 1.6. This crate
+# is not a `BoxModel` — it lays out the inside of one frame — but everything it produces is said in
+# that vocabulary, which is what lets a chart be placed by three engines that cannot see each other.
+mjx-layout.workspace = true
+# `c:chartSpace` and everything under it. Rank 2.2. The whole point of this crate's rank is that it
+# may reach the chart *model* while the three box models reach the chart *engine*.
+mjx-chart.workspace = true
+# `FillSpec`/`LineSpec` — the paint vocabulary a series' `c:spPr` is read into, and the one the
+# resolvers above already speak. Rank 2.0. `mjx_dml::diagram` is the SmartArt model.
+mjx-dml.workspace = true
+# The diagram enumerations (`AlgorithmType`, `PointType`, …), which `mjx-dml` re-exports from here.
+# Rank 1.0.
+mjx-ooxml-types.workspace = true
+thiserror.workspace = true

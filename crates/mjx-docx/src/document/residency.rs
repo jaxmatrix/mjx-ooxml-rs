@@ -2504,6 +2504,18 @@ pub struct DrawingFormatting {
     pub height: i64,
     /// Inline or floating.
     pub placement: DrawingPlacement,
+    /// The `wp:docPr@id` the drawing states, or `None` for one that states none.
+    ///
+    /// **The address `Document::chart_part_bytes` takes** (MJXOFF-178). A box model that has laid a
+    /// drawing out and wants to know what is *inside* it has to name it back to the format crate,
+    /// and this is the only identifier a `w:drawing` carries.
+    pub id: Option<u32>,
+    /// Whether the drawing frames a chart (`a:graphicData > c:chart`).
+    ///
+    /// Read here rather than left to the box model because the residency already has the
+    /// `a:graphic` open: asking again would mean re-parsing `word/document.xml`, which is the
+    /// quadratic read this whole module exists to end.
+    pub frames_a_chart: bool,
 }
 
 /// One block of body content: a paragraph, or a table.
@@ -2738,6 +2750,13 @@ fn read_drawing(
             run,
             width: extent.map_or(0, |size| size.width.emu()),
             height: extent.map_or(0, |size| size.height.emu()),
+            id: inline
+                .doc_properties(interner)
+                .and_then(|properties| properties.id(interner).ok()),
+            frames_a_chart: inline
+                .graphic(interner)
+                .and_then(|graphic| graphic.data().chart_relationship_id(interner))
+                .is_some(),
             placement: DrawingPlacement::Inline(DrawingDistances {
                 top: emu_or_zero(inline.distance_top(interner)),
                 bottom: emu_or_zero(inline.distance_bottom(interner)),
@@ -2801,6 +2820,13 @@ fn read_drawing(
         run,
         width: extent.map_or(0, |size| size.width.emu()),
         height: extent.map_or(0, |size| size.height.emu()),
+        id: anchor
+            .doc_properties(interner)
+            .and_then(|properties| properties.id(interner).ok()),
+        frames_a_chart: anchor
+            .graphic(interner)
+            .and_then(|graphic| graphic.data().chart_relationship_id(interner))
+            .is_some(),
         placement: DrawingPlacement::Anchored(Box::new(AnchoredDrawing {
             distance,
             effect_extent: DrawingDistances {

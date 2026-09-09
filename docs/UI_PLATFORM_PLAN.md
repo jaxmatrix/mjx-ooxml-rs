@@ -953,11 +953,23 @@ available; everything depends on R0.
 
 ## 16 · Open questions for stage 2
 
-1. **Chart layout** — its own sub-engine (axes, scales, series geometry, legends). Does it live inside
-   `mjx-layout-pptx`, or as `mjx-layout-chart` shared by all three formats? The latter is almost
-   certainly right, since charts appear in all three, but it needs a rank.
-2. **SmartArt / `dia:` diagram layout** — `mjx-dml` has a `diagram/` module already. How much of the
-   layout algorithm is modelled there versus still to build?
+1. ~~**Chart layout** — its own sub-engine (axes, scales, series geometry, legends). Does it live
+   inside `mjx-layout-pptx`, or as `mjx-layout-chart` shared by all three formats?~~ **Answered by
+   MJXOFF-178: `mjx-layout-chart`, at rank 3.55 — one step *below* the three box models.** Beside
+   them at 3.6 it would have been reachable from none of them, because an edge between two box
+   models is sideways and refused; below them it is reachable from all three and can reach none, so
+   "built once" is a property of the graph. The seam is the chart part's **bytes**, so the engine
+   opens no package and its own gate refuses all three format crates in both dependency sections.
+2. ~~**SmartArt / `dia:` diagram layout** — `mjx-dml` has a `diagram/` module already. How much of
+   the layout algorithm is modelled there versus still to build?~~ **Answered by MJXOFF-178: the
+   markup is complete and the algorithm is entirely to build.** `mjx-dml`'s `diagram/` types every
+   element of all four parts — the point-and-connection graph, the whole recursive layout-definition
+   tree with all ten of `ST_AlgorithmType`, the constraints, the rules, the `choose`/`forEach` — and
+   its own module documentation says *"what is **not** here is a layout engine"*.
+   `mjx-layout-chart`'s `diagram` module is the first evaluator and covers **three** of the ten
+   algorithms (`lin`, `hierRoot`/`hierChild`, `cycle`) over the data model's `parOf` graph, with
+   none of the constraint language; the other seven are refused by name. The remaining seven
+   algorithms and `dgm:constrLst` are the work that is left.
 3. **Collaboration** — not in scope, but the command journal in `mjx-session` is the natural seam for
    it later. Worth designing the journal so that seam stays open, at no cost now.
 4. **Print pipeline** — the PDF exporter covers export; native printing needs a platform dialog and a

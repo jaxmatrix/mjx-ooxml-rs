@@ -43,6 +43,7 @@ use mjx_layout::{
     PageFragments, PageIndex, PartId, ShapeFragment, SourcePath, TableCell, TableFragment,
     Transform, TransformId,
 };
+use mjx_layout_chart::{ChartOutline, ChartPaint, ChartResourceTable};
 use mjx_ooxml_core::measure::Emu;
 use mjx_pptx::ShapeKind;
 use mjx_text::{FeatureSet, FontResolver, GlyphRasteriser, Shaper};
@@ -112,6 +113,13 @@ pub struct ImageRequest {
 pub struct PageCatalogue {
     decorations: Vec<Decoration>,
     geometries: Vec<ShapeOutlineRequest>,
+    /// The paints and outlines a chart on the page issued (MJXOFF-178).
+    ///
+    /// A separate table rather than more entries in the two above, because a chart's outline is not
+    /// a shape path: a pie slice is an arc and a gridline is a segment, and `ShapeOutlineRequest`
+    /// names a preset shape on a slide. The two spaces are kept apart by numbering rather than by
+    /// type — see [`PageCatalogue::CHART_HANDLE_BASE`].
+    charts: ChartResourceTable,
     images: Vec<ImageRequest>,
     /// How deep each shape's path is, so a hit test can split a `SourceRef` correctly.
     shape_depths: Vec<(SourcePath, usize)>,
@@ -119,17 +127,70 @@ pub struct PageCatalogue {
 }
 
 impl PageCatalogue {
-    /// What a decoration handle resolves to.
+    /// Where a chart's own handles are numbered from.
+    ///
+    /// A chart's paints and outlines are resolved by a different table from a slide's, so they are
+    /// numbered in a space of their own rather than interleaved. `1 << 32` is above every handle a
+    /// page of shapes can issue — a `FragmentId` is a `u32`, so a page holds at most four billion
+    /// fragments and therefore at most that many handles — which makes
+    /// `handle.number() >= CHART_HANDLE_BASE` the test that says which table resolves it.
+    ///
+    /// **All three box models use the same base**, which is what makes the handles in a chart's
+    /// fragments identical whether the chart was reached from a slide, a document or a sheet. That
+    /// is not decoration: `xtask/tests/one_engine_three_formats.rs` compares fragment trees, and a
+    /// handle numbered from the host's own running total would differ between hosts for reasons
+    /// that have nothing to do with the chart.
+    pub const CHART_HANDLE_BASE: u64 = 1 << 32;
+
+    /// A fresh catalogue, with the chart table numbered from [`Self::CHART_HANDLE_BASE`].
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            charts: ChartResourceTable::new(Self::CHART_HANDLE_BASE, Self::CHART_HANDLE_BASE),
+            ..Self::default()
+        }
+    }
+
+    /// The table a chart on this page issues its handles from.
+    pub fn chart_resources(&mut self) -> &mut ChartResourceTable {
+        &mut self.charts
+    }
+
+    /// What a chart's paint handle resolves to, or `None` for a handle no chart issued.
+    #[must_use]
+    pub fn chart_paint(&self, handle: DecorationRef) -> Option<&ChartPaint> {
+        self.charts.paint(handle)
+    }
+
+    /// What a chart's outline handle resolves to.
+    #[must_use]
+    pub fn chart_outline(&self, handle: GeometryRef) -> Option<&ChartOutline> {
+        self.charts.shape(handle)
+    }
+
+    /// Whether `handle` was issued by a chart rather than by the slide itself.
+    #[must_use]
+    pub fn is_chart_handle(number: u64) -> bool {
+        number >= Self::CHART_HANDLE_BASE
+    }
+
+    /// What a decoration handle resolves to. `None` for a chart's — see [`Self::chart_paint`].
     #[must_use]
     pub fn decoration(&self, handle: DecorationRef) -> Option<&Decoration> {
+        if Self::is_chart_handle(handle.number()) {
+            return None;
+        }
         usize::try_from(handle.number())
             .ok()
             .and_then(|index| self.decorations.get(index))
     }
 
-    /// What a geometry handle resolves to.
+    /// What a geometry handle resolves to. `None` for a chart's — see [`Self::chart_outline`].
     #[must_use]
     pub fn geometry(&self, handle: GeometryRef) -> Option<&ShapeOutlineRequest> {
+        if Self::is_chart_handle(handle.number()) {
+            return None;
+        }
         usize::try_from(handle.number())
             .ok()
             .and_then(|index| self.geometries.get(index))
@@ -225,7 +286,7 @@ impl SlideBoxModel {
             shaper: Shaper::new(),
             features: FeatureSet::new(),
             policy: AutofitPolicy::default(),
-            catalogue: PageCatalogue::default(),
+            catalogue: PageCatalogue::new(),
         }
     }
 
@@ -413,7 +474,7 @@ impl SlideBoxModel {
         constraints: &Constraints,
     ) -> Result<mjx_layout::FragmentTree, SlideLayoutError> {
         let page_rect = LayoutRect::from_origin_and_size(LayoutPoint::ORIGIN, constraints.page);
-        let mut catalogue = PageCatalogue::default();
+        let mut catalogue = PageCatalogue::new();
         let mut builder = FragmentTreeBuilder::new();
 
         let root = builder.push_simple(
@@ -447,6 +508,7 @@ impl SlideBoxModel {
                 shape,
                 parent,
                 constraints,
+                slide.palette(),
             )? {
                 if shape.kind == ShapeKind::GroupShape {
                     parents.push((shape.path.clone(), id));
@@ -489,6 +551,7 @@ impl SlideBoxModel {
         shape: &Shape,
         parent: Option<FragmentId>,
         constraints: &Constraints,
+        palette: &mjx_layout_chart::ChartPalette,
     ) -> Result<Option<FragmentId>, SlideLayoutError> {
         // A shape no tier places has no rectangle, and drawing it at the origin would put something
         // on the slide that PowerPoint does not.
@@ -516,7 +579,7 @@ impl SlideBoxModel {
                 };
                 Some(table::lay_out(&mut engine, rect, content)?)
             }
-            ShapeContent::Nothing | ShapeContent::Picture(_) => None,
+            ShapeContent::Nothing | ShapeContent::Picture(_) | ShapeContent::Chart(_) => None,
         };
 
         let fragment = match (&shape.content, shape.kind) {
@@ -557,10 +620,11 @@ impl SlideBoxModel {
                     decoration,
                 })
             }
-            // A group's own box, and a graphic frame holding something this crate does not lay out
-            // — a chart or a diagram, which are R23. Both take up the room they occupy and are
-            // hit-testable, so nothing moves when they grow into real fragments.
-            (ShapeContent::Nothing, _) => Fragment::Box(BoxFragment {
+            // A group's own box, a graphic frame holding a chart — whose own fragments are pushed
+            // under this one below — and a graphic frame holding something this crate still does
+            // not lay out, which is now a diagram or an embedded object. All three take up the room
+            // they occupy and are hit-testable.
+            (ShapeContent::Nothing | ShapeContent::Chart(_), _) => Fragment::Box(BoxFragment {
                 decoration,
                 cell: None,
             }),
@@ -615,6 +679,27 @@ impl SlideBoxModel {
         if let (ShapeContent::Table(content), Some(grid)) = (&shape.content, &placed_table) {
             build_table(
                 builder, catalogue, id, transform, part, surface, shape, content, grid,
+            );
+        }
+
+        // A chart's interior. The frame is this crate's; everything inside it is
+        // `mjx-layout-chart`'s, reached through one call that Word's and Excel's box models make
+        // identically — which is what MJXOFF-178's rank 3.55 buys and what
+        // `xtask/tests/one_engine_three_formats.rs` checks.
+        if let ShapeContent::Chart(chart) = &shape.content {
+            let geometry = mjx_layout_chart::lay_out(
+                chart,
+                rect,
+                palette,
+                &mut mjx_layout_chart::NominalMetrics,
+            );
+            let address = mjx_layout_chart::ChartAddress::new(address::node(part, path.clone()));
+            mjx_layout_chart::emit_into(
+                &geometry,
+                builder,
+                id,
+                &address,
+                catalogue.chart_resources(),
             );
         }
         Ok(Some(id))

@@ -43,6 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
+  | 3.55 — the chart engine | `mjx-layout-chart` |
   | 3.6 — the box models | `mjx-layout-pptx`, `mjx-layout-xlsx`, `mjx-layout-docx` |
   | 3.7 — the scene companions | `mjx-scene-pptx`, `mjx-scene-xlsx` |
   | 3.8 — the viewport | `mjx-view` |
@@ -163,6 +164,29 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   the box model. **Word has no scene companion yet.** PowerPoint's is `mjx-scene-pptx` and Excel's
   `mjx-scene-xlsx`, both at 3.7; `mjx-scene-docx` is the ticket that has to follow MJXOFF-174, and
   until it exists a Word `FragmentTree` cannot reach pixels.
+
+  **`mjx-layout-chart` (MJXOFF-178) sits one step *below* all three of them, at 3.55, and that
+  number is the whole ticket.** A chart in a `.pptx`, a `.docx` and an `.xlsx` is the same chart —
+  the same `c:chartSpace` part, reached three ways — so it is laid out once. The three box models
+  share 3.6 precisely so that an edge between any two of them is *sideways*, which means a chart
+  engine placed **beside** them would be reachable from none of them; at 3.55 it is reachable from
+  all three, each edge pointing strictly down, and "built once" is a property of the graph rather
+  than a promise in prose. MJXOFF-176 met the other half of this and reported it rather than routing
+  around it: told to consume MJXOFF-170's DrawingML shape layout, it found that layout inside
+  `mjx-layout-pptx` at 3.6 and the edge sideways, so it placed the chart's *frame* and left the
+  interior here.
+
+  What the rank buys, beyond that: the format tier (3.0) cannot reach it, so `mjx-pptx` cannot grow
+  a chart engine any more than it can grow a slide one — the real temptation, since all three format
+  crates already own a chart *surface*; `mjx-chart` (2.2) cannot reach it, so a `c:chartSpace` says
+  what the file says and never says where a bar goes; `mjx-session` (3.5) cannot reach it, for the
+  reason the box models' rank gives; and `mjx-layout` (1.6) cannot, so the contract acquires no
+  chart-shaped bulge. What it does **not** buy is the other direction — at 3.55 every format crate,
+  every markup crate and `mjx-geometry` are legal downward edges — so *a chart engine reads no
+  package and resolves no outline* is held by `crates/mjx-layout-chart/tests/the_seam_holds.rs`,
+  which refuses all three format crates in **both** sections. That refusal is affordable because the
+  engine is handed the chart part's **bytes**: `chart_part_bytes` is already public on all three
+  format surfaces, so the parse is shared too and no host reads a `c:chartSpace` itself.
 
   **`mjx-scene-pptx` at 3.7 (MJXOFF-170) exists because that same gate forbids the edge that would
   have made it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *the box

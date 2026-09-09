@@ -58,6 +58,54 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.154] - 2026-09-10
+
+**Charts and diagrams, built once for all three formats (MJXOFF-178, R23).** A chart in a `.pptx`, a
+chart in a `.docx` and a chart on an `.xlsx` sheet are the same chart, so from this release they are
+laid out by one engine reached three ways.
+
+### Added
+
+- **`mjx-layout-chart` at rank 3.55** — a new workspace member, one step *below* the three box
+  models. That number is the whole design: the three box models share 3.6 so that an edge between any
+  two of them is *sideways* and refused, which means a chart engine placed beside them would be
+  reachable from none of them. At 3.55 all three reach it and it reaches none of them, so "built
+  once" is a property of the dependency graph rather than a promise in prose.
+- **Axis scaling and tick selection** — Heckbert's nice-number algorithm (*Nice Numbers for Graph
+  Labels*, Graphics Gems I, 1990) with one stated deviation, plus logarithmic axes, proportional axes
+  for hundred-percent-stacked plots, and the stated `c:min`/`c:max`/`c:majorUnit` used exactly.
+- **Geometry for fourteen of the sixteen plot elements** — bar and column (clustered, stacked,
+  hundred-percent), line, area, pie, doughnut, pie-of-pie, scatter, bubble, radar and stock, plus the
+  four three-dimensional forms laid out flat. The two surface plots lay out their furniture and plot
+  no data, deliberately.
+- **Plot-area negotiation** as a two-pass fixed point, data labels across all three label tiers,
+  legends, major and minor gridlines, tick marks, axis titles, six kinds of trendline and five kinds
+  of error bar.
+- **SmartArt layout evaluation** for three of `ST_AlgorithmType`'s ten algorithms — `lin`,
+  `hierRoot`/`hierChild` and `cycle` — over the data model's `parOf` graph. The other seven are
+  refused by name rather than approximated.
+- `Presentation::theme_accent_colors`, `Document::theme_accent_colors` and
+  `Workbook::theme_accent_colors`, all three over the new `mjx_dml::SchemeColors::accents`: the six
+  accents a chart hands to series that state no fill of their own. **The document's own palette**,
+  never one invented by the renderer.
+- `mjx_chart::Axis` grows `major_unit`, `minor_unit`, `tick_label_skip`, `tick_mark_skip`,
+  `crosses_at`, `crosses` and `crosses_between_categories`.
+- `mjx_docx::DrawingFormatting` grows `id` and `frames_a_chart`, so a box model that has laid a
+  drawing out can ask the format crate what is inside it without re-parsing `word/document.xml`.
+
+### Notes
+
+- The seam between a host and the engine is **bytes**: `chart_part_bytes` was already public on all
+  three format surfaces, so the parse is shared too and `mjx-layout-chart` opens no package. Its own
+  gate refuses all three format crates in **both** dependency sections.
+- `xtask/tests/one_engine_three_formats.rs` is the gate that proves the premise: the same chart,
+  authored independently by three format crates and laid out by three box models, produces the same
+  fragments.
+- Stated limitations, each at its own site as well as in the crate documentation: `c:numFmt` is not
+  applied (the number-format evaluator lives in `mjx-layout-xlsx` at 3.6 and the edge would be
+  upward), `c:plotArea > c:layout` is not read, chart text is measured rather than shaped, `c:view3D`
+  is not read, and `c:ofPieChart`'s secondary plot is absent.
+
 ## [0.0.153] - 2026-09-09
 
 **Fields, numbering, revision marks and OMML mathematical layout — and the two defects the last two

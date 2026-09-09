@@ -354,6 +354,36 @@ impl Presentation {
         Ok(Some(theme.to_info(&doc.interner)))
     }
 
+    /// The six accent colours of the theme that governs `surface`, resolved to RGB — the palette a
+    /// chart on this surface hands out to series that state no fill of their own (MJXOFF-178).
+    ///
+    /// `Ok(None)` when the surface reaches no theme part, or when the theme defines fewer than all
+    /// six accents. Both answers mean *this document states no palette*, and a caller that invents
+    /// one paints a customer's chart in colours their file does not carry.
+    ///
+    /// `mjx_docx::Document` and `mjx_xlsx::Workbook` carry the identically named method over the
+    /// identical `mjx_dml::SchemeColors::accents`, so a chart's colours do not depend on which of
+    /// the three hosts it was opened from.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the theme part is not
+    /// well-formed.
+    pub fn theme_accent_colors(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Option<[[u8; 3]; 6]>, PptxError> {
+        let surface = surface.into();
+        let Some(theme_part) = self.theme_part(surface)? else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&theme_part)?;
+        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| mjx_dml::SchemeColors::from_scheme(scheme, &doc.interner))
+            .and_then(|colors| colors.accents()))
+    }
+
     /// The theme [`PartName`] governing `surface`: the theme related to the last part of its
     /// inheritance chain (the master, where there is one); `None` if that part relates to no theme.
     pub(super) fn theme_part(&self, surface: Surface) -> Result<Option<PartName>, PptxError> {

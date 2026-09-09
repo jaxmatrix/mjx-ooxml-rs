@@ -157,6 +157,31 @@ impl Document {
         Ok(ids)
     }
 
+    /// The document theme's six accent colours, resolved to RGB — the palette a chart in this
+    /// document hands out to series that state no fill of their own (MJXOFF-178).
+    ///
+    /// `Ok(None)` when the document relates to no `word/theme/themeN.xml`, or when its theme defines
+    /// fewer than all six accents. Both answers mean *this document states no palette*, and a caller
+    /// that invents one paints a customer's chart in colours their file does not carry.
+    ///
+    /// `mjx_pptx::Presentation` and `mjx_xlsx::Workbook` carry the identically named method over the
+    /// identical `mjx_dml::SchemeColors::accents`, so a chart's colours do not depend on which of
+    /// the three hosts it was opened from.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the theme part cannot be read or is not well-formed DrawingML.
+    pub fn theme_accent_colors(&mut self) -> Result<Option<[[u8; 3]; 6]>, DocxError> {
+        let Some(theme_part) = self.parts.theme.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&theme_part)?;
+        let theme = mjx_dml::Theme::from_xml(&doc.root, &doc.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| mjx_dml::SchemeColors::from_scheme(scheme, &doc.interner))
+            .and_then(|colors| colors.accents()))
+    }
+
     /// The relationship id the drawing `drawing_id` names as its chart part
     /// (`w:drawing > … > a:graphicData > c:chart@r:id`), or `None` when that drawing frames no
     /// chart. Reading does not dirty the part.

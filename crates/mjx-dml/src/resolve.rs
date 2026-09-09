@@ -139,6 +139,33 @@ impl SchemeColors {
             .iter()
             .find_map(|(candidate, rgb)| (*candidate == slot).then_some(*rgb))
     }
+
+    /// The six accent colours, in order, or `None` when the scheme does not define all six.
+    ///
+    /// **The palette a chart hands out to series that state no fill of their own** (MJXOFF-178). A
+    /// `c:ser` with no `c:spPr` — which is what Office writes unless a reader has changed a colour
+    /// by hand — takes `accent1 … accent6` from the *document's* theme, so a chart engine that
+    /// chose its own colours would render off-palette inside a customer's branded document.
+    ///
+    /// It lives here rather than in each of the three format crates because all three needed the
+    /// identical six-slot read: `mjx_pptx::Presentation::theme_accent_colors`,
+    /// `mjx_docx::Document::theme_accent_colors` and `mjx_xlsx::Workbook::theme_accent_colors` are
+    /// each one line over this, which is what keeps a slide's palette and a worksheet's the same
+    /// answer to the same question.
+    ///
+    /// **All six or none.** A theme missing one accent is a theme this cannot answer for, and
+    /// substituting a colour for the missing slot would be inventing part of a customer's palette.
+    #[must_use]
+    pub fn accents(&self) -> Option<[[u8; 3]; 6]> {
+        Some([
+            self.rgb(ColorSchemeSlot::Accent1)?,
+            self.rgb(ColorSchemeSlot::Accent2)?,
+            self.rgb(ColorSchemeSlot::Accent3)?,
+            self.rgb(ColorSchemeSlot::Accent4)?,
+            self.rgb(ColorSchemeSlot::Accent5)?,
+            self.rgb(ColorSchemeSlot::Accent6)?,
+        ])
+    }
 }
 
 /// Resolves `color` to a concrete [`ResolvedColor`] against the resolved theme `scheme` and color

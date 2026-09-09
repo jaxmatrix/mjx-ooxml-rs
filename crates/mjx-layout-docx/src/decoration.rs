@@ -20,7 +20,8 @@
 //! rule. [`crate::measure::half_of`] is the answer and [`stroke_rect`] is where it is used.
 
 use mjx_docx::{EffectiveBorder, EffectiveParagraphProperties, EffectiveShading};
-use mjx_layout::{DecorationRef, LayoutRect};
+use mjx_layout::{DecorationRef, GeometryRef, LayoutRect};
+use mjx_layout_chart::{ChartOutline, ChartPaint, ChartResourceTable};
 use mjx_ooxml_core::measure::Emu;
 
 use crate::measure::{border_width, half_of};
@@ -128,16 +129,69 @@ pub fn stroke_rect(rect: LayoutRect, decoration: &ParagraphDecoration) -> Layout
 /// sharing `mjx-layout-xlsx` makes for a cell format, and for the same reason: the table is what a
 /// companion uploads, and a table with one entry per paragraph would upload the same fill a hundred
 /// times.
-#[derive(Clone, PartialEq, Eq, Default, Debug)]
+///
+/// **Not `Eq`, and not `Default`-derived.** It holds a chart's paint table, whose `FillSpec` carries
+/// a gradient angle — a `f64`, which has no total equality — and whose handles are numbered from
+/// [`DecorationCatalogue::CHART_HANDLE_BASE`] rather than from zero. A derived `Default` would
+/// number them from zero and collide with a paragraph's.
+#[derive(Clone, PartialEq, Debug)]
 pub struct DecorationCatalogue {
     entries: Vec<ParagraphDecoration>,
+    /// The paints and outlines a chart in the document issued (MJXOFF-178).
+    ///
+    /// A separate table rather than more entries in [`Self::entries`], because a chart's paint is
+    /// not a paragraph's: this crate's `ParagraphDecoration` is a shading and a set of borders, and
+    /// a chart's is a DrawingML fill and outline. The two spaces are kept apart by numbering rather
+    /// than by type — see [`DecorationCatalogue::CHART_HANDLE_BASE`].
+    charts: ChartResourceTable,
 }
 
 impl DecorationCatalogue {
-    /// An empty catalogue.
+    /// Where a chart's own handles are numbered from.
+    ///
+    /// A chart's paints and outlines are resolved by a different table from a paragraph's, so they
+    /// are numbered in a space of their own rather than interleaved. `1 << 32` is above every handle
+    /// a page of paragraphs can issue — a `FragmentId` is a `u32`, so a page holds at most four
+    /// billion fragments and therefore at most that many handles — which makes
+    /// `handle.number() >= CHART_HANDLE_BASE` the test that says which table resolves it.
+    ///
+    /// **All three box models use the same base**, and `mjx-layout-pptx`'s and `mjx-layout-xlsx`'s
+    /// constants of the same name are the same number for the same reason:
+    /// `xtask/tests/one_engine_three_formats.rs` compares fragment trees, and a handle numbered from
+    /// the host's own running total would differ between hosts for reasons that have nothing to do
+    /// with the chart.
+    pub const CHART_HANDLE_BASE: u64 = 1 << 32;
+
+    /// An empty catalogue, with the chart table numbered from [`Self::CHART_HANDLE_BASE`].
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            entries: Vec::new(),
+            charts: ChartResourceTable::new(Self::CHART_HANDLE_BASE, Self::CHART_HANDLE_BASE),
+        }
+    }
+
+    /// The table a chart in this document issues its handles from.
+    pub fn chart_resources(&mut self) -> &mut ChartResourceTable {
+        &mut self.charts
+    }
+
+    /// What a chart's paint handle resolves to, or `None` for a handle no chart issued.
+    #[must_use]
+    pub fn chart_paint(&self, handle: DecorationRef) -> Option<&ChartPaint> {
+        self.charts.paint(handle)
+    }
+
+    /// What a chart's outline handle resolves to.
+    #[must_use]
+    pub fn chart_outline(&self, handle: GeometryRef) -> Option<&ChartOutline> {
+        self.charts.shape(handle)
+    }
+
+    /// Whether `number` names a handle a chart issued rather than one a paragraph did.
+    #[must_use]
+    pub fn is_chart_handle(number: u64) -> bool {
+        number >= Self::CHART_HANDLE_BASE
     }
 
     /// The handle for `decoration`, issuing one only if this decoration is new.
@@ -158,9 +212,12 @@ impl DecorationCatalogue {
         Some(DecorationRef::new(index as u64))
     }
 
-    /// What `handle` means.
+    /// What `handle` means. `None` for a chart's — see [`Self::chart_paint`].
     #[must_use]
     pub fn get(&self, handle: DecorationRef) -> Option<&ParagraphDecoration> {
+        if Self::is_chart_handle(handle.number()) {
+            return None;
+        }
         usize::try_from(handle.number())
             .ok()
             .and_then(|index| self.entries.get(index))
@@ -176,5 +233,11 @@ impl DecorationCatalogue {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+}
+
+impl Default for DecorationCatalogue {
+    fn default() -> Self {
+        Self::new()
     }
 }

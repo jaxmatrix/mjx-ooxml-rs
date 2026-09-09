@@ -402,6 +402,39 @@ impl Workbook {
             .map(|scheme| SchemeColors::from_scheme(scheme, &document.interner)))
     }
 
+    /// The workbook theme's six accent colours, resolved to RGB — the palette a chart on a sheet
+    /// hands out to series that state no fill of their own (MJXOFF-178).
+    ///
+    /// `Ok(None)` when the workbook relates to no theme part, or when its theme defines fewer than
+    /// all six accents. Both answers mean *this document states no palette*, and a caller that
+    /// invents one paints a customer's chart in colours their file does not carry.
+    ///
+    /// `mjx_pptx::Presentation` and `mjx_docx::Document` carry the identically named method over
+    /// the identical [`SchemeColors::accents`], so a chart's colours do not depend on which of the
+    /// three hosts it was opened from.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the theme part cannot be read or is not well-formed DrawingML.
+    ///
+    /// **Takes `&self`**, unlike [`theme_colors`](Self::theme_colors), and parses the theme part
+    /// from its bytes rather than through the package's cached tree. `mjx-layout-xlsx`'s
+    /// `SheetGrid::read` takes `&Workbook` — reading a sheet does not dirty a package, and it should
+    /// not need a mutable borrow to say what colour a chart's first series is either.
+    pub fn theme_accent_colors(&self) -> Result<Option<[[u8; 3]; 6]>, XlsxError> {
+        let Some(part) = self.parts.theme.as_ref() else {
+            return Ok(None);
+        };
+        let Some(bytes) = self.package().part_bytes(part) else {
+            return Ok(None);
+        };
+        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let theme = Theme::from_xml(&document.root, &document.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| SchemeColors::from_scheme(scheme, &document.interner))
+            .and_then(|colors| colors.accents()))
+    }
+
     /// Edits the modelled `xl/workbook.xml` and writes it back, keeping the verbatim bytes of every
     /// element the edit did not touch.
     ///

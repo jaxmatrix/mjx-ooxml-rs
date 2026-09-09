@@ -20,6 +20,11 @@ mjx-text.workspace = true
 # `SourceRef`. The seam above which nothing has heard of OOXML — and this crate is the first thing
 # below it that has.
 mjx-layout.workspace = true
+# The chart engine — rank 3.55, one step below this crate (MJXOFF-178). A chart in a slide, a chart
+# in a Word document and a chart on a worksheet are the same chart, so it is laid out once; this
+# edge points down and the reverse one is refused by rank, which is what makes "built once"
+# structural rather than intended.
+mjx-layout-chart.workspace = true
 # Rank 2.0. `a:bodyPr`, `a:pPr` and `a:rPr` as values: the specs `mjx-pptx`'s effective-property
 # resolvers answer with. This crate reads those values; it never resolves a ladder itself.
 mjx-dml.workspace = true

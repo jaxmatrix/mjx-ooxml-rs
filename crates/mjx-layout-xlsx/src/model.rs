@@ -44,9 +44,10 @@ use std::collections::HashSet;
 use mjx_layout::{
     BoxFragment, BoxModel, ChangeKind, ChangeSet, Checkpoint, ClipId, Constraints, DecorationRef,
     DirtyPages, Extent, ExtentPrecision, Fragment, FragmentId, FragmentTree, FragmentTreeBuilder,
-    GlyphRunFragment, LayoutError, LayoutPoint, LayoutRect, LineFragment, ModelSignature,
-    PageFragments, PageIndex, TableCell, TableFragment, TransformId,
+    GeometryRef, GlyphRunFragment, LayoutError, LayoutPoint, LayoutRect, LineFragment,
+    ModelSignature, PageFragments, PageIndex, TableCell, TableFragment, TransformId,
 };
+use mjx_layout_chart::{ChartOutline, ChartPaint, ChartResourceTable};
 use mjx_ooxml_core::measure::Emu;
 use mjx_ooxml_types::spreadsheetml::{BorderStyle, GradientType, HorizontalAlignment, PatternType};
 use mjx_sml::{Color, FontProperties};
@@ -338,12 +339,68 @@ pub struct PageCatalogue {
     fits: Vec<(u16, AutoFit)>,
     unevaluated: Vec<(u32, u16, UnevaluatedRule)>,
     drawings: Vec<PlacedDrawing>,
+    /// The paints and outlines a chart anchored on the sheet issued (MJXOFF-178).
+    ///
+    /// A separate table rather than more entries in [`Self::decorations`], because a chart's outline
+    /// is not a cell's: a pie slice is an arc and a gridline is a segment, and this crate's own
+    /// `Decoration` is a fill, a border band and a font colour. The two spaces are kept apart by
+    /// numbering rather than by type — see [`PageCatalogue::CHART_HANDLE_BASE`].
+    charts: ChartResourceTable,
 }
 
 impl PageCatalogue {
-    /// What a decoration handle resolves to.
+    /// Where a chart's own handles are numbered from.
+    ///
+    /// A chart's paints and outlines are resolved by a different table from a cell's, so they are
+    /// numbered in a space of their own rather than interleaved. `1 << 32` is above every handle a
+    /// band of cells can issue — a `FragmentId` is a `u32`, so a page holds at most four billion
+    /// fragments and therefore at most that many handles — which makes
+    /// `handle.number() >= CHART_HANDLE_BASE` the test that says which table resolves it.
+    ///
+    /// **All three box models use the same base**, and `mjx-layout-pptx`'s constant of the same name
+    /// is the same number for the same reason: `xtask/tests/one_engine_three_formats.rs` compares
+    /// fragment trees, and a handle numbered from the host's own running total would differ between
+    /// hosts for reasons that have nothing to do with the chart.
+    pub const CHART_HANDLE_BASE: u64 = 1 << 32;
+
+    /// A fresh catalogue, with the chart table numbered from [`Self::CHART_HANDLE_BASE`].
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            charts: ChartResourceTable::new(Self::CHART_HANDLE_BASE, Self::CHART_HANDLE_BASE),
+            ..Self::default()
+        }
+    }
+
+    /// The table a chart on this page issues its handles from.
+    pub fn chart_resources(&mut self) -> &mut ChartResourceTable {
+        &mut self.charts
+    }
+
+    /// What a chart's paint handle resolves to, or `None` for a handle no chart issued.
+    #[must_use]
+    pub fn chart_paint(&self, handle: DecorationRef) -> Option<&ChartPaint> {
+        self.charts.paint(handle)
+    }
+
+    /// What a chart's outline handle resolves to.
+    #[must_use]
+    pub fn chart_outline(&self, handle: GeometryRef) -> Option<&ChartOutline> {
+        self.charts.shape(handle)
+    }
+
+    /// Whether `number` names a handle a chart issued rather than one a cell did.
+    #[must_use]
+    pub fn is_chart_handle(number: u64) -> bool {
+        number >= Self::CHART_HANDLE_BASE
+    }
+
+    /// What a decoration handle resolves to. `None` for a chart's — see [`Self::chart_paint`].
     #[must_use]
     pub fn decoration(&self, handle: DecorationRef) -> Option<&Decoration> {
+        if Self::is_chart_handle(handle.number()) {
+            return None;
+        }
         usize::try_from(handle.number())
             .ok()
             .and_then(|index| self.decorations.get(index))
@@ -560,7 +617,7 @@ impl SheetBoxModel {
             rasteriser: GlyphRasteriser::new(),
             shaper: Shaper::new(),
             features: FeatureSet::new(),
-            catalogue: PageCatalogue::default(),
+            catalogue: PageCatalogue::new(),
             geometry: None,
             fits: AutoFitCache::new(),
             formats: numfmt::FormatCache::new(),
@@ -912,7 +969,7 @@ impl SheetBoxModel {
 
         let mut catalogue = PageCatalogue {
             regions: regions.clone(),
-            ..PageCatalogue::default()
+            ..PageCatalogue::new()
         };
         let mut builder = FragmentTreeBuilder::new();
         let page_rect = LayoutRect::from_origin_and_size(LayoutPoint::ORIGIN, constraints.page);
@@ -1154,9 +1211,10 @@ impl SheetBoxModel {
                 continue;
             }
             let clip = builder.clip(region.view);
-            builder.push(
+            let address = address::node(content.part(), address::drawing_path(placed.index));
+            let node = builder.push(
                 parent,
-                address::node(content.part(), address::drawing_path(placed.index)),
+                address.clone(),
                 rect,
                 TransformId::IDENTITY,
                 clip,
@@ -1165,6 +1223,24 @@ impl SheetBoxModel {
                     cell: None,
                 }),
             );
+            // A chart's interior. The anchor is this crate's; everything inside it is
+            // `mjx-layout-chart`'s, reached through one call that PowerPoint's and Word's box models
+            // make identically — which is what MJXOFF-178's rank 3.55 buys.
+            if let (Some(node), Some(chart)) = (node, content.chart(placed.index)) {
+                let geometry = mjx_layout_chart::lay_out(
+                    chart,
+                    rect,
+                    content.palette(),
+                    &mut mjx_layout_chart::NominalMetrics,
+                );
+                mjx_layout_chart::emit_into(
+                    &geometry,
+                    builder,
+                    node,
+                    &mjx_layout_chart::ChartAddress::new(address),
+                    catalogue.chart_resources(),
+                );
+            }
             catalogue.drawings.push(placed);
         }
     }

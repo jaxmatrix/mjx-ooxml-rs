@@ -55,6 +55,12 @@ const SOURCE_FILE_COUNT: usize = 27;
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[
     "mjx-layout",
+    // The chart engine at rank 3.55 (MJXOFF-178), which is *below* this crate and therefore a legal
+    // downward edge. It is not a hole in the seam this file holds: `mjx-layout-chart`'s own gate
+    // refuses `mjx-geometry`, `mjx-scene` and all three format crates, so reaching it cannot reach
+    // any of them. What it buys is that a chart on a worksheet, a chart in a slide and a chart in a
+    // Word document are one implementation reached three ways.
+    "mjx-layout-chart",
     "mjx-ooxml-core",
     "mjx-ooxml-types",
     "mjx-sml",
