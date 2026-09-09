@@ -53,12 +53,11 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use mjx_opc::{Package, PartName};
-
 /// The part every claim in this suite is read out of.
-const APP_PROPERTIES: &str = "/docProps/app.xml";
+use xtask::fixture_corpus::APP_PROPERTIES;
 
-/// The needle that raises the question — **and answers none of it**.
+/// The needle that raises the question — **and answers none of it**, restated from
+/// [`fixture_corpus::NAMES_MICROSOFT`] where the derivation lives.
 ///
 /// Every application Microsoft ships writes its own name into `Application`, and every one of those
 /// names contains this word: `Microsoft Excel`, `Microsoft Office Word`,
@@ -67,7 +66,7 @@ const APP_PROPERTIES: &str = "/docProps/app.xml";
 /// products, a version test, or anything else that could be mistaken for deciding what wrote a
 /// file: both fixtures on the ledger below would pass such a test, which is why one does not exist
 /// here.
-const NAMES_MICROSOFT: &str = "microsoft";
+use xtask::fixture_corpus::{self, NAMES_MICROSOFT};
 
 /// One fixture whose `Application` element names Microsoft, and how the file actually got here.
 struct Impersonator {
@@ -121,18 +120,12 @@ fn repository_root() -> PathBuf {
 
 /// The `Application` element of one fixture, or `None` when it ships no `docProps/app.xml`.
 ///
-/// Read out of the package rather than out of the zip directly, so the corpus is walked the way
-/// every other suite walks it. A fixture that will not open at all is a failure: this suite's
-/// corpus is the committed one, and every file in it round-trips elsewhere.
+/// Delegated to [`fixture_corpus::application_of`] since MJXOFF-252, because
+/// `xtask/tests/derived_rosters.rs` needs the same reader to recognise [`KNOWN_IMPERSONATORS`] as
+/// the whole of a derived population. Two `<Application>` readers would be two answers to one
+/// question with no way to say which was wrong.
 fn application_of(fixture: &str) -> Option<String> {
-    let bytes = mjx_fixtures::fixture(fixture);
-    let package = Package::open(&bytes).unwrap_or_else(|e| panic!("opening {fixture}: {e}"));
-    let part = PartName::new(APP_PROPERTIES).expect("a literal part name");
-    let payload = package.part_payload(&part)?;
-    let text = String::from_utf8_lossy(&payload).into_owned();
-    let start = text.find("<Application>")? + "<Application>".len();
-    let end = text[start..].find("</Application>")? + start;
-    Some(text[start..end].to_owned())
+    fixture_corpus::application_of(fixture)
 }
 
 /// **No fixture claims Microsoft authorship unless a person has written down how it got here.**

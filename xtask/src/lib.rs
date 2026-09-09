@@ -37,11 +37,18 @@
 //! `fuzz` and `corpus` stay private to the binary. `fuzz` must: moving it would move the campaign's
 //! `#[global_allocator]` into every `xtask` test binary along with it.
 //!
+//! [`fixture_corpus`] joined it with MJXOFF-252, and for the fifth: `xtask/tests/fixture_provenance.rs`
+//! derives the fixtures whose `docProps/app.xml` names Microsoft, and `xtask/tests/derived_rosters.rs`
+//! needs the same set to recognise that suite's ledger as the whole of a population rather than as an
+//! unregistered roster. A second `Package::open` and a second `<Application>` reader would be two
+//! derivations of one fact with no way to say which was wrong.
+//!
 //! Nothing depends on this crate — `xtask/tests/layering.rs` asserts it — and it is excluded from
 //! the cross-build matrix, so a library target here widens nothing.
 
 pub mod binding_surface;
 pub mod codegen;
 pub mod facade_surface;
+pub mod fixture_corpus;
 pub mod guide_examples;
 pub mod validation;
