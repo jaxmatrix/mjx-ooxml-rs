@@ -116,13 +116,28 @@ fn the_writer_needs_nothing_above_this_crate() {
             .map_or(line, |(name, _)| name)
         })
         .collect();
-    for forbidden in ["mjx-xlsx", "mjx-pptx", "mjx-docx", "mjx-ooxml", "mjx-chart"] {
+    // Every crate `CLAUDE.md` ranks at or above this one — 2.2 upward — not the five this list
+    // named until MJXOFF-225. `mjx-omml` and `mjx-vml` sit at 2.2 beside `mjx-chart` and were
+    // missing, and so were both bindings; the roster read as *the crates that matter* while naming
+    // five of the nine. `xtask/tests/derived_rosters.rs` now derives this set from the rank table and
+    // fails if the two disagree, so a crate added above 2.1 joins the list rather than escaping it.
+    for forbidden in [
+        "mjx-chart",
+        "mjx-omml",
+        "mjx-vml",
+        "mjx-pptx",
+        "mjx-docx",
+        "mjx-xlsx",
+        "mjx-ooxml",
+        "mjx-python",
+        "mjx-wasm",
+    ] {
         assert!(
             !declared.contains(&forbidden),
             "crates/mjx-sml/Cargo.toml declares `{forbidden}`. The package writer exists here \
              precisely so that `mjx-chart` can reach it without an upward edge; an edge from this \
-             crate to a format crate, to the facade, or to `mjx-chart` inverts that and makes \
-             MJXOFF-99's deletion illegal again."
+             crate to anything ranked at or above it — the upper shared markup, a format crate, the \
+             facade, a binding — inverts that and makes MJXOFF-99's deletion illegal again."
         );
     }
     assert!(

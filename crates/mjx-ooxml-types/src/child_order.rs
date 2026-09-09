@@ -5,10 +5,11 @@
 //! opens such a file offers to repair it. Order is therefore validity, not style.
 //!
 //! This module is how a writer gets it right without having read the XSD. The tables re-exported
-//! here — [`DML_MAIN_TYPES`], [`PML_TYPES`], [`DML_CHART_TYPES`] and the named constants beside them
-//! — are generated from the reference schemas by `cargo run -p xtask -- codegen`; this module is the
+//! here — one per schema in `xtask`'s `CHILD_ORDER_SCHEMAS`, and the named constants beside them —
+//! are generated from the reference schemas by `cargo run -p xtask -- codegen`; this module is the
 //! hand-written vocabulary they are expressed in and the placement primitives every serializer in
-//! the workspace uses.
+//! the workspace uses. [`ALL_TABLES`] holds every one of them, and naming it rather than three of
+//! them is what MJXOFF-224 had to fix in the suites below.
 //!
 //! # Rank
 //!
