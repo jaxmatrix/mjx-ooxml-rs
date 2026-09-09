@@ -5,7 +5,14 @@ header and a footer — and not every tab is a grid of cells. Both halves of tha
 this page is about.
 
 Nothing here paginates. `fitToWidth="2"` is a number this library hands back; **where a page actually
-breaks is rendering**, and no call in this workspace answers it.
+breaks is rendering**, and no call in *this crate* answers it.
+
+> ⚠ **Since MJXOFF-173 something in the workspace does.** `mjx-layout-xlsx::print` reads these types
+> and paginates a sheet: paper and orientation, margins, manual row and column breaks,
+> `_xlnm.Print_Area`, `_xlnm.Print_Titles` repeated at the top and left of every later page,
+> `@scale`, fit-to-page, `@pageOrder` and `@firstPageNumber`. It is a **second** pagination, over the
+> same grid as the on-screen one and agreeing with it about nothing else, which is why it lives in a
+> renderer and not here.
 
 ## Reading a sheet's print setup
 

@@ -38,7 +38,13 @@ mjx-xlsx.workspace = true
 thiserror.workspace = true
 
 # `mjx-dml` (rank 2.0) is deliberately NOT a dependency, and this is a decision rather than an
-# omission. MJXOFF-171's ticket lists it, but a worksheet's cell formatting is not DrawingML: a fill
+# omission — **still true after MJXOFF-173 put drawings on a sheet**, which is where it was most
+# likely to break. An anchor's markup is DrawingML, but `mjx-xlsx` already decodes it: a
+# `SheetDrawingObject` carries an `AnchorPlacement` in plain numbers, so this crate resolves the
+# three modes against its own row heights and column widths without naming a DrawingML type at all.
+# `mjx_xlsx::drawing_geometry` exists for the same reason on the authoring side.
+#
+# MJXOFF-171's ticket lists it, but a worksheet's cell formatting is not DrawingML: a fill
 # is `mjx_sml::Fill`, a border is `mjx_sml::Border`, a font is `mjx_sml::FontProperties` and a colour
 # is `mjx_sml::Color`, which addresses the theme *by position* and is explicitly not a
 # `mjx_dml::SchemeColor`. The one place DrawingML enters a `.xlsx` is the theme part a `@theme`

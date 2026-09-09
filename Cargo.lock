@@ -758,11 +758,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.148"
+version = "0.0.149"
 
 [[package]]
 name = "mjx-canvas-harness"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-layout",
  "mjx-ooxml-core",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "anyhow",
  "criterion",
@@ -838,11 +838,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.148"
+version = "0.0.149"
 
 [[package]]
 name = "mjx-geometry"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-ooxml-core",
@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-layout"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-text",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-layout-pptx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-fixtures",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-layout-xlsx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-fixtures",
@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -902,7 +902,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -912,7 +912,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -931,18 +931,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.148"
+version = "0.0.149"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -953,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-paint"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-scene",
@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "anyhow",
  "criterion",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -997,7 +997,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-reference-pack"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-docx",
@@ -1021,7 +1021,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-render-oracle"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-fixtures",
@@ -1036,7 +1036,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "lyon_tessellation",
  "mjx-allocation-counter",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene-pptx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-fixtures",
@@ -1067,7 +1067,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene-xlsx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-dml",
  "mjx-fixtures",
@@ -1083,7 +1083,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -1095,7 +1095,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-session"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-docx",
@@ -1111,7 +1111,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -1127,7 +1127,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "fontdb",
  "mjx-allocation-counter",
@@ -1145,14 +1145,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-view"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-layout",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -1175,7 +1175,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -1185,7 +1185,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -2489,7 +2489,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.0.148"
+version = "0.0.149"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",

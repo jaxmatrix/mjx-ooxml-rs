@@ -56,6 +56,11 @@ use crate::address;
 use crate::autofit::{AutoFit, AutoFitCache};
 use crate::border;
 use crate::cell::{self, CellContext, CellStyle, PlacedText};
+use crate::condfmt::{
+    ConditionalEffect, ConditionalEngine, ConditionalSignature, DataBarGeometry, IconChoice,
+    RuleValue, ScaleBlend, UnevaluatedRule,
+};
+use crate::drawings::PlacedDrawing;
 use crate::error::SheetLayoutError;
 use crate::geometry::{ColumnGeometry, GridGeometry, MaximumDigitWidth, COLUMN_COUNT};
 use crate::merge::{MergedRegion, RegionEdge};
@@ -207,6 +212,24 @@ pub struct Decoration {
     /// A painter draws the text in this row of `indexedColors` **instead of** in
     /// [`Decoration::font`]'s own colour; `mjx-scene-xlsx` is where that happens.
     pub text_colour: Option<u32>,
+    /// The colour a **colour-scale** conditional format interpolated for this cell, unresolved.
+    ///
+    /// Two stops and a position between them rather than one colour, because blending two
+    /// `CT_Color`s needs the theme part and the workbook's `indexedColors` and a box model holds
+    /// neither — the same division that leaves [`Decoration::text_colour`] a bare palette row. See
+    /// [`crate::condfmt::graded`] for why doing the blend here would have been silently wrong for
+    /// every workbook whose scale is themed.
+    ///
+    /// A painter draws this **instead of** [`Decoration::fill`] when both are present: a colour
+    /// scale replaces the cell's background rather than tinting it.
+    pub scale_fill: Option<ScaleBlend>,
+    /// The bar a **data-bar** conditional format drew in this cell, when this decoration belongs to
+    /// one.
+    ///
+    /// A bar is a rectangle of its own inside the cell — see [`crate::model::SheetBoxModel`]'s band
+    /// walk — so this decoration carries a solid fill and this field says what it is. Carried so a
+    /// report can name the fraction without re-evaluating the rule.
+    pub data_bar: Option<DataBarGeometry>,
     /// The edge this decoration draws, when it belongs to a **border band** rather than to a cell.
     ///
     /// A band is a box the width of one border line, filled with that line's colour — see
@@ -218,6 +241,17 @@ pub struct Decoration {
     /// style a filled band cannot draw. See [`crate::border`] for what that costs today.
     pub border_band: Option<BorderEdge>,
 }
+
+/// What two cells must agree on before they share one decoration handle: their effective format,
+/// the colour their number format gave *this value*, and what conditional formatting made of them.
+///
+/// A named type rather than a tuple in a `Vec`, because the tuple is now three deep and a reader
+/// meeting it in a field declaration has no way to tell which member is which.
+type SharedDecorationKey = (
+    mjx_sml::EffectiveCellFormat,
+    Option<u32>,
+    ConditionalSignature,
+);
 
 /// What one laid-out cell did, beyond where its fragments went.
 #[derive(Clone, PartialEq, Debug)]
@@ -255,6 +289,21 @@ pub struct CellReport {
     /// It costs nothing to carry: the box model built this string to lay the cell out, and this
     /// moves it rather than copying it. Empty for a cell that produced no glyphs.
     pub text: String,
+    /// What conditional formatting made of the cell — **including the rules that fired and changed
+    /// nothing, and the rules that could not be answered**.
+    ///
+    /// `None` when no rule reaches this position at all, which is the state of almost every cell in
+    /// almost every workbook. See [`crate::condfmt`] for why this is a report rather than only an
+    /// appearance: a rule that never fires and a rule that is not implemented render identically,
+    /// so the only way to tell them apart is to say which fired.
+    pub conditional: Option<ConditionalEffect>,
+    /// The icon an icon-set rule chose for this cell, and how many icons its set holds.
+    ///
+    /// **Reported and not drawn.** An icon set's artwork is Excel's — eighteen sets of three to
+    /// five glyphs, none of them in any specification and none of them in this repository — and
+    /// drawing a stand-in would be inventing a picture and presenting it as the file's. The index
+    /// is asserted by a gate; the pixels wait for artwork somebody is entitled to ship.
+    pub icon: Option<IconChoice>,
 }
 
 /// The tables the handles in one page's fragments resolve through.
@@ -271,7 +320,11 @@ pub struct PageCatalogue {
     /// position. `EffectiveCellFormat` is `Copy`, `Eq` and built without allocating, so it is the
     /// natural key; a merged region is deliberately *not* shared, because its four borders are
     /// resolved from its own perimeter and two merges with the same anchor format can still differ.
-    by_format: Vec<((mjx_sml::EffectiveCellFormat, Option<u32>), DecorationRef)>,
+    ///
+    /// The third member of the key is the **conditional signature**: a `dxf` layer is a pure
+    /// function of which rules fired, so two cells that fired the same rules share, and a cell that
+    /// fired none carries the default signature and shares exactly as it did before MJXOFF-173.
+    by_format: Vec<(SharedDecorationKey, DecorationRef)>,
     /// Which handle each already-issued **border band** resolved to.
     ///
     /// A worksheet's borders repeat far harder than its formats do — a bordered block of a hundred
@@ -283,6 +336,8 @@ pub struct PageCatalogue {
     rows: Vec<u32>,
     columns: Vec<u16>,
     fits: Vec<(u16, AutoFit)>,
+    unevaluated: Vec<(u32, u16, UnevaluatedRule)>,
+    drawings: Vec<PlacedDrawing>,
 }
 
 impl PageCatalogue {
@@ -312,10 +367,13 @@ impl PageCatalogue {
         &self,
         format: &mjx_sml::EffectiveCellFormat,
         colour: Option<u32>,
+        conditional: &ConditionalSignature,
     ) -> Option<DecorationRef> {
         self.by_format
             .iter()
-            .find(|((candidate, tinted), _)| candidate == format && *tinted == colour)
+            .find(|((candidate, tinted, applied), _)| {
+                candidate == format && *tinted == colour && applied == conditional
+            })
             .map(|(_, handle)| *handle)
     }
 
@@ -323,7 +381,7 @@ impl PageCatalogue {
     fn intern(
         &mut self,
         decoration: Decoration,
-        format: Option<(mjx_sml::EffectiveCellFormat, Option<u32>)>,
+        format: Option<SharedDecorationKey>,
     ) -> DecorationRef {
         let handle = DecorationRef::new(u64::try_from(self.decorations.len()).unwrap_or(0));
         self.decorations.push(decoration);
@@ -331,6 +389,39 @@ impl PageCatalogue {
             self.by_format.push((format, handle));
         }
         handle
+    }
+
+    /// Records a cell that produced **no glyphs** but did carry a conditional format.
+    ///
+    /// Three cells reach here and each of them matters: one holding nothing at all that a
+    /// `containsBlanks` rule painted, one whose format renders its value as nothing (`;;;`), and one
+    /// outside every rule's range that carries neither. The first two must appear in
+    /// [`PageCatalogue::cells`] or a gate has no way to ask which rule fired on them; the third is
+    /// dropped, because reporting every empty cell of a band would make the report the size of the
+    /// window.
+    fn push_bare(
+        &mut self,
+        row: u32,
+        column: u16,
+        merge: Option<MergedRegion>,
+        decoration: DecorationRef,
+        conditional: Option<ConditionalEffect>,
+        icon: Option<IconChoice>,
+    ) {
+        if conditional.is_none() {
+            return;
+        }
+        self.cells.push(CellReport {
+            row,
+            column,
+            overflow: Overflow::Fits,
+            shrink_scale: 1.0,
+            merge,
+            decoration,
+            text: String::new(),
+            conditional,
+            icon,
+        });
     }
 
     /// The handle a border band drawing `stated` resolves to, issuing one on first sight.
@@ -402,6 +493,26 @@ impl PageCatalogue {
     pub fn auto_fits(&self) -> &[(u16, AutoFit)] {
         &self.fits
     }
+
+    /// Every drawing anchored on this band, in paint order.
+    ///
+    /// A drawing's *placement* — three anchor modes resolved against this crate's own row heights
+    /// and column widths — and not its content: see [`crate::drawings`] for why a box model at rank
+    /// 3.6 cannot lay out the DrawingML shapes inside one.
+    #[must_use]
+    pub fn drawings(&self) -> &[PlacedDrawing] {
+        &self.drawings
+    }
+
+    /// Every rule that could not be answered, and where.
+    ///
+    /// The ticket's `partial` ledger, computed rather than written down: an `expression` rule's
+    /// condition is a formula and this workspace has no calculation engine, so the rule is neither
+    /// faked nor dropped — it is listed here with its reason and its text.
+    #[must_use]
+    pub fn unevaluated_rules(&self) -> &[(u32, u16, UnevaluatedRule)] {
+        &self.unevaluated
+    }
 }
 
 /// One border band waiting to be emitted.
@@ -428,6 +539,7 @@ pub struct SheetBoxModel {
     geometry: Option<(usize, GridGeometry)>,
     fits: AutoFitCache,
     formats: numfmt::FormatCache,
+    conditional: ConditionalEngine,
     first_column: u16,
     last_page: PageIndex,
 }
@@ -452,6 +564,7 @@ impl SheetBoxModel {
             geometry: None,
             fits: AutoFitCache::new(),
             formats: numfmt::FormatCache::new(),
+            conditional: ConditionalEngine::new(),
             first_column: 0,
             last_page: PageIndex::FIRST,
         }
@@ -686,6 +799,11 @@ impl BoxModel for SheetBoxModel {
             return DirtyPages::All;
         };
         let mut dirties_this_sheet = false;
+        // Every conditional-formatting statistic is a fact about cell *values* — a minimum, a mean,
+        // a multiset for `duplicateValues` — so an edit anywhere invalidates all of them. The
+        // number-format cache is not cleared here for the opposite reason: it is keyed on a code and
+        // a value, and neither changes meaning because a cell did.
+        self.conditional.clear();
         for content_change in change.changes() {
             let source = &content_change.source;
             if address::sheet_of(source.part()) != *sheet {
@@ -821,6 +939,17 @@ impl SheetBoxModel {
                 page,
             )?;
         }
+
+        // Drawings, after every cell of every region: an anchored object floats **over** the grid,
+        // and a drawing pushed before the cells would be painted under them.
+        self.lay_out_drawings(
+            &mut builder,
+            &mut catalogue,
+            content,
+            geometry,
+            &regions,
+            root,
+        );
 
         catalogue.rows.sort_unstable();
         catalogue.rows.dedup();
@@ -993,6 +1122,53 @@ impl SheetBoxModel {
         Ok(())
     }
 
+    /// Places every anchored object that reaches this band, and emits a box for each.
+    ///
+    /// The **content** of a drawing is not laid out here and cannot be — see [`crate::drawings`] —
+    /// so what reaches the tree is a box carrying the object's rectangle and its source address. A
+    /// hit test lands on it, an exporter can find it, and a painter draws nothing inside it, which
+    /// is the honest picture of what this build knows about a picture on a sheet.
+    fn lay_out_drawings(
+        &self,
+        builder: &mut FragmentTreeBuilder,
+        catalogue: &mut PageCatalogue,
+        content: &SheetGrid,
+        geometry: &GridGeometry,
+        regions: &[PaneRegion],
+        parent: Option<FragmentId>,
+    ) {
+        let Some(drawing) = content.drawing() else {
+            return;
+        };
+        // A drawing belongs to the **scrolling** region: it is anchored to cells, and a frozen pane
+        // shows the cells it is anchored to only when they are frozen too. GUESS: that an object
+        // anchored inside a frozen pane is pinned with it; Excel does pin one, and picking the last
+        // region — which `panes::regions` orders as the scrolling one — is the reading that keeps
+        // an ordinary unfrozen sheet exactly right.
+        let Some(region) = regions.last() else {
+            return;
+        };
+        for placed in crate::drawings::place(drawing, geometry) {
+            let rect = translate(placed.rect, region.origin);
+            if !rect.intersects(region.view) {
+                continue;
+            }
+            let clip = builder.clip(region.view);
+            builder.push(
+                parent,
+                address::node(content.part(), address::drawing_path(placed.index)),
+                rect,
+                TransformId::IDENTITY,
+                clip,
+                Fragment::Box(BoxFragment {
+                    decoration: None,
+                    cell: None,
+                }),
+            );
+            catalogue.drawings.push(placed);
+        }
+    }
+
     /// The rows of `region` that fall inside the band and are not hidden.
     ///
     /// A **frozen** region ignores the band: its rows are pinned and appear on every page, which is
@@ -1132,9 +1308,26 @@ impl SheetBoxModel {
         });
         let text_colour = display.as_ref().and_then(|value| value.colour);
 
+        // ⚠ Conditional formatting is evaluated here, and it has to be **after** the value has been
+        // read and **before** the decoration is chosen. `mjx-sml` reports which rules apply to a
+        // cell and what each would impose, and stops there on purpose; this is the consumer that
+        // decides whether they hold, and the answer depends on the number in the cell.
+        let conditional =
+            self.evaluate_conditional(content, resolver, interner, row, column, &cell);
+        let signature = conditional
+            .as_ref()
+            .map(ConditionalEffect::signature)
+            .unwrap_or_default();
+        let icon = conditional.as_ref().and_then(|effect| effect.icon);
+        if let Some(effect) = conditional.as_ref() {
+            for rule in &effect.unevaluated {
+                catalogue.unevaluated.push((row, column, rule.clone()));
+            }
+        }
+
         let shared = merge
             .is_none()
-            .then(|| catalogue.handle_for(&format, text_colour))
+            .then(|| catalogue.handle_for(&format, text_colour, &signature))
             .flatten();
         let handle = match shared {
             Some(handle) => handle,
@@ -1145,12 +1338,22 @@ impl SheetBoxModel {
                     font: font.clone(),
                     number_format: number_format_of(&format, code.as_deref()),
                     text_colour,
+                    scale_fill: None,
+                    data_bar: None,
                     border_band: None,
                 };
                 if let Some(merge) = merge {
                     resolve_merge_borders(&mut decoration, resolver, interner, merge, content);
                 }
-                catalogue.intern(decoration, merge.is_none().then_some((format, text_colour)))
+                if let Some(effect) = conditional.as_ref() {
+                    apply_conditional(&mut decoration, effect);
+                }
+                catalogue.intern(
+                    decoration,
+                    merge
+                        .is_none()
+                        .then(|| (format, text_colour, signature.clone())),
+                )
             }
         };
 
@@ -1189,15 +1392,62 @@ impl SheetBoxModel {
             }),
         );
 
+        // The bar is a child of the cell's own box and is pushed **before** the text, so a
+        // `showValue` bar has its number drawn over it rather than under it. It is a fragment
+        // rather than a property of the cell's decoration because its width is a function of the
+        // value and the cell's decoration is shared by every cell of one effective format.
+        if let Some(bar) = conditional.as_ref().and_then(|effect| effect.bar.clone()) {
+            #[allow(clippy::cast_precision_loss)]
+            let width =
+                Emu::from_emu_rounded(rect.width().emu() as f64 * bar.fraction.clamp(0.0, 1.0));
+            if width > Emu::ZERO {
+                let bar_rect =
+                    LayoutRect::from_edges(rect.left, rect.top, rect.left + width, rect.bottom);
+                let decoration = catalogue.intern(
+                    Decoration {
+                        // GUESS: a solid fill of the bar's own colour, filling the cell's whole
+                        // height and growing rightward from its left edge. `CT_DataBar` states no
+                        // axis, no border, no gradient and no negative fill — all four are
+                        // `x14:dataBar`, in the `extLst` this workspace preserves and does not
+                        // model — so this is Excel 2007's bar and not Excel 2010's.
+                        fill: Some(CellFill {
+                            pattern: Some(PatternType::Solid),
+                            foreground: bar.colour.clone(),
+                            background: None,
+                            gradient: None,
+                        }),
+                        data_bar: Some(bar),
+                        ..Decoration::default()
+                    },
+                    None,
+                );
+                builder.push(
+                    cell_node,
+                    address::node(content.part(), address::cell_path(row, column)),
+                    bar_rect,
+                    TransformId::IDENTITY,
+                    clip,
+                    Fragment::Box(BoxFragment {
+                        decoration: Some(decoration),
+                        // A bar is not a cell: a `TableCell` here would double every count.
+                        cell: None,
+                    }),
+                );
+            }
+        }
+
         let Some(cell) = cell else {
+            catalogue.push_bare(row, column, merge, handle, conditional, icon);
             return Ok(());
         };
         let Some(display) = display else {
+            catalogue.push_bare(row, column, merge, handle, conditional, icon);
             return Ok(());
         };
         // A format may render a value as nothing at all — `;;;` is how a person hides a column
         // without hiding it — and a cell with no glyphs produces no fragments.
         if display.text.is_empty() {
+            catalogue.push_bare(row, column, merge, handle, conditional, icon);
             return Ok(());
         }
         let text = display.text;
@@ -1220,11 +1470,46 @@ impl SheetBoxModel {
             merge,
             decoration: handle,
             text,
+            conditional,
+            icon,
         });
         self.emit_text(
             builder, content, region, cell_node, clip, &placed, row, column,
         );
         Ok(())
+    }
+
+    /// Evaluates every conditional-formatting rule that reaches one cell.
+    ///
+    /// `None` when no rule's `@sqref` covers the position, which is one rectangle test against the
+    /// union of every block — so a sheet with no conditional formatting, and a screen away from the
+    /// block that has it, pay nothing per cell.
+    fn evaluate_conditional(
+        &mut self,
+        content: &SheetGrid,
+        resolver: &mjx_xlsx::SheetFormatResolver<'_>,
+        interner: &mjx_ooxml_core::Interner,
+        row: u32,
+        column: u16,
+        cell: &Option<mjx_sml::Cell<'_>>,
+    ) -> Option<ConditionalEffect> {
+        self.conditional.prepare(content);
+        if !self.conditional.may_cover(row, column) {
+            return None;
+        }
+        let text = cell
+            .as_ref()
+            .and_then(|cell| content.cell_text(cell))
+            .unwrap_or_default();
+        let value = cell.as_ref().map_or(RuleValue::Blank, |cell| {
+            RuleValue::read(cell.cell_type(), &text)
+        });
+        let effect = self
+            .conditional
+            .evaluate(content, row, column, &value, interner, |index| {
+                resolver.formats().differential_format(index)
+            });
+        (!effect.is_empty()).then_some(effect)
     }
 
     /// Runs [`crate::cell::place`] for one cell, with the two overflow probes taken from the packed
@@ -1420,12 +1705,12 @@ fn fill_of(
         pattern: None,
         foreground: None,
         background: None,
-        gradient: Some(gradient_of(gradient, interner)),
+        gradient: Some(gradient_from(gradient, interner)),
     })
 }
 
 /// A `x:gradientFill` as the catalogue carries it: the file's own numbers, resolved not at all.
-fn gradient_of(
+pub(crate) fn gradient_from(
     gradient: &mjx_sml::GradientFill,
     interner: &mjx_ooxml_core::Interner,
 ) -> CellGradient {
@@ -1453,6 +1738,45 @@ fn gradient_of(
     }
 }
 
+/// Folds a conditional format's `dxf` layer onto a cell's own decoration.
+///
+/// **The `dxf` wins, member by member**, and only where it states one: §18.8.15 calls it a format
+/// *"to be applied on top of or in addition to any formatting already present"*, and every one of
+/// its children is `minOccurs="0"` precisely so that an absent one means *leave what is there*.
+///
+/// `scale_fill` is set rather than merged: a colour scale replaces the cell's background outright.
+fn apply_conditional(decoration: &mut Decoration, effect: &ConditionalEffect) {
+    if let Some(fill) = effect.fill.clone() {
+        decoration.fill = Some(fill);
+    }
+    if let Some(font) = effect.font.clone() {
+        // ⚠ A `dxf` font colour outranks a **number format's** colour, and clearing `text_colour`
+        // is how that is said. `mjx-scene-xlsx` prefers `text_colour` over the font's own — because
+        // `[Red]` is a statement about *this value* where `x:font/color` is a statement about the
+        // cell's style — so a conditional format that says *dark red* would otherwise lose to a
+        // `#,##0;[Red]#,##0` on the same cell.
+        //
+        // GUESS: that the conditional format wins. It is the reading that makes a highlight rule do
+        // what a person who wrote it expects; ECMA-376 states no precedence between the two,
+        // because §18.8.30 and §18.8.15 do not know about each other.
+        if font.color.is_some() {
+            decoration.text_colour = None;
+        }
+        decoration.font = Some(match decoration.font.take() {
+            None => font,
+            Some(base) => crate::condfmt::merge_fonts(font, base),
+        });
+    }
+    if let Some(borders) = effect.borders.as_ref() {
+        for edge in RegionEdge::ALL {
+            if let Some(stated) = borders.edge(edge) {
+                decoration.borders.set(edge, Some(stated.clone()));
+            }
+        }
+    }
+    decoration.scale_fill = effect.scale.clone();
+}
+
 /// A cell's four borders, as the file states them.
 fn borders_of(
     resolver: &mjx_xlsx::SheetFormatResolver<'_>,
@@ -1462,6 +1786,18 @@ fn borders_of(
     let Some(border) = resolver.formats().border(format) else {
         return CellBorders::default();
     };
+    borders_from(border, interner)
+}
+
+/// The four edges of one `x:border`, however it was reached.
+///
+/// Split out of [`borders_of`] because a `dxf` carries a `CT_Border` of its own and reading it a
+/// second way would be two answers to one question — the `leading`/`trailing` fallback included,
+/// which is the half a second copy would forget.
+pub(crate) fn borders_from(
+    border: &mjx_sml::Border,
+    interner: &mjx_ooxml_core::Interner,
+) -> CellBorders {
     CellBorders {
         left: edge_of(border.left_edge().or(border.leading_edge()), interner),
         right: edge_of(border.right_edge().or(border.trailing_edge()), interner),

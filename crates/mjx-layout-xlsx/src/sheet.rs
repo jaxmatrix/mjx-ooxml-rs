@@ -38,7 +38,7 @@ use mjx_sml::{
     CellReference, GridBounds, InlineString, SharedStringTable, SheetFormatProperties,
     WorksheetPart,
 };
-use mjx_xlsx::{DateSystem, SheetFormatting, Workbook};
+use mjx_xlsx::{DateSystem, SheetDrawing, SheetFormatting, Workbook};
 
 use crate::address;
 use crate::error::SheetLayoutError;
@@ -59,6 +59,10 @@ pub struct SheetGrid {
     merges: MergeIndex,
     split: PaneSplit,
     used: Option<GridBounds>,
+    today: f64,
+    drawing: Option<SheetDrawing>,
+    print_area: Option<String>,
+    print_titles: Option<String>,
 }
 
 impl SheetGrid {
@@ -88,7 +92,15 @@ impl SheetGrid {
         // snapshot that defaulted to 1900 would shift every date in a Macintosh-authored workbook by
         // just over four years — silently, and in the one place a reader would notice at a glance.
         let dates = workbook.date_system()?;
-        Ok(Self::from_parts(index, name, formatting, shared_strings).with_date_system(dates))
+        // The drawing part and the two print names are read here rather than lazily, for the reason
+        // every other eager read in this type has: each is `O(stated elements)`, each answers a
+        // question a later frame asks per cell, and neither is reachable from a `SheetFormatting`.
+        let drawing = workbook.sheet_drawing(index)?;
+        let (print_area, print_titles) = print_names(workbook, index);
+        Ok(Self::from_parts(index, name, formatting, shared_strings)
+            .with_date_system(dates)
+            .with_drawing(drawing)
+            .with_print_names(print_area, print_titles))
     }
 
     /// The snapshot over parts a caller already holds — the path a suite that authored a worksheet
@@ -120,6 +132,10 @@ impl SheetGrid {
             merges,
             split,
             used,
+            today: today_serial(DateSystem::Windows1900),
+            drawing: None,
+            print_area: None,
+            print_titles: None,
         }
     }
 
@@ -131,7 +147,67 @@ impl SheetGrid {
     #[must_use]
     pub fn with_date_system(mut self, dates: DateSystem) -> Self {
         self.dates = dates;
+        self.today = today_serial(dates);
         self
+    }
+
+    /// The same snapshot holding the sheet's drawing part.
+    ///
+    /// [`SheetGrid::read`] fills this in; a suite that authored a worksheet in memory has no
+    /// package to reach a drawing part through and gets `None`.
+    #[must_use]
+    pub fn with_drawing(mut self, drawing: Option<SheetDrawing>) -> Self {
+        self.drawing = drawing;
+        self
+    }
+
+    /// The same snapshot holding the two print names, as the workbook's `definedNames` spell them.
+    ///
+    /// They are the workbook part's and not the worksheet's, which is why they arrive as strings
+    /// rather than as ranges: `mjx_xlsx::SheetFormatting` holds a worksheet and a stylesheet, and a
+    /// defined name is in neither.
+    #[must_use]
+    pub fn with_print_names(mut self, area: Option<String>, titles: Option<String>) -> Self {
+        self.print_area = area;
+        self.print_titles = titles;
+        self
+    }
+
+    /// The same snapshot answering `TODAY()` as `serial`.
+    ///
+    /// **A `timePeriod` rule is the one conditional format whose answer changes overnight**, and a
+    /// suite that asserted one against the system clock would go red on a particular morning. So
+    /// the serial is a value the snapshot carries: it defaults to the machine's own clock in this
+    /// workbook's epoch, and a caller — a test, or a shell that wants the sheet as it looked
+    /// yesterday — says otherwise here.
+    #[must_use]
+    pub fn with_today(mut self, serial: f64) -> Self {
+        self.today = serial;
+        self
+    }
+
+    /// The serial `TODAY()` answers for this sheet.
+    #[must_use]
+    pub fn today(&self) -> f64 {
+        self.today
+    }
+
+    /// The sheet's drawing part, and everything anchored in it.
+    #[must_use]
+    pub fn drawing(&self) -> Option<&SheetDrawing> {
+        self.drawing.as_ref()
+    }
+
+    /// `_xlnm.Print_Area`'s definition, as the workbook wrote it.
+    #[must_use]
+    pub fn print_area(&self) -> Option<&str> {
+        self.print_area.as_deref()
+    }
+
+    /// `_xlnm.Print_Titles`'s definition.
+    #[must_use]
+    pub fn print_titles(&self) -> Option<&str> {
+        self.print_titles.as_deref()
     }
 
     /// Which epoch this sheet's date serials count from.
@@ -346,5 +422,37 @@ impl SheetGrid {
     #[must_use]
     pub fn shared_strings(&self) -> Option<&SharedStringTable> {
         self.shared_strings.as_ref()
+    }
+}
+
+/// The two built-in names that decide what a sheet prints, scoped to `index`.
+///
+/// **Consumed, not re-derived.** `mjx_xlsx::Workbook` already resolves a defined name's scope
+/// against the tab list and reports which of §18.2.6's eight reserved names it is —
+/// `Workbook::print_area` was already there and `print_titles` is its twin, added rather than
+/// re-implemented here. A workbook whose names will not read at all prints its used range, which is
+/// what a sheet with no names does.
+fn print_names(workbook: &Workbook, index: usize) -> (Option<String>, Option<String>) {
+    (
+        workbook.print_area(index).ok().flatten(),
+        workbook.print_titles(index).ok().flatten(),
+    )
+}
+
+/// The serial number of today in `system`'s epoch.
+///
+/// DocumentedBehaviour: the Unix epoch is serial 25,569 in the 1900 system and 24,107 in the 1904
+/// one, which is the same 1,462-day offset between the two that
+/// [`crate::numfmt::datetime`] already carries. A clock that will not read answers serial 0, which
+/// renders as `1/0/1900` and is visibly rather than silently wrong.
+fn today_serial(system: DateSystem) -> f64 {
+    let Ok(since) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return 0.0;
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let days = (since.as_secs() / 86_400) as f64;
+    days + match system {
+        DateSystem::Windows1900 => 25_569.0,
+        DateSystem::Macintosh1904 => 24_107.0,
     }
 }

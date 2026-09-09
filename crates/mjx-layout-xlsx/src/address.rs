@@ -58,6 +58,20 @@ pub fn cell_path(row: u32, column: u16) -> SourcePath {
     SourcePath::new(&[row, u32::from(column)])
 }
 
+/// The first segment of a drawing's path, which is not a row number.
+///
+/// A cell's path is `[row, column]` and a sheet has 1,048,576 rows, so `u32::MAX` cannot collide
+/// with one. It has to not collide: [`crate::model::SheetBoxModel`]'s `invalidate` reads the first
+/// segment of a changed node's path **as a row**, and a drawing that looked like row 4 would make an
+/// edit to a picture invalidate the fourth band of the grid.
+pub const DRAWING: u32 = u32::MAX;
+
+/// A drawing's path: the [`DRAWING`] sentinel, then the anchor's position in the drawing part.
+#[must_use]
+pub fn drawing_path(index: usize) -> SourcePath {
+    SourcePath::new(&[DRAWING, clamp(index)])
+}
+
 /// The sheet's own path — the empty one, which the page box and every pane's table carry.
 #[must_use]
 pub fn sheet_path() -> SourcePath {

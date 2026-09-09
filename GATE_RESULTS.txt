@@ -1,0 +1,21 @@
+MJXOFF-173 (R18) — conditional formatting evaluation, cell drawings and print layout
+branch: pipeline/r18-conditional-formatting   version: 0.0.149
+host: 31 GiB, -j2 throughout, one cargo invocation at a time
+started: 2026-09-09T06:33:26Z
+
+cargo-fmt-check                    exit=0   started=2026-09-09T06:33:26Z finished=2026-09-09T06:33:31Z
+cargo-test-workspace               exit=0   started=2026-09-09T06:15:48Z finished=2026-09-09T06:33:03Z
+cargo-clippy                       exit=0   started=2026-09-09T06:33:31Z finished=2026-09-09T06:34:20Z
+xtask-layering                     exit=0   started=2026-09-09T06:34:20Z finished=2026-09-09T06:34:39Z
+xtask-escape-hatches               exit=0   started=2026-09-09T06:34:39Z finished=2026-09-09T06:34:40Z
+xtask-unsafe-allowance             exit=0   started=2026-09-09T06:34:40Z finished=2026-09-09T06:34:41Z
+xtask-tokens-check                 exit=0   started=2026-09-09T06:34:41Z finished=2026-09-09T06:34:41Z
+suppress-naming                    exit=0   started=2026-09-09T06:34:41Z finished=2026-09-09T06:34:42Z
+cargo-doc                          exit=0   started=2026-09-09T06:34:42Z finished=2026-09-09T06:34:44Z
+
+finished: 2026-09-09T06:34:44Z
+
+cargo test --workspace ran as its own invocation because a single foreground call cannot
+hold it; its window is above and its log is gate-cargo-test-workspace.log. Nothing was
+edited between it and the eight gates around it.
+logs: /tmp/claude-1000/-home-xm-max-Documents-Projects-mjx-ooxml-rs/6c88e3b5-647f-4fd4-bc98-c0671ddcb787/scratchpad/gate-*.log

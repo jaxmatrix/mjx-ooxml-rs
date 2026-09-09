@@ -61,7 +61,10 @@ on open when it needs to.
 simply not made on your behalf. The whole story, shared groups included, is on
 [Formulas and cached values](formulas_and_cached_values).
 
-### 2 · A conditional-formatting rule is reported, never resolved
+### 2 · A conditional-formatting rule is reported here, and evaluated one tier up
+
+⚠ **This refusal was absolute until MJXOFF-173 and is now scoped.** What follows is true of *this
+library* — the reader and writer — and is no longer true of the workspace.
 
 [`Workbook::conditional_rules_for`] answers **which rules apply to a cell**, merged across blocks and
 in priority order, and [`Workbook::conditional_cell_format`] reports the `dxf` each would impose —
@@ -71,9 +74,27 @@ condition is true**, because a `cfRule/formula` is a formula on exactly the term
 `stopIfTrue` is reported as a position in the chain rather than applied as a truncation, for the same
 reason: applying it means knowing which earlier rule fired.
 
-**What you can do:** read the rules, evaluate them yourself against the cell values this library does
-give you, and decide. [Conditional formatting](conditional_formatting) has the ordering rules and the
-`x14` extension slot.
+**Why it stops here.** A rule that has been *decided* is a rendering fact, not a document fact.
+Folding a `dxf` into a cell's format inside this crate would put an answer into the write path that
+depends on the cell's current value — so a workbook opened, resolved and saved would carry formats
+its author never wrote. That is a fidelity failure, and it is the reason the two layers are
+[deliberately never merged](conditional_formatting).
+
+**Where it is evaluated.** `mjx-layout-xlsx`'s `condfmt` module (rank 3.6, above the format tier)
+decides all eighteen members of `ST_CfType`, composes the `dxf` layers in `@priority` order, applies
+`stopIfTrue`, and interpolates colour scales, data bars and icon sets. It consumes the two accessors
+above and re-models nothing.
+
+**Two paths there stay `partial`, and are recorded rather than faked.** An `expression` rule's
+condition is a formula, and so is a `cellIs` operand or a `cfvo` `@val` that is not a literal. Those
+are reported unevaluated, with their reason and their text, and **nothing is painted** for them —
+because a rule that quietly did not fire and one that could not be evaluated look identical on a
+screen. `crates/mjx-layout-xlsx/tests/the_conditional_ledger_is_computed.rs` prints that ledger on
+every run rather than restating it in prose that could rot.
+
+**What you can do here:** read the rules, evaluate them yourself against the cell values this library
+does give you, and decide — or reach for the box model, which has.
+[Conditional formatting](conditional_formatting) has the ordering rules and the `x14` extension slot.
 
 ### 3 · A filter, a sort and a validation rule are recorded, never applied
 
@@ -174,7 +195,7 @@ its provenance. `docs/validation/06-the-office-pass.md` is how a person with Exc
 | **The two-layer `xf` indirection**, resolved the way Excel resolves it | [`Workbook::effective_cell_format`] walks `cellXfs` over `cellStyleXfs` from ECMA-376 §18.8.45's prose; `docs/EFFECTIVE_CELL_FORMAT_HANDOFF.md` holds 28 rows of it with its **Excel says** column deliberately empty | `V-XLSX-02.1`, `V-XLSX-02.2`, `V-XLSX-02.4` |
 | **A number-format code against what Excel actually renders** | The code and its id are reported; nothing here formats a value | `V-XLSX-02.3` |
 | **Shared and array formulas surviving an edit** | The group's master and its `@ref` round-trip, and an edit never rewrites a cell it was not asked to | `V-XLSX-01.4` |
-| **Conditional-formatting rule priority** | `@priority` is read and reported, never resolved — a rule is described, not evaluated | `V-XLSX-02.5` |
+| **Conditional-formatting rule priority** | `@priority` is read and reported here, never resolved — a rule is described, not evaluated. It **is** resolved one tier up, in `mjx-layout-xlsx`, whose own gate proves the composition order on two overlapping rules whose wrong order gives a different colour | `V-XLSX-02.5` |
 | **A chart reading a live range** | The chart's cached values and its `c:f` references are both preserved; Excel recalculates from the range | `V-XLSX-04.1`, `V-XLSX-04.2` |
 
 **One deviation is expected on the first real workbook, and it is ours.** The schema gate validates
@@ -191,7 +212,7 @@ purpose in `xtask/tests/office_corpus.rs`.
 | Limitation | Page |
 |---|---|
 | Stale cached values, shared groups, `calcChain` | [Formulas and cached values](formulas_and_cached_values) |
-| Rules reported, conditions unevaluated | [Conditional formatting](conditional_formatting) |
+| Rules reported, conditions unevaluated *in this crate* | [Conditional formatting](conditional_formatting) |
 | Filters, sorts and validation recorded, not applied | [Filters and data validation](filters_and_data_validation) |
 | The nine unmodelled clusters, and what a save refuses | [Fidelity and the part graph](fidelity_and_the_part_graph) |
 | Held-not-repaired grid geometry | [The sheet grid](the_sheet_grid) |

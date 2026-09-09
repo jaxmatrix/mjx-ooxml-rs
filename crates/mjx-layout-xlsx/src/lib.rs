@@ -93,8 +93,17 @@
 //!
 //! # What is deliberately not here
 //!
-//! * **Conditional formatting, cell drawings and print layout** — MJXOFF-173.
 //! * **Charts** — MJXOFF-179 (R23). A chart on a sheet is a drawing, and drawings are R18.
+//! * **The inside of a drawing.** MJXOFF-173 places every anchored object — all three modes,
+//!   against this crate's own row heights and column widths — and lays out **none** of them. A
+//!   drawing's content is DrawingML and laying that out is `mjx-layout-pptx`'s subject; that crate
+//!   is at rank 3.6, the same rank as this one, so the edge is *sideways* and the layering gate
+//!   refuses it by name. See [`crate::drawings`].
+//! * **Sparklines.** `x14:sparklineGroups` lives in a worksheet's `extLst`, which `mjx-sml`
+//!   preserves verbatim and deliberately does not model — the same decision that leaves
+//!   `x14:dataBar`'s axis and negative fill unmodelled. There is nothing to evaluate here until a
+//!   `mjx-sml` workstream models the extension, and reading raw nodes out of the bucket from a
+//!   layout crate would be modelling markup two tiers above where markup belongs.
 //! * **Formula evaluation**, which does not exist in this loop at all: a cell's cached value is
 //!   rendered as stored, which is correct for a viewer.
 //! * **Recomputed row heights.** Excel writes a fitted height into the file and this honours it; see
@@ -119,6 +128,8 @@ pub mod address;
 pub mod autofit;
 pub mod border;
 pub mod cell;
+pub mod condfmt;
+pub mod drawings;
 pub mod error;
 pub mod geometry;
 pub mod merge;
@@ -126,6 +137,7 @@ pub mod model;
 pub mod numfmt;
 pub mod overflow;
 pub mod panes;
+pub mod print;
 pub mod sheet;
 pub mod text;
 
@@ -133,6 +145,11 @@ pub use address::CellHit;
 pub use autofit::{AutoFit, AutoFitCache};
 pub use border::{band_width, bands, BorderBand};
 pub use cell::{CellStyle, PlacedLine, PlacedText};
+pub use condfmt::{
+    AppliedRule, ConditionalEffect, ConditionalEngine, ConditionalIndex, ConditionalSignature,
+    DataBarGeometry, IconChoice, RuleValue, ScaleBlend, UnevaluatedReason, UnevaluatedRule,
+};
+pub use drawings::{place as place_drawings, AnchorMode, PlacedDrawing};
 pub use error::SheetLayoutError;
 pub use geometry::{
     ColumnGeometry, ColumnSpan, GridGeometry, MaximumDigitWidth, RowGeometry, RowSpan,
@@ -145,13 +162,14 @@ pub use model::{
 pub use numfmt::{CellValue, CompiledFormat, FormatCache, FormattedValue};
 pub use overflow::{Overflow, OverflowDirection};
 pub use panes::{PaneRegion, PaneSplit, Window};
+pub use print::{paginate, PrintMargins, PrintPage, PrintPagination, PrintSetup};
 pub use sheet::SheetGrid;
 pub use text::{CellRunStyle, TextEngine};
 
 /// The constraints a caller lays a sheet out under when it has no window of its own to impose.
 ///
-/// A sheet has no page size — a worksheet is not a printed page until MJXOFF-173 gives it one — so
-/// this is the *viewport* a reader looks through, and it is the caller's to choose. What this offers
+/// A sheet has no page size — a printed page is [`crate::print`]'s subject and a **different**
+/// pagination — so this is the *viewport* a reader looks through, and it is the caller's to choose. What this offers
 /// is the shape of the answer rather than the answer: a single column, no margins, the whole of
 /// `viewport` given over to the grid.
 #[must_use]

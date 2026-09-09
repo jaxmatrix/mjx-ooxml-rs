@@ -50,6 +50,69 @@ use crate::error::XlsxError;
 use crate::parts::{PartKind, CONTENT_TYPE_DRAWING, REL_IMAGE};
 use crate::workbook::Workbook;
 
+/// One corner of a two- or one-cell anchor, in plain numbers.
+///
+/// `mjx_dml::CellMarker` in the shape a consumer that owns the grid geometry wants it: the cell,
+/// and the offset into it in EMU. It is repeated here rather than re-exported because the consumer
+/// this exists for is `mjx-layout-xlsx`, which deliberately declares **no** `mjx-dml` dependency —
+/// a worksheet's cell formatting is SpreadsheetML, and the one place DrawingML enters a `.xlsx` is
+/// the drawing part this crate already reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnchorCell {
+    /// `xdr:col` — the zero-based column.
+    pub column: i32,
+    /// `xdr:colOff` — EMU from that column's left edge.
+    pub column_offset: i64,
+    /// `xdr:row` — the zero-based row.
+    pub row: i32,
+    /// `xdr:rowOff` — EMU from that row's top edge.
+    pub row_offset: i64,
+}
+
+/// How an object is pinned to the sheet, with everything the three modes need to be placed.
+///
+/// The **three modes differ in which half of the answer the grid supplies**, and that is the whole
+/// distinction:
+///
+/// | Mode | Position | Size |
+/// |---|---|---|
+/// | [`TwoCell`](AnchorPlacement::TwoCell) | from the grid | from the grid |
+/// | [`OneCell`](AnchorPlacement::OneCell) | from the grid | stated in EMU |
+/// | [`Absolute`](AnchorPlacement::Absolute) | stated in EMU | stated in EMU |
+///
+/// So a row that grows moves and resizes the first, moves the second, and does neither to the
+/// third. One test that changes a row height and asks which rectangles moved tells all three apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnchorPlacement {
+    /// `xdr:twoCellAnchor` — both corners follow the grid.
+    TwoCell {
+        /// The top-left corner.
+        from: AnchorCell,
+        /// The bottom-right corner.
+        to: AnchorCell,
+    },
+    /// `xdr:oneCellAnchor` — the top-left follows the grid and the size is fixed.
+    OneCell {
+        /// The top-left corner.
+        from: AnchorCell,
+        /// `xdr:ext` — the width and height in EMU.
+        extent: (i64, i64),
+    },
+    /// `xdr:absoluteAnchor` — neither corner follows the grid.
+    Absolute {
+        /// `xdr:pos` — the top-left corner in EMU from the sheet's origin.
+        position: (i64, i64),
+        /// `xdr:ext` — the width and height in EMU.
+        extent: (i64, i64),
+    },
+    /// The anchor states less than its own kind requires, so it places nothing.
+    ///
+    /// Every child of `CT_Marker` is `minOccurs="1"` and `xdr:ext` is required on both the kinds
+    /// that carry one, so this is a malformed anchor — reported as absence rather than repaired,
+    /// which is what `mjx_dml::CellMarker::read` already does one crate down.
+    Unplaced,
+}
+
 /// One anchored object on a sheet, decoded.
 ///
 /// A **report**, not a second model: every field is read out of
@@ -81,6 +144,15 @@ pub struct SheetDrawingObject {
     /// Whether the object prints with the sheet (`xdr:clientData@fPrintsWithSheet`, which
     /// **defaults to `true`**).
     pub prints_with_sheet: bool,
+    /// Where the object is pinned, and which half of that the grid supplies.
+    ///
+    /// **Not a rectangle**: turning it into one needs the sheet's row heights and column widths,
+    /// and a column width is a character count that only becomes a length once a font has been
+    /// measured — which `mjx_sml::SheetAnchors` says in as many words.
+    /// [`Workbook::sheet_anchor_bounds`] is the answer for a
+    /// caller with nothing better than [`ColumnMetrics`]; this is the input for one that has its
+    /// own geometry.
+    pub placement: AnchorPlacement,
 }
 
 /// One sheet's drawing part, and what is anchored in it.
@@ -591,6 +663,7 @@ impl Workbook {
                     prints_with_sheet: anchor
                         .client_data(interner)
                         .is_none_or(|data| data.prints_with_sheet(interner)),
+                    placement: placement_of(&anchor, interner),
                 }
             })
             .collect()
@@ -708,4 +781,47 @@ fn new_drawing_part_bytes() -> Vec<u8> {
     ];
     let document = RawDocument::new(interner, false, prologue, root, Vec::new());
     mjx_xml::fidelity::serialize_to_vec(&document)
+}
+
+/// Reads one anchor's placement, whichever of the three kinds it is.
+fn placement_of(anchor: &Anchor, interner: &Interner) -> AnchorPlacement {
+    let cell = |marker: CellMarker| AnchorCell {
+        column: marker.column,
+        column_offset: marker.column_offset.emu(),
+        row: marker.row,
+        row_offset: marker.row_offset.emu(),
+    };
+    match anchor {
+        Anchor::TwoCell(two) => {
+            let (Some(from), Some(to)) = (two.from_marker(interner), two.to_marker(interner))
+            else {
+                return AnchorPlacement::Unplaced;
+            };
+            AnchorPlacement::TwoCell {
+                from: cell(from),
+                to: cell(to),
+            }
+        }
+        Anchor::OneCell(one) => {
+            let (Some(from), Some(extent)) = (one.from_marker(interner), one.extent(interner))
+            else {
+                return AnchorPlacement::Unplaced;
+            };
+            AnchorPlacement::OneCell {
+                from: cell(from),
+                extent: (extent.width.emu(), extent.height.emu()),
+            }
+        }
+        Anchor::Absolute(absolute) => {
+            let (Some(position), Some(extent)) =
+                (absolute.position(interner), absolute.extent(interner))
+            else {
+                return AnchorPlacement::Unplaced;
+            };
+            AnchorPlacement::Absolute {
+                position: (position.x.emu(), position.y.emu()),
+                extent: (extent.width.emu(), extent.height.emu()),
+            }
+        }
+    }
 }
