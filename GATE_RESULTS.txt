@@ -1,169 +1,187 @@
-MJXOFF-178 (R23) — chart and diagram layout, built once for all three formats
-Branch: pipeline/r23-charts-diagrams   Version: 0.0.154
+MJXOFF-179 (R24) — the parity ledger, generated from the suites
+================================================================================
 
-=================================================================================================
-THE RED PASSES, RECORDED
-=================================================================================================
+Worktree : /home/xm-max/Documents/Projects/mjx-ooxml-rs/.claude/worktrees/client-platform
+Branch   : pipeline/r24-parity-ledger  (from epic/phase-r-renderer @ ecf5d67)
+Version  : 0.0.155
+Machine  : -j2 throughout, one cargo invocation at a time (memory-contended host;
+           a Node build in ui/ and a peer session in the repository root)
 
-A record that mentions only the green run is not a record. Every one of these was a real failure
-during this child, and each is written with what it was and what it cost.
+The green pass below was taken AFTER the last edit to any file in this change.
+An earlier, identical pass ran 01:50–02:28 and was discarded, because four more edits
+landed after it and a gate result that predates an edit is not a gate result.
 
- 1. `cargo build -p mjx-layout-chart` — 17 errors, first compile.
-    `mjx-dml`'s generated attribute accessors return `Result<_, AttributeError>` and not `Option`,
-    which is a real difference between `mjx-chart`'s hand-written readers and `mjx-derive`'s
-    generated ones. Nine of the seventeen were that.
+Resource check before the run:  31Gi RAM (24Gi available), /home 48% used, 246G free.
+No gate failure in this child was ever a resource failure.
 
- 2. `cargo test -p mjx-layout-chart --test ticks_are_arithmetic` — 1 of 10 red.
-    `a_hundred_percent_stacked_axis_is_always_a_proportion` expected
-    `0.6000000000000001` on the assumption that the tick arithmetic would drift. It does not: the
-    step's integer mantissa gives exactly `0.6`. The **expectation** was wrong and the code was
-    right, which is the good direction for that to happen in.
+--------------------------------------------------------------------------------
+THE GREEN PASS — all ten, exit 0
+--------------------------------------------------------------------------------
 
- 3. `cargo test -p mjx-layout-chart --test a_hierarchy_is_laid_out` — 1 of 10 red.
-    **A real defect.** `a_cyclic_parent_graph_terminates` reported `DiagramHasNoPoints` for two
-    points that each claim to be the other's parent: the breadth-first walk seeded its queue from
-    the points with no parent, and a cycle has none, so *every* node was dropped. Fixed by
-    restarting the walk from the first unreached point, as many times as it takes. A file
-    round-tripped through a repair tool can carry such a cycle, and before this the whole diagram
-    would have vanished.
+GATE: cargo fmt --all -- --check
+  command : cargo fmt --all -- --check
+  start   : 2026-09-10T02:29:00+05:30
+  finish  : 2026-09-10T02:29:05+05:30
+  exit    : 0
 
- 4. `cargo test -p mjx-layout-chart --test the_furniture_is_drawn` — 1 of 9 red.
-    `error_bars_reach_above_and_below_each_point` asserted strict straddling for every point. The
-    top point sits **on** the axis' maximum, so its upper bar is clamped there. The engine is right
-    and the assertion was too strong; it now asserts the clamp explicitly and keeps a strict
-    straddle for a point away from the maximum.
+GATE: cargo test --workspace
+  command : cargo test --workspace -j2
+  start   : 2026-09-10T02:29:05+05:30
+  finish  : 2026-09-10T02:41:56+05:30
+  exit    : 0
 
- 5. `cargo test -p mjx-layout-chart --test fragments_reach_the_tree` — 1 of 5 red.
-    `the_metric_a_host_hands_in_changes_the_plot_area` used a metric that was wider than
-    `NominalMetrics` but *shorter*, so the title reserved less height rather than more. The probe
-    was not discriminating in the dimension it claimed to test.
+GATE: cargo clippy --workspace --all-targets -- -D warnings
+  command : cargo clippy --workspace --all-targets -j2 -- -D warnings
+  start   : 2026-09-10T02:41:56+05:30
+  finish  : 2026-09-10T02:42:19+05:30
+  exit    : 0
 
- 6. `cargo test -p mjx-layout-chart --test the_seam_holds` — 1 of 5 red.
-    `SOURCE_FILE_COUNT` said 11 and `src/` holds 12. That is the gate doing its job on its first
-    run.
+GATE: cargo test -p xtask --test layering
+  command : cargo test -p xtask --test layering -j2
+  start   : 2026-09-10T02:42:19+05:30
+  finish  : 2026-09-10T02:42:21+05:30
+  exit    : 0
 
- 7. `cargo test -p mjx-layout-chart --test no_panic_on_a_layout_path` — 1 of 9 red.
-    `every_index_is_into_a_vector_this_crate_sized` found `palette.rs` indexing a slice and the
-    allowlist named only two files. `accents[index % 6]` cannot be out of range; it is now on the
-    list with that reason written out, which is the point of an allowlist over a suppression.
+GATE: cargo test -p xtask --test escape_hatches
+  command : cargo test -p xtask --test escape_hatches -j2
+  start   : 2026-09-10T02:42:21+05:30
+  finish  : 2026-09-10T02:42:21+05:30
+  exit    : 0
 
- 8. `cargo test -p mjx-layout-pptx` — 1 of 116 red.
-    `charts-slide1.txt` moved from 2 fragments to 51. **That is the ticket**: a real `.pptx` from
-    the committed corpus now lays its chart out. The baseline was regenerated and read before
-    committing — twelve gridlines, three bars, an axis with its ticks and labels.
+GATE: cargo test -p xtask --test unsafe_allowance
+  command : cargo test -p xtask --test unsafe_allowance -j2
+  start   : 2026-09-10T02:42:21+05:30
+  finish  : 2026-09-10T02:42:22+05:30
+  exit    : 0
 
- 9. `cargo test -p xtask --test one_engine_three_formats` — the flagship, red twice.
-    First: `different fragment counts: 42 against 20`, because the worksheet's chart root was found
-    by "the first branch node", which is the sheet's own grid `TableFragment`. Now found by its
-    **address** — a two-segment path, which is what a sheet gives an anchored object and nothing
-    else has. Second: `ResizingBehavior::MoveAndResize` is spelled
-    `MoveAndResizeWithAnchorCells` in this workspace, because every identifier here is
-    self-explanatory.
+GATE: cargo run -p xtask -- tokens --check
+  command : cargo run -q -p xtask -j2 -- tokens --check
+  start   : 2026-09-10T02:42:22+05:30
+  finish  : 2026-09-10T02:42:22+05:30
+  exit    : 0
 
-10. **Mutation, deliberately introduced and confirmed red.** With Excel's chart frame shortened by
-    one point, `one_chart_reaches_three_hosts_and_comes_out_the_same` fails at `fragment 1`. The
-    mutation was reverted and the suite is green again. Without that check the comparison could
-    have been vacuous — three empty subtrees compare equal.
+GATE: cargo run -p xtask -- ledger --check
+  command : cargo run -q -p xtask -j2 -- ledger --check
+  start   : 2026-09-10T02:42:22+05:30
+  finish  : 2026-09-10T02:42:23+05:30
+  exit    : 0
 
-11. `cargo fmt --all -- --check` — red on first run, in `mjx-layout-chart/src/diagram.rs` and four
-    other files. Applied and re-checked.
+GATE: bash .github/scripts/check-suppress-naming.sh
+  command : bash .github/scripts/check-suppress-naming.sh
+  start   : 2026-09-10T02:42:23+05:30
+  finish  : 2026-09-10T02:42:23+05:30
+  exit    : 0
 
-12. `cargo clippy --workspace --all-targets -- -D warnings` — **14 errors in the new crate.** Six
-    `assign_op_pattern`, five `clone_on_copy` (`Scale` is `Copy` and the clones were redundant), two
-    `unnecessary closure with bool::then`, one `manual_is_multiple_of`; then four `useless_format`
-    in the test fixtures on the next three passes.
+GATE: cargo doc --workspace --no-deps (CI RUSTDOCFLAGS)
+  command : RUSTDOCFLAGS='-D warnings -D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links' cargo doc --workspace --no-deps
+  start   : 2026-09-10T02:42:23+05:30
+  finish  : 2026-09-10T02:42:33+05:30
+  exit    : 0
 
-13. `cargo test --workspace` — **1 failure out of 410 suites, and it is the finding of this child.**
+--------------------------------------------------------------------------------
+THE RED PASSES — every gate demonstrated failing
+--------------------------------------------------------------------------------
 
-        layering violation: `mjx-layout-pptx` (rank 3.6 (PowerPoint's box model)) declares
-        `mjx-layout-chart` (rank 3.55 (the chart engine)) as a dependency. This one points upward.
+## The red passes — every gate demonstrated failing
 
-    `Rank` held `major` and a bare `minor` and derived `Ord` on the pair, which is correct only for
-    as long as every fraction has one digit — and MJXOFF-178 is the first rank with two. `Rank(3, 55)`
-    compares **greater** than `Rank(3, 6)` because 55 is greater than 6.
+A record that mentions only the green run is not a record. Each mutation below was applied, run and
+reverted; the workspace is back at the state the green pass above was taken on.
 
-    The gate was right to be red and the arithmetic was wrong. The fraction is now stated in
-    hundredths at every call site (`Rank(3, 50)`, `Rank(3, 55)`, `Rank(3, 60)`), `Display` trims the
-    trailing zero so every message still reads `3.6`, and
-    `a_two_digit_fraction_sorts_and_prints_the_way_a_reader_reads_it` asserts both the ordering and
-    the spelling. **Nothing had ever checked the rank arithmetic itself**; a two-digit fraction was
-    always going to arrive, and the next one would have arrived the same way.
+R1 · One changed count in the committed ledger  →  `ledger --check` exit 1
+    Mutation:  `| `implemented` | 76 |`  →  `| `implemented` | 77 |` in PARITY_LEDGER.md
+    Output:    the committed parity ledger is not what this workspace's suites produce:
+                 docs/client-platform/PARITY_LEDGER.md: line 54 differs
+                   committed: | `implemented` | 77 |
+                   generated: | `implemented` | 76 |
+    Proves:    the drift gate. This is the check `UNCOVERED_SCHEMAS` never had.
 
-14. `RUSTDOCFLAGS=... cargo doc --workspace --no-deps` — 2 errors, both in `model.rs`'s own module
-    header: an intra-doc link to a private `read_numbers` and one to a `read_labels` that had been
-    inlined away three hours earlier. The prose was describing a function that no longer existed.
+R2 · A row pointing at a suite that does not exist  →  `ledger` exit 1
+    Mutation:  `crates/mjx-text/tests/shaping.rs` → `.../shaping_renamed_away.rs` in rows.rs
+    Output:    the parity ledger names `crates/mjx-text/tests/shaping_renamed_away.rs` as evidence,
+               and there is no such suite in the workspace. […] A row may not outlive its evidence
+    Proves:    the liveness check, on a misspelt or renamed pointer.
 
+R3 · Deleting a real suite the rows name  →  `ledger --check` exit 1
+    Mutation:  `git mv`-equivalent of crates/mjx-view/tests/windowing.rs out of the tree
+    Output:    the same liveness error, naming crates/mjx-view/tests/windowing.rs
+    Proves:    deleting a suite moves the ledger. It cannot silently keep reporting the old state.
 
-=================================================================================================
-THE GREEN PASS — one run of the whole set, after the final edit
-=================================================================================================
+R3b · Deleting a suite a *provenance ledger* names  →  `ledger --check` exit 1
+    Mutation:  crates/mjx-layout-chart/tests/a_hierarchy_is_laid_out.rs moved out
+    Output:    a provenance ledger declares expectations for
+               `crates/mjx-layout-chart/tests/a_hierarchy_is_laid_out.rs`, which is not a suite in
+               this workspace
+    Proves:    the second liveness path — the provenance scan refuses a dangling attribution too.
 
-The last edit was 00:54:20 (a doc comment in `crates/mjx-layout-chart/src/model.rs`, fixing red pass
-14). Every command below started after it. -j2 throughout, one cargo invocation at a time; a Node
-build ran in `ui/` and a peer session built in the repository root, and `free -h` / `df -h` were
-checked before each long run — 22 GB of memory available and 224 GB of disk free, so neither was ever
-the constraint.
+R4 · A suite that exists and asserts nothing  →  the row leaves `implemented`
+    Mutation:  every `assert` in a_hierarchy_is_laid_out.rs renamed to `no_longer_assert`
+    Before:  | `diagram-layout` | … | `implemented` | … | 10 | 29 | 4 / 1 / 3 |
+    After:   | `diagram-layout` | … | `not-started` | … | 10 |  0 | 4 / 1 / 3 |
+    Proves:    trap (b) of the ticket — ten `#[test]` functions and zero assertions is not evidence,
+               and the generator reads assertions rather than existence.
 
-  cargo fmt --all -- --check
-      start  2026-09-10T00:54:29+05:30
-      finish 2026-09-10T00:54:35+05:30
-      exit   0
+R5 · Deleting a limitation marker from the suite that asserts it  →  `ledger --check` exit 1
+    Mutation:  `MJX-LEDGER-LIMITATION:` → `was a marker:` in the_dash_is_lost_at_the_band.rs
+    Output:    line 54 differs / committed: `implemented` 76 / generated: `implemented` 77
+    Proves:    a defect that stops being declared changes the document. `excel-cell-borders` was
+               promoted out of `partial`, and the drift gate caught it.
 
-  cargo clippy --workspace --all-targets -- -D warnings
-      start  2026-09-10T00:54:44+05:30
-      finish 2026-09-10T00:55:08+05:30
-      exit   0
+R6 · A limitation declared in a suite a row already cites  →  `ledger --check` exit 1
+    Mutation:  a marker added to crates/mjx-layout/tests/spatial_index.rs
+    Output:    line 54 differs / committed: `implemented` 76 / generated: `implemented` 75
+    Proves:    a newly declared defect demotes its row to `partial` without anyone editing a table.
 
-  cargo test --workspace
-      start  2026-09-10T00:55:17+05:30
-      finish 2026-09-10T01:11:59+05:30
-      exit   0      455 test binaries, 0 failed
+R6b · A limitation declared in a suite NO row cites  →  `ledger` exit 1
+    Mutation:  a marker added to crates/mjx-pptx/tests/cursor.rs, which no row names
+    Output:    `crates/mjx-pptx/tests/cursor.rs` declares a limitation that no ledger row cites: […]
+               A defect asserted in the tree and absent from the ledger is worse than one that is
+               merely unfixed.
+    Proves:    the check that runs the *other* way. Everything else asks whether the ledger's claims
+               are supported by the tree; this asks whether the tree's declared defects reached the
+               ledger.
 
-  cargo test -p xtask --test layering
-      start  2026-09-10T01:12:11+05:30
-      finish 2026-09-10T01:12:28+05:30
-      exit   0      9 passed
+R7 · Making the default `implemented` instead of `not-started`  →  2 unit tests FAILED
+    Mutation:  `} else if capability.evidence.is_empty() || !checks_something {` → `} else if false {`
+    Failed:    ledger::assess::tests::a_capability_with_no_evidence_is_not_started
+               ledger::assess::tests::a_suite_that_asserts_nothing_does_not_make_a_row_implemented
+    Proves:    trap (a) of the ticket. The default is `not-started` and a test says so.
 
-  cargo test -p xtask --test escape_hatches
-      start  2026-09-10T01:12:36+05:30
-      finish 2026-09-10T01:12:37+05:30
-      exit   0      9 passed
+R8 · A row table that could name a state  →  1 unit test FAILED
+    Mutation:  the string `State::Implemented` introduced into rows.rs (in a doc comment)
+    Failed:    ledger::tests::no_row_can_declare_its_own_state
+    Proves:    the ledger's first rule is checked and not merely intended — a state cannot appear in
+               the row table even as prose.
 
-  cargo test -p xtask --test unsafe_allowance
-      start  2026-09-10T01:12:44+05:30
-      finish 2026-09-10T01:12:45+05:30
-      exit   0      3 passed
+--------------------------------------------------------------------------------
+THE WEAKEST PART, STATED PLAINLY
+--------------------------------------------------------------------------------
 
-  cargo run -p xtask -- tokens --check
-      start  2026-09-10T01:12:52+05:30
-      finish 2026-09-10T01:12:52+05:30
-      exit   0      3 artefacts match
+The evidence scanner reads Rust source with a line scanner rather than a parser.
+It strips comments before counting, refuses a provenance ledger whose rows do not
+pair up rather than reading it wrongly, and NAMES in the generated document any file
+it could not read — `crates/mjx-layout-xlsx/tests/the_format_language_is_evaluated.rs`
+is such a file today, because it writes its tiers through a `use` alias. Every way the
+scan can be wrong is the conservative one: fewer assertions counted means a LOWER
+state, never a higher one, and provenance not read means a row reports no declared
+evidence rather than borrowed evidence.
 
-  bash .github/scripts/check-suppress-naming.sh
-      start  2026-09-10T01:12:59+05:30
-      finish 2026-09-10T01:12:59+05:30
-      exit   0
+That is a real mitigation and it is not a proof. A file that reorganised its ledger
+into a shape the scanner reads *differently* rather than *not at all* would be
+miscounted silently. The structural answer would be for the suites to emit a
+machine-readable artefact of their own — but that would put this generator downstream
+of a `cargo test` run, and the ticket is explicit that it must run no renderer and
+judge nothing itself.
 
-  RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links \
-                -D rustdoc::private_intra_doc_links" cargo doc --workspace --no-deps
-      start  2026-09-10T01:13:09+05:30
-      finish 2026-09-10T01:13:44+05:30
-      exit   0
+The second-weakest part is the row table. The rows are a hand-drawn partition of
+`OFFICE_FEATURE_INVENTORY.md`, written in the same file that names each row's evidence,
+so the denominator is not independent of the numerator. A coarser partition would raise
+the implemented share without a line of code changing. The generated document says
+exactly that, in its own `## Where the denominators come from` section, and takes no
+percentage against the row count anywhere.
 
-=================================================================================================
-THE WEAKEST PART, STATED
-=================================================================================================
-
-**Chart text is measured rather than shaped.** All three hosts pass `NominalMetrics`, a per-character
-advance table read off Calibri and grouped by this engine. Everything the negotiation reserves — the
-tick-label gutter, the legend's width, the title's height — rests on it, so every rectangle in a laid-
-out chart is a few percent off what a real font engine would give. It is deterministic, which is what
-makes `one_engine_three_formats` an equality rather than an approximate comparison, and the seam for
-a real metric (`TextMetrics`) is live and proved live by a test. But it is the one number in this
-crate that is wrong on purpose, and it is upstream of every other number.
-
-Second weakest: **the chart's own handles reach no resolver yet.** `mjx-scene-pptx` and
-`mjx-scene-xlsx` answer `None` for a handle at or above `CHART_HANDLE_BASE`, which is correct — the
-chart table is a different table — and means a chart's fills and outlines are addressable and not yet
-resolvable. Teaching the two companions (and writing `mjx-scene-docx`) is a follow-up, not a defect
-here, but a chart does not reach pixels until it happens.
+The third is the evidence pointers themselves. A row can under-report by pointing at
+too few suites, and nothing catches that — the liveness check only catches a pointer to
+a suite that is gone, never a suite that should have been pointed at. Three rows were
+corrected on exactly this ground while reviewing the first generated output
+(`pptx-master-and-layout`, `table-selection`, `pptx-slide-authoring`), which is evidence
+that the failure mode is real and that only a reader finds it.

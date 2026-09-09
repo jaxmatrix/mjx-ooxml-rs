@@ -14,6 +14,9 @@
 //! and `crate::math` says so at every one. **The relations are not:** a bar on an axis, a script at a
 //! stated fraction of its base's size and a delimiter as tall as what it encloses are what MathML
 //! and the OpenType `MATH` specification define, and they are what a reader sees.
+//!
+//! MJX-LEDGER-LIMITATION: `mjx-text` parses no OpenType `MATH` table, so a stretchy delimiter is
+//! *scaled* rather than assembled from glyph variants and its stroke weight grows with its height.
 
 mod support;
 

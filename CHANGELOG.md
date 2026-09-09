@@ -58,6 +58,63 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.155] - 2026-09-10
+
+**The parity ledger, generated from the suites and never asserted by hand (MJXOFF-179, R24).**
+Twenty-three children built the renderer and every one of them declared what it could not prove. This
+release stops those declarations being scattered across commit messages and makes them one artefact
+that cannot drift, because nothing in it is written down.
+
+### Added
+
+- **`cargo run -p xtask -- ledger`**, and its committed output
+  [`docs/client-platform/PARITY_LEDGER.md`](docs/client-platform/PARITY_LEDGER.md) — 146 rows over
+  the five states of `OFFICE_FEATURE_INVENTORY.md` §7: `implemented`, `partial`,
+  `preserved-not-rendered`, `not-started` and `out-of-scope`. `ledger --check` refuses if the
+  committed document is not what the tree produces, exactly as `tokens --check` does, and
+  `xtask/tests/ledger.rs` runs it.
+- **A row declares evidence and has no state field.** `xtask/src/ledger/rows.rs` names the suites
+  that cover a capability; `assess.rs` derives what follows as a pure function of that and of what
+  the suites contain. There is nowhere in the table to write `implemented`, which is the only
+  reliable defence against a generator that quietly defaults to it — and `not-started` is the
+  default, proved against a synthetic evidence index rather than described.
+- **A liveness check that can actually fail.** A row naming a suite that no longer exists is an
+  error at the lookup, by name. `UNCOVERED_SCHEMAS` generates a stale fact into `COVERAGE.md` with
+  no such check, and this is the defect the ticket asked not to be repeated.
+- **`MJX-LEDGER-LIMITATION:`**, a marker written in the module documentation of the suite that
+  *asserts* a known-wrong behaviour. Five suites carry one — the opacity destroyed at the `mjx-dml`
+  boundary, the cell border drawn solid, chart text measured rather than shaped, the scaled stretchy
+  delimiter and the unevaluated conditional-formatting rule — and each demotes its row to `partial`
+  with the reason quoted. The check runs both ways: a declared limitation **no row cites** fails the
+  build, so a defect cannot be proved in the code and absent from the document a reader treats as
+  authority.
+
+### Changed
+
+- `PLAN.md`, `README.md`, `docs/UI_PLATFORM_PLAN.md` and `OFFICE_FEATURE_INVENTORY.md` §7 point at
+  the ledger. §7 said *"how this becomes the ledger"*; it now says which file it became.
+
+### The part that matters most, and it is not a number
+
+The ledger says, before its first count, that **it is a ledger of what was *checked* and not of what
+is *true***. Nothing in this workspace has ever been compared against Microsoft Office: the oracle's
+five baselines are all stamped `approver = generator`, the parity count is zero **by construction**,
+and the document derives that sentence from the `APPROVAL` files rather than repeating it. Every row
+carries the `SpecCode` / `DocumentedBehaviour` / `EngineDerived` split of the expectations under it,
+because `EngineDerived` means a change detector and a change detector is this engine agreeing with
+itself. Across the whole workspace that split is 73 / 52 / 124.
+
+The gaps are rows rather than omissions, which is the other half of the same discipline: Word reaches
+no pixels at all (`crates/mjx-scene-docx` does not exist, and the document checks), animation and
+timing, sparklines, gridlines, WordArt, picture cropping, IME and the accessibility tree are all
+present and all say `not-started`.
+
+**No fraction in the document is taken against the row count**, and the document says why: the rows
+are a hand-drawn partition of the inventory written in the same file that names their evidence, so a
+coarser partition would raise the implemented share without a line of code changing. The two figures
+that *are* independent — 11,869 in-scope controls and 3,404 declared elements — are summed by the
+generator from the two committed censuses and are reported as scale, never as a denominator.
+
 ## [0.0.154] - 2026-09-10
 
 **Charts and diagrams, built once for all three formats (MJXOFF-178, R23).** A chart in a `.pptx`, a

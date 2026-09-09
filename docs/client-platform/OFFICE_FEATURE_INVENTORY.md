@@ -317,6 +317,13 @@ Absent from both enumerations, and roughly a third of the perceived quality of t
 
 ## 7 · How this becomes the ledger
 
+**It has.** [`PARITY_LEDGER.md`](PARITY_LEDGER.md) is that ledger, and it is **generated from this
+workspace's own test suites** by `cargo run -p xtask -- ledger` (MJXOFF-179) — never written by
+hand. A row there declares which suites are its evidence and nothing else; the state is derived from
+what those suites contain, so a suite that is deleted, renamed or emptied moves the row rather than
+leaving it stale. `ledger --check` refuses if the committed document is not what the tree produces,
+and `xtask/tests/ledger.rs` runs that check.
+
 Every row above is a ledger entry with one of four states: `implemented`, `partial`,
 `preserved-not-rendered`, `not-started`. Three rules keep it honest:
 

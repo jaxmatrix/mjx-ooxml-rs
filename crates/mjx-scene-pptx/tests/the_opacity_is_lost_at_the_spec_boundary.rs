@@ -38,6 +38,15 @@
 //!
 //! Either is a work item of its own. MJXOFF-170 chose to state the loss and prove it rather than to
 //! start one halfway.
+//!
+//! # The parity ledger reads the next line
+//!
+//! So this defect cannot be true in the code and absent from the document a reader treats as
+//! authority. `cargo run -p xtask -- ledger` refuses to run if no row cites this file.
+//!
+//! MJX-LEDGER-LIMITATION: a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every
+//! theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under
+//! the shape instead of a soft one.
 
 use mjx_dml::ColorSpec;
 use mjx_pptx::{Presentation, Surface};

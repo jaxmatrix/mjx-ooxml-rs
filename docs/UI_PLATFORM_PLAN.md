@@ -87,6 +87,7 @@ targets a **display list**; SVG and PDF become exporters *from* that IR, not sta
 | Document | What it settles |
 |---|---|
 | [`client-platform/OFFICE_FEATURE_INVENTORY.md`](client-platform/OFFICE_FEATURE_INVENTORY.md) | The implementation surface, derived from Microsoft's published control identifiers and the ECMA-376 schemas — 11,869 in-scope commands and 3,404 declared elements |
+| [`client-platform/PARITY_LEDGER.md`](client-platform/PARITY_LEDGER.md) | **Generated, never written.** What every row of that inventory is actually covered by, in five states derived from the suites — and, before the table, what a green row does *not* mean. Produced by `cargo run -p xtask -- ledger` |
 | [`client-platform/DESIGN_TOKENS.md`](client-platform/DESIGN_TOKENS.md) | The Allr token system as measured, plus the dark theme, document palette and contrast rules an editor needs |
 | [`client-platform/HTML_BOX_MODEL.md`](client-platform/HTML_BOX_MODEL.md) | Whether HTML can render in the canvas — yes, as a fourth `BoxModel`, staged |
 | [`client-platform/BUILD_PLAN_LOOP_1.md`](client-platform/BUILD_PLAN_LOOP_1.md) | **What this loop builds:** the renderer for all three formats, and every UI element audited in isolation — with application integration deferred to loop 2 |
