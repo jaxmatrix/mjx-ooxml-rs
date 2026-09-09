@@ -7,10 +7,11 @@
 // `xtask/tests/guide_examples.rs` proves the copy is current.
 //
 // Importing this module *is* running the example: the code below is top level, so
-// `tests/node/guide_examples.mjs` executes every check in it by importing it. `saved` is the
-// **workbook**, compared against `crates/mjx-ooxml/examples/guide_one_authoring_vocabulary.rs` part
-// by part — the deck this example also authors is covered by `tests/node/build_a_deck.mjs`, and
-// `setChartSeriesFill` is covered by no walkthrough at all.
+// `tests/node/guide_examples.mjs` executes every check in it by importing it. It offers **both**
+// packages it authors — the workbook and the deck — and each is compared against
+// `crates/mjx-ooxml/examples/guide_one_authoring_vocabulary.rs` part by part (MJXOFF-260). The
+// exported names are the harness's protocol and are the same in all three languages; the block a
+// reader sees keeps JavaScript's own spelling.
 
 // guide-example:start
 import { ChartData, ChartKind, ColorSpec, Deck, FillSpec } from "@mjx/ooxml";
@@ -39,10 +40,11 @@ if (workbook.chartSeriesFill(0, anchor, 0) === undefined) {
 }
 
 const saved = workbook.save();
+const savedDeck = deck.save();
 // a wasm handle owns memory the garbage collector cannot see
 for (const handle of [navy, deck, slide, bounds, workbook, chart]) {
   handle.free();
 }
 // guide-example:end
 
-export { saved };
+export { saved, savedDeck as saved_deck };

@@ -19,9 +19,13 @@ Both halves have a cause, and the first half used to be stronger than it is:
   the part as a whole cannot be validated. Its children can: `v:shape`, `v:shapetype`,
   `o:shapelayout`, `x:ClientData` and the rest are global elements, and `vml-main.xsd` imports its
   four siblings, so one driver over it reaches every child kind a producer writes.
-* **No `vml-*` schema is in the child-order generator's `CHILD_ORDER_SCHEMAS`**, so nothing checks
-  the *sequence* a drawing's children are written in — only that each child is itself well formed
-  against the XSD. MJXOFF-264 owns that gap.
+* **No `vml-*` schema is in the child-order generator's `CHILD_ORDER_SCHEMAS`**, and MJXOFF-264
+  measured what that costs: less than it looks. Validating a wrapper's child as a standalone
+  document applies that child's own content model, sequence included, so a `v:shapetype` that writes
+  `o:complex` before its shape elements fails CI. What no table reaches is the order of the
+  *wrapper's own* children — and `<xml>` is a Microsoft convention that no schema in either pinned
+  tree declares, so it has no sequence to be out of. `crates/mjx-schema-gate/tests/wrapper_child_order.rs`
+  checks both halves against the schemas rather than asserting them.
 
 `crates/mjx-schema-gate/src/categories.rs` therefore files a VML part as a `WrapperRoot` — the
 category whose parts are validated child by child — with that reason written on the entry itself.
@@ -38,7 +42,7 @@ true: this crate never authors an `ST_*` value, and nothing re-sequences a VML p
 | A `.pptx`, `.docx` or `.xlsx` part | What checks it |
 |---|---|
 | a slide, a document, a worksheet, a chart | `xmllint` against the ECMA schema, **plus** a generated child-order walk, **plus** the round trip |
-| a VML drawing | `xmllint` against `vml-main.xsd`, **one child of the `<xml>` wrapper at a time**, **plus** the round trip — but **no** child-order walk |
+| a VML drawing | `xmllint` against `vml-main.xsd`, **one child of the `<xml>` wrapper at a time** — which applies each child's own sequence — **plus** the round trip, but **no** child-order walk over the wrapper, which has no content model |
 
 So:
 
@@ -50,10 +54,11 @@ So:
   one.** An attribute VML does not admit is caught: MJXOFF-245 put every child of an authored
   wrapper through `xmllint`, and `crates/mjx-pptx/tests/schema_validity.rs`'s
   `a_vml_child_that_breaks_the_schema_is_reported_invalid_naming_it` breaks one on purpose to prove
-  the check is live. A shape written in the wrong *order* is not caught, because no VML schema has a
-  child-order table (MJXOFF-264) — the first thing to notice would be Office. That is why
-  `docs/validation/06-the-office-pass.md` exists and why the VML entries in it matter more than
-  their size suggests.
+  the check is live. A shape whose *own* children are in the wrong order is caught too, by the same
+  call: MJXOFF-264 set out to close that gap and found it mostly was not one. What no schema
+  constrains is the order the wrapper's children are written in, so that ordering is a matter for
+  Office rather than for CI — which is why `docs/validation/06-the-office-pass.md` exists and why
+  the VML entries in it matter more than their size suggests.
 * **Nothing about `.vml` is enumerated by a hand-written list any more, and that took a defect to
   arrange.** MJXOFF-114 found `mjx-opc`'s exception list of suffix-less XML content types carrying
   `…vmlDrawing` in Office's own capitalisation while `is_xml_content_type` folded its argument, so the

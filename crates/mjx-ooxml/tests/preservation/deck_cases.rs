@@ -888,8 +888,11 @@ pub(crate) const CASES: &[Case] = &[
                 // MJXOFF-232: a new table names a style, so `add_table` reaches the table-styles
                 // part. Which of the two rules fires depends on what the deck already carries —
                 // `added` for a deck with no such part, `changed` for one whose `def` names a style
-                // it does not define, which is what PowerPoint writes (`charts.pptx` carries an
-                // empty `a:tblStyleLst` naming a built-in). A deck whose default really resolves —
+                // it does not define — which is what `charts.pptx` carries, an empty
+                // `a:tblStyleLst` naming a built-in. (Said "which is what PowerPoint writes" until
+                // MJXOFF-249: that deck's `docProps/app.xml` names PowerPoint and python-pptx wrote
+                // it, so the inference was about the wrong producer. The shape is still real; it is
+                // this fixture's, not a claim about Office.) A deck whose default really resolves —
                 // `tables.pptx` — trips neither, because nothing is authored into it.
                 added(TABLE_STYLES, Count::UpTo(1)),
                 changed(TABLE_STYLES, Count::UpTo(1)),

@@ -35,6 +35,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+// guide-example:packages saved
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:prelude-start
     let original = mjx_fixtures::fixture("sample.xlsx");

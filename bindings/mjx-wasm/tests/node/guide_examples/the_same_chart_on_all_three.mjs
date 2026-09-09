@@ -6,10 +6,11 @@
 // `xtask/tests/guide_examples.rs` proves the copy is current.
 //
 // Importing this module *is* running the example: the code below is top level, so
-// `tests/node/guide_examples.mjs` executes every check in it by importing it. `saved` is the deck it
-// produced, compared against `crates/mjx-ooxml/examples/guide_the_same_chart_on_all_three.rs` part
-// by part. The Word document the example also authors is held by the readers the block calls; a Word
-// chart is compared byte for byte by `tests/node/build_a_document.mjs`.
+// `tests/node/guide_examples.mjs` executes every check in it by importing it. It offers **both**
+// packages it authors — the deck and the Word document — and each is compared against
+// `crates/mjx-ooxml/examples/guide_the_same_chart_on_all_three.rs` part by part (MJXOFF-260). The
+// exported names are the harness's protocol and are the same in all three languages; the block a
+// reader sees keeps JavaScript's own spelling.
 
 // guide-example:start
 import { ChartData, ChartKind, Deck, Document, PageSize } from "@mjx/ooxml";
@@ -45,10 +46,11 @@ if (document.chartSeries(drawing).length !== 1) {
 }
 
 const saved = deck.save();
+const savedDocument = document.save();
 // a wasm handle owns memory the garbage collector cannot see
 for (const handle of [chart, deck, document, slide, bounds]) {
   handle.free();
 }
 // guide-example:end
 
-export { saved };
+export { saved, savedDocument as saved_document };

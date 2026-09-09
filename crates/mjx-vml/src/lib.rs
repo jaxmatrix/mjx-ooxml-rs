@@ -69,10 +69,14 @@
 //! half — that `vml-main.xsd` could not compile at all without an `xml.xsd` the Transitional set
 //! does not ship — had stopped being true when MJXOFF-134 gave every schema a driver.
 //!
-//! What is left is still weaker than a sibling crate's guarantee, and [`guide`] states what it costs
-//! a caller: every element this crate writes is checked against the XSD, but **the order it writes
-//! them in is not** — no VML schema is in `xtask`'s `CHILD_ORDER_SCHEMAS`, so a shape written in the
-//! wrong sequence would still reach Office before it reached CI (MJXOFF-264).
+//! What is left is narrower than it was written down as being, and MJXOFF-264 is what measured it.
+//! Every element this crate writes is checked against the XSD **and so is the order of that
+//! element's own children**: a wrapper's child is handed to `xmllint` as a standalone document,
+//! which applies its content model rather than removing it, so a `v:shapetype` that writes
+//! `o:complex` before its shape elements fails CI today. What no schema constrains is the order of
+//! the *wrapper's* children, because `<xml>` is a Microsoft convention that no schema in either
+//! pinned tree declares — it has no content model to be out of. Both halves are checked by
+//! `crates/mjx-schema-gate/tests/wrapper_child_order.rs` rather than stated here.
 //!
 //! # Fidelity
 //!

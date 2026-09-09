@@ -22,6 +22,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+// guide-example:packages saved
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:start
     use mjx_ooxml::{ChartData, ChartKind, ResizingBehavior, Workbook};

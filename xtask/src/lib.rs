@@ -42,5 +42,6 @@
 
 pub mod binding_surface;
 pub mod codegen;
+pub mod facade_surface;
 pub mod guide_examples;
 pub mod validation;

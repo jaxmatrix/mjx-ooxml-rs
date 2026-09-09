@@ -5,7 +5,7 @@ layouts, the same shapes, the same table, the same chart, the same notes, the sa
 is the point: if the curated subset were missing anything, this file could not be written, and if
 the identity mapping were not identity, it would not read the same.
 
-`tests/node/build_a_deck.mjs` is the third copy. All three write to `target/examples/`, and
+`bindings/mjx-wasm/tests/node/build_a_deck.mjs` is the third copy. All three write to `target/examples/`, and
 `test_the_three_walkthroughs_agree` checks that this one and the Rust one produce the same deck.
 """
 
