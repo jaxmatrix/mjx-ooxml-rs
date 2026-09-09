@@ -9,17 +9,20 @@
   },
   "scripts": {
     "tokens:check": "node scripts/check-tokens.mjs",
+    "icons:subset": "node scripts/subset-icons.mjs",
+    "icons:check": "node scripts/subset-icons.mjs --check",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test:unit": "vitest run",
     "build-storybook": "storybook build",
     "storybook": "storybook dev -p 6006 --no-open",
     "test:browser": "playwright test",
-    "check": "npm run tokens:check && npm run typecheck && npm run lint && npm run test:unit && npm run build-storybook && npm run test:browser"
+    "check": "npm run tokens:check && npm run icons:check && npm run typecheck && npm run lint && npm run test:unit && npm run build-storybook && npm run test:browser"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@fluentui/svg-icons": "^1.1.339",
     "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-docs": "^10.6.0",

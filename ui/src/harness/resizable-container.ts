@@ -28,6 +28,7 @@
  * runs over every story, so this element is audited on every one of them.
  */
 
+import { installFoundations } from '../foundations/stylesheet.ts';
 import {
   containerName,
   containerPresetOrder,
@@ -61,7 +62,19 @@ const template = `
         <output aria-live="off"></output>
       </label>
     </div>
-    <div class="stage" part="stage">
+    <!-- ⚠ tabindex="0" is required, not decorative (MJXOFF-181). The stage is a scroll container:
+         it scrolls horizontally by design — the frame is exactly the width its preset says and is
+         deliberately not clamped to the viewport — and CSS makes it scroll vertically too, because
+         a box whose overflow-x is auto computes an overflow-y of visible to auto. A scroll
+         container a keyboard cannot reach is a region a keyboard user cannot read, and axe's
+         scrollable-region-focusable rule says so. It went unnoticed until U02 added stories tall
+         enough to overflow it; the container has always been scrollable, and the sweep only sees a
+         scroll container once something actually overflows.
+
+         No aria-label: axe's aria-prohibited-attr refuses one on an element with no role, and a
+         role here would put a landmark inside every story — which is exactly what the sweep's
+         region exclusion says not to invent. -->
+    <div class="stage" part="stage" tabindex="0">
       <div class="frame" part="frame">
         <slot></slot>
       </div>
@@ -110,10 +123,13 @@ const styles = `
     border-color: var(--theme-accent-border);
     color: var(--theme-accent-pressed);
   }
-  button:focus-visible, input:focus-visible {
-    outline: 2px solid var(--theme-accent-pressed);
-    outline-offset: 2px;
-  }
+  /* ⚠ No focus rule here. MJXOFF-181 (U02) made the focus-visible treatment a foundation, and
+   * this element adopts it through installFoundations(shadowRoot) in #render like every other
+   * component. The two 2px literals that used to sit here were the first instance of exactly what
+   * the ticket warns about — "how a design system acquires four slightly different button focus
+   * rings" — and they are now a calc() over --spacing in one place.
+   * tests/browser/foundations.spec.ts drives this element's own buttons with a real Tab press, so
+   * the harness is a consumer of the gate and not an exception to it. */
   .width { display: flex; align-items: center; gap: var(--spacing); }
   output { font-variant-numeric: tabular-nums; min-width: 5ch; }
   .frame {
@@ -214,6 +230,8 @@ export class MjxResizableContainer extends HTMLElement {
 
   #render(): void {
     const root = this.attachShadow({ mode: 'open' });
+    // The foundations first, so the focus ring is in the cascade before this element's own rules.
+    installFoundations(root);
     const sheet = document.createElement('style');
     sheet.textContent = styles;
     root.append(sheet);

@@ -70,6 +70,36 @@ export async function openStory(page: Page, id: string, options: OpenOptions = {
   await page.evaluate(async () => {
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   });
+  await waitForAxeIdle(page);
+}
+
+/**
+ * Wait until the accessibility addon's own axe run has finished.
+ *
+ * ⚠ There are **two** axe runs per story and only one of them is the gate. `preview.ts` sets
+ * `a11y: { test: 'error' }`, so the addon runs axe in the preview as each story renders; the sweep
+ * then runs axe again through `AxeBuilder`. axe-core refuses to run twice at once — *"Axe is
+ * already running"* — and which of the two wins is a matter of how long the story took to paint.
+ *
+ * MJXOFF-181 hit it as a single red story out of seventy-six, on a run where nothing about that
+ * story had changed. Left alone it is the worst kind of gate failure: intermittent, unrelated to
+ * the change, and therefore the thing that teaches everyone to re-run the suite instead of reading
+ * it. Waiting for the addon to finish removes the race rather than retrying past it.
+ */
+export async function waitForAxeIdle(page: Page): Promise<void> {
+  try {
+    await page.waitForFunction(
+      () => {
+        const axe = (globalThis as { axe?: { _running?: boolean } }).axe;
+        return axe === undefined || axe._running !== true;
+      },
+      undefined,
+      { timeout: 15_000 },
+    );
+  } catch {
+    // A story whose addon run never finishes is a finding in its own right, but it is not this
+    // helper's to report: the sweep below will still run axe and will still say what it found.
+  }
 }
 
 /** The rules a component catalogue cannot meaningfully answer, and why each is off. */

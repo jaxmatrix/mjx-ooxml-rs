@@ -10,10 +10,22 @@ import {
   type ContainerPreset,
 } from '../src/harness/resizable-container.ts';
 import { defineProbes } from '../dev/probes.ts';
+import { defineFoundationProbes } from '../dev/foundation-probes.ts';
+import { defineIcon } from '../src/icons/icon.ts';
+import { defineSurface } from '../src/foundations/surface.ts';
+import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
 
 defineResizableContainer();
 defineProbes();
+defineFoundationProbes();
+defineIcon();
+defineSurface();
+
+// The foundations on the *document*, because the typography, surface, density and focus classes an
+// author writes land in the light DOM. Each component installs them on its own shadow root too;
+// one `CSSStyleSheet` is constructed once and adopted by both.
+installFoundations(document);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
