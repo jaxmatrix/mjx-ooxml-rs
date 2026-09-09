@@ -25,32 +25,124 @@ Everything after the address is identical, argument for argument — `crate::Dec
 `crate::Deck::chart_legend`, `crate::Deck::chart_data_labels`, `crate::Deck::add_chart_trendline`
 and their forty-odd siblings on each surface.
 
-```
-use mjx_ooxml::{ChartData, ChartKind, Deck, Document, PageSize, ShapeBounds, SlideSize, Surface};
+<!-- guide-example: the_same_chart_on_all_three rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{ChartData, ChartKind, Deck, Document, PageSize};
+use mjx_ooxml::{ShapeBounds, SlideSize, Surface};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
-let chart = || ChartData::new(ChartKind::Bar)
+let chart = ChartData::new(ChartKind::Bar)
     .categories(["Q1", "Q2", "Q3"])
     .series("North", [12.5, 18.0, 21.5])
     .title("Quarterly revenue".to_owned());
 
+// A slide is a canvas in EMU, so a chart on one is laid out inside bounds.
 let mut deck = Deck::blank(SlideSize::widescreen())?;
 deck.add_slide()?;
-let shape = deck.add_chart(Surface::Slide(0), &chart(), ShapeBounds::from_inches(1.0, 1.0, 5.0, 3.0))?;
+let slide = Surface::Slide(0);
+let bounds = ShapeBounds::from_inches(1.0, 1.0, 5.0, 3.0);
+let shape = deck.add_chart(slide, &chart, bounds)?;
 
+// A Word drawing is inline in a paragraph, so it takes a width and a height.
 let mut document = Document::blank(PageSize::a4())?;
-let drawing = document.add_chart(0.into(), &chart(), 4_572_000, 2_743_200, "Revenue")?;
+let drawing = document.add_chart(0.into(), &chart, 4_572_000, 2_743_200, "Revenue")?;
 
-// The same question, the same answer, two addresses.
-assert_eq!(deck.chart_title(Surface::Slide(0), shape.into())?.as_deref(), Some("Quarterly revenue"));
-assert_eq!(document.chart_title(drawing)?.as_deref(), Some("Quarterly revenue"));
-
-assert_eq!(deck.chart_series(Surface::Slide(0), shape.into())?.len(), 1);
+// Everything after the address is identical: the same question, the same answer.
+let on_slide = deck.chart_title(slide, shape.into())?;
+let in_document = document.chart_title(drawing)?;
+assert_eq!(on_slide.as_deref(), Some("Quarterly revenue"));
+assert_eq!(on_slide, in_document);
+assert_eq!(deck.chart_series(slide, shape.into())?.len(), 1);
 assert_eq!(document.chart_series(drawing)?.len(), 1);
-assert_eq!(deck.chart_kinds(Surface::Slide(0), shape.into())?, document.chart_kinds(drawing)?);
+
+let saved = deck.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: the_same_chart_on_all_three python -->
+```python
+from mjx_ooxml import ChartData, ChartKind, Deck, Document, PageSize
+from mjx_ooxml import ShapeBounds, SlideSize, Surface
+
+chart = (
+    ChartData(ChartKind.Bar)
+    .categories(["Q1", "Q2", "Q3"])
+    .series("North", [12.5, 18.0, 21.5])
+    .title("Quarterly revenue")
+)
+
+# A slide is a canvas in EMU, so a chart on one is laid out inside bounds.
+deck = Deck.blank(SlideSize.widescreen())
+deck.add_slide()
+slide = Surface.slide(0)
+bounds = ShapeBounds.from_inches(1.0, 1.0, 5.0, 3.0)
+shape = deck.add_chart(slide, chart, bounds)
+
+# A Word drawing is inline in a paragraph, so it takes a width and a height.
+document = Document.blank(PageSize.a4())
+drawing = document.add_chart(0, chart, 4_572_000, 2_743_200, "Revenue")
+
+# Everything after the address is identical: the same question, the same answer.
+on_slide = deck.chart_title(slide, shape)
+in_document = document.chart_title(drawing)
+assert on_slide == "Quarterly revenue"
+assert on_slide == in_document
+assert len(deck.chart_series(slide, shape)) == 1
+assert len(document.chart_series(drawing)) == 1
+
+saved = deck.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: the_same_chart_on_all_three js -->
+```js
+import { ChartData, ChartKind, Deck, Document, PageSize } from "@mjx/ooxml";
+import { ShapeBounds, SlideSize, Surface } from "@mjx/ooxml";
+
+const chart = new ChartData(ChartKind.Bar)
+  .categories(["Q1", "Q2", "Q3"])
+  .series("North", [12.5, 18.0, 21.5])
+  .title("Quarterly revenue");
+
+// A slide is a canvas in EMU, so a chart on one is laid out inside bounds.
+const deck = Deck.blank(SlideSize.widescreen());
+deck.addSlide();
+const slide = Surface.slide(0);
+const bounds = ShapeBounds.fromInches(1.0, 1.0, 5.0, 3.0);
+const shape = deck.addChart(slide, chart, bounds);
+
+// A Word drawing is inline in a paragraph, so it takes a width and a height.
+const document = Document.blank(PageSize.a4());
+const drawing = document.addChart(0, chart, 4_572_000, 2_743_200, "Revenue");
+
+// Everything after the address is identical: the same question, the same answer.
+const onSlide = deck.chartTitle(slide, shape);
+const inDocument = document.chartTitle(drawing);
+if (onSlide !== "Quarterly revenue" || onSlide !== inDocument) {
+  throw new Error("both surfaces answer the same title for the same chart");
+}
+if (deck.chartSeries(slide, shape).length !== 1) {
+  throw new Error("the slide's chart holds one series");
+}
+if (document.chartSeries(drawing).length !== 1) {
+  throw new Error("the document's chart holds one series");
+}
+
+const saved = deck.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [chart, deck, document, slide, bounds]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+The example authors **two** packages, because that is the claim — one chart description, two owners,
+one vocabulary — and offers the deck to the two binding harnesses, which compare it part by part in
+all three languages. A guide example offers one package, and nothing is lost by that choice: a Word
+chart is authored by `crates/mjx-ooxml/examples/build_a_document.rs`, which is itself compared byte
+for byte in both bindings.
 
 `chart_surface_parity.rs` checks two separate things, and the second is the one that would have been
 easy to skip: that the names exist on every surface with matching argument order after the address —
