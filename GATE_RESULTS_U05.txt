@@ -1,0 +1,17 @@
+MJXOFF-184 [U05] — menus, submenus, the context menu and the floating layer
+branch:  pipeline/r22-fields-math
+head:    2b145a0
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-09T22:20:53+05:30
+
+tokens:check             exit=0   start=2026-09-09T22:20:53+05:30  finish=2026-09-09T22:20:54+05:30
+icons:check              exit=0   start=2026-09-09T22:20:54+05:30  finish=2026-09-09T22:20:54+05:30
+typecheck                exit=0   start=2026-09-09T22:20:54+05:30  finish=2026-09-09T22:20:58+05:30
+lint                     exit=0   start=2026-09-09T22:20:58+05:30  finish=2026-09-09T22:21:00+05:30
+test:unit                exit=0   start=2026-09-09T22:21:00+05:30  finish=2026-09-09T22:21:13+05:30
+build-storybook          exit=0   start=2026-09-09T22:21:13+05:30  finish=2026-09-09T22:21:17+05:30
+test:browser             exit=0   start=2026-09-09T22:21:17+05:30  finish=2026-09-09T22:24:34+05:30
+cargo metadata           exit=0   start=2026-09-09T22:24:34+05:30  finish=2026-09-09T22:24:34+05:30
+
+finished: 2026-09-09T22:24:34+05:30
+failures: 0

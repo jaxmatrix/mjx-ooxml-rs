@@ -539,7 +539,23 @@ export const controlEvents = {
 
 // ── the stylesheet ───────────────────────────────────────────────────────────
 
-/** The declarations one state contributes, or `''` when it contributes none. */
+/**
+ * The declarations one state contributes, or `''` when it contributes none.
+ *
+ * ⚠ **Exported since MJXOFF-184**, and the reason is the doctrine rather than convenience. A menu
+ * item is painted by exactly this table — `rest`, `hover`, `active`, `on` and `unavailable` mean
+ * the same things on a menu row as on a ribbon button — but its *selectors* cannot be these:
+ * a row is not a `<button>`, so `:disabled` never matches it, and a menu deliberately has no
+ * hard-disabled state at all. `src/menus/menu-model.ts` therefore supplies its own selectors and
+ * calls this for the declarations, so the two surfaces cannot disagree about what `hover` is
+ * *painted with* while disagreeing about when it happens. A second copy of these ten lines would
+ * be the failure this project refuses by name: a shared answer that is documented as the single
+ * source of truth and not actually read.
+ */
+export function controlStateDeclarations(spec: ControlStateSpec): string {
+  return declarations(spec);
+}
+
 function declarations(spec: ControlStateSpec): string {
   const lines: string[] = [];
   if (spec.background !== undefined) lines.push(`  background: ${paintValue(spec.background)};`);

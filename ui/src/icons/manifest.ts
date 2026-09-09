@@ -182,7 +182,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'checkmark',
     sizes: [16, 20],
     variants: ['regular'],
-    why: 'Confirmation, and the chosen member of a menu radio group.',
+    why: 'Confirmation, and the on state of a menuitemcheckbox.',
+  },
+  {
+    name: 'radio-button',
+    sizes: [16],
+    variants: ['filled'],
+    why: "The chosen member of a menuitemradio group (MJXOFF-184). A check mark would have done the job and would have said the wrong thing: a check says *this is on*, a bullet says *this one, of these*, and a menu that drew both states with one glyph would hide the difference between a checkbox and a radio from everyone who cannot read the role. 16 alone, and filled alone: it is a mark rather than a command's icon, and an unchecked radio draws nothing at all.",
   },
 
   // ── status: filled too, because a status mark reads at a glance when solid ─

@@ -15,6 +15,7 @@ import { defineIcon } from '../src/icons/icon.ts';
 import { defineSurface } from '../src/foundations/surface.ts';
 import { defineControls } from '../src/controls/index.ts';
 import { defineRibbonElements } from '../src/ribbon/index.ts';
+import { defineMenus } from '../src/menus/index.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
 
@@ -29,6 +30,9 @@ defineSurface();
 defineControls();
 // MJXOFF-183's ribbon structure, registered here for the same reason.
 defineRibbonElements();
+// MJXOFF-184's menus. An unregistered <mjx-menu-item> is an inert element with no role, so a menu
+// that was only defined by the story importing it would announce nothing in every other story.
+defineMenus();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
