@@ -143,10 +143,11 @@ A Word document has one body, so nothing names the part. A [`BlockPath`] names a
 a paragraph inside a table cell, inside a content control, inside another table, is a path with a
 segment per level.
 
-```
+<!-- guide-example: addressing_a_document rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Document, PageSize};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut document = Document::blank(PageSize::a4())?;
 document.append_paragraph()?;
 document.append_run(0, "Quarterly ")?;
@@ -154,9 +155,51 @@ document.append_run(0, "results")?;
 assert_eq!(document.run_count(0)?, 2);
 assert_eq!(document.run_text(0, 1)?, "results");
 assert_eq!(document.paragraph_text(0)?, "Quarterly results");
+
+let saved = document.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_document python -->
+```python
+from mjx_ooxml import Document, PageSize
+
+document = Document.blank(PageSize.a4())
+document.append_paragraph()
+document.append_run(0, "Quarterly ")
+document.append_run(0, "results")
+assert document.run_count(0) == 2
+assert document.run_text(0, 1) == "results"
+assert document.paragraph_text(0) == "Quarterly results"
+
+saved = document.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_document js -->
+```js
+import { Document, PageSize } from "@mjx/ooxml";
+
+const document = Document.blank(PageSize.a4());
+document.appendParagraph();
+document.appendRun(0, "Quarterly ");
+document.appendRun(0, "results");
+if (document.runCount(0) !== 2) {
+  throw new Error("the paragraph should carry two runs");
+}
+if (document.runText(0, 1) !== "results") {
+  throw new Error("run 1 is the second run of paragraph 0");
+}
+if (document.paragraphText(0) !== "Quarterly results") {
+  throw new Error("a paragraph's text is its runs, concatenated");
+}
+
+const saved = document.save();
+document.free(); // a wasm handle owns memory the garbage collector cannot see
+```
+<!-- guide-example end -->
 
 **Twenty-three of the `Document` methods take `impl Into<BlockPath>` rather than the concrete path**,
 which is how `document.append_run(0, "…")` above compiles with a bare integer where the `Deck`

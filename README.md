@@ -268,7 +268,7 @@ a written reason beside every asymmetry and a test that fails when the table and
 
 ### Examples
 
-Thirty-two runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
+Thirty-three runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
 measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
 it**, because an example that only produced a file would prove nothing. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
@@ -313,6 +313,7 @@ cargo run -p mjx-ooxml --example build_a_workbook
 # The facade guide's tri-language examples. Each is also a pytest module and a node --test module,
 # and the code blocks the guide shows are copies of these three files rather than transcriptions.
 cargo run -p mjx-ooxml --example guide_addressing_a_deck
+cargo run -p mjx-ooxml --example guide_addressing_a_document
 cargo run -p mjx-ooxml --example guide_authoring_from_nothing
 cargo run -p mjx-ooxml --example guide_saving_validates
 cargo run -p mjx-ooxml --example guide_the_round_trip
