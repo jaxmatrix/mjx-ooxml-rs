@@ -12,7 +12,7 @@ use mjx_dml::{
     Bevel, BevelPreset, ColorSpec, Emu, FillSpec, LightRig, LightRigDirection, LightRigType,
     LineSpec, OnOffStyle, PresetMaterial, TablePart, TableStyleBorder, TableStylePart,
 };
-use mjx_opc::Package;
+use mjx_opc::{Package, PartName};
 use mjx_pptx::{Presentation, ShapeBounds, TableStyleDefinition, TableStyleFormat};
 
 const GUID: &str = "{7C9E6A1B-4D2F-4A55-9E3C-1122334455AA}";
@@ -36,6 +36,32 @@ fn byte_map(pkg: &Package) -> BTreeMap<String, Vec<u8>> {
         .iter()
         .filter_map(|e| e.bytes().map(|b| (e.name.clone(), b.to_vec())))
         .collect()
+}
+
+/// The same container with `ppt/tableStyles.xml` and the relationship that reached it taken out.
+///
+/// This is how a deck that **arrived** without a shared table-style part is put in front of the
+/// reader. It cannot be built with `add_table`, which authors one for the `firstRow` / `bandRow`
+/// flags it turns on (MJXOFF-232), and nothing in `mjx-pptx` removes a part — so the two calls are
+/// made on [`mjx_opc::Package`], the shipped packaging surface `Presentation` is itself built on.
+/// The relationship goes first, so no intermediate state points at a part that is not there.
+fn without_table_styles(container: &[u8]) -> Vec<u8> {
+    let mut package = Package::open(container).expect("open package");
+    let presentation = PartName::new("/ppt/presentation.xml").expect("a part name");
+    let rel_id = package
+        .relationships_for(Some(&presentation))
+        .expect("the presentation has relationships")
+        .iter()
+        .find(|rel| rel.rel_type.ends_with("/tableStyles"))
+        .map(|rel| rel.id.clone())
+        .expect("add_table related a tableStyles.xml");
+    package
+        .remove_relationship(Some(&presentation), &rel_id)
+        .expect("the relationship is removed");
+    package
+        .remove_part(&PartName::new("/ppt/tableStyles.xml").expect("a part name"))
+        .expect("the part is removed");
+    package.save().expect("the lean container saves")
 }
 
 fn deck_with_table() -> (Presentation, usize) {
@@ -887,5 +913,109 @@ fn the_six_emphasis_flags_are_read_together_and_never_confused() {
             && all.last_column
             && all.banded_rows
             && all.banded_columns
+    );
+}
+
+/// **MJXOFF-248 — the lean shape, and the one route left to it.**
+///
+/// `set_inline_table_style`'s documentation calls it *"the lean alternative to a shared
+/// `tableStyles.xml` style … so no shared part, relationship or referenced GUID is involved"*. Since
+/// MJXOFF-232 (H5) that is no longer a statement about the package for a table `add_table` made:
+/// that call authors a `tableStyles.xml` on the way, and the inline style afterwards leaves it
+/// sitting there with a style nothing points at. The sibling case above says what remains true for
+/// such a table — this call adds nothing shared — and it is the weaker claim.
+///
+/// This is the case that shows the stronger one is not dead. A deck that **arrives** with a table
+/// and no shared part is the route, `Presentation::open` is how a caller reaches it, and every
+/// clause of the sentence holds against it: the saved package has no `tableStyles.xml`, the
+/// presentation relates to none, the table names no GUID, and the style still resolves and renders.
+///
+/// Written as a test rather than as a sentence in the doc comment because the difference between
+/// *"this branch is unreachable"* and *"this branch is reached by files, not by our own authoring"*
+/// is not one a reader can settle by reading.
+#[test]
+fn the_lean_shape_is_reachable_for_a_table_from_a_deck_that_has_no_shared_part() {
+    let (pres, table) = deck_with_table();
+    let lean = without_table_styles(&pres.save().expect("save"));
+
+    // The premise, asserted rather than assumed.
+    let before = byte_map(&Package::open(&lean).expect("reopen package"));
+    assert!(
+        !before.keys().any(|name| name.ends_with("tableStyles.xml")),
+        "the deck this case is about has no shared table-style part"
+    );
+
+    let mut pres = Presentation::open(&lean).expect("reopen");
+    pres.set_inline_table_style(
+        0,
+        table,
+        &TableStyleDefinition::new()
+            .with_name("Report Style")
+            .with_part(
+                TableStylePart::FirstRow,
+                TableStyleFormat::new()
+                    .with_bold(OnOffStyle::On)
+                    .with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+            )
+            .with_part(
+                TableStylePart::Band1Horizontal,
+                TableStyleFormat::new()
+                    .with_fill(FillSpec::solid(ColorSpec::Srgb("D9E1F2".to_owned()))),
+            ),
+    )
+    .expect("author inline style");
+
+    // It resolves and renders, exactly as it does beside a shared part.
+    assert_eq!(
+        pres.with_table_style(0, table, |style, interner| Ok(style
+            .style_name(interner)
+            .ok()
+            .map(|name| name.into_owned())))
+            .expect("resolve")
+            .flatten()
+            .as_deref(),
+        Some("Report Style")
+    );
+    assert_eq!(
+        solid_hex(pres.effective_cell_fill(0, table, 0, 1).expect("fill")).as_deref(),
+        Some("1F3864")
+    );
+    assert_eq!(
+        solid_hex(pres.effective_cell_fill(0, table, 1, 1).expect("fill")).as_deref(),
+        Some("D9E1F2")
+    );
+
+    // And the whole sentence: no part, no relationship, no GUID.
+    let saved = pres.save().expect("save");
+    let package = Package::open(&saved).expect("reopen package");
+    assert!(
+        !byte_map(&package)
+            .keys()
+            .any(|name| name.ends_with("tableStyles.xml")),
+        "an inline style must not author a shared part"
+    );
+    let presentation = PartName::new("/ppt/presentation.xml").expect("a part name");
+    assert!(
+        !package
+            .relationships_for(Some(&presentation))
+            .expect("the presentation has relationships")
+            .iter()
+            .any(|rel| rel.rel_type.ends_with("/tableStyles")),
+        "an inline style must not relate the presentation to a shared part"
+    );
+    let slide = String::from_utf8(
+        byte_map(&package)
+            .get("ppt/slides/slide1.xml")
+            .expect("the slide")
+            .clone(),
+    )
+    .expect("the slide is UTF-8");
+    assert!(
+        slide.contains("<a:tableStyle"),
+        "the whole style travels in the table"
+    );
+    assert!(
+        !slide.contains("tableStyleId"),
+        "an inline style replaces the GUID the table used to name"
     );
 }
