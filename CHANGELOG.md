@@ -60,6 +60,82 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.159] - 2026-09-09
+
+### Three places the API was not truthful about itself (MJXOFF-241, MJXOFF-248, MJXOFF-238, H15)
+
+Each is small; together they are one theme — the library saying something about its own state that
+is not so.
+
+#### A refusal that named a part that was there (MJXOFF-241)
+
+`Workbook::add_comment` aimed at a chartsheet or a dialogsheet answered
+`MissingWorkbookPart("sheet 1")` — *"workbook part sheet 1 is missing from the package"* — about a
+part that is present, correct and exactly what its `x:sheet` entry says it is. So did every other
+edit that needs `x:worksheet` markup: the message came out of whichever helper reached for it first,
+in eight places across seven modules, because `Workbook::worksheet_markup` answers one `Ok(None)`
+for two different facts.
+
+* `XlsxError::SheetIsNotAWorksheet { index, kind }` says what the tab is instead, with a phrase for
+  each of the four shapes — a chartsheet, a dialogsheet, a part typed as a worksheet whose root is
+  not `x:worksheet`, and a tab reaching a part of no sheet content type at all.
+* `Workbook::require_worksheet_markup` is the one place that decides between the two answers. A tab
+  reaching no part at all is still `MissingWorkbookPart`, which is what that is.
+* It lands on the existing `mjx_ooxml::ErrorCode::WrongKind`, the code
+  `PptxError::PartIsNotVmlDrawing` already answers, carrying the tab index. **The vocabulary does
+  not grow and neither binding changes.** MJXOFF-213 kept the message byte-identical when it fixed
+  the *ordering* of that refusal precisely because a variant reaches this classification.
+* The facade's *cell* surface keeps its own `NothingToRead`: `worksheet_or_refuse` never claimed a
+  missing part and reads that tab as "there are no cells there", the same answer a read gets. That
+  is a decision, and a test now pins it as one.
+
+#### A claim about the package that was only sometimes true (MJXOFF-248)
+
+`Presentation::set_inline_table_style` promised *"no shared part, relationship or referenced GUID is
+involved"*. Since MJXOFF-232 that stopped being a statement about the package for a table
+`add_table` made — that call authors a `tableStyles.xml` for the emphasis flags it turns on.
+
+The branch is **not** dead, and a test says so rather than a reader having to work it out: a deck
+that *arrives* with a table and no shared part is the route, and every clause of the sentence holds
+against it. The doc comment now separates what *this call* adds from what the package holds, and
+names the two tests that hold the halves apart. The garbage-collection option is not taken, for the
+reason the ticket records — it would delete a part a caller may be about to point another table at.
+
+### Fixed
+
+- **`Package::validate` could not see a reference our own edit broke (MJXOFF-238).** Its
+  markup-reference check walks `authored_xml_parts`, which answers *"was this markup ours?"* and not
+  *"did our edit break this markup?"*. The two come apart for one shape: `remove_relationship` on a
+  part whose body is never touched. `check_relationships` finds no missing target — there is no
+  relationship left to have one — the markup check skips the part, and `save()` wrote out a file
+  naming a relationship nothing declares.
+
+  The scope is widened by **exactly one set and only for one question**: a part whose `.rels` this
+  library edited is checked too, and only for the ids it removed
+  (`Package::unwired_relationships`). Checking such a part *whole* would have been the simpler
+  widening and would have regressed the promise the scoping exists for — a file that opened and
+  saved a moment ago would stop saving because a relationship it never named was dropped somewhere
+  else in the package. `a_dangling_reference_the_file_arrived_with_survives_a_removal_it_has_nothing_to_do_with`
+  is the case that separates the two, and MJXOFF-212's own bound
+  (`a_part_that_holds_the_removed_relationship_but_names_it_nowhere_is_left_alone`) is held in the
+  same file.
+
+  **It was not only latent.** The ticket recorded the shape as unreachable through any shipped
+  method, and that holds — but this repository's own suites constructed it three times and asserted
+  the broken save was clean: two cases in `crates/mjx-opc/tests/edit_surface.rs` dropped the
+  presentation's relationship to a slide while `p:sldId r:id` still named it, and
+  `dropping_the_printer_settings_relationship_is_caught_by_the_packaging_check` had to write the
+  broken container out and reopen it to launder the worksheet's provenance before the check could
+  reach the markup at all. All three now assert the refusal; where the rest of the case still needs
+  the bytes, it writes them with `save_unchecked`, which is what exists for a package a caller knows
+  to be inconsistent.
+
+  `validate`'s doc comment says what it now parses, and the module documentation says why the second
+  scope is one question rather than a whole part. `Package::is_checkable_xml_part` is the one
+  spelling of "a part whose markup can be walked", shared by both scopes — two would be two things
+  to keep in step, and `XML_CONTENT_TYPES_WITHOUT_SUFFIX` has already cost this project one silently
+  empty scope.
+
 ## [0.0.158] - 2026-09-09
 
 ### The stub stopped writing its own prose (MJXOFF-234, H14)
