@@ -33,8 +33,45 @@
 //!
 //! Everything between the two marker lines is rewritten from the source, so hand-editing a block is
 //! an edit that the next `--check` reports and the next run discards.
+//!
+//! # The fourth marker form: a block that is Rust-only, and says which names make it so
+//!
+//! Three languages is the rule and it is the right default — it is what stops one of them quietly
+//! falling behind. But a little of this facade **is Rust-only by decision**, and a block about it
+//! can never have a Python or a JavaScript half. Before MJXOFF-261 the only way to express that was
+//! to write no marker at all, which is indistinguishable from having forgotten, and forgetting is
+//! exactly what the gate exists to catch.
+//!
+//! So such a block carries a marker of its own, and the marker names the **Rust symbols that make
+//! the claim true**:
+//!
+//! ````text
+//! <!-- guide-example: the_escape_hatches rust-only presentation_mut document_mut workbook_mut -->
+//! ```rust
+//! …the source file's region, verbatim…
+//! ```
+//! <!-- guide-example end -->
+//! ````
+//!
+//! It renders exactly as a `rust` marker does — one block, in Rust. What it changes is what the
+//! gate then demands, and the demand is **stronger** rather than weaker:
+//!
+//! * the example must have a Rust half and **no** Python or JavaScript half, so the exemption
+//!   cannot be a place a binding half goes to be forgotten;
+//! * every name it lists must appear in the region the block shows, so the reason is about *this*
+//!   block rather than about the language in general;
+//! * every name it lists must be reachable from **neither** binding, read out of the committed
+//!   `.pyi` and the committed `#[wasm_bindgen]` declarations by [`crate::binding_surface`]. The day
+//!   a binding projects one of them, the claim stops being true and the gate says so.
+//!
+//! That last one is the whole difference between this and a suppression. A marker that merely
+//! turned a check off would be the nominal gate this repository keeps deleting; this one is a claim
+//! the repository is asked to confirm on every run.
+//!
+//! The human sentence lives beside the block in the page's own prose, where a reader will meet it.
+//! The marker carries the part a test can check.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -48,6 +85,12 @@ pub const MARKER_SUFFIX: &str = " -->";
 
 /// Closes a marked block. Everything between this and its opener is generated.
 pub const MARKER_END: &str = "<!-- guide-example end -->";
+
+/// The token that stands where a language would, on a block that is Rust-only by decision.
+///
+/// It is followed by one or more Rust symbols — the names that make the claim true. See this
+/// module's header for what the gate then holds them to.
+pub const RUST_ONLY_TOKEN: &str = "rust-only";
 
 /// The sentinel that opens the copied region of a source file.
 pub const REGION_START: &str = "guide-example:start";
@@ -215,8 +258,22 @@ pub struct Marker {
     pub name: String,
     /// Which of the three halves it shows.
     pub language: Language,
+    /// The Rust symbols that make this block Rust-only, when it declares itself so.
+    ///
+    /// Empty on an ordinary marker, and never empty on a [`RUST_ONLY_TOKEN`] one — a claim with no
+    /// names is refused where it is parsed, because a reason nothing can be compared against is
+    /// the suppression this form exists not to be.
+    pub rust_only: Vec<String>,
     /// The one-based line the marker opens on, so a failure can be navigated to.
     pub line: usize,
+}
+
+impl Marker {
+    /// Whether this block declares itself Rust-only.
+    #[must_use]
+    pub fn is_rust_only(&self) -> bool {
+        !self.rust_only.is_empty()
+    }
 }
 
 /// A page whose marked blocks are not what its sources say.
@@ -337,6 +394,21 @@ fn parse_marker_line(line: &str, page: &str, number: usize) -> Result<Option<Mar
     let token = words
         .next()
         .ok_or_else(|| anyhow!("{page}:{number}: a marker names a language"))?;
+    if token == RUST_ONLY_TOKEN {
+        let rust_only: Vec<String> = words.map(str::to_owned).collect();
+        if rust_only.is_empty() {
+            bail!(
+                "{page}:{number}: `{RUST_ONLY_TOKEN}` names the Rust symbols that make the block \
+                 Rust-only, and at least one of them. A claim with no names is a suppression."
+            );
+        }
+        return Ok(Some(Marker {
+            name: name.to_owned(),
+            language: Language::Rust,
+            rust_only,
+            line: number,
+        }));
+    }
     if let Some(extra) = words.next() {
         bail!("{page}:{number}: unexpected {extra:?} after the language");
     }
@@ -345,6 +417,7 @@ fn parse_marker_line(line: &str, page: &str, number: usize) -> Result<Option<Mar
     Ok(Some(Marker {
         name: name.to_owned(),
         language,
+        rust_only: Vec::new(),
         line: number,
     }))
 }
@@ -473,6 +546,20 @@ pub fn all_markers(root: &Path) -> Result<Vec<(String, Marker)>> {
     Ok(markers)
 }
 
+/// Every example a marker declares Rust-only, with the names it declares make it so.
+///
+/// Derived from the markers, so there is no second list anywhere saying which examples are
+/// Rust-only — the marker beside the block is the only statement of it.
+pub fn rust_only_examples(root: &Path) -> Result<BTreeMap<String, Vec<String>>> {
+    let mut declared: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (_, marker) in all_markers(root)? {
+        if marker.is_rust_only() {
+            declared.insert(marker.name, marker.rust_only);
+        }
+    }
+    Ok(declared)
+}
+
 /// The examples a directory holds a half of, derived from the filesystem rather than listed.
 pub fn halves_present(root: &Path, language: Language) -> Result<BTreeSet<String>> {
     let directory = root.join(language.directory());
@@ -534,8 +621,13 @@ pub fn run() -> Result<()> {
         .iter()
         .map(|(_, marker)| marker.name.as_str())
         .collect();
+    let rust_only = markers
+        .iter()
+        .filter(|(_, marker)| marker.is_rust_only())
+        .count();
     println!(
-        "{} marker(s) over {} example(s); {} page(s) rewritten",
+        "{} marker(s) over {} example(s), {rust_only} of them declared Rust-only; {} page(s) \
+         rewritten",
         markers.len(),
         examples.len(),
         updates.len()
@@ -552,8 +644,12 @@ pub fn check() -> Result<()> {
         .iter()
         .map(|(_, marker)| marker.name.as_str())
         .collect();
+    let rust_only = markers
+        .iter()
+        .filter(|(_, marker)| marker.is_rust_only())
+        .count();
     println!(
-        "{} marker(s) over {} example(s)",
+        "{} marker(s) over {} example(s), {rust_only} of them declared Rust-only",
         markers.len(),
         examples.len()
     );

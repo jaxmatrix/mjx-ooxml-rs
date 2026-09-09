@@ -27,12 +27,20 @@
 //!
 //! [`Language`]: guide_examples::Language
 //!
+//! [`binding_surface`] joined it with MJXOFF-261, and for the fourth: two integration tests need
+//! the same answer to *is this name reachable from Python? from JavaScript?* —
+//! `xtask/tests/binding_projection.rs` to measure how much of each surface its suite exercises, and
+//! `xtask/tests/guide_examples.rs` to hold a guide block that declares itself Rust-only to that
+//! claim. Neither test can see the other's modules, and a second signature parser would disagree
+//! with the first with no way to say which was wrong.
+//!
 //! `fuzz` and `corpus` stay private to the binary. `fuzz` must: moving it would move the campaign's
 //! `#[global_allocator]` into every `xtask` test binary along with it.
 //!
 //! Nothing depends on this crate — `xtask/tests/layering.rs` asserts it — and it is excluded from
 //! the cross-build matrix, so a library target here widens nothing.
 
+pub mod binding_surface;
 pub mod codegen;
 pub mod guide_examples;
 pub mod validation;
