@@ -110,9 +110,11 @@ enum Idiom {
     /// some of its children into a content vector with a `Raw` arm for the rest. Reads every child
     /// it was given and rebuilds from the element it was read from.
     Preserving,
-    /// Splits one leading properties child out of the element and hands **the rest** to a derived
+    /// Splits one named properties child out of the element and hands **the rest** to a derived
     /// group type, then joins the two back on write. The children are never filtered: what is not
-    /// the properties element is passed through untouched.
+    /// the properties element is passed through untouched, and since MJXOFF-251 the index the
+    /// properties child sat at travels with it, so the writer puts it back where the file had it
+    /// rather than where `wml.xsd` would.
     PropertiesAndGroup,
     /// Constructs no element of its own in either direction — it delegates to a type that does, and
     /// so has nothing of its own to lose.
@@ -195,7 +197,9 @@ const BESPOKE: &[Entry] = &[
         reason: "`CT_Placeholder` declares exactly one child, `w:docPart`, so this type names it \
                  rather than building a content vocabulary for a vocabulary of one — and keeps \
                  every other child in an `extra` bucket beside it. The writer puts the named child \
-                 back first, which is where the schema puts it.",
+                 back at the index the reader found it at, through the same shared worker the five \
+                 `PropertiesAndGroup` rows below use — MJXOFF-251, which is why an `extra` bucket \
+                 is enough here and a typed content vector is not needed.",
     },
     Entry {
         file: "document/structured_content.rs",
@@ -631,7 +635,7 @@ fn every_bespoke_row_matches_the_shape_of_the_impl_it_names() {
                             );
                         } else {
                             assert!(
-                                impl_.body.contains("split_leading_properties"),
+                                impl_.body.contains("split_positioned_child"),
                                 "{where_} is on the ledger as PropertiesAndGroup but does not \
                                  split its properties child out through the shared worker, so \
                                  nothing here says what happens to the children it did not name"
@@ -661,7 +665,7 @@ fn every_bespoke_row_matches_the_shape_of_the_impl_it_names() {
                         }
                         if entry.idiom == Idiom::PropertiesAndGroup {
                             assert!(
-                                impl_.body.contains("join_properties_and_group"),
+                                impl_.body.contains("join_positioned_child"),
                                 "{where_} is on the ledger as PropertiesAndGroup but does not join \
                                  its properties back through the shared worker"
                             );

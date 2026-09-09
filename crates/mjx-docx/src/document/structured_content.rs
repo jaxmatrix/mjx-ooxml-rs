@@ -192,6 +192,82 @@ impl ToXml for DataBinding {
     }
 }
 
+// =================================================================================================
+// The "one named child beside everything else" worker, shared by the six hand-written pairs in this
+// module that name exactly one of their children and pass the rest through: [`Placeholder`]
+// (`w:docPart`), the four `CustomXml*` wrappers (`w:customXmlPr`) and [`SmartTagRun`]
+// (`w:smartTagPr`).
+//
+// **The index the named child sat at is part of what is read**, and MJXOFF-251 is why. The reader
+// used to take the first name match wherever it sat and the writer used to put it back at the
+// front, so `<w:customXml><w:p/><w:customXmlPr/></w:customXml>` came back with its two children
+// swapped — and, because a whitespace text node counts as a child too, a merely *pretty-printed*
+// wrapper had its own indentation moved even though every element in it was already in schema
+// order. `wml.xsd` does put these children first, but the round-trip contract has no conformance
+// clause: a part this library touched comes back as it went in. Remembering one `usize` is what
+// makes the writer's output a function of the file rather than of the schema.
+// =================================================================================================
+
+/// One named child of a hand-written element, together with the index it sat at among that
+/// element's own children — everything [`join_positioned_child`] needs to put it back exactly where
+/// [`split_positioned_child`] found it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PositionedChild<T> {
+    /// The index this child sat at among its parent's own children, counting every node kind (a
+    /// text node between two elements is a child). `0` for a wrapper this crate builds itself.
+    at: usize,
+    /// The parsed child.
+    value: T,
+}
+
+/// Splits `children` into the first `local`-named element (parsed as `P`, wherever it sits, with
+/// the index it sat at) and everything else, verbatim.
+///
+/// Looking past the first match is deliberate and is *not* a normalisation: the position travels
+/// with the value, so a file that put its properties child second gets it back second.
+fn split_positioned_child<P: FromXml>(
+    children: &[RawNode],
+    interner: &Interner,
+    local: &str,
+) -> Result<(Option<PositionedChild<P>>, Vec<RawNode>), FromXmlError> {
+    let mut found = None;
+    let mut rest = Vec::with_capacity(children.len());
+    for child in children {
+        match child {
+            RawNode::Element(candidate)
+                if found.is_none() && interner.resolve(candidate.name.local) == local =>
+            {
+                // `rest.len()` is how many children preceded this one, which is both its index
+                // among the original children and the index to re-insert it at in `rest`.
+                found = Some(PositionedChild {
+                    at: rest.len(),
+                    value: P::from_xml(candidate, interner)?,
+                });
+            }
+            other => rest.push(other.clone()),
+        }
+    }
+    Ok((found, rest))
+}
+
+/// Puts a serialized `child` (if present) back into `rest` at the index it was read from — the
+/// inverse of [`split_positioned_child`], and the shared worker every hand-written `ToXml` in this
+/// module that names one child uses.
+///
+/// The index is clamped to `rest.len()`, so a caller that emptied the content vector through
+/// `content_mut` still gets a well-formed element rather than a panic.
+fn join_positioned_child<P: ToXml>(
+    interner: &mut Interner,
+    child: &Option<PositionedChild<P>>,
+    mut rest: Vec<RawNode>,
+) -> Vec<RawNode> {
+    if let Some(child) = child {
+        let at = child.at.min(rest.len());
+        rest.insert(at, RawNode::Element(child.value.to_xml(interner)));
+    }
+    rest
+}
+
 /// `CT_Placeholder` (`w:placeholder`, "Placeholder Text", §17.5.2.24) — the one required child,
 /// `w:docPart` (`CT_String`), naming a building block by name (resolved against
 /// [`crate::Document::glossary_document`]'s own `w:docPart`s — this type only carries the name).
@@ -200,7 +276,7 @@ pub struct Placeholder {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    doc_part: Option<TableStringValue>,
+    doc_part: Option<PositionedChild<TableStringValue>>,
     /// Any other child a non-conformant file nests here — `CT_Placeholder`'s own sequence has only
     /// `docPart`, so this is always empty for a conformant file; preserved regardless.
     extra: Vec<RawNode>,
@@ -214,7 +290,10 @@ impl Placeholder {
             name: wml_name(interner, "placeholder"),
             attributes: Vec::new(),
             empty: false,
-            doc_part: Some(TableStringValue::new(interner, "docPart", doc_part_name)),
+            doc_part: Some(PositionedChild {
+                at: 0,
+                value: TableStringValue::new(interner, "docPart", doc_part_name),
+            }),
             extra: Vec::new(),
         }
     }
@@ -226,25 +305,14 @@ impl Placeholder {
     pub fn doc_part_name(&self, interner: &Interner) -> Option<String> {
         self.doc_part
             .as_ref()
-            .and_then(|value| value.value(interner).ok())
+            .and_then(|doc_part| doc_part.value.value(interner).ok())
             .map(std::borrow::Cow::into_owned)
     }
 }
 
 impl FromXml for Placeholder {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut doc_part = None;
-        let mut extra = Vec::new();
-        for child in &element.children {
-            match child {
-                RawNode::Element(child)
-                    if interner.resolve(child.name.local) == "docPart" && doc_part.is_none() =>
-                {
-                    doc_part = Some(TableStringValue::from_xml(child, interner)?);
-                }
-                other => extra.push(other.clone()),
-            }
-        }
+        let (doc_part, extra) = split_positioned_child(&element.children, interner, "docPart")?;
         Ok(Self {
             name: element.name,
             attributes: element.attributes.clone(),
@@ -257,11 +325,9 @@ impl FromXml for Placeholder {
 
 impl ToXml for Placeholder {
     fn to_xml(&self, interner: &mut Interner) -> RawElement {
-        let mut children = Vec::with_capacity(self.extra.len() + 1);
-        if let Some(doc_part) = &self.doc_part {
-            children.push(RawNode::Element(doc_part.to_xml(interner)));
-        }
-        children.extend(self.extra.iter().cloned());
+        let mut rest = Vec::with_capacity(self.extra.len() + 1);
+        rest.extend(self.extra.iter().cloned());
+        let children = join_positioned_child(interner, &self.doc_part, rest);
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
@@ -1790,7 +1856,7 @@ macro_rules! custom_xml_attributes {
             /// overrides — or `None` if it carries none.
             #[must_use]
             pub fn properties(&self) -> Option<&CustomXmlProperties> {
-                self.properties.as_ref()
+                self.properties.as_ref().map(|properties| &properties.value)
             }
         }
     };
@@ -1805,7 +1871,7 @@ pub struct CustomXmlBlock {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    properties: Option<CustomXmlProperties>,
+    properties: Option<PositionedChild<CustomXmlProperties>>,
     content: Vec<BlockContent>,
 }
 
@@ -1827,7 +1893,8 @@ impl CustomXmlBlock {
 
 impl FromXml for CustomXmlBlock {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let (properties, rest) = split_leading_properties(element, interner, "customXmlPr")?;
+        let (properties, rest) =
+            split_positioned_child(&element.children, interner, "customXmlPr")?;
         let scratch = RawElement::new(element.name, Vec::new(), rest, element.empty);
         let group = ContentControlContentBlock::from_xml(&scratch, interner)?;
         Ok(Self {
@@ -1848,35 +1915,15 @@ impl ToXml for CustomXmlBlock {
             empty: self.content.is_empty(),
             content: self.content.clone(),
         };
-        let group_xml = group.to_xml(interner);
-        let children = join_properties_and_group(interner, &self.properties, group_xml);
+        let mut group_xml = group.to_xml(interner);
+        let children = join_positioned_child(
+            interner,
+            &self.properties,
+            std::mem::take(&mut group_xml.children),
+        );
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
-}
-
-/// Splits `element`'s own children into a leading `local`-named element (parsed as `P`, if present as
-/// the *first* child — `mjx_derive`'s own container convention never looks past the first match for a
-/// `minOccurs="0" maxOccurs="1"` leading element either) and everything else, verbatim — the shared
-/// worker every hand-written `CustomXml*`/`SmartTagRun` `FromXml` in this module uses.
-fn split_leading_properties<P: FromXml>(
-    element: &RawElement,
-    interner: &Interner,
-    local: &str,
-) -> Result<(Option<P>, Vec<RawNode>), FromXmlError> {
-    let mut properties = None;
-    let mut rest = Vec::with_capacity(element.children.len());
-    for child in &element.children {
-        match child {
-            RawNode::Element(candidate)
-                if properties.is_none() && interner.resolve(candidate.name.local) == local =>
-            {
-                properties = Some(P::from_xml(candidate, interner)?);
-            }
-            other => rest.push(other.clone()),
-        }
-    }
-    Ok((properties, rest))
 }
 
 /// A throwaway [`RawName`] for a scratch delegate element — its own name never reaches the output;
@@ -1891,21 +1938,6 @@ fn element_name_placeholder(interner: &mut Interner) -> RawName {
     }
 }
 
-/// Joins a serialized `properties` (if present) ahead of `group`'s own children — the shared worker
-/// every hand-written `CustomXml*`/`SmartTagRun` `ToXml` in this module uses.
-fn join_properties_and_group<P: ToXml>(
-    interner: &mut Interner,
-    properties: &Option<P>,
-    mut group: RawElement,
-) -> Vec<RawNode> {
-    let mut children = Vec::with_capacity(group.children.len() + 1);
-    if let Some(properties) = properties {
-        children.push(RawNode::Element(properties.to_xml(interner)));
-    }
-    children.append(&mut group.children);
-    children
-}
-
 /// `CT_CustomXmlRun` (`w:customXml`, run placement, §17.5.1.4 as restated for the run-level member)
 /// — a custom-XML wrapper appearing anywhere a run can (`EG_ContentRunContent`).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
@@ -1915,7 +1947,7 @@ pub struct CustomXmlRun {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    properties: Option<CustomXmlProperties>,
+    properties: Option<PositionedChild<CustomXmlProperties>>,
     content: Vec<ParagraphContent>,
 }
 
@@ -1937,7 +1969,8 @@ impl CustomXmlRun {
 
 impl FromXml for CustomXmlRun {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let (properties, rest) = split_leading_properties(element, interner, "customXmlPr")?;
+        let (properties, rest) =
+            split_positioned_child(&element.children, interner, "customXmlPr")?;
         let scratch = RawElement::new(element.name, Vec::new(), rest, element.empty);
         let group = ContentControlContentRun::from_xml(&scratch, interner)?;
         Ok(Self {
@@ -1958,8 +1991,12 @@ impl ToXml for CustomXmlRun {
             empty: self.content.is_empty(),
             content: self.content.clone(),
         };
-        let group_xml = group.to_xml(interner);
-        let children = join_properties_and_group(interner, &self.properties, group_xml);
+        let mut group_xml = group.to_xml(interner);
+        let children = join_positioned_child(
+            interner,
+            &self.properties,
+            std::mem::take(&mut group_xml.children),
+        );
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
@@ -1974,7 +2011,7 @@ pub struct CustomXmlRow {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    properties: Option<CustomXmlProperties>,
+    properties: Option<PositionedChild<CustomXmlProperties>>,
     content: Vec<TableContent>,
 }
 
@@ -1996,7 +2033,8 @@ impl CustomXmlRow {
 
 impl FromXml for CustomXmlRow {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let (properties, rest) = split_leading_properties(element, interner, "customXmlPr")?;
+        let (properties, rest) =
+            split_positioned_child(&element.children, interner, "customXmlPr")?;
         let scratch = RawElement::new(element.name, Vec::new(), rest, element.empty);
         let group = ContentControlContentRow::from_xml(&scratch, interner)?;
         Ok(Self {
@@ -2017,8 +2055,12 @@ impl ToXml for CustomXmlRow {
             empty: self.content.is_empty(),
             content: self.content.clone(),
         };
-        let group_xml = group.to_xml(interner);
-        let children = join_properties_and_group(interner, &self.properties, group_xml);
+        let mut group_xml = group.to_xml(interner);
+        let children = join_positioned_child(
+            interner,
+            &self.properties,
+            std::mem::take(&mut group_xml.children),
+        );
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
@@ -2033,7 +2075,7 @@ pub struct CustomXmlCell {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    properties: Option<CustomXmlProperties>,
+    properties: Option<PositionedChild<CustomXmlProperties>>,
     content: Vec<RowContent>,
 }
 
@@ -2055,7 +2097,8 @@ impl CustomXmlCell {
 
 impl FromXml for CustomXmlCell {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let (properties, rest) = split_leading_properties(element, interner, "customXmlPr")?;
+        let (properties, rest) =
+            split_positioned_child(&element.children, interner, "customXmlPr")?;
         let scratch = RawElement::new(element.name, Vec::new(), rest, element.empty);
         let group = ContentControlContentCell::from_xml(&scratch, interner)?;
         Ok(Self {
@@ -2076,8 +2119,12 @@ impl ToXml for CustomXmlCell {
             empty: self.content.is_empty(),
             content: self.content.clone(),
         };
-        let group_xml = group.to_xml(interner);
-        let children = join_properties_and_group(interner, &self.properties, group_xml);
+        let mut group_xml = group.to_xml(interner);
+        let children = join_positioned_child(
+            interner,
+            &self.properties,
+            std::mem::take(&mut group_xml.children),
+        );
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
@@ -2097,7 +2144,7 @@ pub struct SmartTagRun {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    properties: Option<SmartTagProperties>,
+    properties: Option<PositionedChild<SmartTagProperties>>,
     content: Vec<ParagraphContent>,
 }
 
@@ -2117,13 +2164,13 @@ impl SmartTagRun {
     /// This smart tag's own properties (`w:smartTagPr`) — its attribute overrides — or `None`.
     #[must_use]
     pub fn properties(&self) -> Option<&SmartTagProperties> {
-        self.properties.as_ref()
+        self.properties.as_ref().map(|properties| &properties.value)
     }
 }
 
 impl FromXml for SmartTagRun {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let (properties, rest) = split_leading_properties(element, interner, "smartTagPr")?;
+        let (properties, rest) = split_positioned_child(&element.children, interner, "smartTagPr")?;
         let scratch = RawElement::new(element.name, Vec::new(), rest, element.empty);
         let group = ContentControlContentRun::from_xml(&scratch, interner)?;
         Ok(Self {
@@ -2144,8 +2191,12 @@ impl ToXml for SmartTagRun {
             empty: self.content.is_empty(),
             content: self.content.clone(),
         };
-        let group_xml = group.to_xml(interner);
-        let children = join_properties_and_group(interner, &self.properties, group_xml);
+        let mut group_xml = group.to_xml(interner);
+        let children = join_positioned_child(
+            interner,
+            &self.properties,
+            std::mem::take(&mut group_xml.children),
+        );
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }

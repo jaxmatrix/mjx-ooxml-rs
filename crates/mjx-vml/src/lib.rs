@@ -57,18 +57,22 @@
 //!
 //! # What checks this crate, and what does not
 //!
-//! **A VML part is never schema-validated by anything in this workspace, and nothing derives its
-//! child order from an XSD. The round trip is the only real check there is.** `vml-main.xsd` cannot
-//! compile without the `xml.xsd` the Transitional set does not ship, and a `.vml` part's root is a
-//! bare `<xml>` element in no namespace at all, which none of the five VML schemas declares a global
-//! element for — so `crates/mjx-schema-gate/src/categories.rs` files a VML part under
-//! `ForeignMarkupKey::NoNamespace` in `PRESERVED_FOREIGN_MARKUP`, the category for markup this
-//! project preserves verbatim and never validates.
+//! **A VML part is schema-validated one child at a time, and nothing derives its child order from
+//! an XSD.** A `.vml` part's root is a bare `<xml>` element in no namespace at all, which none of the
+//! five VML schemas declares a global element for, so the document as a whole cannot be handed to a
+//! validator. Its *children* can: `v:shape`, `v:shapetype`, `o:shapelayout` and the rest are global
+//! elements of the VML family, and `crates/mjx-schema-gate/src/categories.rs` files a VML part as a
+//! `WrapperRoot` — the category whose parts are validated child by child against a driver over
+//! `vml-main.xsd`.
 //!
-//! That is a materially weaker guarantee than every sibling crate enjoys, and [`guide`] states what
-//! it costs a caller: reading and re-emitting is as safe here as anywhere, while **authoring or
-//! editing carries a risk the other crates do not** — a shape written in the wrong order would reach
-//! Office before it reached CI.
+//! It was category 2, *preserved and never validated*, until MJXOFF-245, on a reason whose other
+//! half — that `vml-main.xsd` could not compile at all without an `xml.xsd` the Transitional set
+//! does not ship — had stopped being true when MJXOFF-134 gave every schema a driver.
+//!
+//! What is left is still weaker than a sibling crate's guarantee, and [`guide`] states what it costs
+//! a caller: every element this crate writes is checked against the XSD, but **the order it writes
+//! them in is not** — no VML schema is in `xtask`'s `CHILD_ORDER_SCHEMAS`, so a shape written in the
+//! wrong sequence would still reach Office before it reached CI (MJXOFF-264).
 //!
 //! # Fidelity
 //!

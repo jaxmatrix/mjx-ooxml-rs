@@ -74,6 +74,24 @@ pub enum PartOutcome {
     },
     /// Not XML at all (an image, an OLE object, a printer-settings blob).
     SkippedBinary(String),
+    /// Category 1b: every child of a [wrapper root](crate::categories::WrapperRoot) validated clean
+    /// against the named schema. The wrapper itself is asserted nothing about, which is why the
+    /// count is carried: a wrapper the splitter found no children in is
+    /// [`WrapperHeldNothing`](Self::WrapperHeldNothing), not a pass.
+    ValidatedPerChild {
+        /// The XSD each child was validated against.
+        schema: &'static str,
+        /// The root element as written, e.g. `xml`.
+        root: String,
+        /// How many element children were validated.
+        children: usize,
+    },
+    /// Category 1b, and the splitter matched nothing: a wrapper with no element children was
+    /// handed to no validator at all, which would otherwise be reported as a clean part.
+    WrapperHeldNothing {
+        /// The root element as written.
+        root: String,
+    },
     /// Category 2: foreign markup this project preserves and never writes.
     SkippedPreservedForeign {
         /// The root element's namespace, or `None` when it is in no namespace at all.
@@ -105,6 +123,18 @@ impl PartOutcome {
     pub fn describe(&self) -> String {
         match self {
             Self::Validated(schema) => format!("valid ({schema})"),
+            Self::ValidatedPerChild {
+                schema,
+                root,
+                children,
+            } => format!(
+                "valid ({schema}) — {children} child element(s) of <{root}> validated separately; \
+                 no schema declares the wrapper itself"
+            ),
+            Self::WrapperHeldNothing { root } => format!(
+                "WRAPPER HELD NOTHING — <{root}> has no element child, so the per-child validator \
+                 was handed nothing to check"
+            ),
             Self::Tolerated { schema, reason } => {
                 format!("tolerated deviation ({schema}) — {reason}")
             }
@@ -139,6 +169,7 @@ impl PartOutcome {
             Self::Failed { .. }
                 | Self::Uncategorised { .. }
                 | Self::UnresolvableMarkupCompatibility(_)
+                | Self::WrapperHeldNothing { .. }
         )
     }
 
@@ -146,7 +177,9 @@ impl PartOutcome {
     #[must_use]
     pub fn validated_against(&self) -> Option<&'static str> {
         match self {
-            Self::Validated(schema) | Self::Tolerated { schema, .. } => Some(schema),
+            Self::Validated(schema)
+            | Self::ValidatedPerChild { schema, .. }
+            | Self::Tolerated { schema, .. } => Some(schema),
             _ => None,
         }
     }
@@ -397,8 +430,13 @@ fn inspect_package(
             .namespace
             .map(|ns| interner.resolve(ns).to_owned());
 
-        let schema = match categorise(namespace.as_deref()) {
+        let root_local = interner.resolve(document.root.name.local).to_owned();
+        let category = categorise(namespace.as_deref(), &root_local);
+        let schema = match category {
             NamespaceCategory::Modeled(modeled) => modeled.schema,
+            // Category 1b is validated after markup-compatibility resolution, exactly as category 1
+            // is, so the schema is carried here and the split happens below.
+            NamespaceCategory::Wrapper(wrapper) => wrapper.schema,
             NamespaceCategory::PreservedForeign(foreign) => {
                 rows.push(PartRow {
                     name,
@@ -446,15 +484,19 @@ fn inspect_package(
             name.trim_start_matches('/')
                 .replace(['/', '[', ']', '!'], "_"),
         );
-        std::fs::write(&file, &validated_bytes).expect("write part for validation");
-        let outcome = validate_one(
-            harness,
-            schema,
-            namespace.as_deref(),
-            &file,
-            &name,
-            tolerances,
-        );
+        let outcome = if let NamespaceCategory::Wrapper(wrapper) = category {
+            validate_each_child(harness, wrapper, &validated_bytes, &file, &name)
+        } else {
+            std::fs::write(&file, &validated_bytes).expect("write part for validation");
+            validate_one(
+                harness,
+                schema,
+                namespace.as_deref(),
+                &file,
+                &name,
+                tolerances,
+            )
+        };
         rows.push(PartRow {
             name,
             root_element,
@@ -462,6 +504,109 @@ fn inspect_package(
             outcome,
         });
     }
+}
+
+/// Validates every element child of a [wrapper root](crate::categories::WrapperRoot) separately.
+///
+/// A `.vml` part is `<xml>…</xml>` in no namespace, and no VML schema declares a global element for
+/// it — `xmllint` pointed at the document reports *No matching global declaration available for the
+/// validation root* and stops there, which is the whole of what is left of the reason such a part
+/// used to be skipped for (MJXOFF-245). Its children are a different matter: `v:shape`,
+/// `v:shapetype`, `o:shapelayout`, `o:lock` and the rest are global elements of the VML family, so
+/// each one validates on its own against a driver over `vml-main.xsd`.
+///
+/// Each child is re-serialized as a standalone document carrying the namespace declarations the
+/// wrapper held, because a `v:` prefix means nothing once its `xmlns:v` is left behind on a root
+/// that is not being written. Declarations the child makes for itself win — a producer may rebind a
+/// prefix on the child, and the file's own binding is the one to keep.
+///
+/// `bytes` is the same markup-compatibility-resolved view category 1 validates, re-parsed rather
+/// than threaded through: one code path produces the view, and a `.vml` part is small.
+///
+/// # Panics
+/// If the resolved view does not parse, or a child cannot be written for validation — both harness
+/// faults rather than schema deviations.
+fn validate_each_child(
+    harness: &Harness,
+    wrapper: &'static crate::categories::WrapperRoot,
+    bytes: &[u8],
+    file: &std::path::Path,
+    part: &str,
+) -> PartOutcome {
+    let document = fidelity::parse(bytes).unwrap_or_else(|e| {
+        panic!("{part}: the resolved view of a wrapper part does not parse: {e}")
+    });
+    let interner = &document.interner;
+    let root = qualified_name(&document.root, interner);
+
+    let mut validated = 0usize;
+    let mut reports = Vec::new();
+    for child in document.root.children.iter().filter_map(|node| match node {
+        RawNode::Element(child) => Some(child),
+        _ => None,
+    }) {
+        let child_file = file.with_extension(format!("child{validated}.xml"));
+        std::fs::write(
+            &child_file,
+            wrapper_child_document(&document.root, child, interner),
+        )
+        .expect("write a wrapper's child for validation");
+        let named = format!("{part} → <{}>", qualified_name(child, interner));
+        if let Some(report) = harness.validate(wrapper.schema, wrapper.namespace, &child_file) {
+            reports.push(readable_report(&report, &child_file, &named));
+        }
+        validated += 1;
+    }
+
+    if validated == 0 {
+        return PartOutcome::WrapperHeldNothing { root };
+    }
+    if reports.is_empty() {
+        return PartOutcome::ValidatedPerChild {
+            schema: wrapper.schema.file,
+            root,
+            children: validated,
+        };
+    }
+    PartOutcome::Failed {
+        schema: wrapper.schema.file,
+        report: reports.join("\n"),
+    }
+}
+
+/// One child of a wrapper root, serialized as a standalone document under the wrapper's own
+/// namespace declarations.
+///
+/// No source range is passed to the writer: the element is being written with attributes it did not
+/// have, so a verbatim byte range would emit the original and silently drop the declarations that
+/// make the child readable at all.
+fn wrapper_child_document(
+    wrapper: &RawElement,
+    child: &RawElement,
+    interner: &Interner,
+) -> Vec<u8> {
+    // Names are compared by symbol rather than by string: both elements came out of the same
+    // document and therefore the same interner, so two equal symbols are the same name.
+    let is_namespace_declaration = |name: &RawName| match name.prefix {
+        Some(prefix) => interner.resolve(prefix) == "xmlns",
+        None => interner.resolve(name.local) == "xmlns",
+    };
+    let child_declares = |name: &RawName| child.attributes.iter().any(|attr| attr.name == *name);
+
+    let mut attributes: Vec<mjx_ooxml_core::RawAttribute> = wrapper
+        .attributes
+        .iter()
+        .filter(|attr| is_namespace_declaration(&attr.name) && !child_declares(&attr.name))
+        .cloned()
+        .collect();
+    attributes.extend(child.attributes.iter().cloned());
+
+    // `RawElement::new` rather than a clone: the child's own source range describes bytes that do
+    // not carry the declarations just added to it.
+    let standalone = RawElement::new(child.name, attributes, child.children.clone(), child.empty);
+    let mut out = Vec::new();
+    fidelity::serialize_element(&standalone, interner, None, &mut out);
+    out
 }
 
 /// Runs the validator over one already-written part and turns its report into an outcome.

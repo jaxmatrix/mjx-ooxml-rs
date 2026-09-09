@@ -60,6 +60,65 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.157] - 2026-09-09
+
+### A named child comes back where the file put it, and a `.vml` part is validated child by child (MJXOFF-251, MJXOFF-245, H13)
+
+Two holes in things that looked like they were watching. One silently rewrote a user's file; the
+other meant a whole crate's markup was validated by nothing.
+
+#### `w:customXmlPr`, `w:smartTagPr` and `w:docPart` keep their position (MJXOFF-251)
+
+`crates/mjx-docx/src/document/structured_content.rs` names one child of six elements and passes the
+rest through — the four `CustomXml*` wrappers and `SmartTagRun` share a worker, `Placeholder` had
+the shape written inline. The reader took the first name match **wherever it sat** and the writer put
+it back **first**, so `<w:customXml><w:p/><w:customXmlPr/></w:customXml>` came back with its two
+children swapped. The function was called `split_leading_properties` and its doc comment said *"if
+present as the first child"*; the code checked no such thing.
+
+`wml.xsd` does put these children first, so the ticket recorded this as affecting non-conforming
+files only. **It affects conforming ones too, and that is what settled the design.** Indentation is
+made of text nodes and a text node is a child, so a pretty-printed wrapper whose `w:customXmlPr` was
+the first *element* was still not the first *node*: hoisting it to index 0 stepped it over the
+producer's own newline. A file whose element order was exactly what the schema asks for came back
+with different bytes.
+
+So the fix is positional rather than a rule about what counts as leading: the index the named child
+sat at is read with it and restored on write, through one shared `split_positioned_child` /
+`join_positioned_child` pair all six now use. Nothing is normalised, `the_round_trip_contract.md`
+gains no exception, and the accessors keep working for a file that put its properties second — the
+alternative (take it only when it is literally `children[0]`) would have byte-preserved just as well
+while reporting `properties() == None` for every pretty-printed conforming wrapper.
+
+#### A `.vml` part is validated, one child of its wrapper at a time (MJXOFF-245)
+
+`crates/mjx-schema-gate/src/categories.rs` skipped every `.vml` part for two stated reasons, and one
+of them had been false since MJXOFF-134: `vml-main.xsd` compiles perfectly well through the driver
+schema the harness builds for **every** schema on one code path. Measured again here — without a
+driver it is *WXS schema … failed to compile*; through one, the only error left is
+*Element 'xml': No matching global declaration available for the validation root*, which is reached
+only after compilation succeeds.
+
+That residual obstacle is real but narrow: the wrapper root is a bare `<xml>` in no namespace, while
+`v:shape`, `v:shapetype`, `o:shapelayout`, `x:ClientData` and the rest are global elements, and
+`vml-main.xsd` imports its four sibling schemas. So a `.vml` part is now category **1b** — a
+`WrapperRoot`, validated child by child — and `mjx-vml`'s authored markup meets a schema for the
+first time. Every `.vml` part in the committed corpus gets a verdict instead of a skip line, and a
+`v:shape` carrying an attribute VML does not admit is reported invalid naming the part, the child and
+the attribute.
+
+Two things follow. The category-2 allowlist is keyed on a namespace again and **only** on a
+namespace: its VML entry matched the *absence* of one, so a worksheet that lost its `xmlns` was
+reported as "a VML drawing part" and skipped — a false green `mjx-xlsx` had to carry a path rule to
+close from the outside, and which is now a hard failure at the part. And MJXOFF-196's fifth wildcard
+slot, `{o}equationxml`, can fire: it is declared in a VML schema and no VML part had ever been
+resolved, so the slot had sat unreachable since the day it was derived.
+
+What is still unchecked is **child order** — no `vml-*` schema is in the child-order generator's
+`CHILD_ORDER_SCHEMAS`, so an authored drawing's sequence meets nothing. MJXOFF-264 owns that, and the
+five places that state VML's guarantee now say so by number rather than repeating a reason that had
+gone stale.
+
 ## [0.0.156] - 2026-09-09
 
 ### The guide is finished: every block in three languages, or Rust-only with a reason a test checks (MJXOFF-254, MJXOFF-261, MJXOFF-257, H12)

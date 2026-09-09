@@ -47,9 +47,9 @@ pub mod tolerances;
 pub mod wildcard_slots;
 
 pub use categories::{
-    categorise, child_order_tables_cover, ecma_376_namespaces, schema_for_namespace,
-    ForeignMarkupKey, ModeledSchema, NamespaceCategory, OrderingCoverage, PreservedForeignMarkup,
-    SchemaRef, SchemaSet, MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP,
+    categorise, child_order_tables_cover, ecma_376_namespaces, schema_for_namespace, ModeledSchema,
+    NamespaceCategory, OrderingCoverage, PreservedForeignMarkup, SchemaRef, SchemaSet, WrapperRoot,
+    MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP, WRAPPER_ROOTS,
 };
 pub use harness::{harness, Harness, WorkDir, XML_NAMESPACE_SCHEMA};
 pub use inspect::{
