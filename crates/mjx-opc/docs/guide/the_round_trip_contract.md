@@ -145,7 +145,33 @@ them**, which is the opposite of per-fixture coverage:
    the element's own name, its own attributes, its own self-closing flag. Dropping `&self.attributes`
    from one of the sixty leaves every other test in that crate green.
 
-   `mjx-docx`'s 158 hand-written pairs are what is left of MJXOFF-218.
+   **`mjx-docx` closed MJXOFF-218's other half**, and its shape is a third thing again. All 158 of
+   its hand-written impls are *pairs*, and 146 of them are the same body typed out again — a reader
+   storing the element's `name`, `attributes`, bucket and self-closing flag, and a writer rebuilding
+   from exactly those four. Nothing is shared, so the risk there is not a design but a **mistyped
+   copy**, and a ledger with 146 rows would be the longest list in the workspace and would say
+   nothing about the one character that matters. `crates/mjx-docx/tests/serialization_ledger.rs`
+   therefore compares each body against the canonical text **character for character** and requires
+   the bucket field to agree across the pair; the twelve that are genuinely different carry a row
+   with one of three idioms, each checked against its own body.
+
+   That arm found three losses on its first run, all in `document/drawing.rs`. `mjx_docx::Control`
+   is MJXOFF-216's shape exactly: it stored **no children at all** — the struct had no field for
+   them — and rebuilt with a fresh `Vec::new()` and the self-closing flag hard-coded `true`, so a
+   foreign child, a comment or an `o:` extension inside a `w:control` was destroyed and
+   `<w:control></w:control>` came back `<w:control/>`. `CT_Control` declares no content model, which
+   is what made it look safe; the contract has no "the schema says this cannot happen" clause.
+   `mjx_docx::WordprocessingShape` and `mjx_docx::TextboxInfo` read `element.empty` into a field
+   their writers ignored in favour of a literal `false` — MJXOFF-217's self-closing loss, twice
+   more. All three are fixed at 0.0.151 and pinned by cases in
+   `crates/mjx-docx/tests/drawing_placement.rs` that fail against 0.0.150.
+
+   **Three files rather than one shared crate is a decision, recorded in the `mjx-docx` file.** The
+   three share a source scanner and nothing else, because the idioms are the finding and they differ
+   per crate. What the duplication costs is that a scanner improvement has to be made three times,
+   and that has already happened once: MJXOFF-218's own census reported 5 `FromXml` and 57 `ToXml`
+   in `mjx-sml` where there are 6 and 58, because a scanner keyed on a bare `impl ToXml for` cannot
+   see `impl mjx_ooxml_core::ToXml for ColorElement`. All three files now carry the fixed scanner.
 
 ### 3 · "MCE is handled in `mjx-mce`, preserved on write and resolved (non-mutating) on read/render"
 

@@ -41,10 +41,12 @@
 //!
 //! # Scope, stated so the hole is deliberate rather than silent
 //!
-//! **This gate covers `mjx-dml` only.** `mjx-docx` writes the fully-preserving body out by hand for
-//! 158 types and `mjx-sml` for 57 more, and classifying those is a unit of its own rather than a
-//! paragraph of this one; it is **MJXOFF-218**. Extending this file to them means widening
-//! [`crate_root`] and growing [`LEDGER`], not rewriting anything here.
+//! **This gate covers `mjx-dml` only**, and there are now three of it — one per crate that writes
+//! serialization out by hand. `crates/mjx-sml/tests/serialization_ledger.rs` (MJXOFF-220) and
+//! `crates/mjx-docx/tests/serialization_ledger.rs` (MJXOFF-218) ask their own crates' own question,
+//! because the idioms are the finding and they differ: eight bespoke pairs here, one delegation and
+//! the rebuilders behind it there, and a hundred and forty-six copies of a single body in the third.
+//! The `mjx-docx` file states the shared-crate decision and what the duplication costs.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -229,18 +231,34 @@ fn balanced_block(text: &str, from: usize) -> String {
 
 /// Every hand-written `impl FromXml for T` / `impl ToXml for T` in this crate's sources.
 ///
-/// Matched at the start of a line, which is where a free-standing impl sits and where neither the
+/// Matched at **column zero**, which is where a free-standing impl sits and where neither the
 /// derive's generated code (there is none in the source tree) nor `fidelity_element_impls!`'s body
-/// (indented inside the macro, and fully qualified as `::mjx_ooxml_core::FromXml`) can be found.
+/// (indented inside the macro) can be found.
+///
+/// The trait may be written qualified — `impl ::mjx_ooxml_core::ToXml for T` — and a scanner keyed
+/// on a bare `impl ToXml for` misses it. MJXOFF-218's own census of `mjx-sml` reported 5 `FromXml`
+/// and 57 `ToXml` where there are 6 and 58 for exactly that reason; MJXOFF-220 wrote this loop to
+/// close it there, and MJXOFF-218 brought it here rather than leave one of three copies of the
+/// scanner with a known hole in it. No impl in `mjx-dml` is written qualified today, which is the
+/// point: the census that finds the first one has to be able to see it.
 fn hand_written_impls() -> Vec<HandWritten> {
     let mut found = Vec::new();
     for (file, text) in sources() {
         for trait_name in ["FromXml", "ToXml"] {
-            let needle = format!("\nimpl {trait_name} for ");
-            let mut cursor = 0usize;
-            while let Some(offset) = text[cursor..].find(&needle) {
-                let at = cursor + offset + needle.len();
-                let ty: String = text[at..]
+            for (at, _) in text.match_indices(&format!("{trait_name} for ")) {
+                // The line must begin `impl `, at column zero, with only a path between the two.
+                let line_start = text[..at].rfind('\n').map_or(0, |newline| newline + 1);
+                let Some(prefix) = text[line_start..at].strip_prefix("impl ") else {
+                    continue;
+                };
+                if !prefix
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+                {
+                    continue;
+                }
+                let after = at + trait_name.len() + " for ".len();
+                let ty: String = text[after..]
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect();
@@ -251,10 +269,9 @@ fn hand_written_impls() -> Vec<HandWritten> {
                 found.push(HandWritten {
                     file: file.clone(),
                     trait_name,
-                    body: balanced_block(&text, at),
+                    body: balanced_block(&text, after),
                     ty,
                 });
-                cursor = at;
             }
         }
     }

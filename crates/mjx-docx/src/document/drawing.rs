@@ -265,12 +265,9 @@ impl FromXml for WordprocessingShape {
 
 impl ToXml for WordprocessingShape {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            false,
-        )
+        let children = self.children.clone();
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 
@@ -312,12 +309,9 @@ impl FromXml for TextboxInfo {
 
 impl ToXml for TextboxInfo {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            false,
-        )
+        let children = self.children.clone();
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 
@@ -545,13 +539,9 @@ impl FromXml for ObjectEmbed {
 
 impl ToXml for ObjectEmbed {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        let empty = self.empty && self.children.is_empty();
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            empty,
-        )
+        let children = self.children.clone();
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 
@@ -618,23 +608,26 @@ impl FromXml for ObjectLink {
 
 impl ToXml for ObjectLink {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        let empty = self.empty && self.children.is_empty();
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            empty,
-        )
+        let children = self.children.clone();
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 
 // =================================================================================================
-// CT_Control (w:control) — an ActiveX control reference. No content model at all.
+// CT_Control (w:control) — an ActiveX control reference. The schema declares no content model, and
+// this type keeps whatever a file put there anyway (MJXOFF-218).
 // =================================================================================================
 
 /// `w:control` (`CT_Control`) — an ActiveX control: an optional display name, an optional VML shape
 /// id it is bound to, and an optional relationship id resolving to the control's own persisted-state
 /// part (preserved verbatim, never re-encoded — this type only ever names the part).
+///
+/// `CT_Control` declares **no content model**, so anything between the tags is markup the file wrote
+/// that the schema does not allow — and it is kept regardless. Until MJXOFF-218 this type read no
+/// children at all and wrote `Vec::new()` with the self-closing flag hard-coded `true`, which is
+/// MJXOFF-216's shape exactly: the fidelity rule has no "the schema says this cannot happen" clause,
+/// and `<w:control></w:control>` is not `<w:control/>`.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
 #[xml(attribute(local = "name", prefix = "w", codec = Text, accessor = raw_name))]
 #[xml(attribute(local = "shapeid", prefix = "w", codec = Text, accessor = raw_shape_id))]
@@ -642,6 +635,7 @@ impl ToXml for ObjectLink {
 pub struct Control {
     name: RawName,
     attributes: Vec<RawAttribute>,
+    children: Vec<RawNode>,
     empty: bool,
 }
 
@@ -652,6 +646,7 @@ impl Control {
         Self {
             name: wml_name_local(interner, "control"),
             attributes: Vec::new(),
+            children: Vec::new(),
             empty: true,
         }
     }
@@ -671,6 +666,7 @@ impl FromXml for Control {
         Ok(Self {
             name: element.name,
             attributes: element.attributes.clone(),
+            children: element.children.clone(),
             empty: element.empty,
         })
     }
@@ -678,6 +674,8 @@ impl FromXml for Control {
 
 impl ToXml for Control {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        RawElement::rebuilt(self.name, self.attributes.clone(), Vec::new(), true)
+        let children = self.children.clone();
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
