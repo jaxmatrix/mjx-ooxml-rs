@@ -381,7 +381,7 @@ impl CellBlock {
     /// The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
     /// `"error"`.
     ///
-    /// The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell
+    /// The disambiguator for `rows`, which cannot tell a text cell from an error cell
     /// because both arrive as a `string`. Built only when asked.
     #[wasm_bindgen(js_name = "kinds")]
     pub fn kinds(&self) -> js_sys::Array {

@@ -159,7 +159,12 @@ def test_every_public_class_carries_a_docstring() -> None:
 
 
 def test_every_deck_method_carries_a_docstring() -> None:
-    """The docstrings are `mjx-ooxml`'s own summaries, so they cannot drift from the Rust."""
+    """A method with no `help()` is a method a Python caller has to read Rust to use.
+
+    This asks only that the prose *exists*. What it says is `test_stub_docs.py`'s subject: PyO3
+    compiles each `///` comment into `__doc__`, so the sentence here cannot drift from the Rust —
+    but until MJXOFF-234 the *committed stub's* copy of it could, and did.
+    """
     undocumented = [
         name
         for name in runtime_members(mjx_ooxml.Deck)
