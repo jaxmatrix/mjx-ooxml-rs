@@ -64,16 +64,25 @@ pub struct DefinedNameEntry {
 impl Workbook {
     /// Every defined name, in document order, with its scope resolved against the sheet list.
     ///
+    /// # Takes `&self`
+    ///
+    /// Reading a part is not a mutation, and MJXOFF-173 needed this from a caller that holds a
+    /// `&Workbook` — `mjx_layout_xlsx::SheetGrid::read`, which reads `_xlnm.Print_Area` and
+    /// `_xlnm.Print_Titles` while it snapshots a worksheet. It parses the workbook part's bytes
+    /// rather than going through [`workbook_markup`](Self::workbook_markup), which caches the tree
+    /// behind a `&mut`: exactly the trade [`date_system`](Self::date_system) already makes, for
+    /// exactly the same reason. A defined-name list is read once per sheet snapshot, not per frame.
+    ///
     /// # Errors
     /// Returns [`XlsxError`] if the workbook part cannot be read, or if a name's `@name` is absent
     /// (the schema requires it) or one of its attributes holds a value its type rejects.
-    pub fn defined_names(&mut self) -> Result<Vec<DefinedNameEntry>, XlsxError> {
+    pub fn defined_names(&self) -> Result<Vec<DefinedNameEntry>, XlsxError> {
         let tabs: Vec<String> = self
             .sheets()
             .iter()
             .map(|sheet| sheet.name.clone())
             .collect();
-        self.workbook_markup(|part, interner| {
+        self.read_workbook_markup(|part, interner| {
             let Some(names) = part.defined_names() else {
                 return Ok(Vec::new());
             };
@@ -113,7 +122,7 @@ impl Workbook {
     ///
     /// # Errors
     /// As [`defined_names`](Self::defined_names).
-    pub fn defined_name(&mut self, name: &str) -> Result<Option<DefinedNameEntry>, XlsxError> {
+    pub fn defined_name(&self, name: &str) -> Result<Option<DefinedNameEntry>, XlsxError> {
         Ok(self
             .defined_names()?
             .into_iter()
@@ -129,12 +138,37 @@ impl Workbook {
     ///
     /// # Errors
     /// As [`defined_names`](Self::defined_names).
-    pub fn print_area(&mut self, sheet_index: usize) -> Result<Option<String>, XlsxError> {
+    pub fn print_area(&self, sheet_index: usize) -> Result<Option<String>, XlsxError> {
+        self.sheet_scoped_name(sheet_index, BuiltInName::PrintArea)
+    }
+
+    /// `_xlnm.Print_Titles` for the tab at `sheet_index`, or `None`.
+    ///
+    /// The rows and columns Excel repeats at the top and left of every printed page, as the formula
+    /// the workbook wrote — `Sheet1!$1:$3,Sheet1!$A:$B`. Nothing here parses it, for the same reason
+    /// [`print_area`](Self::print_area) does not parse its own: a defined name's text is a formula
+    /// and MJXOFF-115's contract is that a formula is carried and never rewritten.
+    /// `mjx_layout_xlsx::print::parse_titles` reads the two shapes a print title actually takes.
+    ///
+    /// # Errors
+    /// As [`defined_names`](Self::defined_names).
+    pub fn print_titles(&self, sheet_index: usize) -> Result<Option<String>, XlsxError> {
+        self.sheet_scoped_name(sheet_index, BuiltInName::PrintTitles)
+    }
+
+    /// The definition of the sheet-scoped built-in `name` for the tab at `sheet_index`.
+    ///
+    /// **Sheet-scoped only.** Both print names name a range on one tab, so a workbook-scoped name of
+    /// either spelling is ignored rather than applied to every sheet.
+    fn sheet_scoped_name(
+        &self,
+        sheet_index: usize,
+        name: BuiltInName,
+    ) -> Result<Option<String>, XlsxError> {
         Ok(self.defined_names()?.into_iter().find_map(|entry| {
             let matches_sheet =
                 matches!(&entry.scope, DefinedNameScope::Sheet { index, .. } if *index == sheet_index);
-            (entry.built_in == Some(BuiltInName::PrintArea) && matches_sheet)
-                .then_some(entry.definition)
+            (entry.built_in == Some(name) && matches_sheet).then_some(entry.definition)
         }))
     }
 }

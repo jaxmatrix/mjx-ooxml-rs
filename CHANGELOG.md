@@ -58,6 +58,83 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.149] - 2026-09-09
+
+**Conditional formatting evaluated, cell drawings placed, and a sheet paginated for print
+(MJXOFF-173, R18).**
+
+`crates/mjx-xlsx/docs/guide/deliberate_limitations.md` named rule evaluation as a standing refusal,
+because the library was a reader and a writer. A renderer has no such option: a sheet whose data
+bars, colour scales and highlights are missing is not a rendering of that sheet. This child turns the
+documented non-goal into implemented behaviour **one tier up** — in the box model, where a decided
+rule is a rendering fact rather than a document one — and the documentation moves with it.
+
+### Added
+
+- **`mjx_layout_xlsx::condfmt`, six modules.** All eighteen members of `ST_CfType` are decided:
+  the twelve `cellIs` operators over literal operands, `top10` (by rank and by percentage, from
+  either end), `aboveAverage` with `@equalAverage` and `@stdDev`, `duplicateValues`/`uniqueValues`,
+  the four text kinds, blanks and errors, the ten `timePeriod` windows, and the three graded kinds.
+- **The `dxf` layer composes in Excel's order, not the file's.** Rules apply from the lowest
+  `@priority` number down; the **first** rule to state a member keeps it, because §18.8.15 makes a
+  `dxf` a delta and every one of its children is `minOccurs="0"`. `@stopIfTrue` ends the walk after
+  the rule carrying it has fired, and does nothing on one that has not.
+- **⚠ A `dxf`'s fill is read differently from a cell's, and this decides whether the whole feature
+  is visible.** Excel writes a highlight as `<patternFill><bgColor rgb="FFFFC7CE"/></patternFill>` —
+  no `@patternType`, and the colour in `bgColor`. Read as a cell's fill that is a pattern of `none`
+  with no foreground, which paints nothing: the rule fires, the report says so, and the sheet looks
+  identical.
+- **Colour scales, data bars and icon sets as numbers.** A bar's width is a fraction of the cell
+  (`@minLength` and `@maxLength` included, so the schema defaults give 0.10 and 0.90 rather than 0
+  and 1); a scale answers the two stops a value fell between and how far along it is; an icon
+  answers its index, after `@reverse`.
+- **`Decoration::scale_fill`** — a colour scale travels **unresolved**, as two `CT_Color` stops and
+  a position, because blending them needs the theme part and the workbook's `indexedColors`.
+  `mjx-scene-xlsx` does the blend and the midpoint is asserted at the encoded display list.
+- **`mjx_layout_xlsx::drawings`** — the three anchor modes placed against this crate's own row
+  heights and column widths, which is the grid the cells underneath are on.
+- **`mjx_layout_xlsx::print`** — the sheet's **second** pagination: paper and orientation, margins,
+  manual row and column breaks, `_xlnm.Print_Area`, `_xlnm.Print_Titles` repeated at the top and
+  left of every later page, `@scale`, fit-to-page, `@pageOrder` and `@firstPageNumber`.
+- **`mjx_xlsx::AnchorPlacement` and `AnchorCell`** on `SheetDrawingObject`, plus
+  `mjx_xlsx::drawing_geometry` — the three `mjx-dml` types the drawing surface takes as arguments,
+  re-exported so a caller that declares no `mjx-dml` edge can still call it.
+- **`Workbook::print_titles`**, the twin of the existing `print_area`.
+
+### Changed
+
+- **`Workbook::defined_names`, `defined_name` and `print_area` take `&self`.** Reading a part is not
+  a mutation, and the box model's snapshot holds a `&Workbook`. New `Workbook::read_workbook_markup`
+  is the `&self` counterpart of `workbook_markup`, and it reads an **edited** part from its tree
+  rather than answering `MissingWorkbookPart` — a part in `PartBody::Edited` has no stored bytes.
+- **The decoration sharing key gained a conditional signature.** Two cells with one `xf` that fired
+  different rules no longer share a handle; two that fired the same rules still do, so a screen of
+  highlighted cells stays one entry rather than two hundred.
+- **`deliberate_limitations.md` §2 and `conditional_formatting.md` are scoped rather than absolute.**
+  The refusal is now stated as a property of the read/write path, with the reason it stops there.
+
+### Deliberately not done, and reported rather than hidden
+
+- **Sparklines.** `x14:sparklineGroups` lives in a worksheet's `extLst`, which `mjx-sml` preserves
+  verbatim and deliberately does not model. There is nothing to evaluate until a `mjx-sml`
+  workstream models the extension.
+- **A data bar's axis, negative fill, border and gradient**, all of which are `x14:dataBar`. What is
+  drawn is Excel 2007's bar: a solid rectangle growing rightward, negatives clamped to
+  `@minLength`.
+- **An icon's artwork.** The index is computed and asserted; the eighteen sets of glyphs are Excel's
+  and are not in this repository, so a stand-in would be an invented picture presented as the file's.
+- **The inside of a drawing.** A drawing's content is DrawingML and `mjx-layout-pptx` lays DrawingML
+  out — at rank 3.6, the same rank as `mjx-layout-xlsx`, so the edge is *sideways* and the layering
+  gate refuses it by name. The placement is this child's; the content needs a crate below both box
+  models that neither of them owns.
+- **A `dxf`'s `numFmt`**, which is reported and not applied.
+
+### Fixed
+
+- A fit-to-page scale is **floored to a whole percentage**. The exact ratio makes the content
+  precisely as wide as the page, so the last column tipped the accumulator over by a rounding EMU
+  and a fit-to-one-page sheet paginated onto two.
+
 ## [0.0.148] - 2026-09-09
 
 **The number-format engine — a date stops being a serial (MJXOFF-172, R17).**

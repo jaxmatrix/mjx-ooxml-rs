@@ -93,7 +93,21 @@ pub use worksheet::charts::{
     ChartSeriesFreshness, SheetChartSeries, SheetChartSource, SheetChartWorkbook,
 };
 pub use worksheet::comments::{CommentBox, SheetComment};
-pub use worksheet::drawings::{SheetDrawing, SheetDrawingObject};
+pub use worksheet::drawings::{AnchorCell, AnchorPlacement, SheetDrawing, SheetDrawingObject};
+
+/// The three DrawingML types this crate's own drawing surface takes as arguments.
+///
+/// [`Workbook::add_two_cell_anchored_picture`], [`Workbook::add_one_cell_anchored_picture`] and
+/// [`Workbook::add_absolute_anchored_picture`] each take one or two of them, so a caller that
+/// cannot name them cannot call those methods — which forced a `mjx-dml` dependency on every
+/// consumer of this crate's drawing surface, including one that has stated in its own manifest that
+/// it declares no such edge. Re-exported rather than mirrored: a second `CellMarker` would be a
+/// second answer to *where is this object anchored*.
+pub mod drawing_geometry {
+    pub use mjx_dml::spreadsheet_drawing::CellMarker;
+    pub use mjx_dml::{Position, Size};
+    pub use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+}
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
 pub use worksheet::print::SheetMarkup;

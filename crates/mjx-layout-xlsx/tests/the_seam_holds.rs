@@ -39,7 +39,18 @@ use std::path::{Path, PathBuf};
 /// six files of its own: the parser, the numeric renderer, the date arithmetic, `General` and the
 /// fifteen-digit clamp, the two caches, and the module that joins them. It is a **sub-project**
 /// rather than a feature, which is why it is a directory and why the count moves by six at once.
-const SOURCE_FILE_COUNT: usize = 19;
+///
+/// Twenty-seven at MJXOFF-173, and the eight are three separate decisions rather than one:
+///
+/// * `condfmt/` is another sub-project and another directory — five files: the value and its sort
+///   order, the range statistics eight of the eighteen rule kinds cannot be answered without, the
+///   rule compiler, the fifteen predicates, and the three interpolations. Plus the module that
+///   joins them: **six**.
+/// * `print.rs` is the sheet's **second** pagination, over the same grid as the viewport's and
+///   agreeing with it about nothing else: **one**.
+/// * `drawings.rs` places the three anchor modes and lays out nothing inside them, because the
+///   crate that lays DrawingML out sits at this crate's own rank: **one**.
+const SOURCE_FILE_COUNT: usize = 27;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

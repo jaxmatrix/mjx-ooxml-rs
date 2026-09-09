@@ -254,6 +254,62 @@ impl Workbook {
     /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or
     /// [`XlsxError::MalformedWorkbook`] if its root is not `x:workbook` — which
     /// [`from_package`](Self::from_package) has already ruled out for a workbook that opened.
+    /// The same read, from a shared reference.
+    ///
+    /// [`workbook_markup`](Self::workbook_markup) caches the parsed tree in the package, which is
+    /// why it takes `&mut self` even though its documentation says — correctly — that reading is
+    /// not a mutation. A caller that only holds a `&Workbook` cannot use it, and
+    /// [`date_system`](Self::date_system) already answers that by parsing the part's bytes instead.
+    /// This is the same answer generalised: the cache is given up, the borrow is not.
+    ///
+    /// # Errors
+    /// As [`workbook_markup`](Self::workbook_markup).
+    pub fn read_workbook_markup<R>(
+        &self,
+        read: impl FnOnce(&WorkbookPart, &Interner) -> R,
+    ) -> Result<R, XlsxError> {
+        let part = self.workbook_part.clone();
+        // ⚠ Two roads, and the second one is not an optimisation. A part that has been **edited**
+        // has no stored bytes at all — `PartBody::Edited` drops them and keeps the tree — so a
+        // reader that only knew about bytes would answer `MissingWorkbookPart` for a workbook whose
+        // `definedNames` this library had just written. `ZipEntry::tree` is the `&self` counterpart
+        // of `Package::part_tree`, and taking it here is what makes this method true of a workbook
+        // in every copy-on-write state rather than only of one freshly opened.
+        if let Some(bytes) = self.package().part_bytes(&part) {
+            let document = mjx_xml::fidelity::parse(bytes)?;
+            let Some(markup) = WorkbookPart::read_part(&document)? else {
+                return Err(XlsxError::MalformedWorkbook(
+                    "root element is not x:workbook",
+                ));
+            };
+            return Ok(read(&markup, &document.interner));
+        }
+        let Some(document) = self
+            .package()
+            .entries()
+            .iter()
+            .find(|entry| entry.name == part.zip_name())
+            .and_then(mjx_opc::ZipEntry::tree)
+        else {
+            return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
+        };
+        let Some(markup) = WorkbookPart::read_part(document)? else {
+            return Err(XlsxError::MalformedWorkbook(
+                "root element is not x:workbook",
+            ));
+        };
+        Ok(read(&markup, &document.interner))
+    }
+
+    /// Reads the modelled `xl/workbook.xml`, handing `read` the parsed [`WorkbookPart`] together
+    /// with the [`Interner`] it was parsed with, and **caching the parsed tree** in the package.
+    ///
+    /// **This is not a mutation.** The part keeps its container bytes and [`save`](Self::save) still
+    /// re-emits them verbatim; the `&mut` is the cache's and not the document's.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or
+    /// [`XlsxError::MalformedWorkbook`] if its root is not `x:workbook`.
     pub fn workbook_markup<R>(
         &mut self,
         read: impl FnOnce(&WorkbookPart, &Interner) -> R,

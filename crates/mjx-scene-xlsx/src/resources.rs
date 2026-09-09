@@ -1,8 +1,8 @@
 //! [`SheetResources`] — what the handles in a worksheet's fragment tree resolve to.
 
 use mjx_layout::{DecorationRef, ImageRef, SourceRef};
-use mjx_layout_xlsx::{CellHit, PageCatalogue};
-use mjx_scene::{Decoration, FillStyle, Image, ResourceResolver};
+use mjx_layout_xlsx::{CellHit, PageCatalogue, ScaleBlend};
+use mjx_scene::{Color, Decoration, FillStyle, Image, ResourceResolver};
 
 use crate::colour::{SheetPalette, SystemRole};
 use crate::fill::fill_style;
@@ -66,6 +66,40 @@ impl SheetResources {
     ///
     /// `None` for a cell with no text — which is every cell that produces no glyph run, so the
     /// absence is never reached from [`ResourceResolver::text_decoration`].
+    /// The solid colour a colour-scale rule interpolated, resolved.
+    ///
+    /// Both stops are resolved against this workbook's own palette and then mixed in **linear
+    /// sRGB-component space**, channel by channel, alpha included.
+    ///
+    /// GUESS: that the mix is componentwise on the sRGB values rather than in a perceptual space.
+    /// Excel's scales are visibly a straight ramp between the two swatches and nothing in ECMA-376
+    /// describes the interpolation at all, so this is the reading that matches what a person sees;
+    /// a perceptual blend would put a different colour in the middle of every three-stop scale.
+    /// LibreOffice cannot settle it — the user has said its export of shades and gradients is not
+    /// to be trusted — so this is one for the Windows sitting.
+    #[must_use]
+    pub fn scale_style(&self, blend: &ScaleBlend) -> Option<FillStyle> {
+        let low = self.palette.resolve(&blend.low, SystemRole::Foreground)?;
+        let high = self.palette.resolve(&blend.high, SystemRole::Foreground)?;
+        let at = blend.fraction.clamp(0.0, 1.0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let mix = |from: u8, to: u8| -> u8 {
+            (f64::from(from) + at * (f64::from(to) - f64::from(from)))
+                .round()
+                .clamp(0.0, 255.0) as u8
+        };
+        Some(FillStyle::Solid(Color {
+            red: mix(low.red, high.red),
+            green: mix(low.green, high.green),
+            blue: mix(low.blue, high.blue),
+            alpha: mix(low.alpha, high.alpha),
+        }))
+    }
+
+    /// The decoration the cell at `row`, `column` carries, when it laid text out.
+    ///
+    /// `None` for a cell with no text — which is every cell that produces no glyph run, so the
+    /// absence is never reached from [`ResourceResolver::text_decoration`].
     #[must_use]
     pub fn cell_decoration(&self, row: u32, column: u16) -> Option<DecorationRef> {
         self.text
@@ -98,10 +132,23 @@ impl ResourceResolver for SheetResources {
             });
         }
         Some(Decoration {
+            // ⚠ A colour scale **replaces** the cell's fill rather than tinting it, so it is asked
+            // first. It arrives as two stops and a position between them — not as a colour —
+            // because blending two `CT_Color`s needs the theme part and the workbook's
+            // `indexedColors`, and a box model holds neither. This is where both halves are
+            // present, which is why the interpolation happens here and nowhere else; see
+            // `mjx_layout_xlsx::condfmt::graded`.
             fill: entry
-                .fill
+                .scale_fill
                 .as_ref()
-                .map_or(FillStyle::None, |fill| fill_style(fill, &self.palette)),
+                .and_then(|blend| self.scale_style(blend))
+                .or_else(|| {
+                    entry
+                        .fill
+                        .as_ref()
+                        .map(|fill| fill_style(fill, &self.palette))
+                })
+                .unwrap_or(FillStyle::None),
             // A cell's four edges are four different lines and a decoration carries one stroke, so
             // the edges are their own fragments and this is `None` for every cell. Putting one of
             // them here would draw that edge on all four sides — which is the defect
@@ -155,9 +202,11 @@ impl ResourceResolver for SheetResources {
     fn image(&self, _reference: ImageRef) -> Option<Image> {
         // A worksheet's fragment tree carries no `Fragment::Image`: `mjx-layout-xlsx` lays out
         // cells and their text and issues no `ImageRef` at all, because a picture on a sheet is a
-        // `xdr:twoCellAnchor` in a *drawing* part and drawings are MJXOFF-173's subject. So this is
-        // never called today, and answering `None` is what it will keep meaning for a handle no
-        // catalogue issued.
+        // `xdr:twoCellAnchor` in a *drawing* part. MJXOFF-173 **places** those anchors — all three
+        // modes, against the box model's own row heights and column widths — and lays out nothing
+        // inside them, because a drawing's content is DrawingML and the crate that lays DrawingML
+        // out sits at the same rank as the box model. So a drawing reaches the tree as a box with
+        // no image handle, this is still never called, and `None` is still what it means.
         None
     }
 }

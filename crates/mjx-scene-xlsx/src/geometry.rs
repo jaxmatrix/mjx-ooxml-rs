@@ -24,14 +24,22 @@
 //! number is the count of shapes whose `a:prstGeom` this build has no table for, and this paragraph
 //! is here so that nobody reads it as if it were.
 //!
-//! # Where the drawings arrive
+//! # Where the drawings arrive — and why they still register nothing
 //!
-//! MJXOFF-173 puts `xdr:twoCellAnchor` drawings on a sheet, and a drawing *is* DrawingML: its
-//! shapes carry an `a:prstGeom` and resolve through `mjx-geometry`'s own `PresetGeometryProvider`,
-//! exactly as a slide's do. When that lands, this type grows a registry and a
-//! `register_all`-shaped join, and this crate grows the `mjx-geometry` edge that rank 3.7 already
-//! permits. Until then there is nothing to register, and an empty registry that *claimed* to be one
-//! would be worse than a refusal.
+//! MJXOFF-173 has now put `xdr:twoCellAnchor` drawings on a sheet, and **this type did not change**.
+//! That is worth saying plainly, because the paragraph this replaces predicted the opposite.
+//!
+//! A drawing reaches the fragment tree as a **box**: its rectangle, resolved against the box model's
+//! own row heights and column widths, and its source address. Its *content* does not, and cannot
+//! yet: a shape's `a:prstGeom` is laid out by `mjx-layout-pptx`, which sits at rank 3.6 — the same
+//! rank as `mjx-layout-xlsx` — so the edge between the two box models is *sideways* and
+//! `xtask/tests/layering.rs` refuses it by name. No `GeometryRef` is issued for a worksheet, so
+//! there is still nothing to register, and a registry that claimed otherwise would be worse than a
+//! refusal.
+//!
+//! When a crate below both box models owns DrawingML shape layout, this type grows a registry and
+//! the `mjx-geometry` edge that rank 3.7 already permits. That crate does not exist, and naming
+//! which child creates it is a decision for whoever schedules it.
 
 use mjx_scene::{GeometryProvider, ResolvedOutline, SceneError, SceneRect};
 

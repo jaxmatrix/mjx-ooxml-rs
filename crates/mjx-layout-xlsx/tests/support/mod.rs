@@ -90,6 +90,92 @@ pub(crate) fn styles(formats: &[&str], borders: &str) -> Vec<u8> {
     .into_bytes()
 }
 
+/// A `styles.xml` with the same one font, plus a `<dxfs>` table.
+///
+/// A `dxf` is a **delta**: `<dxf><fill><patternFill><bgColor rgb="FFFFC7CE"/></patternFill></fill></dxf>`
+/// is exactly what Excel writes for a highlight rule, and the colour is in `bgColor` with no
+/// `@patternType` at all — which is the reading `mjx_layout_xlsx::condfmt` had to get right for a
+/// conditional format to change a pixel rather than merely be selected.
+pub(crate) fn styles_with_differentials(formats: &[&str], differentials: &[&str]) -> Vec<u8> {
+    let mut cell_formats = String::from(r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>"#);
+    for format in formats {
+        cell_formats.push_str(format);
+    }
+    let count = formats.len() + 1;
+    let dxf_count = differentials.len();
+    let dxfs = differentials.concat();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="1"><font><sz val="11"/><name val="{FAMILY}"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+{PLAIN_BORDERS}
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="{count}">{cell_formats}</cellXfs>
+<dxfs count="{dxf_count}">{dxfs}</dxfs>
+</styleSheet>"#
+    )
+    .into_bytes()
+}
+
+/// One cell's value, in the four states a conditional-formatting rule can compare plus the absence
+/// of all four.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Value {
+    /// `<c r="A1"/>` — a cell the sheet writes and puts nothing in.
+    Blank,
+    /// A number, which is every date, time and currency too.
+    Number(f64),
+    /// An inline string, so a fixture needs no shared-string table.
+    Text(&'static str),
+    /// `TRUE` or `FALSE`.
+    Boolean(bool),
+    /// An error code, as a file spells it.
+    Error(&'static str),
+}
+
+impl Value {
+    /// The `<c>` this value writes in column A of `row` (one-based).
+    pub(crate) fn markup(self, row: u32) -> String {
+        match self {
+            Self::Blank => format!(r#"<c r="A{row}"/>"#),
+            Self::Number(number) => format!(r#"<c r="A{row}"><v>{number}</v></c>"#),
+            Self::Text(text) => {
+                format!(r#"<c r="A{row}" t="inlineStr"><is><t>{text}</t></is></c>"#)
+            }
+            Self::Boolean(value) => {
+                format!(r#"<c r="A{row}" t="b"><v>{}</v></c>"#, u8::from(value))
+            }
+            Self::Error(code) => format!(r#"<c r="A{row}" t="e"><v>{code}</v></c>"#),
+        }
+    }
+}
+
+/// A one-column sheet of `values` in `A1..`, with `rules` applied over the whole column.
+///
+/// `rules` is the body of a single `x:conditionalFormatting` block; `blocks` takes several.
+pub(crate) fn column_with_rules(values: &[Value], rules: &str) -> String {
+    let sqref = format!("A1:A{}", values.len().max(1));
+    column_with_blocks(
+        values,
+        &format!(r#"<conditionalFormatting sqref="{sqref}">{rules}</conditionalFormatting>"#),
+    )
+}
+
+/// A one-column sheet of `values` in `A1..`, with `blocks` written verbatim after `sheetData`.
+pub(crate) fn column_with_blocks(values: &[Value], blocks: &str) -> String {
+    let rows: String = values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let row = u32::try_from(index).unwrap_or(0) + 1;
+            format!(r#"<row r="{row}">{}</row>"#, value.markup(row))
+        })
+        .collect();
+    let last = values.len().max(1);
+    format!(r#"<dimension ref="A1:A{last}"/><sheetData>{rows}</sheetData>{blocks}"#)
+}
+
 /// A `<worksheet>` part whose body is `body`.
 pub(crate) fn worksheet(body: &str) -> Vec<u8> {
     format!(
