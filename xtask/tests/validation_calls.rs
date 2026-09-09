@@ -41,7 +41,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use xtask::validation::{Variant, AREAS};
+use xtask::validation::{ArtefactFormat, Variant, AREAS};
 
 /// The workspace root — `xtask/..`.
 fn root() -> PathBuf {
@@ -359,7 +359,8 @@ fn assert_chain_parser_is_working(chains: &[Chain]) {
          the pages, and every comparison below would pass on an almost empty list",
         chains.len()
     );
-    for page in ["03-presentations.md", "04-documents.md", "05-workbooks.md"] {
+    for format in ArtefactFormat::all() {
+        let page = format.page();
         assert!(
             chains.iter().any(|chain| chain.page.ends_with(page)),
             "not one call chain was parsed out of docs/validation/{page}; the parser is reaching \
@@ -542,9 +543,9 @@ fn names_a_file(span: &str) -> bool {
         return false;
     }
     span.contains('/')
-        || ["pptx", "docx", "xlsx"]
-            .iter()
-            .any(|extension| span.ends_with(&format!(".{extension}")))
+        || ArtefactFormat::all()
+            .into_iter()
+            .any(|format| span.ends_with(&format!(".{}", format.extension())))
 }
 
 /// Whether one code span from an `**Artefact**` line names a file something here produces.

@@ -308,6 +308,114 @@ fn every_workspace_member_has_a_declared_tier() {
     }
 }
 
+/// **`CLAUDE.md`'s rank table and [`TIERS`] are the same table, crate for crate.**
+///
+/// The two have always been described as one table and were never compared, which was survivable
+/// while the prose copy was only prose. It is not any more: `xtask/tests/derived_rosters.rs`
+/// derives its crate populations — "the rank-2.2 crates", "everything at or above 2.2" — out of the
+/// `CLAUDE.md` table, so a rank that is wrong there is a *population* that is wrong, and a roster
+/// that is silently partial is exactly the defect MJXOFF-225 exists to close.
+///
+/// Both directions, and the label as well as the number: a row that keeps its crates and loses its
+/// rank would otherwise pass. Labels are compared with whitespace squeezed out, because the prose
+/// writes `packaging / compatibility` where [`Tier::label`] writes `packaging/compatibility`.
+#[test]
+fn the_rank_table_in_claude_md_is_the_table_in_this_file() {
+    let documented = documented_rank_table();
+    assert!(
+        documented.len() >= 15,
+        "only {} crate(s) were read out of `CLAUDE.md`'s rank table — the parser has stopped \
+         matching, and this comparison would pass on almost nothing",
+        documented.len()
+    );
+
+    for (name, tier) in TIERS {
+        let Some((rank, label)) = documented.get(*name) else {
+            panic!(
+                "`{name}` is at {} in this file's tier table and `CLAUDE.md`'s rank table does not \
+                 name it. The two are the same table, and xtask/tests/derived_rosters.rs derives \
+                 its crate populations from the prose one.",
+                tier.describe()
+            );
+        };
+        assert_eq!(
+            *rank,
+            tier.rank().map(|rank| rank.to_string()),
+            "`{name}` is at {} here and at {} in `CLAUDE.md`",
+            tier.describe(),
+            rank.clone().unwrap_or_else(|| "no rank".to_owned())
+        );
+        if rank.is_some() {
+            assert_eq!(
+                squeeze(label),
+                squeeze(tier.label()),
+                "`{name}`'s tier is called {:?} here and {label:?} in `CLAUDE.md`",
+                tier.label()
+            );
+        }
+    }
+
+    let stray: Vec<&String> = documented
+        .keys()
+        .filter(|name| !TIERS.iter().any(|(known, _)| known == name))
+        .collect();
+    assert!(
+        stray.is_empty(),
+        "`CLAUDE.md`'s rank table names {stray:?}, which this file's tier table does not"
+    );
+    println!(
+        "CLAUDE.md's rank table: {} crates, every rank and label matching TIERS",
+        documented.len()
+    );
+}
+
+/// `CLAUDE.md`'s architecture table, as `crate -> (rank, tier label)`.
+///
+/// A row whose rank cell is not a number is the *outside the graph* row, and its crates get `None`
+/// — the same thing [`Tier::rank`] returns for them. Bindings are named there by directory
+/// (`bindings/mjx-python`), so the last path segment is the crate.
+fn documented_rank_table() -> BTreeMap<String, (Option<String>, String)> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../CLAUDE.md");
+    let claude = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let mut table = BTreeMap::new();
+    for line in claude.lines() {
+        let trimmed = line.trim();
+        let Some(inner) = trimmed
+            .strip_prefix('|')
+            .and_then(|rest| rest.strip_suffix('|'))
+        else {
+            continue;
+        };
+        let cells: Vec<&str> = inner.split('|').map(str::trim).collect();
+        if cells.len() != 2 {
+            continue;
+        }
+        let (rank, label) = match cells[0].split_once('—') {
+            Some((rank, label)) if !rank.trim().is_empty() => {
+                (Some(rank.trim().to_owned()), label.trim().to_owned())
+            }
+            Some((_, label)) => (None, label.trim().to_owned()),
+            None => continue, // the header row, and any other table on the page
+        };
+        let mut rest = cells[1];
+        while let Some(open) = rest.find('`') {
+            rest = &rest[open + 1..];
+            let Some(close) = rest.find('`') else { break };
+            let span = &rest[..close];
+            rest = &rest[close + 1..];
+            let name = span.rsplit('/').next().unwrap_or(span);
+            table.insert(name.to_owned(), (rank.clone(), label.clone()));
+        }
+    }
+    table
+}
+
+/// A string with every run of whitespace removed, for comparing two spellings of one tier name.
+fn squeeze(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
 #[test]
 fn every_dependency_points_strictly_downward() {
     let members = workspace();
@@ -370,22 +478,38 @@ fn every_dependency_points_strictly_downward() {
         "only {checked} edges were checked, which is fewer than the shipped graph has — the walk \
          is not reaching the manifests"
     );
-    for tier in [
-        "foundations, XML",
-        "packaging/compatibility",
-        "shared markup, base",
-        "shared markup, spreadsheet",
-        "shared markup, upper",
-        "formats",
-        "facade",
-        "bindings",
-    ] {
+    // Which tiers must have been exercised is **derived from `TIERS`**, not listed: every ranked
+    // tier except the lowest, because rank 0.0 is the floor of the workspace and declares no
+    // workspace dependency to check. Until MJXOFF-225 this was eight labels written out, which was
+    // the whole ranked set minus the floor when it was written and would have stayed eight the day
+    // a tenth rank appeared — the shape MJXOFF-224 found in `child_order.rs`.
+    let mut ranked: Vec<Tier> = Vec::new();
+    for (_, tier) in TIERS {
+        if tier.rank().is_some() && !ranked.iter().any(|known| known.label() == tier.label()) {
+            ranked.push(*tier);
+        }
+    }
+    ranked.sort_by_key(|tier| tier.rank());
+    assert!(
+        ranked.len() >= 6,
+        "only {} ranked tier(s) were read out of TIERS; the tier table has stopped matching and \
+         this exercise check would assert almost nothing",
+        ranked.len()
+    );
+    let floor = ranked.remove(0);
+    for tier in &ranked {
         assert!(
-            per_tier.get(tier).copied().unwrap_or_default() > 0,
-            "not one edge out of the `{tier}` tier was checked; the rule is unexercised there"
+            per_tier.get(tier.label()).copied().unwrap_or_default() > 0,
+            "not one edge out of the `{}` tier was checked; the rule is unexercised there",
+            tier.label()
         );
     }
-    println!("layering: {checked} workspace edges checked, all downward: {per_tier:?}");
+    println!(
+        "layering: {checked} workspace edges checked, all downward, exercising all {} ranked \
+         tier(s) above `{}`: {per_tier:?}",
+        ranked.len(),
+        floor.label()
+    );
 }
 
 #[test]

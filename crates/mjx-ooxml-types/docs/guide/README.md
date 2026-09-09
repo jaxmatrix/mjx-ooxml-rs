@@ -1,7 +1,7 @@
 # Guide
 
 **`mjx-ooxml-types` is the vocabulary every other crate here is written in, and almost none of it was
-written by a person.** 84,128 of its 85,399 lines are emitted by `xtask/src/codegen/` from the
+written by a person.** 84,128 of its 85,400 lines are emitted by `xtask/src/codegen/` from the
 ECMA-376 XSD schemas; 1,189 are hand-written. It declares no model, opens no package and parses no
 XML. It answers three questions and nothing else:
 

@@ -163,7 +163,7 @@ child-ordered from the XSD; a VML part is neither, and the round trip is the onl
 
 ## The generated vocabulary — `mjx-ooxml-types`
 
-**84,128 of this crate's 85,399 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
+**84,128 of this crate's 85,400 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
 nothing re-derived them.** `CLAUDE.md` decides that generated output is committed rather than built,
 which is right and has a cost: a generator defect is frozen into the repository rather than failing
 on the next build, and the committed file is the only artefact anyone reads. Five pages, written for

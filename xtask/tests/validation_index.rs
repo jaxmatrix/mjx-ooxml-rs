@@ -36,7 +36,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use xtask::validation::{original_for, Risk, Variant, AREAS};
+use xtask::validation::{original_for, ArtefactFormat, Risk, Variant, AREAS};
 
 /// `docs/validation/`.
 fn validation_docs() -> PathBuf {
@@ -149,7 +149,8 @@ fn assert_parser_is_working(documented: &[DocumentedEntry]) {
          the tables, and every comparison below would pass on an almost empty list",
         documented.len()
     );
-    for format in ["PPTX", "DOCX", "XLSX"] {
+    for format in ArtefactFormat::all() {
+        let format = format.extension().to_uppercase();
         let prefix = format!("V-{format}-");
         assert!(
             documented.iter().any(|entry| entry.id.starts_with(&prefix)),

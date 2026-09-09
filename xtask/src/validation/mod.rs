@@ -99,6 +99,23 @@ impl ArtefactFormat {
         [Self::Presentation, Self::Document, Self::Workbook]
     }
 
+    /// The catalogue page this format's areas are written on, as a `docs/validation/` file name.
+    ///
+    /// The pages of `docs/validation/` are not interchangeable — some are method, index, risk order
+    /// and the Office hand-off, and the rest are one per format — so a test that wants *the format
+    /// pages* needs to say which, and the honest place for that is here, beside [`Self::extension`],
+    /// where a new format would have to answer the same question. Before MJXOFF-225 they were
+    /// spelled out as a literal in `xtask/tests/validation_calls.rs`, which is the shape that makes
+    /// a sweep silently partial.
+    #[must_use]
+    pub fn page(self) -> &'static str {
+        match self {
+            Self::Presentation => "03-presentations.md",
+            Self::Document => "04-documents.md",
+            Self::Workbook => "05-workbooks.md",
+        }
+    }
+
     /// The format a `--format` token names, or `None`.
     #[must_use]
     pub fn parse(token: &str) -> Option<Self> {

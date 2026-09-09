@@ -72,6 +72,7 @@
 //! | `all 96 simple types` → `all 95` in `COVERAGE.md` | the count check, naming `spreadsheetml.rs` |
 //! | `dml-lockedCanvas`'s child-order row rewritten as `generated — every complex type` | the child-order check |
 //! | a `pub type FakeMeasure = i32;` appended to the committed `drawingml.rs` | the curated-re-export check |
+//! | `shared`'s `visibility` in `SIMPLE_TYPE_MODULES` set to `pub(crate)` (MJXOFF-225) | the curated-re-export check, which now reaches a third module because it derives its population from that field rather than naming two |
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -547,27 +548,43 @@ fn simple_type_symbol(row: &str) -> Option<String> {
     Some(rest[..end].to_owned())
 }
 
-/// The two hand-written curation modules re-export **every** item their generated module declares.
+/// Every hand-written curation module re-exports **every** item its generated module declares.
 ///
-/// `drawingml` and `presentationml` are emitted `pub(crate)` and re-exported item by item through
-/// `crates/mjx-ooxml-types/src/drawingml.rs` and `crates/mjx-ooxml-types/src/presentationml.rs`,
-/// so that the crate's public surface is curated
-/// rather than whatever the generator happens to emit — [`SIMPLE_TYPE_MODULES`]'s `visibility`
-/// field is that decision. The re-export lists are hand-written, and nothing else fails when the
-/// generator emits a type that never reaches them: the item simply becomes unreachable, silently,
-/// exactly as if the allowlist had never grown. Both directions are checked, because a name in the
-/// list that the generator no longer emits would not compile but a name it emits and the list omits
-/// would.
+/// A module emitted `pub(crate)` is re-exported item by item through a hand-written
+/// `crates/mjx-ooxml-types/src/<module>.rs`, so that the crate's public surface is curated rather
+/// than whatever the generator happens to emit — [`SIMPLE_TYPE_MODULES`]'s `visibility` field is
+/// that decision, and it is what this test reads the population out of. The re-export lists are
+/// hand-written, and nothing else fails when the generator emits a type that never reaches them:
+/// the item simply becomes unreachable, silently, exactly as if the allowlist had never grown. Both
+/// directions are checked, because a name in the list that the generator no longer emits would not
+/// compile but a name it emits and the list omits would.
+///
+/// **The population is derived, not listed.** Until MJXOFF-225 this loop opened with the literal
+/// pair `("drawingml", …), ("presentationml", …)` — correct when it was written, and blind to a
+/// third module the day one is emitted `pub(crate)`. That is the shape MJXOFF-224 found in
+/// `child_order.rs`'s four suites, and `xtask/tests/derived_rosters.rs` is what now looks for it.
 #[test]
 fn the_curated_re_exports_cover_every_generated_item() {
+    let curated: Vec<(&str, String)> = SIMPLE_TYPE_MODULES
+        .iter()
+        .filter(|module| module.visibility == "pub(crate)")
+        .map(|module| {
+            (
+                module.module,
+                format!("crates/mjx-ooxml-types/src/{}.rs", module.module),
+            )
+        })
+        .collect();
+    assert!(
+        !curated.is_empty(),
+        "no module in SIMPLE_TYPE_MODULES is emitted `pub(crate)`, so this test compares nothing \
+         — either the curation decision was withdrawn without deleting this test, or the \
+         visibility field has stopped saying `pub(crate)`"
+    );
+
     let mut checked = 0;
-    for (module, hand_written) in [
-        ("drawingml", "crates/mjx-ooxml-types/src/drawingml.rs"),
-        (
-            "presentationml",
-            "crates/mjx-ooxml-types/src/presentationml.rs",
-        ),
-    ] {
+    for (module, hand_written) in &curated {
+        let (module, hand_written) = (*module, hand_written.as_str());
         let generated = read(&generated_dir().join(format!("{module}.rs")));
         let declared: BTreeSet<&str> = generated
             .lines()
@@ -615,5 +632,10 @@ fn the_curated_re_exports_cover_every_generated_item() {
         checked >= 30,
         "only {checked} curated re-export(s) were compared — the walk has stopped finding them"
     );
-    println!("curated re-exports: {checked} items, matching their generated modules exactly");
+    println!(
+        "curated re-exports: {checked} items across {} `pub(crate)` module(s) of the {} \
+         SIMPLE_TYPE_MODULES declares, each matching its generated module exactly",
+        curated.len(),
+        SIMPLE_TYPE_MODULES.len()
+    );
 }

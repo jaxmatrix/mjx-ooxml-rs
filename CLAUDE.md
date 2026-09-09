@@ -51,10 +51,13 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 
   This is checked, not trusted: `xtask/tests/layering.rs` reads the real graph out of
   `cargo metadata --no-deps` and fails on any edge that does not point strictly down, naming both
-  crates and both ranks. The table there and the table here are the same table; a new crate must be
-  added to both. Dev-dependencies are deliberately exempt from the rank check (`mjx-derive` tests
-  against `mjx-ooxml-types`; every format crate dev-depends on the gate) but may still never reach a
-  binding or `xtask`.
+  crates and both ranks. The table there and the table here are the same table, and since MJXOFF-225
+  that is **compared rather than assumed** — `the_rank_table_in_claude_md_is_the_table_in_this_file`
+  holds the two against each other crate by crate, rank and label, in both directions, because
+  `xtask/tests/derived_rosters.rs` derives crate populations ("the rank-2.2 crates", "everything at
+  or above 2.2") out of the table below. A new crate must be added to both. Dev-dependencies are
+  deliberately exempt from the rank check (`mjx-derive` tests against `mjx-ooxml-types`; every
+  format crate dev-depends on the gate) but may still never reach a binding or `xtask`.
 - **Three test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema
   and child-order gate, a `dev-dependency` of the three format crates and a dependency of `xtask`,
   whose `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the committed
