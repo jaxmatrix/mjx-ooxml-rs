@@ -592,6 +592,23 @@ const STUB_CODE_LINE_FLOOR: usize = 2_000;
 /// The answer is the same in all three languages, which is why this sits here and not in a binding:
 /// the Python mapping is the identity, and the wasm binding projects the same facade method by
 /// method.
+///
+/// # What it still cannot see, stated rather than left to be rediscovered
+///
+/// * **Anything the Python binding does not project.** `crates/mjx-ooxml/src/lib.rs` exports 322
+///   type-like names and the stub declares 300 classes; the 34 that are neither — `Presentation`
+///   (the escape hatch), the error types (which arrive as Python exception classes), and the
+///   measures and Word/Excel types the binding maps to a builtin — are invisible here. Closing that
+///   would mean asking the question of the *facade's* own source, which is the signature parser this
+///   design exists to avoid.
+/// * **A class that is only ever an argument.** A name appearing in a parameter annotation counts as
+///   evidence, so a type a caller can hand in and never get back reads as reachable. That was
+///   `TableStyleFlags`'s exact half-state before MJXOFF-228: constructible in both bindings and
+///   acceptable to nothing.
+/// * **Whether the producer is itself reachable.** A method naming a class in its return annotation
+///   satisfies this even if no caller can obtain the receiver it hangs off.
+///
+/// All three are false greens, never false reds, which is the direction this is built to fail in.
 #[test]
 fn every_exported_class_is_obtainable_from_some_other_call() {
     let stub = std::fs::read_to_string(repository_root().join(PYTHON_STUB))
