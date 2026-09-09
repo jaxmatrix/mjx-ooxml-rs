@@ -293,7 +293,7 @@ fn border_tier(
 ///
 /// # Errors
 /// A [`DocxError`] if a matched `w:rPr` is malformed.
-fn run_properties_tier(
+pub(super) fn run_properties_tier(
     chain: &[&StyleDefinition],
     regions: &[ConditionalFormatRegion],
     theme: &ThemeContext,
@@ -315,6 +315,45 @@ fn run_properties_tier(
                 continue;
             };
             let region_contribution = extract_run_properties(rpr, theme, interner)?;
+            contribution = region_contribution.merge_under(&contribution);
+        }
+        result = contribution.merge_under(&result);
+    }
+    Ok(result)
+}
+
+/// The same fold for a table style's **paragraph** properties.
+///
+/// A table style states `w:pPr` twice over — once for the whole table and once per
+/// `w:tblStylePr` region — and both reach a cell's paragraphs. It matters for measurement rather
+/// than only for appearance: Word's own built-in table styles set `w:spacing` on their cells, and a
+/// cell whose paragraphs kept the body's space-after is a visibly taller cell.
+///
+/// # Errors
+/// As [`run_properties_tier`].
+pub(super) fn paragraph_properties_tier(
+    chain: &[&StyleDefinition],
+    regions: &[ConditionalFormatRegion],
+    theme: &ThemeContext,
+    interner: &Interner,
+) -> Result<super::effective::EffectiveParagraphProperties, DocxError> {
+    let mut result = super::effective::EffectiveParagraphProperties::default();
+    for style in chain {
+        let mut contribution = style
+            .paragraph_properties()
+            .map(|ppr| super::effective::extract_style_paragraph_properties(ppr, theme, interner))
+            .transpose()?
+            .unwrap_or_default();
+        for region in regions {
+            let Some(ppr) = style
+                .table_style_overrides()
+                .find(|override_| override_.region(interner).ok() == Some(*region))
+                .and_then(TableStyleOverride::paragraph_properties)
+            else {
+                continue;
+            };
+            let region_contribution =
+                super::effective::extract_style_paragraph_properties(ppr, theme, interner)?;
             contribution = region_contribution.merge_under(&contribution);
         }
         result = contribution.merge_under(&result);

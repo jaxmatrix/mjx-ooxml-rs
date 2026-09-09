@@ -115,10 +115,7 @@ fn the_tab_ruler_is_reachable() {
 #[test]
 fn the_continuation_round_trips() {
     let continuation = Continuation {
-        position: FlowPosition {
-            paragraph: 7,
-            line: 3,
-        },
+        position: FlowPosition { block: 7, unit: 3 },
         paragraphs: 400,
         page_number: 12,
         line_number: 41,
@@ -229,7 +226,7 @@ fn a_section_becomes_constraints() {
 
 #[test]
 fn the_pagination_types_are_reachable() {
-    assert_eq!(FlowPosition::START.paragraph, 0);
+    assert_eq!(FlowPosition::START.block, 0);
     let widths = [Emu::from_inches(3.0), Emu::from_inches(3.0)];
     let shape = PageShape {
         height: Emu::from_inches(11.0),
@@ -238,6 +235,11 @@ fn the_pagination_types_are_reachable() {
         width: Emu::from_inches(3.0),
         section_last: Some(9),
         balance: true,
+        frame: mjx_layout_docx::Anchorage::contained(
+            Emu::from_inches(3.0),
+            Emu::from_inches(11.0),
+            Emu::ZERO,
+        ),
     };
     assert_eq!(shape.height, Emu::from_inches(11.0));
     assert_eq!(shape.columns, 2);

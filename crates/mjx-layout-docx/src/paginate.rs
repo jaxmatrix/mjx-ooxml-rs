@@ -1,5 +1,6 @@
 //! Where the page ends: the four constraints that move content between pages, the columns the
-//! content flows through, and the termination argument for every one of them.
+//! content flows through, the floats the content flows around, and the termination argument for
+//! every one of them.
 //!
 //! # The dangerous gate
 //!
@@ -10,7 +11,7 @@
 //!
 //! # The four, and why each terminates
 //!
-//! * **`w:pageBreakBefore`** — the paragraph starts a page. It cannot loop: the break is taken only
+//! * **`w:pageBreakBefore`** — the block starts a page. It cannot loop: the break is taken only
 //!   when something is already on the page, so taking it always leaves a non-empty page behind.
 //! * **`w:keepLines`** — the paragraph is not split. A paragraph taller than a whole column could
 //!   otherwise be pushed forward for ever, so it is placed **anyway** when the column it is pushed
@@ -19,74 +20,102 @@
 //!   carried alone to the top of the next. It can only ever move lines *forward*, and it is switched
 //!   off entirely for a paragraph that has nowhere forward to go, so the count of lines placed is
 //!   monotone.
-//! * **`w:keepNext`** — the paragraph shares a column with the one after it. This is the classic
+//! * **`w:keepNext`** — the block shares a column with the one after it. This is the classic
 //!   infinite loop: a chain longer than a column has no satisfying assignment, so the chain is
-//!   broken at the point where breaking it would leave the column **empty**, and the first paragraph
+//!   broken at the point where breaking it would leave the column **empty**, and the first block
 //!   of an unsatisfiable chain is placed where it does not fit. `tests/termination.rs` runs a
 //!   thousand-paragraph chain and asserts it produces pages.
 //!
 //! Above all of them sits the one guarantee the whole engine rests on: **every page places at least
-//! one line.** A page that placed nothing would produce a next position equal to its own start, and
+//! one unit.** A page that placed nothing would produce a next position equal to its own start, and
 //! the page after it would be identical, for ever. Every constraint above is allowed to refuse
 //! content only while something else is already on the page.
+//!
+//! # A block is a paragraph or a table, and the loop does not care which
+//!
+//! MJXOFF-176 widened the content this fills a column with. A [`crate::block::BlockLayout`] has
+//! units — a paragraph's lines, a table's [`crate::table::Slice`]s — and everything above is stated
+//! in units. Two things a table brings are named rather than special-cased: `w:cantSplit` makes a
+//! row **one** unit, so it moves whole through the same arithmetic `w:keepLines` already used, and
+//! `w:tblHeader` makes a continuation taller than its units through
+//! [`crate::block::BlockLayout::repeated_height`]. That is why `w:keepNext` still works across a
+//! table: there is one ordered list of content on a page, not two.
+//!
+//! # Floats, and why they are resolved here rather than before
+//!
+//! A `wp:anchor` positioned `relativeFrom="paragraph"` cannot be placed until its paragraph's top is
+//! known, and that is known only when the column has been filled down to it. So exclusions
+//! accumulate **as the column fills**, and a block is laid out against the ones that exist by the
+//! time it is reached. The block that anchors a float is laid out twice — once to settle its own top,
+//! once against the float that top produced — and **never three times**, because the floats a block
+//! anchors are a function of the block and its top, not of its lines.
 //!
 //! # Columns, and why balancing is a search rather than a division
 //!
 //! Filling *n* columns is filling one column *n* times and threading the position through, which is
 //! the whole of [`assemble`] once [`fill_column`] exists. **Balancing is not.** A section that ends
 //! at a `continuous` break has its columns levelled — the obvious implementation, dividing the total
-//! height by the column count, is wrong, because content is placed in whole lines and a paragraph
+//! height by the column count, is wrong, because content is placed in whole units and a paragraph
 //! may not be splittable at all. What is actually wanted is *the shortest column height at which the
 //! remaining content still fits in n columns*, and that is a **monotone predicate**: content placed
 //! never decreases as the height grows. So [`assemble`] **bisects** it, which terminates in
-//! `log2` of the page height in EMU — around thirty-one fills of already-laid-out paragraphs — and
+//! `log2` of the page height in EMU — around thirty-one fills of already-laid-out blocks — and
 //! is exact rather than approximate.
 
 use std::collections::BTreeMap;
 
-use mjx_docx::ParagraphFormatting;
+use mjx_docx::{BlockFormatting, DrawingFormatting, DrawingPlacement, ParagraphFormatting};
 use mjx_ooxml_core::measure::Emu;
 use mjx_ooxml_types::wordprocessingml::BreakType;
 
-use crate::flow::ParagraphLayout;
+use crate::block::BlockLayout;
+use crate::float::{self, Anchorage, PlacedFloat};
+use crate::wrap::Exclusion;
 
 /// Where in the document a page starts.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
 pub struct FlowPosition {
-    /// Which paragraph, counted from zero across the body.
-    pub paragraph: u32,
-    /// Which of its lines, counted from zero. Zero is the start of the paragraph.
-    pub line: u32,
+    /// Which block, counted from zero across the flow.
+    pub block: u32,
+    /// Which of its units, counted from zero — a paragraph's line, or a table's slice. Zero is the
+    /// start of the block.
+    pub unit: u32,
 }
 
 impl FlowPosition {
     /// The start of the document.
-    pub const START: Self = Self {
-        paragraph: 0,
-        line: 0,
-    };
+    pub const START: Self = Self { block: 0, unit: 0 };
 
-    /// The start of the paragraph at `index`.
+    /// The start of the block at `index`.
     #[must_use]
     pub fn at(index: usize) -> Self {
         Self {
-            paragraph: u32::try_from(index).unwrap_or(u32::MAX),
-            line: 0,
+            block: u32::try_from(index).unwrap_or(u32::MAX),
+            unit: 0,
         }
     }
 }
 
-/// One paragraph, or the part of one, placed in a column.
+/// One block, or the part of one, placed in a column.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PlacedParagraph {
-    /// Which paragraph.
-    pub paragraph: usize,
-    /// Which of its lines are here.
-    pub lines: std::ops::Range<usize>,
-    /// Where the first of them sits, from the top of the column.
+pub struct PlacedBlock {
+    /// Which block of the flow.
+    pub block: usize,
+    /// Which of its units are here.
+    pub units: std::ops::Range<usize>,
+    /// Where the first of them sits, from the top of the column — the repeated header, when there is
+    /// one, occupies `top..top + repeated_header` and the units start below it.
     pub top: Emu,
     /// How much empty space was left above it.
     pub space_before: Emu,
+    /// How tall a repeated table heading is drawn above `units`, or zero.
+    pub repeated_header: Emu,
+    /// The third field of the [`LayoutCache`] key this block's layout is under.
+    ///
+    /// Zero unless a float was in the column, which is what makes the lookup exact rather than a
+    /// range query: a paragraph beside a float has one layout per position, and emitting fragments
+    /// from the wrong one would draw the right text at the wrong widths.
+    pub key_top: i64,
     /// Whether it began in an earlier column or page.
     pub continued: bool,
     /// Whether it carries on into a later one.
@@ -104,15 +133,17 @@ pub enum ColumnEnd {
     ColumnBreak,
     /// A `w:br@type="page"` or a `w:pageBreakBefore` ended it, which ends the whole page.
     PageBreak,
-    /// The section's last paragraph was placed.
+    /// The section's last block was placed.
     SectionEnded,
 }
 
 /// One column, filled.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ColumnFill {
     /// What is in it, in document order.
-    pub blocks: Vec<PlacedParagraph>,
+    pub blocks: Vec<PlacedBlock>,
+    /// The floating objects anchored in it, in the order their anchors were reached.
+    pub floats: Vec<PlacedFloat>,
     /// Where the content after it starts, or `None` when the document ended here.
     pub next: Option<FlowPosition>,
     /// How tall the content is, from the column's top.
@@ -122,7 +153,7 @@ pub struct ColumnFill {
 }
 
 /// One page's body, assembled.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct PageAssembly {
     /// Its columns, left to right. Never empty.
     pub columns: Vec<ColumnFill>,
@@ -130,11 +161,11 @@ pub struct PageAssembly {
     pub next: Option<FlowPosition>,
     /// Whether the page ended because its section did.
     pub ended_section: bool,
-    /// How many paragraphs this page's assembly had to lay out.
+    /// How many blocks this page's assembly had to lay out.
     ///
     /// **The instrument the checkpoint gate rests on**, and it counts *work* rather than output: a
-    /// page assembled from a checkpoint looks at the paragraphs on it, and a page assembled by
-    /// walking from the beginning looks at every paragraph before it too. A gate on the *fragments*
+    /// page assembled from a checkpoint looks at the blocks on it, and a page assembled by
+    /// walking from the beginning looks at every block before it too. A gate on the *fragments*
     /// cannot tell the two apart, because they produce the same page — which is exactly why a
     /// checkpoint that is never used still passes every output assertion.
     pub paragraphs_visited: u32,
@@ -142,7 +173,7 @@ pub struct PageAssembly {
 
 impl PageAssembly {
     /// Every block on the page, column by column, with the column index each came from.
-    pub fn blocks(&self) -> impl Iterator<Item = (usize, &PlacedParagraph)> {
+    pub fn blocks(&self) -> impl Iterator<Item = (usize, &PlacedBlock)> {
         self.columns
             .iter()
             .enumerate()
@@ -164,6 +195,105 @@ impl PageAssembly {
     }
 }
 
+/// The content one column is filled from: the block tree, and the paragraphs it indexes.
+///
+/// Two slices rather than one owned tree, because both already exist — the flow's own program and
+/// `mjx-docx`'s one flat paragraph list — and copying either to pass it here would undo the residency
+/// this crate is built on.
+#[derive(Clone, Copy, Debug)]
+pub struct FlowProgram<'a> {
+    /// The blocks, in document order.
+    pub blocks: &'a [BlockFormatting],
+    /// The paragraphs a [`BlockFormatting::Paragraph`] indexes.
+    pub paragraphs: &'a [ParagraphFormatting],
+}
+
+impl FlowProgram<'_> {
+    /// The paragraph at block `index`, when that block is one.
+    #[must_use]
+    pub fn paragraph(&self, index: usize) -> Option<&ParagraphFormatting> {
+        match self.blocks.get(index)? {
+            BlockFormatting::Paragraph(at) => self.paragraphs.get(*at),
+            BlockFormatting::Table(_) => None,
+        }
+    }
+
+    /// Whether the blocks at `one` and `other` are paragraphs naming the same `w:pStyle`.
+    ///
+    /// Two paragraphs that name **no** style are the same style: that is the document's default
+    /// paragraph style, which is what an unstyled body is made of, and reading `None` as *different*
+    /// would turn `w:contextualSpacing` off for exactly the documents that use it most. A table is
+    /// never the same style as anything — it has none — so a paragraph next to a table keeps its
+    /// space.
+    #[must_use]
+    pub fn same_style(&self, one: usize, other: usize) -> bool {
+        match (self.paragraph(one), self.paragraph(other)) {
+            (Some(left), Some(right)) => left.style_id() == right.style_id(),
+            _ => false,
+        }
+    }
+
+    /// The drawings block `index` anchors, or an empty slice.
+    #[must_use]
+    pub fn floats_of(&self, index: usize) -> &[DrawingFormatting] {
+        self.paragraph(index)
+            .map_or(&[][..], ParagraphFormatting::drawings)
+    }
+
+    /// Every float block `index` anchors, placed against `frame`.
+    #[must_use]
+    pub fn place_floats(&self, index: usize, frame: Anchorage) -> Vec<PlacedFloat> {
+        self.floats_of(index)
+            .iter()
+            .enumerate()
+            .filter(|(_, drawing)| matches!(drawing.placement, DrawingPlacement::Anchored(_)))
+            .filter_map(|(at, drawing)| float::place(drawing, index, at, frame))
+            .collect()
+    }
+
+    /// The unit a hard break inside block `index` ends the column at, and which kind it was.
+    ///
+    /// A table has no `w:br` of its own; one inside a cell ends a line in that cell and not the page,
+    /// which is why this asks only paragraphs.
+    #[must_use]
+    pub fn hard_break_within(
+        &self,
+        index: usize,
+        layout: &BlockLayout,
+        from: usize,
+        count: usize,
+    ) -> Option<(usize, BreakType)> {
+        let paragraph = self.paragraph(index)?;
+        let lines = &layout.as_paragraph()?.lines;
+        for break_at in paragraph.hard_breaks() {
+            if !matches!(break_at.kind, BreakType::Page | BreakType::Column) {
+                continue;
+            }
+            for offset in 0..count {
+                let at = from + offset;
+                let Some(line) = lines.get(at) else {
+                    break;
+                };
+                if break_at.at >= line.range.start && break_at.at < line.range.end {
+                    return Some((at, break_at.kind));
+                }
+            }
+        }
+        None
+    }
+}
+
+/// What one block's layout is asked for.
+#[derive(Clone, Copy, Debug)]
+pub struct LayoutRequest<'a> {
+    /// The measure it is fitted against.
+    pub width: Emu,
+    /// Where in the column it starts, which is what decides which exclusions its lines meet.
+    pub top: Emu,
+    /// The floats already placed in this column, in the column's own coordinates.
+    pub exclusions: &'a [Exclusion],
+}
+
 /// What the paginator needs to know about the page it is filling.
 #[derive(Clone, Copy, Debug)]
 pub struct PageShape<'a> {
@@ -175,52 +305,60 @@ pub struct PageShape<'a> {
     pub widths: &'a [Emu],
     /// The width a column takes when `widths` does not name it.
     pub width: Emu,
-    /// The last paragraph of this page's section, inclusive — past it, the page ends.
+    /// The last block of this page's section, inclusive — past it, the page ends.
     pub section_last: Option<usize>,
     /// Whether to level the columns when the section's content ends on this page.
     pub balance: bool,
+    /// The frames a float anchored on this page is positioned against, before the column's own left
+    /// edge is applied.
+    pub frame: Anchorage,
 }
 
 /// The layouts one page's assembly reused, so a fixed point over the note area and a balancing
-/// search cost no further paragraph layouts.
+/// search cost no further block layouts.
 ///
-/// # Keyed by paragraph **and column width**, which is not the same as by column
+/// # Keyed by block, column **width** and the height it starts at
 ///
 /// A paragraph's lines depend on the measure they were fitted against, so a paragraph that appears
 /// in two columns of different widths has two layouts and a cache keyed by paragraph alone would
 /// hand the second column the first one's lines — a visible overrun that no assertion on *which*
 /// paragraph is where can see. Keying by the width rather than by the column index is what keeps
 /// the common case free: `w:equalWidth` columns are all the same measure, so they share one layout,
-/// and a single-column document behaves exactly as it did before columns existed — which is what
-/// keeps [`PageAssembly::paragraphs_visited`] comparable with MJXOFF-174's own numbers.
-pub type LayoutCache = BTreeMap<(usize, i64), ParagraphLayout>;
+/// and a single-column document behaves exactly as it did before columns existed.
+///
+/// **The third field is zero unless the column actually carries a float.** A paragraph beside a
+/// wrapped object has different lines depending on where down the column it sits, so it genuinely
+/// has one layout per position; a paragraph in a column with nothing floating in it does not, and
+/// pays nothing for the possibility. That is what keeps
+/// [`PageAssembly::paragraphs_visited`] comparable with MJXOFF-174's own numbers on every document
+/// without a drawing in it — which is every fixture the checkpoint gate uses.
+pub type LayoutCache = BTreeMap<(usize, i64, i64), BlockLayout>;
 
 /// Assembles the page that starts at `from`.
 ///
-/// `layout_of` is asked for a paragraph's lines and must answer the same lines for the same
-/// paragraph however many times it is asked — that equivalence is what makes page *N* alone and
-/// pages 1..=*N* in order agree, and it is why paragraph layout takes no argument that depends on
-/// which page the paragraph is on. `layouts` is the memo that makes asking cheap; it is the caller's
+/// `layout_of` is asked for a block's units and must answer the same units for the same request
+/// however many times it is asked — that equivalence is what makes page *N* alone and
+/// pages 1..=*N* in order agree.  `layouts` is the memo that makes asking cheap; it is the caller's
 /// so that laying the same page out twice — which is what the footnote fixed point does — costs one
-/// set of paragraph layouts and not two.
+/// set of block layouts and not two.
 ///
 /// # Errors
 /// Whatever `layout_of` fails with.
 pub fn assemble<E>(
-    paragraphs: &[ParagraphFormatting],
+    program: FlowProgram<'_>,
     from: FlowPosition,
     shape: PageShape<'_>,
     layouts: &mut LayoutCache,
-    layout_of: &mut dyn FnMut(usize, Emu) -> Result<ParagraphLayout, E>,
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
 ) -> Result<PageAssembly, E> {
     let before = layouts.len();
-    let mut columns = fill_all(paragraphs, from, shape, layouts, layout_of)?;
+    let mut columns = fill_all(program, from, shape, layouts, layout_of)?;
 
     // Balancing, and the one condition it applies under: the section's content ran out on this page,
     // so there is a fixed amount of it and levelling the columns is a question with an answer. A
     // page whose columns are full has nothing to balance — the content does not fit either way.
     if shape.balance && shape.columns > 1 && ends_here(&columns, shape.section_last) {
-        if let Some(levelled) = balance(paragraphs, from, shape, layouts, layout_of)? {
+        if let Some(levelled) = balance(program, from, shape, layouts, layout_of)? {
             columns = levelled;
         }
     }
@@ -242,13 +380,13 @@ pub fn assemble<E>(
 
 /// Every column of one page, filled left to right at `shape.height`.
 fn fill_all<E>(
-    paragraphs: &[ParagraphFormatting],
+    program: FlowProgram<'_>,
     from: FlowPosition,
     shape: PageShape<'_>,
     layouts: &mut LayoutCache,
-    layout_of: &mut dyn FnMut(usize, Emu) -> Result<ParagraphLayout, E>,
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
 ) -> Result<Vec<ColumnFill>, E> {
-    fill_at(paragraphs, from, shape, shape.height, layouts, layout_of)
+    fill_at(program, from, shape, shape.height, layouts, layout_of)
 }
 
 /// The same at a stated column height, which is what balancing varies.
@@ -257,12 +395,12 @@ fn fill_all<E>(
 /// the document still **has** its other columns — a two-column page cut short is a two-column page —
 /// so they are pushed empty rather than omitted, carrying the reason the page stopped.
 fn fill_at<E>(
-    paragraphs: &[ParagraphFormatting],
+    program: FlowProgram<'_>,
     from: FlowPosition,
     shape: PageShape<'_>,
     height: Emu,
     layouts: &mut LayoutCache,
-    layout_of: &mut dyn FnMut(usize, Emu) -> Result<ParagraphLayout, E>,
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
 ) -> Result<Vec<ColumnFill>, E> {
     let count = shape.columns.max(1);
     let mut filled: Vec<ColumnFill> = Vec::with_capacity(count);
@@ -277,6 +415,7 @@ fn fill_at<E>(
         if let Some(ended) = carried {
             filled.push(ColumnFill {
                 blocks: Vec::new(),
+                floats: Vec::new(),
                 next: position,
                 used: Emu::ZERO,
                 ended,
@@ -285,18 +424,36 @@ fn fill_at<E>(
         }
         let start = position.unwrap_or(from);
         let page_empty = filled.iter().all(|fill| fill.blocks.is_empty());
+        let width = shape
+            .widths
+            .get(filled.len())
+            .copied()
+            .unwrap_or(shape.width);
+        // **The column's *width* varies per column and its *height* deliberately does not.** A
+        // float's rectangle must not depend on the trial height this fill is running at, for two
+        // reasons that are both correctness rather than efficiency:
+        //
+        // * the footnote fixed point assembles the body at a **reduced** height and then again at
+        //   another, and its two-assembly proof rests on *the body content placed is non-increasing
+        //   in the reservation* — which would be false if a float anchored to the column's bottom
+        //   moved between the two, because the second assembly could then place text the first did
+        //   not and the iteration would have no bound at all;
+        // * the balancing search bisects thirty-one heights, and a float that moved with each of
+        //   them would make the predicate it is searching non-monotone.
+        //
+        // So `frame.column_height` is the page's own body height, set once by the caller, and this
+        // loop never touches it. See `crate::notes` for the proof this preserves.
+        let mut frame = shape.frame;
+        frame.column_width = width;
         let fill = fill_column(
-            paragraphs,
+            program,
             start,
             ColumnShape {
                 height,
-                width: shape
-                    .widths
-                    .get(filled.len())
-                    .copied()
-                    .unwrap_or(shape.width),
+                width,
                 section_last: shape.section_last,
                 page_empty,
+                frame,
             },
             layouts,
             layout_of,
@@ -326,7 +483,7 @@ fn ends_here(columns: &[ColumnFill], section_last: Option<usize>) -> bool {
     }
     match (fill.next, section_last) {
         (None, _) => true,
-        (Some(next), Some(last)) => next.paragraph as usize > last,
+        (Some(next), Some(last)) => next.block as usize > last,
         (Some(_), None) => false,
     }
 }
@@ -337,7 +494,7 @@ fn ends_here(columns: &[ColumnFill], section_last: Option<usize>) -> bool {
 ///
 /// The content on the page is fixed — it is everything from `from` to the end of the section — so
 /// the question is *how short may a column be and still hold a `columns`-th of it*. Dividing the
-/// total height by the count answers a different question, because lines are indivisible and a
+/// total height by the count answers a different question, because units are indivisible and a
 /// `w:keepLines` paragraph may not split at all: the division's answer is routinely a hair too
 /// short, and a column that is a hair too short spills a whole line into the next one, which
 /// **unbalances** the very thing being balanced.
@@ -351,11 +508,11 @@ fn ends_here(columns: &[ColumnFill], section_last: Option<usize>) -> bool {
 /// Returns `None` when the levelled fill would not actually be an improvement, in which case the
 /// unbalanced one stands.
 fn balance<E>(
-    paragraphs: &[ParagraphFormatting],
+    program: FlowProgram<'_>,
     from: FlowPosition,
     shape: PageShape<'_>,
     layouts: &mut LayoutCache,
-    layout_of: &mut dyn FnMut(usize, Emu) -> Result<ParagraphLayout, E>,
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
 ) -> Result<Option<Vec<ColumnFill>>, E> {
     let mut low = Emu::ZERO;
     let mut high = shape.height;
@@ -364,14 +521,14 @@ fn balance<E>(
         if middle == low {
             break;
         }
-        let trial = fill_at(paragraphs, from, shape, middle, layouts, layout_of)?;
+        let trial = fill_at(program, from, shape, middle, layouts, layout_of)?;
         if ends_here(&trial, shape.section_last) {
             high = middle;
         } else {
             low = middle;
         }
     }
-    let levelled = fill_at(paragraphs, from, shape, high, layouts, layout_of)?;
+    let levelled = fill_at(program, from, shape, high, layouts, layout_of)?;
     if ends_here(&levelled, shape.section_last) {
         Ok(Some(levelled))
     } else {
@@ -379,13 +536,13 @@ fn balance<E>(
     }
 }
 
-/// What one column is: how big it is, where its section ends, and whether the page it is on has
-/// anything on it yet.
+/// What one column is: how big it is, where its section ends, whether the page it is on has
+/// anything on it yet, and the frame a float anchored in it is positioned against.
 ///
-/// The last of those is what `w:pageBreakBefore` reads — a break at the very top of a page would
+/// The `page_empty` flag is what `w:pageBreakBefore` reads — a break at the very top of a page would
 /// open a blank one — and it is a fact about the **page**, not the column, which is why it travels
 /// beside the measurements rather than being inferred from them.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct ColumnShape {
     /// How tall it is.
     pub height: Emu,
@@ -395,6 +552,22 @@ pub struct ColumnShape {
     pub section_last: Option<usize>,
     /// Whether the page holds nothing at all yet.
     pub page_empty: bool,
+    /// The frames a floating object anchored in this column is positioned against.
+    pub frame: Anchorage,
+}
+
+impl ColumnShape {
+    /// A column with no page or margin outside it — what a header, a note or a table cell gives.
+    #[must_use]
+    pub fn contained(height: Emu, width: Emu) -> Self {
+        Self {
+            height,
+            width,
+            section_last: None,
+            page_empty: true,
+            frame: Anchorage::contained(width, height, Emu::ZERO),
+        }
+    }
 }
 
 /// Fills one column from `from`, stopping at `shape.height`.
@@ -403,52 +576,82 @@ pub struct ColumnShape {
 /// Whatever `layout_of` fails with.
 #[allow(clippy::too_many_lines)]
 pub fn fill_column<E>(
-    paragraphs: &[ParagraphFormatting],
+    program: FlowProgram<'_>,
     from: FlowPosition,
     shape: ColumnShape,
     layouts: &mut LayoutCache,
-    layout_of: &mut dyn FnMut(usize, Emu) -> Result<ParagraphLayout, E>,
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
 ) -> Result<ColumnFill, E> {
     let ColumnShape {
         height,
         width,
         section_last,
         page_empty,
+        frame,
     } = shape;
-    let mut blocks: Vec<PlacedParagraph> = Vec::new();
+    let mut blocks: Vec<PlacedBlock> = Vec::new();
+    let mut floats: Vec<PlacedFloat> = Vec::new();
+    let mut exclusions: Vec<Exclusion> = Vec::new();
     let mut y = Emu::ZERO;
-    let mut index = from.paragraph as usize;
-    let mut line = from.line as usize;
+    let mut index = from.block as usize;
+    let mut unit = from.unit as usize;
     let mut next: Option<FlowPosition> = None;
     let mut ended = ColumnEnd::ContentEnded;
 
-    while index < paragraphs.len() {
+    while index < program.blocks.len() {
         if section_last.is_some_and(|last| index > last) {
             next = Some(FlowPosition::at(index));
             ended = ColumnEnd::SectionEnded;
             break;
         }
-        let key = (index, width.emu());
-        if let std::collections::btree_map::Entry::Vacant(slot) = layouts.entry(key) {
-            slot.insert(layout_of(index, width)?);
-        }
-        // Inserted immediately above when absent.
-        let Some(layout) = layouts.get(&key) else {
-            break;
+
+        // A block is laid out at the height it starts at, because a float beside it displaces
+        // different lines depending on where down the column it sits. **When the column carries no
+        // floats at all the key's third field is zero**, so a document with no drawings in it caches
+        // exactly as MJXOFF-174 did and `PageAssembly::paragraphs_visited` is comparable with that
+        // child's own numbers.
+        let anchored_here = program.floats_of(index);
+        let mut layout = cached(layouts, index, width, y, &exclusions, layout_of)?;
+
+        // A float anchored in this very block wraps this block's own text, and where it sits depends
+        // on the block's top — which depends on its space-before, which is a property of the layout.
+        // So the block is laid out once without its own floats, its top is settled, its floats are
+        // placed, and it is laid out **once** more. Two passes, never three: the second pass cannot
+        // add a float, because the floats a block anchors do not depend on its lines.
+        let suppressed = unit > 0
+            || blocks.is_empty()
+            || (layout.constraints().contextual_spacing
+                && program.same_style(index, index.wrapping_sub(1)));
+        let space_before = if suppressed {
+            Emu::ZERO
+        } else {
+            layout.space_before()
         };
-        let total = layout.lines.len();
-        if line >= total {
+        if !anchored_here.is_empty() {
+            let top = y + space_before;
+            let placed = program.place_floats(index, frame.at_paragraph(top));
+            let added = placed.iter().any(|float| float.exclusion.is_some());
+            for float in placed {
+                if let Some(exclusion) = float.exclusion.clone() {
+                    exclusions.push(exclusion);
+                }
+                floats.push(float);
+            }
+            if added {
+                layout = cached(layouts, index, width, top, &exclusions, layout_of)?;
+            }
+        }
+
+        let total = layout.unit_count();
+        if unit >= total {
             index += 1;
-            line = 0;
+            unit = 0;
             continue;
         }
 
-        // `w:pageBreakBefore` — but never at the very start of the document, where it would open the
-        // file with a blank page. **GUESS:** Word ignores it on the first paragraph; ECMA-376 does
-        // not say, and honouring it would be a visible extra page in every document whose first
-        // heading style carries the flag.
-        if layout.style.page_break_before
-            && line == 0
+        let constraints = layout.constraints();
+        if constraints.page_break_before
+            && unit == 0
             && index > 0
             && !(page_empty && blocks.is_empty())
         {
@@ -457,61 +660,44 @@ pub fn fill_column<E>(
             break;
         }
 
-        // GUESS: the space above a paragraph is suppressed at the top of a column. Word does this,
-        // and the alternative — a band of white space above the first line of every page — is
-        // immediately visible.
-        //
-        // `w:contextualSpacing` is the document's own suppression: *don't add space between
-        // paragraphs of the same style*, which is what every bulleted list in every document relies
-        // on. It is a question about two paragraphs' **identity** and not about their resolved
-        // values, which is why `ParagraphFormatting::style_id` exists at all.
-        let suppressed = line > 0
-            || blocks.is_empty()
-            || (layout.style.contextual_spacing
-                && same_style(paragraphs, index, index.wrapping_sub(1)));
-        let space_before = if suppressed {
-            Emu::ZERO
+        // A continuation of a table redraws its heading rows, which cost height the units themselves
+        // do not carry.
+        let repeats_header = unit >= layout.repeated_units() && unit > 0;
+        let header_height = if repeats_header {
+            layout.repeated_height()
         } else {
-            layout.space_before
+            Emu::ZERO
         };
 
-        let available = height - y - space_before;
-        let mut fitted = lines_that_fit(layout, line, available);
-        let remaining = total - line;
+        let available = height - y - space_before - header_height;
+        let mut fitted = units_that_fit(&layout, unit, available);
+        let remaining = total - unit;
 
-        if layout.style.keep_lines_together && fitted < remaining {
-            // Not splittable. Push it whole — unless the column it would be pushed on to is this
-            // one, which is the case that does not terminate.
+        if constraints.keep_units_together && fitted < remaining {
             fitted = if blocks.is_empty() { remaining } else { 0 };
         }
 
-        if layout.style.widow_control {
+        if layout.widow_control() {
             fitted = widow_control(fitted, remaining);
         }
 
         if fitted == 0 {
             if blocks.is_empty() {
-                // Nothing else is in the column, so refusing again would produce a column with
-                // nothing in it and a next position identical to this one. One line is placed,
-                // overflowing.
                 fitted = 1;
             } else {
                 next = Some(FlowPosition {
-                    paragraph: index as u32,
-                    line: line as u32,
+                    block: index as u32,
+                    unit: unit as u32,
                 });
                 ended = ColumnEnd::Filled;
                 break;
             }
         }
 
-        // A `w:br@type="page"` or `="column"` inside the paragraph ends the column at the line it
-        // sits on, whatever else would have fitted. The two differ in what they end: a column break
-        // moves to the next column and a page break ends the page.
-        let hard = hard_break_within(&paragraphs[index], layout, line, fitted);
+        let hard = program.hard_break_within(index, &layout, unit, fitted);
         let (fitted, hard_ended) = match hard {
-            Some((at_line, kind)) => (
-                at_line - line + 1,
+            Some((at_unit, kind)) => (
+                at_unit - unit + 1,
                 Some(match kind {
                     BreakType::Page => ColumnEnd::PageBreak,
                     _ => ColumnEnd::ColumnBreak,
@@ -520,36 +706,38 @@ pub fn fill_column<E>(
             None => (fitted, None),
         };
 
-        blocks.push(PlacedParagraph {
-            paragraph: index,
-            lines: line..line + fitted,
+        blocks.push(PlacedBlock {
+            block: index,
+            units: unit..unit + fitted,
             top: y + space_before,
             space_before,
-            continued: line > 0,
-            continues: line + fitted < total,
+            repeated_header: header_height,
+            key_top: if exclusions.is_empty() {
+                NO_FLOATS
+            } else {
+                (y + space_before).emu()
+            },
+            continued: unit > 0,
+            continues: unit + fitted < total,
         });
-        y = y + space_before + layout.height_of(line..line + fitted);
+        y = y + space_before + header_height + layout.height_of(unit..unit + fitted);
 
-        if hard_ended.is_some() || line + fitted < total {
-            let resume_line = line + fitted;
-            next = Some(if resume_line >= total {
+        if hard_ended.is_some() || unit + fitted < total {
+            let resume = unit + fitted;
+            next = Some(if resume >= total {
                 FlowPosition::at(index + 1)
             } else {
                 FlowPosition {
-                    paragraph: index as u32,
-                    line: resume_line as u32,
+                    block: index as u32,
+                    unit: resume as u32,
                 }
             });
             ended = hard_ended.unwrap_or(ColumnEnd::Filled);
             break;
         }
 
-        // The section's last paragraph was placed in full. That ends the page — but **only when
-        // there is something after it**: the last section of a document ends with the document, and
-        // reporting a next position one past the end there would produce an endless run of empty
-        // pages that every "walk until the content stops" caller would take as content.
         if section_last.is_some_and(|last| index >= last) {
-            if index + 1 >= paragraphs.len() {
+            if index + 1 >= program.blocks.len() {
                 next = None;
                 ended = ColumnEnd::ContentEnded;
             } else {
@@ -559,56 +747,87 @@ pub fn fill_column<E>(
             break;
         }
 
-        if !(layout.style.contextual_spacing && same_style(paragraphs, index, index + 1)) {
-            y += layout.space_after;
+        if !(constraints.contextual_spacing && program.same_style(index, index + 1)) {
+            y += layout.space_after();
         }
         index += 1;
-        line = 0;
+        unit = 0;
     }
 
-    // `w:keepNext`, applied after the column is full because it is a statement about the *boundary*
-    // and the boundary is not known until then. A section's own end is not a boundary `w:keepNext`
-    // may move content across — the next paragraph is in a different section and would be on a
-    // different page shape — so the chain is left alone there.
     if next.is_some() && !matches!(ended, ColumnEnd::SectionEnded) {
         apply_keep_with_next(&mut blocks, layouts, width, &mut next);
     }
 
     let used = blocks.last().map_or(Emu::ZERO, |last| {
-        let layout = layouts.get(&(last.paragraph, width.emu()));
-        let height = layout.map_or(Emu::ZERO, |layout| layout.height_of(last.lines.clone()));
-        last.top + height
+        let height = layouts
+            .get(&(last.block, width.emu(), last.key_top))
+            .map_or(Emu::ZERO, |layout| layout.height_of(last.units.clone()));
+        last.top + last.repeated_header + height
     });
     Ok(ColumnFill {
         blocks,
+        floats,
         next,
         used,
         ended,
     })
 }
 
-/// Whether the paragraphs at `one` and `other` name the same `w:pStyle`.
-///
-/// Two paragraphs that name **no** style are the same style: that is the document's default
-/// paragraph style, which is what an unstyled body is made of, and reading `None` as *different*
-/// would turn `w:contextualSpacing` off for exactly the documents that use it most.
-fn same_style(paragraphs: &[ParagraphFormatting], one: usize, other: usize) -> bool {
-    match (paragraphs.get(one), paragraphs.get(other)) {
-        (Some(left), Some(right)) => left.style_id() == right.style_id(),
-        // A paragraph with no neighbour has nothing to share a style with, so the space stands.
-        _ => false,
-    }
+/// The key a block's layout is filed under: the block, the measure, and — only when the column
+/// actually carries a float — the height it starts at.
+#[must_use]
+pub fn cache_key(index: usize, width: Emu, top: Emu, floating: bool) -> (usize, i64, i64) {
+    (
+        index,
+        width.emu(),
+        if floating { top.emu() } else { NO_FLOATS },
+    )
 }
 
-/// How many of `layout`'s lines from `line` onward fit in `available`.
-fn lines_that_fit(layout: &ParagraphLayout, line: usize, available: Emu) -> usize {
+/// The third key field of a block laid out with nothing floating beside it.
+///
+/// **A sentinel and not zero.** A block at the very top of a column has `top == 0`, so zero would
+/// make *laid out with no floats* and *laid out at the top of a column that has one* the same key —
+/// and the block that anchors the float is laid out at exactly that position, so the second layout
+/// would hit the first one's entry and the float would change nothing at all. That was a live defect
+/// for the length of one test run, and it produced a wrapping engine whose every geometric unit test
+/// passed and whose documents were unchanged.
+pub const NO_FLOATS: i64 = i64::MIN;
+
+/// One block's layout, from the memo or from `layout_of`.
+fn cached<E>(
+    layouts: &mut LayoutCache,
+    index: usize,
+    width: Emu,
+    top: Emu,
+    exclusions: &[Exclusion],
+    layout_of: &mut dyn FnMut(usize, LayoutRequest<'_>) -> Result<BlockLayout, E>,
+) -> Result<BlockLayout, E> {
+    let key = cache_key(index, width, top, !exclusions.is_empty());
+    if let Some(found) = layouts.get(&key) {
+        return Ok(found.clone());
+    }
+    let laid_out = layout_of(
+        index,
+        LayoutRequest {
+            width,
+            top,
+            exclusions,
+        },
+    )?;
+    layouts.insert(key, laid_out.clone());
+    Ok(laid_out)
+}
+
+/// How many of `layout`'s units from `unit` onward fit in `available`.
+fn units_that_fit(layout: &BlockLayout, unit: usize, available: Emu) -> usize {
     if available <= Emu::ZERO {
         return 0;
     }
     let mut used = Emu::ZERO;
     let mut fitted = 0_usize;
-    for candidate in layout.lines.iter().skip(line) {
-        let next = used + candidate.height;
+    for candidate in unit..layout.unit_count() {
+        let next = used + layout.unit_height(candidate);
         if next > available {
             break;
         }
@@ -626,78 +845,45 @@ fn lines_that_fit(layout: &ParagraphLayout, line: usize, available: Emu) -> usiz
 #[must_use]
 pub fn widow_control(fitted: usize, remaining: usize) -> usize {
     if remaining < 2 || fitted == 0 || fitted >= remaining {
-        // Nothing to protect: a one-line paragraph has no widow, and a paragraph that fits entirely
-        // has no boundary inside it.
         return fitted;
     }
     let mut fitted = fitted;
     if remaining - fitted == 1 && fitted >= 2 {
-        // A widow: one line would go over alone. Send a second with it.
         fitted -= 1;
     }
     if fitted == 1 {
-        // An orphan: one line would stay behind alone. Send the paragraph whole.
         fitted = 0;
     }
     fitted
 }
 
-/// The line a hard break inside the paragraph ends the column at, and which kind it was.
-fn hard_break_within(
-    paragraph: &ParagraphFormatting,
-    layout: &ParagraphLayout,
-    from: usize,
-    count: usize,
-) -> Option<(usize, BreakType)> {
-    for break_at in paragraph.hard_breaks() {
-        if !matches!(break_at.kind, BreakType::Page | BreakType::Column) {
-            continue;
-        }
-        for offset in 0..count {
-            let index = from + offset;
-            let Some(line) = layout.lines.get(index) else {
-                break;
-            };
-            if break_at.at >= line.range.start && break_at.at < line.range.end {
-                return Some((index, break_at.kind));
-            }
-        }
-    }
-    None
-}
-
 /// Moves a trailing `w:keepNext` chain on to the next column.
 ///
-/// Only a paragraph placed **in full** can be moved: a paragraph split across the boundary already
-/// has its last line in the same column as what follows it, which is what `w:keepNext` asks for.
+/// Only a block placed **in full** can be moved: one split across the boundary already has its last
+/// unit in the same column as what follows it, which is what `w:keepNext` asks for.
 fn apply_keep_with_next(
-    blocks: &mut Vec<PlacedParagraph>,
+    blocks: &mut Vec<PlacedBlock>,
     layouts: &LayoutCache,
     width: Emu,
     next: &mut Option<FlowPosition>,
 ) {
     loop {
-        // Never empty the column. This is the termination argument for an unsatisfiable chain: a
-        // chain of `w:keepNext` paragraphs longer than a column has no assignment that satisfies it,
-        // so the chain is broken here and the reader sees it broken rather than seeing nothing.
         if blocks.len() < 2 {
             return;
         }
         let Some(last) = blocks.last() else {
             return;
         };
-        let Some(layout) = layouts.get(&(last.paragraph, width.emu())) else {
+        let Some(layout) = layouts.get(&(last.block, width.emu(), last.key_top)) else {
             return;
         };
-        if !layout.style.keep_with_next || last.lines.end != layout.lines.len() {
+        if !layout.constraints().keep_with_next || last.units.end != layout.unit_count() {
             return;
         }
         let moved = FlowPosition {
-            paragraph: last.paragraph as u32,
-            line: last.lines.start as u32,
+            block: last.block as u32,
+            unit: last.units.start as u32,
         };
-        // Only ever move backwards in the document; a `next` already earlier than this block would
-        // mean the column was cut before it, which cannot happen.
         if next.is_some_and(|position| position <= moved) {
             return;
         }

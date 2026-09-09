@@ -35,13 +35,23 @@ use std::path::{Path, PathBuf};
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
 ///
-/// Thirteen at MJXOFF-174 and **seventeen** at MJXOFF-175, and the four that were added are the four
-/// subsystems that child is: `section` (which sheet a page is, and what a break kind means),
-/// `stream` (a header, a footer or a note laid out through the one flow engine), `notes` (the
-/// body/footnote fixed point) and `numbering` (page, line and note counters, and the numeral systems
-/// they are written in). Exact rather than a floor, so adding a module stays a deliberate act; a
-/// `>=` would pass on a walk that stopped early.
-const SOURCE_FILE_COUNT: usize = 17;
+/// Thirteen at MJXOFF-174, **seventeen** at MJXOFF-175 and **twenty-one** at MJXOFF-176.
+///
+/// MJXOFF-175's four are the four subsystems that child is: `section` (which sheet a page is, and
+/// what a break kind means), `stream` (a header, a footer or a note laid out through the one flow
+/// engine), `notes` (the body/footnote fixed point) and `numbering` (page, line and note counters,
+/// and the numeral systems they are written in).
+///
+/// MJXOFF-176's four are tables and floats, and the split between them is deliberate: `wrap` is
+/// **geometry with no document in it** — polygons, bands and the largest-side rule — `float` turns a
+/// `wp:anchor` into a rectangle in a column, `table` is the grid, the two layout algorithms and the
+/// slices a page break falls between, and `block` is the one abstraction that lets a paragraph and a
+/// table go through the same paginator. Keeping `wrap` free of `mjx-docx` is what makes it testable
+/// against numbers rather than against a fixture.
+///
+/// Exact rather than a floor, so adding a module stays a deliberate act; a `>=` would pass on a walk
+/// that stopped early.
+const SOURCE_FILE_COUNT: usize = 21;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

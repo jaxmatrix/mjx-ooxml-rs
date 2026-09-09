@@ -185,10 +185,13 @@ pub use ranges::{
     MarkupRange, RangeIndex, RangeResolution,
 };
 pub use residency::{
-    ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, HardBreak,
-    HeaderFooterFormatting, HeaderFooterSlots, NoteFormatting, NoteReference, ParagraphFormatting,
-    RunFormatting, SectionColumns, SectionFormatting, SectionLineNumbering, SectionNoteRules,
-    SectionPageNumbering, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
+    AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
+    ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, DrawingDistances,
+    DrawingFormatting, DrawingPlacement, FloatingTableAnchoring, HardBreak, HeaderFooterFormatting,
+    HeaderFooterSlots, HorizontalAnchoring, NoteFormatting, NoteReference, ParagraphFormatting,
+    RowFormatting, RowHeightSpecification, RunFormatting, SectionColumns, SectionFormatting,
+    SectionLineNumbering, SectionNoteRules, SectionPageNumbering, TableFormatting,
+    VerticalAnchoring, WidthSpecification, WrapFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
 };
 pub use revisions::{
     math_control_properties, CellMergeTrackChange, CellPropertiesChange,

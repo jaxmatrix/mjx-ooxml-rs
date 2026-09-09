@@ -17,9 +17,16 @@
 //!   not evidence about Word**, and every one of them is a candidate for the Windows sitting.
 //!
 //! MJXOFF-172 (R17) split 31 / 110 / 52, MJXOFF-173 (R18) repeated it, and MJXOFF-174 (R19) opened
-//! this crate at 13 / 15 / 19. MJXOFF-175 (R20) adds sections, columns, headers and notes, and the
-//! split is printed rather than described so that a reader of a green run sees the shape of the
-//! evidence rather than the fact of a pass.
+//! this crate at 13 / 15 / 19. MJXOFF-175 (R20) adds sections, columns, headers and notes, and
+//! MJXOFF-176 (R21) adds tables and floating objects. The split is printed rather than described so
+//! that a reader of a green run sees the shape of the evidence rather than the fact of a pass.
+//!
+//! **R21's evidence is weaker again, and for a nameable reason: there is no external standard for
+//! text wrapping at all.** UAX #14 defines what a line breaker consumes and nothing defines what a
+//! renderer does with a `wp:wrapPolygon`; ECMA-376 names the five wrap elements and the two table
+//! layout algorithms and defines neither algorithm. So this child's `DocumentedBehaviour` rows are
+//! arithmetic and an algorithm borrowed from HTML, its `SpecCode` rows are attributes and defaults,
+//! and every question about *where a line actually goes beside an object* is `EngineDerived`.
 //!
 //! **The evidence got weaker, and that is the honest report.** R19's `DocumentedBehaviour` rows were
 //! unusually strong for a layout engine, because UAX #14 is an external, checkable definition of
@@ -779,6 +786,211 @@ const LEDGER: &[Row] = &[
                   三, which is wrong and at least legible",
     },
 
+
+    // ---------------------------------------------------------------------------------------
+    // MJXOFF-176 (R21) — tables and floating objects.
+    //
+    // **The weakest body of evidence in this crate**, and that is a fact about the subject. There is
+    // no external standard for text wrapping at all: ECMA-376 names the five `wp:wrap*` elements and
+    // the four `ST_WrapText` values and says almost nothing about what a renderer does with any of
+    // them, and the two table layout algorithms are named in a sentence each and defined nowhere. So
+    // the `SpecCode` rows below are attributes and defaults, the `DocumentedBehaviour` ones are
+    // arithmetic or an algorithm defined outside this repository, and everything about *where a
+    // line actually goes beside an object* is `EngineDerived`.
+    // ---------------------------------------------------------------------------------------
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "`w:tblHeader` repeats a row at the top of every page the table spans",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.19 states exactly that, and it is invisible unless the table splits",
+    },
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "`w:cantSplit` keeps a row's content on one page",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.6; the row moves whole rather than breaking",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:trHeight@hRule=\"atLeast\"` raises a short row and `\"exact\"` fixes it",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.80 and `ST_HeightRule`'s own three values",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:gridSpan` covers that many grid columns",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.17, whose own default is one",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "an absent `w:tblLayout` is auto-fit",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.52 states `autofit` as the default for `ST_TblLayoutType`",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:tblW@type=\"pct\"` is in fiftieths of a percent",
+        provenance: Provenance::SpecCode,
+        because: "§17.4.86; the one place in WordprocessingML a percentage is not thousandths",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "`wp:wrapNone` displaces no text",
+        provenance: Provenance::SpecCode,
+        because: "§20.4.2.10: the object is behind or in front of the text and text flows over it",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "`wp:wrapTopAndBottom` leaves no text beside the object",
+        provenance: Provenance::SpecCode,
+        because: "§20.4.2.11 states that text is above and below the object and never beside it",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "`wp:wrapThrough` admits text into the polygon and `wp:wrapTight` does not",
+        provenance: Provenance::SpecCode,
+        because: "§20.4.2.15 against §20.4.2.17 — the two elements share a content model and \
+                  differ in exactly that sentence",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "an even-odd scanline of a polygon is exact between its vertex rows",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "a polygon's edges are straight, so a crossing's x is linear in y and its extremes \
+                  on an interval are at the interval's ends — which is why sampling the band's own \
+                  edges and every vertex inside it finds every extreme there is",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "auto-fit distributes the slack in proportion to each column's own range",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the automatic table layout algorithm HTML defines, whose distribution is the \
+                  unique assignment putting every column the same fraction of the way from its \
+                  minimum to its maximum",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "the solved columns sum exactly to the table's stated width",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: integer division loses a few EMU per column and the remainder has to \
+                  go somewhere, or every table is a hairline narrow at its right rule",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "a `wp:wrapPolygon`'s coordinates are 21600ths of the object's extent",
+        provenance: Provenance::EngineDerived,
+        because: "§20.4.2.16 types the points as `a:CT_Point2D`, which is EMU, and Word writes the \
+                  shape's own 0..21600 drawing space instead; 21600 EMU is 0.06 mm, so the EMU \
+                  reading gives a wrap outline nobody could have authored. Read as relative when \
+                  every coordinate is inside that range and the object is larger than it. **The \
+                  first thing a sitting should check.**",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "`wrapText=\"largest\"` gives a tie to the left run",
+        provenance: Provenance::EngineDerived,
+        because: "`ST_WrapText` names the value and says nothing about a tie; a tie means the object \
+                  is centred, and Word's own dialog labels that case \"left only\" — a reading, not \
+                  a fact",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "a line is composed against one free run and never jumps a float",
+        provenance: Provenance::EngineDerived,
+        because: "no part of ECMA-376 says whether text may continue on the far side of an object \
+                  on the same line; it does not in any renderer anyone has looked at, but that is \
+                  observation rather than specification",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "a line's band is composed at most twice before it is accepted",
+        provenance: Provenance::EngineDerived,
+        because: "the height/width cycle is real and Word's own iteration count is not documented; \
+                  two is the smallest bound that gets the common case exactly right, and the error \
+                  it leaves is one line's height and is visible in `LaidOutLine::measure`",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "a float pushed past by a `topAndBottom` band grows the line box above the text",
+        provenance: Provenance::EngineDerived,
+        because: "the alternative is a block of empty space between two lines, which paginates \
+                  differently at a page boundary; nothing in the specification chooses between them",
+    },
+    Row {
+        suite: "text_wraps_around_a_float",
+        subject: "`relativeFrom=\"character\"` is read as the paragraph's own text start",
+        provenance: Provenance::EngineDerived,
+        because: "a run's x is not knowable before the line it lands on is composed, and that line \
+                  depends on this object — a genuine cycle, cut at the paragraph because that is \
+                  the nearest position that is settled",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "a spanned cell's width demand is shared equally across the columns it covers",
+        provenance: Provenance::EngineDerived,
+        because: "ECMA-376 says nothing about how a `w:gridSpan` contributes to an auto-fit solve; \
+                  equal shares is the only distribution that does not depend on an order the file \
+                  never states",
+    },
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "a row splits at the union of its cells' line bottoms",
+        provenance: Provenance::EngineDerived,
+        because: "no part of the specification says where inside a row a page break may fall; \
+                  cutting at a height every cell has a whole line above is the only rule that never \
+                  clips text, and Word's own answer is unchecked",
+    },
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "a vertically merged cell's height deficit goes to the last row of its group",
+        provenance: Provenance::EngineDerived,
+        because: "ECMA-376 is entirely silent; putting it on the anchor's own row makes one deep \
+                  row followed by thin ones, and distributing it evenly moves every rule in the \
+                  group",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "an absent `w:tblCellMar` is 0 / 0 / 115 / 115 twips",
+        provenance: Provenance::EngineDerived,
+        because: "no default is stated anywhere; 115 twips is what every table Word creates writes \
+                  explicitly, and no side margin at all sets text against the cell's own rules",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:tblInd` and `w:jc` do not compose",
+        provenance: Provenance::EngineDerived,
+        because: "§17.4.64 calls `w:tblInd` an indent from the leading margin and does not say \
+                  whether a centred table is then indented as well; adding them moves a centred, \
+                  indented table twice",
+    },
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "a table states no space before or after itself",
+        provenance: Provenance::EngineDerived,
+        because: "`w:tbl` has nothing analogous to `w:spacing`, so the gap above a table is whatever \
+                  the paragraph before it states; whether Word adds anything of its own is unchecked",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:vAlign` shifts a split row's content by the same amount on every page",
+        provenance: Provenance::EngineDerived,
+        because: "§17.4.83 states the three values and says nothing about a row split across a                   page; shifting each slice independently would move the text at the boundary,                   which is the one thing a reader of a split table would notice",
+    },
+    Row {
+        suite: "a_table_grid_is_solved",
+        subject: "`w:vAlign=\"both\"` is read as `top`",
+        provenance: Provenance::EngineDerived,
+        because: "`both` justifies a cell's paragraphs vertically, which distributes the space                   *between* them rather than above them; reading it as `top` until something                   distributes it keeps the text where the file's first line puts it",
+    },
+    Row {
+        suite: "a_table_splits_across_a_page",
+        subject: "`w:widowControl` does not apply to a table's rows",
+        provenance: Provenance::EngineDerived,
+        because: "the rule is defined for lines of a paragraph and a row is not a line; refusing to \
+                  leave one row at a page foot is `w:cantSplit`'s job and the author says which rows",
+    },
+
 ];
 
 fn split() -> BTreeMap<Provenance, usize> {
@@ -813,15 +1025,15 @@ fn the_split_is_printed_and_asserted_in_both_directions() {
     // had stopped asserting anything at all.
     assert_eq!(spec + documented + engine, LEDGER.len());
     assert!(
-        spec >= 28,
+        spec >= 34,
         "the specification really does state this many of them: {spec}"
     );
     assert!(
-        documented >= 18,
+        documented >= 21,
         "these are the rows that are evidence, and there must be some: {documented}"
     );
     assert!(
-        engine >= 40,
+        engine >= 53,
         "and this many are only this engine agreeing with itself — a count that *fell* would mean \
          somebody had relabelled a guess: {engine}"
     );

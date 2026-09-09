@@ -162,6 +162,8 @@ pub fn lay_out_stream(
             engine,
             paragraph,
             FlowContext {
+                top: Emu::ZERO,
+                exclusions: &[],
                 column,
                 settings,
                 hyphenator,

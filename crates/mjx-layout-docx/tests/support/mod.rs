@@ -255,7 +255,11 @@ pub(crate) fn walk(
     pages
 }
 
-/// Which page each paragraph's first line landed on, by walking.
+/// Which page each **block**'s first unit landed on, by walking.
+///
+/// Indexed by block rather than by paragraph since MJXOFF-176, because that is what a fragment's own
+/// address carries and what a `FlowPosition` names. The two coincide for a document with no table in
+/// it, which is every fixture written before that child.
 ///
 /// **The assertion pagination gates are written in.** A gate on a page's *content* is green for an
 /// implementation that honours no constraint at all, because the same text is on the same pages in
@@ -266,7 +270,7 @@ pub(crate) fn page_of_each_paragraph(
     constraints: &Constraints,
     limit: usize,
 ) -> Vec<Option<usize>> {
-    let mut answer = vec![None; flow.paragraph_count()];
+    let mut answer = vec![None; flow.block_count()];
     for (number, page) in walk(model, flow, constraints, limit).iter().enumerate() {
         for paragraph in paragraphs_on(page.fragments()) {
             if answer.get(paragraph).is_some_and(Option::is_none) {
@@ -492,11 +496,7 @@ pub(crate) fn lay_out_one(properties: &str, text: &str, column_inches: f64) -> P
     lay_out(
         &mut engine,
         formatting.paragraphs().first().expect("one paragraph"),
-        FlowContext {
-            column,
-            settings: formatting.settings(),
-            hyphenator: None,
-        },
+        FlowContext::plain(column, formatting.settings(), None),
     )
     .expect("the paragraph lays out")
 }
@@ -650,4 +650,195 @@ pub(crate) fn referencing_note(footnotes: bool, id: i64, text: &str) -> String {
             escape(text)
         ),
     )
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-176 (R21): tables and floating objects.
+// -------------------------------------------------------------------------------------------
+
+/// One `w:tc`: `properties` is the body of its `w:tcPr` (empty for none) and `content` its blocks.
+pub(crate) fn cell(properties: &str, content: &str) -> String {
+    let tcpr = if properties.is_empty() {
+        String::new()
+    } else {
+        format!("<w:tcPr>{properties}</w:tcPr>")
+    };
+    format!("<w:tc>{tcpr}{content}</w:tc>")
+}
+
+/// A cell holding one paragraph of `text`.
+pub(crate) fn text_cell(properties: &str, text: &str) -> String {
+    cell(properties, &paragraph("", text))
+}
+
+/// One `w:tr`: `properties` is the body of its `w:trPr` and `cells` its cells.
+pub(crate) fn row(properties: &str, cells: &[String]) -> String {
+    let trpr = if properties.is_empty() {
+        String::new()
+    } else {
+        format!("<w:trPr>{properties}</w:trPr>")
+    };
+    format!("<w:tr>{trpr}{}</w:tr>", cells.concat())
+}
+
+/// One `w:tbl`: `properties` is the body of its `w:tblPr`, `grid` the column widths in twips.
+pub(crate) fn table(properties: &str, grid: &[i64], rows: &[String]) -> String {
+    let columns: String = grid
+        .iter()
+        .map(|width| format!(r#"<w:gridCol w:w="{width}"/>"#))
+        .collect();
+    format!(
+        "<w:tbl><w:tblPr>{properties}</w:tblPr><w:tblGrid>{columns}</w:tblGrid>{}</w:tbl>",
+        rows.concat()
+    )
+}
+
+/// The namespace declarations a `w:drawing` needs when it is written into a document that declares
+/// only `w:` and `r:` — which is what [`document_markup`] writes.
+pub(crate) const DRAWING_NAMESPACES: &str = concat!(
+    r#" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing""#,
+    r#" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+);
+
+/// A paragraph whose run carries one anchored `w:drawing`, followed by `text`.
+///
+/// `width` and `height` are in EMU; `position` is the body of `wp:positionH` and `wp:positionV`
+/// together; `wrap` is the whole `wp:wrap*` element.
+pub(crate) fn floating_paragraph(
+    properties: &str,
+    text: &str,
+    width: i64,
+    height: i64,
+    position: &str,
+    wrap: &str,
+) -> String {
+    let ppr = if properties.is_empty() {
+        String::new()
+    } else {
+        format!("<w:pPr>{properties}</w:pPr>")
+    };
+    format!(
+        r#"<w:p>{ppr}<w:r>{rpr}<w:drawing{ns}><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="1" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>{position}<wp:extent cx="{width}" cy="{height}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>{wrap}<wp:docPr id="1" name="Object"/><a:graphic><a:graphicData uri="urn:test"/></a:graphic></wp:anchor></w:drawing></w:r><w:r>{rpr}<w:t xml:space="preserve">{escaped}</w:t></w:r></w:p>"#,
+        rpr = run_properties(11.0),
+        ns = DRAWING_NAMESPACES,
+        escaped = escape(text),
+    )
+}
+
+/// A `wp:positionH`/`wp:positionV` pair placing an object at `(x, y)` EMU from the column and the
+/// paragraph respectively — the anchoring a picture dropped into a paragraph gets.
+pub(crate) fn offset_position(x: i64, y: i64) -> String {
+    format!(
+        r#"<wp:positionH relativeFrom="column"><wp:posOffset>{x}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>{y}</wp:posOffset></wp:positionV>"#
+    )
+}
+
+/// A `wp:wrapSquare` of `side`.
+pub(crate) fn square_wrap(side: &str) -> String {
+    format!(r#"<wp:wrapSquare wrapText="{side}" distT="0" distB="0" distL="0" distR="0"/>"#)
+}
+
+/// A `wp:wrapTight` (or `wp:wrapThrough`, when `through`) around `polygon`, whose points are in the
+/// `0..21600` space Word writes.
+pub(crate) fn polygon_wrap(side: &str, through: bool, polygon: &[(i64, i64)]) -> String {
+    let local = if through { "wrapThrough" } else { "wrapTight" };
+    let mut points = String::new();
+    for (index, (x, y)) in polygon.iter().enumerate() {
+        if index == 0 {
+            points.push_str(&format!(r#"<wp:start x="{x}" y="{y}"/>"#));
+        } else {
+            points.push_str(&format!(r#"<wp:lineTo x="{x}" y="{y}"/>"#));
+        }
+    }
+    format!(
+        r#"<wp:{local} wrapText="{side}" distL="0" distR="0"><wp:wrapPolygon edited="0">{points}</wp:wrapPolygon></wp:{local}>"#
+    )
+}
+
+/// The one paragraph of `document`, laid out at `column_inches` against `exclusions`.
+pub(crate) fn lay_out_one_around(
+    properties: &str,
+    text: &str,
+    column_inches: f64,
+    exclusions: &[mjx_layout_docx::Exclusion],
+) -> ParagraphLayout {
+    let mut document = document(&[paragraph(properties, text)]);
+    let formatting = document.formatting().expect("the document resolves");
+    let mut resolver = resolver();
+    let mut rasteriser = mjx_text::GlyphRasteriser::new();
+    let mut shaper = mjx_text::Shaper::new();
+    let features = mjx_text::FeatureSet::default();
+    let mut engine = TextEngine {
+        fonts: &mut resolver,
+        rasteriser: &mut rasteriser,
+        shaper: &mut shaper,
+        features: &features,
+    };
+    let column = LayoutRect::from_edges(
+        Emu::ZERO,
+        Emu::ZERO,
+        Emu::from_inches(column_inches),
+        Emu::from_inches(11.0),
+    );
+    lay_out(
+        &mut engine,
+        formatting.paragraphs().first().expect("one paragraph"),
+        FlowContext {
+            column,
+            settings: formatting.settings(),
+            hyphenator: None,
+            top: Emu::ZERO,
+            exclusions,
+        },
+    )
+    .expect("the paragraph lays out")
+}
+
+/// Every `mjx_layout::TableCell` a page's fragments carry, as `(row, column, span)`, in tree order.
+pub(crate) fn cells_on(tree: &FragmentTree) -> Vec<(u32, u16, u16)> {
+    tree.nodes()
+        .filter_map(|(_, node)| match node.fragment() {
+            Fragment::Box(fragment) => fragment
+                .cell
+                .as_ref()
+                .map(|cell| (cell.row, cell.column, cell.column_span)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Which table rows a page holds, in ascending order and without repeats.
+pub(crate) fn rows_on(tree: &FragmentTree) -> Vec<u32> {
+    let mut rows: Vec<u32> = cells_on(tree).into_iter().map(|cell| cell.0).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    rows
+}
+
+/// The exclusions the floats of `markup`'s first paragraph contribute, in a column `width_inches`
+/// wide.
+///
+/// **The whole path a document actually takes**: the markup is parsed, the residency resolves the
+/// `wp:anchor` to plain numbers, and [`mjx_layout_docx::place_float`] turns those into geometry. A
+/// suite that built an `Exclusion` by hand would assert the geometry and prove nothing about the
+/// file.
+pub(crate) fn float_exclusions(
+    markup: String,
+    width_inches: f64,
+) -> Vec<mjx_layout_docx::Exclusion> {
+    let mut document = document(&[markup]);
+    let formatting = document.formatting().expect("the document resolves");
+    let paragraph = formatting.paragraphs().first().expect("one paragraph");
+    let frame = mjx_layout_docx::Anchorage::contained(
+        Emu::from_inches(width_inches),
+        Emu::from_inches(11.0),
+        Emu::ZERO,
+    );
+    paragraph
+        .drawings()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, drawing)| mjx_layout_docx::place_float(drawing, 0, index, frame))
+        .filter_map(|placed| placed.exclusion)
+        .collect()
 }

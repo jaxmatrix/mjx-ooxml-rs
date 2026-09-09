@@ -44,6 +44,27 @@
 //! just excluded, which re-adds the note, which re-shrinks it. A few EMU of white space above the
 //! footnote rule is what a stable answer costs, and Word leaves the same gap.
 //!
+//! # MJXOFF-176: does a split table, or a float, break the argument?
+//!
+//! **No, and the reason is worth writing down rather than assuming.** Fact 1 above is the whole
+//! proof, and it says *the body content placed is a prefix of what more room would have placed*.
+//!
+//! * **A table** places a prefix of its slices, by exactly the arithmetic a paragraph's lines go
+//!   through — [`crate::paginate::fill_column`] does not know which kind of block it is holding. A
+//!   `w:cantSplit` row is **one** slice, so it is refused whole rather than partly, which is still a
+//!   prefix. A repeating `w:tblHeader` adds a constant to a continuation's height, and a constant
+//!   does not depend on *R*.
+//! * **A float** is the case that could have broken it, and it is prevented rather than argued away.
+//!   A float anchored to the bottom of its column would move when the reservation changed, and the
+//!   second assembly could then place text the first did not — content that is *not* a prefix, and
+//!   an iteration with no bound. So a float's frame is resolved against the **page's body height**
+//!   and never against the assembly's own reduced height; `crate::paginate::fill_at` states that and
+//!   `crate::model` sets it. With the frame fixed, every float on the page is the same rectangle in
+//!   both assemblies, the exclusions are identical, and fact 1 holds unchanged.
+//!
+//! The bound is therefore still **two**, and `PageReport::assemblies` still asserts both that it is
+//! at most two and that two is actually reached.
+//!
 //! # A footnote taller than the page
 //!
 //! That is a real document and not a hypothetical, and it is where an unbounded reservation stops
