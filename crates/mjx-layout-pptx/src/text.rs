@@ -241,6 +241,10 @@ pub fn composer_runs<'a>(
             size: styled.size,
             features,
             language: styled.language.as_deref(),
+            // A slide's inline objects — a `a:fld`'s rendered text above all — are ordinary
+            // characters of the paragraph rather than atomic boxes, so nothing here declares a fixed
+            // advance yet. See `mjx_layout::TextRun::advance`.
+            advance: None,
         });
     }
     runs

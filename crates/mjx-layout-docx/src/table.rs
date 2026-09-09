@@ -606,7 +606,7 @@ fn lay_out_row<E>(
                         content.push(PlacedCellBlock {
                             top: used + space_before,
                             paragraph: Some(*index),
-                            layout: Box::new(BlockLayout::Paragraph(layout)),
+                            layout: Box::new(BlockLayout::Paragraph(Box::new(layout))),
                         });
                         used = used + space_before + height + after;
                     }

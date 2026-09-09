@@ -3,13 +3,12 @@
 //!
 //! # These are computed here and rendered by different things
 //!
-//! A **page** number is displayed by a `PAGE` field, and fields are MJXOFF-177 (R22); this child
-//! computes the number and draws nothing. A **line** number is not a field at all — Word generates
-//! it and draws it in the margin — so it is computed *and* drawn here. A **note** mark is generated
-//! the same way, and the number that appears at the head of the note itself is drawn here too, while
-//! the reference mark in the body is not: the body's run stream contributes no character for it (see
-//! `mjx_docx::NoteReference`), so there is nothing on that line to hang a glyph on until R22 makes
-//! generated marks part of the text.
+//! A **page** number is displayed by a `PAGE` field, and MJXOFF-177 (R22) is what renders one from
+//! the number this module computes. A **line** number is not a field at all — Word generates it and
+//! draws it in the margin — so it is computed *and* drawn here. A **note** mark is generated the
+//! same way; the number at the head of the note itself is drawn here, and the reference mark in the
+//! body is spliced into the paragraph's layout text by [`crate::generated`], which is what gives it
+//! a width and therefore a place on a line.
 //!
 //! # Why a note's number needs no checkpoint field
 //!

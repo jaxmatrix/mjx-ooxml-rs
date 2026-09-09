@@ -95,6 +95,12 @@ pub struct StyledItem {
     pub language: Option<String>,
     /// Whether the item is exactly one tab character, which is placed rather than drawn.
     pub is_tab: bool,
+    /// A fixed advance in points, for the one `U+FFFC` standing for an inline object.
+    ///
+    /// It reaches [`mjx_layout::TextRun::advance`] through [`composer_runs`], and it is what makes a
+    /// line carrying a picture or an equation **measured with it on**. See
+    /// [`crate::generated`] for why an object is one character and not a width beside the run list.
+    pub advance: Option<f64>,
 }
 
 /// Where a paragraph's runs may be cut before shaping.
@@ -135,6 +141,7 @@ pub fn itemise_paragraph(
     runs: &[RunStyle],
     bidi: &BidiAnalysis,
     policy: CutPolicy,
+    objects: &[crate::generated::InlineObject],
 ) -> Result<Vec<StyledItem>, FontError> {
     let mut styled = Vec::new();
     for (index, run) in runs.iter().enumerate() {
@@ -145,6 +152,26 @@ pub fn itemise_paragraph(
             .with_weight(run.weight)
             .with_slant(run.slant);
         for piece in cut(text, run.range.clone(), policy) {
+            // An inline object: one `U+FFFC`, given the *run's* face for the same reason a tab is
+            // given one — no ordinary text face maps `U+FFFC`, an item with no face is dropped, and
+            // a dropped item is an object that reserves nothing. Its glyphs are never drawn: the
+            // fixed advance makes `mjx_layout::LineComposer` skip shaping it entirely.
+            if let Some(object) = objects.iter().find(|object| object.at == piece.start) {
+                let face = engine.fonts.resolve(&request)?.face().map(Arc::clone);
+                styled.push(StyledItem {
+                    range: piece,
+                    script: TextScript::COMMON,
+                    level: bidi.level_at(run.range.start),
+                    direction: bidi.level_at(run.range.start).direction(),
+                    face,
+                    run: index,
+                    size: run.size,
+                    language: run.language.clone(),
+                    is_tab: false,
+                    advance: Some(object.width.points()),
+                });
+                continue;
+            }
             if text.get(piece.clone()).is_some_and(|slice| slice == "\t") {
                 // See [`StyledItem`]: a tab has no glyph in any ordinary face, so it is given the
                 // face its run resolves to rather than the one that can draw a `U+0009`.
@@ -159,6 +186,7 @@ pub fn itemise_paragraph(
                     size: run.size,
                     language: run.language.clone(),
                     is_tab: true,
+                    advance: None,
                 });
                 continue;
             }
@@ -173,6 +201,7 @@ pub fn itemise_paragraph(
                     size: run.size,
                     language: run.language.clone(),
                     is_tab: false,
+                    advance: None,
                 });
             }
         }
@@ -275,6 +304,7 @@ pub fn composer_runs<'a>(
             size: styled.size,
             features,
             language: styled.language.as_deref(),
+            advance: styled.advance,
         });
     }
     runs

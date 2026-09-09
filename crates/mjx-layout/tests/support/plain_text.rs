@@ -244,6 +244,9 @@ impl BoxModel for PlainTextColumn {
                 size: self.size,
                 features: &self.features,
                 language: None,
+                // Plain text and nothing else: this harness has no inline objects, so it declares
+                // no fixed advance. See `mjx_layout::TextRun::advance`.
+                advance: None,
             }];
             let composer = LineComposer::new(text, &runs, &bidi, LineBreakOptions::default());
 

@@ -1,53 +1,219 @@
-MJXOFF-176 (R21) — gate run
-branch:  pipeline/r21-tables-floats
-version: 0.0.152
-started: 2026-09-09T14:00:13Z
+MJXOFF-177 (R22) — mjx-layout-docx part 4: fields, numbering, revision marks and OMML
+=====================================================================================
 
-cargo fmt --all -- --check                     exit=0   2026-09-09T14:00:13Z -> 2026-09-09T14:00:19Z
-cargo test --workspace                         exit=0   2026-09-09T14:00:19Z -> 2026-09-09T14:18:06Z
-cargo clippy --workspace --all-targets         exit=0   2026-09-09T14:18:06Z -> 2026-09-09T14:18:31Z
-cargo test -p xtask --test layering            exit=0   2026-09-09T14:18:31Z -> 2026-09-09T14:18:32Z
-cargo test -p xtask --test escape_hatches      exit=0   2026-09-09T14:18:32Z -> 2026-09-09T14:18:33Z
-cargo test -p xtask --test unsafe_allowance    exit=0   2026-09-09T14:18:33Z -> 2026-09-09T14:18:34Z
-cargo run -p xtask -- tokens --check           exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:34Z
-check-suppress-naming.sh                       exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:34Z
-cargo doc --workspace --no-deps                exit=0   2026-09-09T14:18:34Z -> 2026-09-09T14:18:40Z
+Branch: pipeline/r22-fields-math
+Worktree: /home/xm-max/Documents/Projects/mjx-ooxml-rs/.claude/worktrees/client-platform
+Version: 0.0.153 (Cargo.toml, CHANGELOG.md, bindings/mjx-wasm/npm/package.json)
 
-finished: 2026-09-09T14:18:40Z
+Machine note. `target/` was 63 GB at the start of this child and was cleaned before any
+build: `cargo clean` removed 90 259 files / 65.2 GiB at 2026-09-09T19:55:42+05:30, taking
+/home from 78 % to 65 % used. It ended this child at roughly 12 GB. A peer session was
+running its own `cargo test --workspace` in the repository root (PID 87758, cwd
+/home/xm-max/Documents/Projects/mjx-ooxml-rs) for part of this; it was left alone, and it
+is why the timings below are longer than they would otherwise be.
 
-Two earlier passes, recorded because a record that mentions only the green run is not a record of
-what happened.
 
-13:38:22Z -> 13:54:51Z, red once. The first shape of this child's own new sentinel gate wrote the
-direct assertion as `assert!(NO_FLOATS < 0)`, and clippy refused it as `assertions_on_constants` —
-correctly, and the fix is better than the lint required: the property that matters is not the
-sentinel's sign but that **no reachable column top keys the same way**, so it is now stated over
-real positions (0, 0.001, 1, 10 and 100 inches) rather than over the constant. `cargo test
---workspace` was green in that pass (13:38:27Z -> 13:54:24Z).
+THE RED PASSES, BEFORE THE GREEN ONE
+------------------------------------
+A record that mentions only the green run is not a record. Every failure below is one this
+child's own gates produced, in the order they happened.
 
-12:34:07Z -> 13:05:51Z, red twice, both mechanical and both in this child's own new code:
+ 1. `cargo test -p mjx-layout-docx` — FAILED, `the_fragments_match_their_baselines`:
+    "2 of 10 specimens moved". `effective_properties.docx` and `numbering_definitions.docx`
+    hold numbered paragraphs and their markers are now drawn, so each numbered line gained
+    a glyph run before its text. EXPECTED. Regenerated under MJX_LAYOUT_DOCX_REGENERATE=1;
+    both baselines are still stamped `approver = generator`.
 
-  cargo clippy --workspace --all-targets     exit=101  14 lints in mjx-layout-docx: eleven
-                                                       `assign_op_pattern` (`x = x + y` on `Emu`),
-                                                       one `eq_op` (`body.left - body.left`, written
-                                                       to say "zero by construction" and better said
-                                                       as `Emu::ZERO`), one `too_many_arguments` on
-                                                       `Exclusion::from_polygon`, and one
-                                                       `chunks_exact_to_as_chunks`.
-  cargo doc --workspace --no-deps            exit=101  one broken intra-doc link: `[`Emu::MAX`]`,
-                                                       which does not exist.
+ 2. `cargo test -p mjx-layout-docx --test the_seam_holds` — FAILED,
+    `the_source_tree_is_the_size_it_is_declared_to_be`: 26 against 21. EXPECTED — five new
+    modules. The constant was raised with the reason written into its own doc comment.
 
-`cargo test --workspace` was green in that pass too (12:34:12Z -> 13:03:45Z), so no behaviour changed
-across any of the three runs — only lints, and then the sentinel gate that should have been there
-from the start.
+ 3. `cargo test -p mjx-layout-docx --test a_stale_field_is_recomputed` — FAILED,
+    `a_page_field_renders_the_page_it_is_on_and_not_the_page_it_says`: `[]` against `["3"]`.
+    A REAL DEFECT. `compose_paragraph` passed `None` for the block, so a body `PAGE` field
+    had nothing to look its page up by and rendered its cache. Fixed by threading the block
+    index from `lay_out_block_inner`; a table cell's paragraphs take the table's own block
+    number, which is stated at the site.
 
-The mutation this gate exists for, run both ways before the commit:
+ 4. `cargo test -p mjx-layout-docx --test a_deletion_changes_the_page` — FAILED twice, on
+    `the_same_document_paginates_differently_in_all_markup_and_no_markup`:
+      (a) "4 against 4" — a FIXTURE defect. Every paragraph was *entirely* a deletion, and
+          an empty paragraph still occupies a line, so hiding the deletions emptied
+          paragraphs rather than removing lines. Rewritten so each deletion sits on a line
+          that also carries kept text.
+      (b) "2 against 2" — A REAL DEFECT, and the sharpest one this child found.
+          `Composition::plain` built its builder with `RevisionView::default()`, which is
+          *Simple Markup* — so a paragraph routed down the plain path was laid out from the
+          finished text even when the caller had asked for *All Markup*. The same document,
+          laid out from a different string, with no error anywhere. Fixed two ways: `plain`
+          now shows every revision (it is *the document's own text*), and a paragraph with
+          any tracked change is routed through `compose` with the caller's real view, so
+          the change bar is a function of that view too.
 
-  NO_FLOATS = i64::MIN (as committed)   cargo test -p mjx-layout-docx  ->  exit 0
-  NO_FLOATS = 0        (the collision)  cargo test -p mjx-layout-docx  ->  exit 101, and the two
-                                        failures are exactly the two new assertions:
-                                          a_float_at_the_very_top_of_a_column_still_displaces_its_own_paragraph
-                                          the_float_free_cache_key_is_not_a_key_a_column_top_can_take
-                                        The behavioural one reports the symptom rather than the
-                                        value: "the anchoring paragraph's own first line starts past
-                                        the object it anchors ... would put it at 0 instead: 0".
+ 5. `cargo test -p mjx-layout-docx --test an_equation_is_typeset` — FAILED, four tests. Two
+    FIXTURE defects: the harness laid an equation out in a paragraph with **no run**, so it
+    was set at `ASSUMED_FONT_SIZE_POINTS` (10) rather than 12 and every axis assertion was
+    a sixth low; and the equation-array test read the equation's own row box rather than
+    the array inside it. One float-equality assertion (9.6 against 9.600000000000001)
+    replaced with a tolerance.
+
+ 6. `cargo test -p mjx-layout-docx --test a_generated_mark_is_measured` — FAILED,
+    `a_footnote_reference_mark_is_on_the_line_and_has_a_width`: 733994 against 745629 —
+    a FIXTURE defect, and one worth recording: the marked line and its control were built
+    by two different helpers at two different point sizes, so the test was reading a size
+    difference and calling it a mark. Rewritten to put both paragraphs in **one** document,
+    written by the same builder, so they differ in exactly one thing.
+
+ 7. `cargo test --workspace` — FAILED to compile: `mjx-scene`'s
+    `glyph_outlines_tessellate_as_paths` includes `mjx-layout`'s shared test helper
+    `tests/support/plain_text.rs`, which builds a `TextRun` and needed the new `advance`
+    field. EXPECTED, and the reason the field was added deliberately rather than smuggled:
+    it is a change to the contract all three box models share. Six more construction sites
+    in `mjx-layout`'s own suites, plus `mjx-layout-pptx` and `mjx-layout-xlsx`, each given
+    `advance: None` with a one-line justification at the two box models.
+
+ 8. `cargo test -p mjx-docx --test residency_generated` — FAILED, two tests. A REAL DEFECT
+    found by a test written after the implementation: `Document::formatting` stored a
+    `NumberingDefinition` for `w:numId="0"` (which is the *removal* of an inherited
+    reference, not a list) and for an id `word/numbering.xml` does not define (an empty
+    definition, so `numbering_definition` answered `Some` for a list nobody can draw).
+    Both are now skipped.
+
+ 9. Not a gate failure but a defect found by reading, and worth the same record:
+    `SequenceCounters` was constructed **per paragraph**, so every `SEQ Figure` in a
+    document rendered `1`. It cannot be a counter advanced at layout time either, because a
+    paragraph is laid out out of order and more than once. Fixed with `SequenceValues`, a
+    document-order walk in the shape `ListNumbering` already had, and gated by two new
+    tests — one for the counting and one asserting the same paragraph composed three times
+    gives the same answer, which a running counter cannot.
+
+
+THE GREEN PASS
+--------------
+One pass, in this order, after the last edit. Each line is the command, its exit code, and
+the wall-clock start and finish of that command.
+
+cargo fmt --all -- --check
+    exit 0     start 2026-09-09T22:26:51+05:30   finish 2026-09-09T22:26:56+05:30
+
+cargo test --workspace
+    exit 0     start 2026-09-09T22:27:06+05:30   finish 2026-09-09T22:37:39+05:30
+    440 `test result: ok` groups, 0 failures, 0 `test result: FAILED`.
+
+cargo clippy --workspace --all-targets -- -D warnings
+    exit 0     start 2026-09-09T22:37:54+05:30   finish 2026-09-09T22:38:08+05:30
+
+cargo test -p xtask --test layering
+    exit 0     start 2026-09-09T22:38:14+05:30   finish 2026-09-09T22:38:15+05:30
+    7 passed. `mjx-layout-docx` still declares exactly the six permitted dependencies; this
+    child added no crate edge at all — the OMML tree is resolved in `mjx-docx` precisely so
+    that `mjx-omml` does not have to become a seventh.
+
+cargo test -p xtask --test escape_hatches
+    exit 0     start 2026-09-09T22:38:22+05:30   finish 2026-09-09T22:38:23+05:30
+    9 passed.
+
+cargo test -p xtask --test unsafe_allowance
+    exit 0     start 2026-09-09T22:38:23+05:30   finish 2026-09-09T22:38:23+05:30
+    3 passed. This child writes no `unsafe` anywhere.
+
+cargo run -p xtask -- tokens --check
+    exit 0     start 2026-09-09T22:38:23+05:30   finish 2026-09-09T22:38:23+05:30
+    "tokens: 3 artefacts match docs/client-platform/data/tokens.json"
+
+bash .github/scripts/check-suppress-naming.sh
+    exit 0     start 2026-09-09T22:38:30+05:30   finish 2026-09-09T22:38:38+05:30
+    RED FIRST, and the fix is a change to the gate rather than to the code: the script
+    allows the bare `Deleted` only under `crates/mjx-docx/` and `crates/mjx-omml/`, and
+    `mjx-layout-docx` now names `RevisionKind::Deleted` because a box model has to decide
+    whether a deletion is measured in the current view. `crates/mjx-layout-docx/` was added
+    to that path list with the reason written into the script's own header, which is what
+    the script's failure message asks a caller to do.
+
+RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links" \
+  cargo doc --workspace --no-deps
+    exit 0     start 2026-09-09T22:38:54+05:30   finish 2026-09-09T22:39:19+05:30
+    RED FIRST, twice, both in `mjx-layout-docx/src/lib.rs`: `redundant explicit link target`
+    on `[`Composition`](crate::generated::Composition)` and the same for `RevisionView` —
+    the label already resolves. Both explicit targets removed. Also caught earlier, and
+    fixed before this pass: four `private_intra_doc_links` in `mjx-docx`, where new
+    documentation linked to the private `residency`/`equations` modules; rewritten to the
+    public `crate::` re-exports.
+
+
+WHAT EACH GATE COVERS, AND THE ONE THAT IS NOT IN THE LIST
+---------------------------------------------------------
+`cargo test --workspace` is the gate that carries this child: 275 new assertions across six new
+suites in `mjx-layout-docx` and one in `mjx-docx`, plus every suite the three earlier Word children
+wrote, plus the two committed fragment baselines that moved and were regenerated.
+
+The suites this child added, and what each refuses:
+
+  a_stale_field_is_recomputed          a `PAGE` field whose stored value is `1` on page three
+                                       renders `3`; and the same document with the evaluator
+                                       switched off renders `1`, so the gate can fail
+  a_field_fixed_point_terminates       an ordinary document converges in two passes; a real
+                                       multi-page document of `PAGE`/`NUMPAGES` fields settles; an
+                                       oscillator exhausts the budget and falls back; and a page
+                                       full of fields still assembles at most twice, with two
+                                       actually reached
+  a_deletion_changes_the_page          the same document paginates 8 pages in All Markup and 2 in
+                                       No Markup — a page COUNT, which no amount of tinting changes
+  a_list_composes_its_marker           `I.A.1`, a `w:lvlRestart` that names a level, a
+                                       `w:startOverride`, `w:isLgl`, and a list inherited through a
+                                       style — every one of them a case the identity cannot produce
+  an_equation_is_typeset               a nested fraction's two bar positions, a growing delimiter
+                                       against a non-growing control, the two script scale-downs,
+                                       and an equation array's alignment axis
+  a_generated_mark_is_measured         the two inherited defects: a footnote mark has a width, an
+                                       inline drawing has an advance and a height, and an object on
+                                       a three-inch measure moves a line break
+  mjx-docx residency_generated         the residency's own four surfaces, including the `w:ins`
+                                       that used to contribute nothing at all
+
+**Not in the gate list, and not run: the ECMA-376 schema suites.** They need
+`MJX_REQUIRE_SCHEMA=1` and are not in this child's brief. They were not run here, and the reason is
+worth stating rather than leaving to be assumed: this child changes no writer. `mjx-docx`'s
+residency additions are all **reads** and its `document/equations.rs` is a read of `mjx-omml`; no
+element is authored, no child order moves, and `cargo test --workspace` runs `mjx-docx`'s
+`wml_child_order` and `roundtrip` suites, both of which passed.
+
+THE WEAKEST PART OF THIS CHILD, STATED PLAINLY
+----------------------------------------------
+**The OMML typesetter's constants, and the stretchy delimiter above all.**
+
+`mjx-text` parses no OpenType `MATH` table — a grep of that crate for `MATH` returns nothing at
+all — so every number `crate::math` uses comes from somewhere other than the font: the two script
+scale-downs from the `MATH` table's own documented defaults, the axis height from TeX's
+`\fontdimen22` and MathML Core's fallback, the rule thickness from `\fontdimen8`, the fraction gaps
+from *The TeXbook*'s Appendix G. Those are real external references and they are **not Word's
+numbers**. What the gate asserts is therefore the *relationships* — a bar on an axis, a script at a
+stated fraction, a delimiter that reaches its content, an array on one alignment axis — and not any
+measurement.
+
+The delimiter is worse than a constant. Without `MathVariants` there is no ladder of pre-drawn
+sizes and no assembly, so a growing bracket is drawn by setting the glyph at a **larger size**,
+which grows its stroke weight with its height. That is fine for the one-and-a-bit lines a fraction
+or a sum needs and visibly wrong for a bracket around a ten-row matrix. It is marked `GUESS:` at
+`grow_delimiter` and is the first thing the Windows sitting should look at.
+
+Second weakest, and smaller: **a footnote mark under `w:numRestart="eachPage"`**. The mark's ordinal
+is exact for `continuous` and `eachSect`, which are functions of document order; `eachPage` needs
+the page the composition is an input to, so the body mark is numbered continuously while the note
+area's own number restarts. Visibly inconsistent on such a document, declared at
+`crate::model::note_mark`, and cheap to fix in a child that gives the per-page mark its own pass.
+
+Third: **a numbered list that runs through a table** counts its in-cell items after the whole body,
+because `DocumentFormatting::paragraphs` holds cell paragraphs after top-level ones — the order
+MJXOFF-176 chose so a `w:sectPr` span stays numbered against the body walk. Declared at
+`ListNumbering::read`.
+
+
+WHAT WAS NOT RUN, AND WHY
+-------------------------
+The ECMA-376 schema suites (`MJX_REQUIRE_SCHEMA=1`) are not in this child's gate list and were not
+run. This child changes no writer: `mjx-docx`'s residency additions are reads, `document/equations.rs`
+is a read of `mjx-omml`, no element is authored and no child order moves — and `cargo test
+--workspace` ran `mjx-docx`'s own `wml_child_order` and `roundtrip` suites, both green.
+
+No push, no PR, no CI poll, per the brief.

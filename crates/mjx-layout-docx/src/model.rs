@@ -65,16 +65,21 @@ use crate::block::BlockLayout;
 use crate::checkpoint::Continuation;
 use crate::decoration::{DecorationCatalogue, ParagraphDecoration};
 use crate::error::DocumentLayoutError;
+use crate::fields::{Evaluation, FieldEnvironment, SequenceCounters, SequenceValues};
 use crate::float::Anchorage;
-use crate::flow::{lay_out, FlowContext, ParagraphLayout};
+use crate::flow::{lay_out_composed, FlowContext, ParagraphLayout};
+use crate::generated::{compose, Composition, Generated, InlineObjectKind};
 use crate::justify::points;
+use crate::lists::ListNumbering;
 use crate::notes::{self, DemandedNote, NoteArea, NoteCarry, NoteContent};
 use crate::numbering::{format_number, is_numbered};
 use crate::paginate::{
     assemble, FlowPosition, FlowProgram, LayoutCache, LayoutRequest, PageAssembly, PageShape,
 };
+use crate::revision::RevisionView;
 use crate::section::{required_parity, starts_a_page, SectionGeometry};
 use crate::stream::{lay_out_stream, StreamLayout};
+use crate::style::RunStyle;
 use crate::table::{self, TableContext};
 use crate::tabs::leader_character;
 use crate::text::TextEngine;
@@ -122,6 +127,18 @@ pub struct DocumentFlow {
     origins: Vec<FlowOrigin>,
     sections: Vec<FlowSection>,
     footnote_prefix: Vec<u32>,
+    lists: ListNumbering,
+    /// How many footnote and endnote references precede each paragraph of `program`, as a prefix
+    /// sum — `mark_prefix[i]` is `(footnotes, endnotes)` before paragraph `i`.
+    ///
+    /// **A prefix sum and not a scan**, and this crate is the wrong one to be casual about that: the
+    /// first version of `note_mark` walked the program comparing pointers to find the paragraph's
+    /// own index, which is a linear pass *per paragraph composed*. Quadratic in the document is the
+    /// exact cost `mjx_docx::DocumentFormatting` was introduced to remove.
+    mark_prefix: Vec<(u32, u32)>,
+    sequences: SequenceValues,
+    fields: FieldEnvironment,
+    view: RevisionView,
 }
 
 impl DocumentFlow {
@@ -139,6 +156,9 @@ impl DocumentFlow {
     pub fn from_formatting(formatting: DocumentFormatting) -> Self {
         let (program, blocks, origins, sections) = build_program(&formatting);
         let footnote_prefix = prefix_of_references(&program, &blocks, false);
+        let lists = ListNumbering::read(&formatting);
+        let mark_prefix = prefix_of_marks(&program);
+        let sequences = SequenceValues::read(&program);
         Self {
             formatting,
             program,
@@ -146,7 +166,55 @@ impl DocumentFlow {
             origins,
             sections,
             footnote_prefix,
+            lists,
+            mark_prefix,
+            sequences,
+            fields: FieldEnvironment::cached_results(),
+            view: RevisionView::default(),
         }
+    }
+
+    /// The same flow with `environment` deciding what every field renders.
+    ///
+    /// **The environment is immutable while the document is laid out**, which is the whole of the
+    /// compatibility argument with `crate::notes`' two-assembly bound — see [`crate::fields`]. A
+    /// caller runs [`crate::fields::resolve`] to obtain one and hands it back here.
+    #[must_use]
+    pub fn with_fields(mut self, environment: FieldEnvironment) -> Self {
+        self.fields = environment;
+        self
+    }
+
+    /// The same flow laid out in `view` — which decides whether a tracked deletion is **measured**,
+    /// and therefore how many pages the document has. See [`crate::revision`].
+    #[must_use]
+    pub fn with_revision_view(mut self, view: RevisionView) -> Self {
+        self.view = view;
+        self
+    }
+
+    /// The environment its fields are evaluated against.
+    #[must_use]
+    pub fn fields(&self) -> &FieldEnvironment {
+        &self.fields
+    }
+
+    /// The review view it is laid out in.
+    #[must_use]
+    pub fn revision_view(&self) -> RevisionView {
+        self.view
+    }
+
+    /// Every list marker in the document, composed once in document order.
+    #[must_use]
+    pub fn lists(&self) -> &ListNumbering {
+        &self.lists
+    }
+
+    /// Every `SEQ` field in the document, evaluated once in document order.
+    #[must_use]
+    pub fn sequences(&self) -> &SequenceValues {
+        &self.sequences
     }
 
     /// What was read.
@@ -693,6 +761,7 @@ impl DocumentBoxModel {
         &mut self,
         content: &DocumentFlow,
         index: usize,
+        block: Option<u32>,
         column: LayoutRect,
         top: Emu,
         exclusions: &[crate::wrap::Exclusion],
@@ -717,9 +786,21 @@ impl DocumentBoxModel {
             shaper,
             features,
         };
-        Ok(lay_out(
+        let composition = compose_paragraph(
             &mut engine,
+            content,
             paragraph,
+            Site {
+                at: Some(index),
+                marker: content.lists.marker(index),
+                page_number: None,
+                block,
+            },
+            &content.fields,
+        )?;
+        Ok(lay_out_composed(
+            &mut engine,
+            &composition,
             FlowContext {
                 column,
                 settings: content.formatting().settings(),
@@ -768,21 +849,31 @@ impl DocumentBoxModel {
         match content.blocks.get(index) {
             Some(mjx_docx::BlockFormatting::Paragraph(at)) => {
                 let at = *at;
-                Ok(BlockLayout::Paragraph(self.lay_out_paragraph_at(
-                    content,
-                    at,
-                    column,
-                    request.top,
-                    request.exclusions,
-                )?))
+                Ok(BlockLayout::Paragraph(Box::new(
+                    self.lay_out_paragraph_at(
+                        content,
+                        at,
+                        u32::try_from(index).ok(),
+                        column,
+                        request.top,
+                        request.exclusions,
+                    )?,
+                )))
             }
             Some(mjx_docx::BlockFormatting::Table(table)) => {
                 let table = table.clone();
                 let settings = *content.formatting().settings();
+                // A cell's paragraph is laid out under the **table's** block number, because a
+                // cell has none of its own: `DocumentFlow::blocks` numbers top-level blocks and a
+                // cell's content is a block tree inside one. A `PAGE` field in a cell therefore
+                // renders the page the table starts on, which is right for a table that fits on one
+                // page and one page early for a `PAGE` field in the tail of a table that splits.
+                let table_block = u32::try_from(index).ok();
                 let mut cell_of = |paragraph: usize, request: LayoutRequest<'_>| {
                     self.lay_out_paragraph_at(
                         content,
                         paragraph,
+                        table_block,
                         LayoutRect::from_edges(
                             Emu::ZERO,
                             Emu::ZERO,
@@ -817,6 +908,7 @@ impl DocumentBoxModel {
         content: &DocumentFlow,
         paragraphs: &[ParagraphFormatting],
         width: Emu,
+        page_number: Option<i64>,
     ) -> Result<StreamLayout, DocumentLayoutError> {
         let Self {
             fonts,
@@ -832,14 +924,231 @@ impl DocumentBoxModel {
             shaper,
             features,
         };
+        let mut composed = Vec::with_capacity(paragraphs.len());
+        for paragraph in paragraphs {
+            composed.push(compose_paragraph(
+                &mut engine,
+                content,
+                paragraph,
+                Site {
+                    page_number,
+                    ..Site::default()
+                },
+                &content.fields,
+            )?);
+        }
         Ok(lay_out_stream(
             &mut engine,
-            paragraphs,
+            &composed,
             width,
             content.formatting().settings(),
             hyphenator.as_deref(),
         )?)
     }
+}
+
+/// Composes one paragraph: its list marker, what each of its fields renders, its note reference
+/// marks, and the extent of every equation on it.
+///
+/// # Where each of the four comes from
+///
+/// * The **marker** was composed once for the whole document by [`ListNumbering::read`]: a list's
+///   *n*th item is *n* because *n−1* items precede it, which is a fact about the document.
+/// * A **field's** value comes from the [`FieldEnvironment`], which is constant for the layout run —
+///   except for `PAGE` in a *stream*, where `page_number` names the page being drawn. See
+///   [`crate::fields`] for why exactly one of those is page-local.
+/// * A **note mark** is the note's own ordinal, formatted in the section's numbering.
+/// * An **equation** is laid out here, at this paragraph's own run style, because its width is what
+///   the line reserves for it and nothing later can supply that.
+fn compose_paragraph(
+    engine: &mut TextEngine<'_>,
+    content: &DocumentFlow,
+    paragraph: &ParagraphFormatting,
+    where_it_is: Site<'_>,
+    environment: &FieldEnvironment,
+) -> Result<Composition, DocumentLayoutError> {
+    let Site {
+        at,
+        marker,
+        page_number,
+        block,
+    } = where_it_is;
+    let has_generated = marker.is_some()
+        || !paragraph.fields().is_empty()
+        || !paragraph.note_references().is_empty()
+        || !paragraph.equations().is_empty()
+        // **Every** tracked change, not only one this view hides: the *change bar* is a function of
+        // the view too, and a paragraph routed down the plain path would report one from a defaulted
+        // view rather than from the caller's.
+        || !paragraph.revisions().is_empty()
+        || paragraph
+            .drawings()
+            .iter()
+            .any(|drawing| matches!(drawing.placement, mjx_docx::DrawingPlacement::Inline(_)));
+    if !has_generated {
+        // The overwhelmingly common paragraph: no list, no field, no note, no equation, no tracked
+        // change and no inline object. It composes to its own text and pays for nothing.
+        return Ok(Composition::plain(paragraph));
+    }
+
+    let local = match page_number {
+        Some(page) => environment.for_page(page),
+        None => environment.clone(),
+    };
+    // Only reached for a field that is **not** a `SEQ` of the body, which is every field whose
+    // value needs no counter at all. A secondary stream's own `SEQ` — rare, and not in the body's
+    // document order — falls through to this fresh one and therefore counts from one within the
+    // stream; stated here rather than left to be discovered.
+    let mut counters = SequenceCounters::new();
+    let field_values: Vec<Option<String>> = paragraph
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            // A `SEQ` field's value is *how many like it precede it in the document*, which was
+            // computed once by `SequenceValues::read`. Counting it here would count it again on
+            // every layout of the paragraph — and a paragraph is laid out out of order and more
+            // than once, so the number would depend on which page a reader opened.
+            if let Some(value) = at.and_then(|at| content.sequences.value(at, index)) {
+                return Some(value.to_owned());
+            }
+            match crate::fields::evaluate(field, &local, &mut counters, None, block) {
+                Evaluation::Computed(value) => Some(value),
+                // The cached result is already in the paragraph's text, so *not replacing it* is
+                // exactly how it is rendered. `None` is that instruction, and it is the one path a
+                // field this crate cannot compute takes.
+                Evaluation::Cached(_) => None,
+            }
+        })
+        .collect();
+
+    let note_marks: Vec<String> = paragraph
+        .note_references()
+        .iter()
+        .enumerate()
+        .map(|(index, reference)| note_mark(content, paragraph, at, index, reference))
+        .collect();
+
+    let style = paragraph
+        .runs()
+        .first()
+        .map(|run| RunStyle::of(run.range.clone(), &run.properties))
+        .unwrap_or_else(|| RunStyle::of(0..0, &Default::default()));
+    let mut equations = Vec::with_capacity(paragraph.equations().len());
+    for equation in paragraph.equations() {
+        let context = crate::math::MathContext::new(&style);
+        equations.push(crate::math::lay_out(engine, &equation.nodes, &context)?);
+    }
+
+    Ok(compose(
+        paragraph,
+        &Generated {
+            marker,
+            field_values: &field_values,
+            note_marks: &note_marks,
+            equations: &equations,
+            view: content.view,
+        },
+    ))
+}
+
+/// Where a paragraph being composed sits, which is everything the generated content needs about it
+/// that is not in the paragraph.
+///
+/// Four small values in one argument rather than four arguments, because they travel together and
+/// because a caller supplying three of them and defaulting the fourth is exactly how a body
+/// paragraph loses its block number and a field silently renders its cache.
+#[derive(Clone, Copy, Default)]
+struct Site<'a> {
+    /// Which paragraph of the flow it is, when it is one of the body's — a stream's has no index in
+    /// that list.
+    at: Option<usize>,
+    /// Its list marker, when it has one.
+    marker: Option<&'a crate::lists::Marker>,
+    /// The page a **stream** is being drawn on. `None` for the body, whose fields read the page
+    /// their block started on instead; see [`crate::fields`].
+    page_number: Option<i64>,
+    /// Which block of the flow it belongs to, which is what a body `PAGE` field looks its page up
+    /// by.
+    block: Option<u32>,
+}
+
+/// The reference mark one note reference draws.
+///
+/// # ⚠ A per-page restart is numbered in document order here, and that is a declared limit
+///
+/// `w:numRestart="continuous"` and `"eachSect"` are both functions of **document order**, so the
+/// mark is exact for either. `"eachPage"` is not: it needs to know how many notes are already on the
+/// page, which is settled by the assembly that this composition is an input to. Composing a mark
+/// from it would be a third fixed point for a value that changes a mark's *width* by one digit.
+///
+/// So a document whose section restarts its footnotes each page shows a body mark numbered
+/// continuously while the note area's own number restarts — visibly inconsistent, stated here rather
+/// than left for a reader to find, and cheap to fix in the child that also gives a per-page mark its
+/// own pass.
+fn note_mark(
+    content: &DocumentFlow,
+    paragraph: &ParagraphFormatting,
+    at: Option<usize>,
+    index: usize,
+    reference: &mjx_docx::NoteReference,
+) -> String {
+    // The section the paragraph is actually in, so a document whose second section numbers its
+    // footnotes in Roman does not draw the first section's Arabic. A composition with no paragraph
+    // index — a secondary stream's — falls back to the first section, which is what a header's own
+    // notes would take anyway.
+    let rules = at
+        .and_then(|at| content.formatting().section_of(at))
+        .or_else(|| content.formatting().sections().first())
+        .map(|section| section.notes);
+    let (format, start) = match (rules, reference.endnote) {
+        (Some(rules), false) => (rules.footnote_format, rules.footnote_start),
+        (Some(rules), true) => (rules.endnote_format, rules.endnote_start),
+        (None, _) => (NumberFormat::Decimal, 1),
+    };
+    // How many references of the same kind precede this one in the paragraph, plus how many precede
+    // the paragraph — the same prefix sum `crate::numbering` documents, read here for the mark
+    // rather than for the note.
+    let within = paragraph
+        .note_references()
+        .iter()
+        .take(index)
+        .filter(|other| other.endnote == reference.endnote)
+        .count();
+    let before =
+        at.and_then(|at| content.mark_prefix.get(at))
+            .map_or(0, |(footnotes, endnotes)| {
+                if reference.endnote {
+                    *endnotes
+                } else {
+                    *footnotes
+                }
+            });
+    let ordinal = i64::from(before)
+        .saturating_add(i64::try_from(within).unwrap_or(i64::MAX))
+        .saturating_add(start);
+    format_number(ordinal, format)
+}
+
+/// How many footnote and endnote references precede each paragraph of `program`.
+///
+/// One pass over the document, so composing a paragraph's marks costs a lookup rather than a walk.
+fn prefix_of_marks(program: &[ParagraphFormatting]) -> Vec<(u32, u32)> {
+    let mut prefix = Vec::with_capacity(program.len() + 1);
+    let mut footnotes = 0_u32;
+    let mut endnotes = 0_u32;
+    prefix.push((0, 0));
+    for paragraph in program {
+        for reference in paragraph.note_references() {
+            if reference.endnote {
+                endnotes = endnotes.saturating_add(1);
+            } else {
+                footnotes = footnotes.saturating_add(1);
+            }
+        }
+        prefix.push((footnotes, endnotes));
+    }
+    prefix
 }
 
 /// One section's content on one page: its geometry, and the columns it filled.
@@ -1302,7 +1611,7 @@ impl DocumentBoxModel {
         else {
             return Ok(None);
         };
-        let laid = self.lay_out_stream_of(content, &paragraphs, width)?;
+        let laid = self.lay_out_stream_of(content, &paragraphs, width, Some(state.page_number))?;
         Ok(Some((stream, laid)))
     }
 
@@ -1326,15 +1635,15 @@ impl DocumentBoxModel {
             .footnote_of_kind(FootnoteEndnoteType::ContinuationNotice)
             .map(|note| note.paragraphs().to_vec());
         let separator = match separator {
-            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width)?),
+            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width, None)?),
             None => None,
         };
         let continuation = match continuation {
-            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width)?),
+            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width, None)?),
             None => None,
         };
         let notice = match notice {
-            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width)?),
+            Some(paragraphs) => Some(self.lay_out_stream_of(content, &paragraphs, width, None)?),
             None => None,
         };
         Ok(NoteFurniture {
@@ -1398,7 +1707,7 @@ impl DocumentBoxModel {
             .get(note)
             .map(|entry| entry.paragraphs().to_vec())
             .unwrap_or_default();
-        let laid = self.lay_out_stream_of(content, &paragraphs, width)?;
+        let laid = self.lay_out_stream_of(content, &paragraphs, width, None)?;
         into.insert(note, laid);
         Ok(())
     }
@@ -1526,14 +1835,25 @@ fn demanded_notes(
     found
 }
 
-/// The bytes of a paragraph's text that lines `lines` cover.
+/// The bytes of a paragraph's **document** text that lines `lines` cover.
+///
+/// A line's own `range` is in the *layout* string's offsets — the string with the list marker, the
+/// field values and the note marks spliced in — and every caller of this compares it against a
+/// document offset (`mjx_docx::NoteReference::at`, above all). Mapping here rather than at each
+/// caller is what stops one of them forgetting: before MJXOFF-177 the two were the same string and
+/// the comparison was silently correct, which is exactly the kind of assumption that breaks with no
+/// error anywhere.
 fn byte_span(
     layout: &ParagraphLayout,
     lines: std::ops::Range<usize>,
 ) -> Option<std::ops::Range<usize>> {
     let first = layout.lines.get(lines.start)?;
     let last = layout.lines.get(lines.end.checked_sub(1)?)?;
-    Some(first.range.start..last.range.end)
+    Some(
+        layout
+            .composition
+            .document_range(&(first.range.start..last.range.end)),
+    )
 }
 
 /// The line numbers printed beside this page's body, and the count the next page opens with.
@@ -2476,9 +2796,14 @@ impl DocumentBoxModel {
             };
             let line_rect = LayoutRect::from_edges(left, y, left + width, y + line.height);
             let baseline_y = y + line.baseline;
+            // **Every address is in the document's own offsets**, not the layout string's. A line
+            // carrying a list marker and a field value covers more bytes of the layout string than
+            // of the file, and a `SourceRef` naming the former would put a caret inside a value the
+            // document does not contain. See `crate::generated`.
+            let line_characters = layout.composition.document_range(&line.range);
             let node = builder.push_simple(
                 parent,
-                stream.line(paragraph, line_index, line.range.clone()),
+                stream.line(paragraph, line_index, line_characters.clone()),
                 line_rect,
                 Fragment::Line(LineFragment {
                     baseline: line.baseline,
@@ -2499,11 +2824,42 @@ impl DocumentBoxModel {
                     continue;
                 }
                 let origin = LayoutPoint::new(left + placed.x, baseline_y);
+                let characters = layout.composition.document_range(&segment.range);
+                // An inline object is a `U+FFFC` whose run carries a fixed advance, so its
+                // `ComposedSegment` holds **no glyphs at all** — see `mjx_layout::TextRun::advance`.
+                // What goes here is the object itself.
+                if let Some(object) = layout.composition.object_at(segment.range.start) {
+                    let rect = LayoutRect::from_edges(
+                        origin.x,
+                        baseline_y - object.ascent,
+                        origin.x + object.width,
+                        baseline_y + object.descent,
+                    );
+                    let source =
+                        stream.segment(paragraph, line_index, placed.segment, characters.clone());
+                    let anchor = builder.push_simple(
+                        node,
+                        source.clone(),
+                        rect,
+                        Fragment::Box(mjx_layout::BoxFragment {
+                            decoration: None,
+                            cell: None,
+                        }),
+                    );
+                    if let InlineObjectKind::Equation(index) = object.kind {
+                        if let Some(equation) = layout.composition.equations().get(index) {
+                            self.emit_math(
+                                builder, anchor, equation, origin.x, baseline_y, &source,
+                            );
+                        }
+                    }
+                    continue;
+                }
                 let rect =
                     LayoutRect::from_edges(origin.x, y, origin.x + placed.width, y + line.height);
                 builder.push_simple(
                     node,
-                    stream.segment(paragraph, line_index, placed.segment, segment.range.clone()),
+                    stream.segment(paragraph, line_index, placed.segment, characters),
                     rect,
                     Fragment::GlyphRun(GlyphRunFragment {
                         face: segment.face,
@@ -2687,6 +3043,74 @@ impl DocumentBoxModel {
             }),
         );
         Ok(())
+    }
+
+    /// Draws one equation's box tree, at `x` and on `baseline`.
+    ///
+    /// Every node keeps the address of the `U+FFFC` it came from, which is the same rule a hyphen, a
+    /// tab leader and a line number already follow: a glyph the document does not contain takes the
+    /// address of the position it sits at, so a hit test on a fraction bar reports the equation's
+    /// own position rather than a byte range no file has.
+    fn emit_math(
+        &mut self,
+        builder: &mut FragmentTreeBuilder,
+        parent: Option<mjx_layout::FragmentId>,
+        node: &crate::math::MathBox,
+        x: Emu,
+        baseline: Emu,
+        source: &mjx_layout::SourceRef,
+    ) {
+        let rect = LayoutRect::from_edges(
+            x,
+            baseline - node.ascent,
+            x + node.width,
+            baseline + node.descent,
+        );
+        let here = match &node.content {
+            crate::math::MathContent::Group => builder.push_simple(
+                parent,
+                source.clone(),
+                rect,
+                Fragment::Box(mjx_layout::BoxFragment {
+                    decoration: None,
+                    cell: None,
+                }),
+            ),
+            crate::math::MathContent::Glyphs { face, run } => builder.push_simple(
+                parent,
+                source.clone(),
+                rect,
+                Fragment::GlyphRun(GlyphRunFragment {
+                    face: *face,
+                    run: run.clone(),
+                    origin: LayoutPoint::new(x, baseline),
+                    direction: mjx_text::TextDirection::LeftToRight,
+                    level: mjx_text::BidiLevel::LEFT_TO_RIGHT,
+                }),
+            ),
+            // A rule is a filled rectangle and this crate resolves no paint, so it travels as a box
+            // whose *rect is the fill* — the same decision `w:pBdr` and a `bar` tab stop already
+            // carry, and the reason `mjx-scene-docx` is the ticket that has to follow this one.
+            crate::math::MathContent::Rule => builder.push_simple(
+                parent,
+                source.clone(),
+                rect,
+                Fragment::Box(mjx_layout::BoxFragment {
+                    decoration: None,
+                    cell: None,
+                }),
+            ),
+        };
+        for child in &node.children {
+            self.emit_math(
+                builder,
+                here,
+                &child.content,
+                x + child.x,
+                baseline + child.baseline,
+                source,
+            );
+        }
     }
 }
 

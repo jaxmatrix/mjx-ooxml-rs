@@ -61,7 +61,13 @@ impl BlockConstraints {
 #[derive(Clone, PartialEq, Debug)]
 pub enum BlockLayout {
     /// A `w:p`, whose units are its lines.
-    Paragraph(ParagraphLayout),
+    ///
+    /// Boxed for the same reason the table is: MJXOFF-177 put a
+    /// [`Composition`](crate::generated::Composition) on a [`ParagraphLayout`] — the string the
+    /// paragraph was actually laid out from, with its map back to the document — and the two
+    /// variants' sizes then differed by enough that every `BlockLayout` in the cache paid a
+    /// paragraph's size whether it was one or not.
+    Paragraph(Box<ParagraphLayout>),
     /// A `w:tbl`, whose units are its slices.
     ///
     /// Boxed for the reason [`mjx_docx::BlockFormatting`] boxes its own: a table is two orders of

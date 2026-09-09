@@ -84,6 +84,35 @@ pub struct TextRun<'a> {
     pub features: &'a FeatureSet,
     /// Its language, as a BCP 47 tag, or `None`.
     pub language: Option<&'a str>,
+    /// A width in points that **replaces the shaper's answer** for this run, in which case the run
+    /// is not shaped at all and carries no glyphs.
+    ///
+    /// # What this is for, and why it is on the run rather than beside it
+    ///
+    /// A line is not always made only of text. A `.docx` puts a picture inline in a paragraph, an
+    /// equation inline in a sentence, and a `.pptx` will put a field's placeholder there; each is an
+    /// **atomic inline box** — a thing that occupies a character's position on the line, has a width
+    /// nothing in a font knows, and must not be broken inside. UAX #14 has a class for exactly this
+    /// (`CB`, contingent break, whose representative character is `U+FFFC OBJECT REPLACEMENT
+    /// CHARACTER`), so the line breaker already knows what to do with one; what it did **not** have
+    /// until MJXOFF-177 was a way to be told how wide it is.
+    ///
+    /// Without it, the only honest thing a box model could do was leave the object out of the
+    /// measure, and a line carrying one was then measured as if it were not there — one object too
+    /// long, breaking in the wrong place, ending the page in the wrong place. Two children in a row
+    /// declared that gap rather than closing it (MJXOFF-175's footnote mark and MJXOFF-176's inline
+    /// drawing), because closing it is a change to the contract **all three** box models share, and
+    /// that is a decision to take once and deliberately rather than to smuggle into a format crate.
+    ///
+    /// It is on [`TextRun`] rather than in a parallel list because the composer's fitting loop
+    /// measures *ranges*, and the only structure it has for "which formatting applies to these
+    /// bytes" is this one. A second list would have to be intersected with the runs on every probe.
+    ///
+    /// **A fixed-advance run is all-or-nothing.** Its advance is counted whenever a candidate range
+    /// touches it at all, because an object has no interior to measure a prefix of; a box model
+    /// therefore gives each object a run of exactly one `U+FFFC`, which is what makes "touches it"
+    /// and "contains it" the same question.
+    pub advance: Option<f64>,
 }
 
 impl TextRun<'_> {
@@ -401,6 +430,12 @@ impl<'a> LineComposer<'a> {
             let Some(overlap) = intersect(&run.range, &range) else {
                 continue;
             };
+            // An atomic inline box has no interior, so no tail is shaped for it and no slice is
+            // taken: its advance is counted whole the moment a candidate touches it.
+            if let Some(advance) = run.advance {
+                total += advance;
+                continue;
+            }
             let tail_start = run.range.start.max(range.start);
             let tail = match tails.get_mut(index) {
                 None => None,
@@ -439,20 +474,40 @@ impl<'a> LineComposer<'a> {
             let Some(overlap) = intersect(&run.range, &range) else {
                 continue;
             };
-            total += self.shape(shaper, run, overlap)?.advance_in_points();
+            let shaped = self.shape(shaper, run, overlap)?;
+            total += Self::advance_of(run, &shaped);
         }
         Ok(total)
     }
 
     /// Shape one stretch of one item.
+    ///
+    /// A run with a [`TextRun::advance`] is **not shaped**: it is an atomic inline box whose glyphs
+    /// are not in any font, and shaping its `U+FFFC` placeholder would put a `.notdef` box on the
+    /// line that a painter would draw. It shapes the empty string instead, so the segment carries no
+    /// glyphs and its width comes from [`Self::advance_of`].
     fn shape(
         &self,
         shaper: &mut Shaper,
         run: &TextRun<'_>,
         range: Range<usize>,
     ) -> Result<ShapedRun, FontError> {
-        let slice = self.text.get(range).unwrap_or("");
+        let slice = if run.advance.is_some() {
+            ""
+        } else {
+            self.text.get(range).unwrap_or("")
+        };
         shaper.shape(run.face, &run.shaping_request(slice))
+    }
+
+    /// How wide `shaped` is: the run's own fixed advance when it declares one, and the shaper's
+    /// answer otherwise.
+    ///
+    /// One function rather than three call sites doing the same `match`, because the three are the
+    /// fitting probe, the hanging tail and the final composition — and a fixed advance that reached
+    /// two of them would produce a line that was measured one way and drawn another.
+    fn advance_of(run: &TextRun<'_>, shaped: &ShapedRun) -> f64 {
+        run.advance.unwrap_or_else(|| shaped.advance_in_points())
     }
 
     /// Shape every item of `line` and put the results in visual order.
@@ -466,7 +521,7 @@ impl<'a> LineComposer<'a> {
                 continue;
             };
             let piece = self.shape(shaper, run, overlap.clone())?;
-            let width = piece.advance_in_points();
+            let width = Self::advance_of(run, &piece);
             shaped.push(ComposedSegment {
                 range: overlap,
                 face: run.face_id,

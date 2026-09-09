@@ -199,6 +199,7 @@ fn runs<'a>(
         size: SIZE,
         features,
         language: None,
+        advance: None,
     }]
 }
 
@@ -398,6 +399,7 @@ fn a_right_to_left_line_is_shaped_logically_and_emitted_visually() {
             size: SIZE,
             features: &features,
             language: None,
+            advance: None,
         },
         TextRun {
             range: hebrew_start..hebrew_end,
@@ -409,6 +411,7 @@ fn a_right_to_left_line_is_shaped_logically_and_emitted_visually() {
             size: SIZE,
             features: &features,
             language: None,
+            advance: None,
         },
         TextRun {
             range: hebrew_end..text.len(),
@@ -420,6 +423,7 @@ fn a_right_to_left_line_is_shaped_logically_and_emitted_visually() {
             size: SIZE,
             features: &features,
             language: None,
+            advance: None,
         },
     ];
     let composer = LineComposer::new(text, &items, &bidi, LineBreakOptions::default());
@@ -485,6 +489,7 @@ fn two_right_to_left_items_in_one_level_run_come_out_reversed() {
             size: SIZE,
             features: &features,
             language: None,
+            advance: None,
         },
         TextRun {
             range: split..text.len(),
@@ -496,6 +501,7 @@ fn two_right_to_left_items_in_one_level_run_come_out_reversed() {
             size: SIZE,
             features: &features,
             language: None,
+            advance: None,
         },
     ];
     let composer = LineComposer::new(text, &items, &bidi, LineBreakOptions::default());

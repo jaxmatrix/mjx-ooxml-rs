@@ -164,6 +164,13 @@ pub use document::{
     HorizontalAnchoring, RowFormatting, RowHeightSpecification, TableFormatting, VerticalAnchoring,
     WidthSpecification, WrapFormatting,
 };
+// MJXOFF-177 (R22): the four things a Word renderer generates rather than reads — a field's
+// instruction and the bytes of its cached result, the tracked-change spans that decide which text a
+// display mode measures, a list level's marker template, and an equation resolved to plain values.
+pub use document::{
+    EquationFormatting, EquationNode, EquationRun, FieldSpan, NumberingDefinition,
+    NumberingLevelFormatting, RevisionSpan,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

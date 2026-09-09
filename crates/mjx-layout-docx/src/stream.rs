@@ -19,12 +19,13 @@
 //! two representations of the same thing, which is how a header and a footnote start disagreeing
 //! about what a line is.
 
-use mjx_docx::{DocumentLayoutSettings, ParagraphFormatting};
+use mjx_docx::DocumentLayoutSettings;
 use mjx_layout::LayoutRect;
 use mjx_ooxml_core::measure::Emu;
 use mjx_text::{FontError, Hyphenator};
 
-use crate::flow::{lay_out, FlowContext, ParagraphLayout};
+use crate::flow::{lay_out_composed, FlowContext, ParagraphLayout};
+use crate::generated::Composition;
 use crate::text::TextEngine;
 
 /// The height a secondary stream is laid out against.
@@ -146,7 +147,7 @@ impl StreamLayout {
 /// [`FontError`] when a face will not shape.
 pub fn lay_out_stream(
     engine: &mut TextEngine<'_>,
-    paragraphs: &[ParagraphFormatting],
+    paragraphs: &[Composition],
     width: Emu,
     settings: &DocumentLayoutSettings,
     hyphenator: Option<&dyn Hyphenator>,
@@ -158,7 +159,7 @@ pub fn lay_out_stream(
     let mut layouts = Vec::with_capacity(paragraphs.len());
     let mut lines = Vec::new();
     for (index, paragraph) in paragraphs.iter().enumerate() {
-        let layout = lay_out(
+        let layout = lay_out_composed(
             engine,
             paragraph,
             FlowContext {
