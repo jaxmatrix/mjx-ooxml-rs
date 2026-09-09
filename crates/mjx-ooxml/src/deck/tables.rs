@@ -411,9 +411,14 @@ impl Deck {
     }
 
     /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`), replacing
-    /// any inline or referenced style it had — the lean alternative to a shared `tableStyles.xml`
-    /// style: the whole look is spelled out in `definition` and travels with the table, so no shared
-    /// part, relationship or referenced GUID is involved. Marks only that part dirty.
+    /// any inline or referenced style it had: the whole look is spelled out in `definition` and
+    /// travels with the table. Marks only that part dirty.
+    ///
+    /// **This call** adds no shared `tableStyles.xml`, no relationship and no referenced GUID, and a
+    /// shared part the deck already has comes out of a save byte for byte as it went in. Whether the
+    /// package holds one at all depends on where the table came from: a table from
+    /// [`add_table`](Self::add_table) arrives with a `tableStyles.xml` beside it, and this call does
+    /// not delete it (MJXOFF-248).
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
