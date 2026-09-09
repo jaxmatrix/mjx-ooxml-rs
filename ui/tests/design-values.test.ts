@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 import { describe, expect, it } from 'vitest';
@@ -152,5 +155,62 @@ describe('what it accepts, which is the half that keeps it switched on', () => {
   it('a URL, which contains a // that is not a comment', async () => {
     const source = "export const ns = 'http://www.w3.org/2000/svg';";
     expect(await messageIds(source)).toEqual([]);
+  });
+});
+
+/**
+ * A companion gate, and it is here because it answers the same question — *what may a component's
+ * source contain* — with an instrument a linter cannot supply.
+ *
+ * MJXOFF-187 found a **NUL byte** committed inside a string literal in `src/inputs/input-model.ts`:
+ * `key !== '<NUL>'` where `key !== ' '` was meant. The behaviour was identical, because the branch
+ * is unreachable for a space either way. What was not identical was everything *around* the file:
+ *
+ * * `git` classifies a file with a NUL byte as **binary** and stops producing diffs for it, so a
+ *   change to a 1,579-line module would have arrived in review as *"Binary files differ"*;
+ * * `grep` skips it by default, so `grep -rn "export const" src/` silently reported nothing from
+ *   the largest module in the tree — which is how it was noticed;
+ * * `file` calls it `data` rather than source.
+ *
+ * None of the eight checks in `npm run check` could see it: TypeScript parsed it, ESLint parsed
+ * it, the tests passed. A byte that makes a source file invisible to the tools people read it with
+ * is worth one assertion.
+ */
+describe('every shipped source is text a person and a tool can both read', () => {
+  /** Every `.ts` file under a directory, recursively. */
+  function sourcesUnder(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory)) {
+      const path = join(directory, entry);
+      if (statSync(path).isDirectory()) found.push(...sourcesUnder(path));
+      else if (entry.endsWith('.ts')) found.push(path);
+    }
+    return found;
+  }
+
+  const root = resolve(import.meta.dirname, '../src');
+
+  it('carries no control character that would make git call it binary', () => {
+    const sources = sourcesUnder(root);
+    expect(sources.length, 'src/ has no sources, so this measures nothing').toBeGreaterThan(30);
+    const offenders: string[] = [];
+    for (const path of sources) {
+      const bytes = readFileSync(path);
+      for (const [offset, byte] of bytes.entries()) {
+        // Everything below 0x20 except tab, line feed and carriage return.
+        if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) {
+          const line = bytes.subarray(0, offset).toString('utf8').split('\n').length;
+          offenders.push(`${path}:${String(line)} has byte 0x${byte.toString(16).padStart(2, '0')}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the gate can fail, on a byte that is invisible in every editor', () => {
+    // The failability half, on a buffer rather than a file: what was actually committed.
+    const bad = Buffer.from("return key.length === 1 && key !== '\u0000' ? 'typeahead' : undefined;", 'utf8');
+    const control = [...bad].filter((byte) => byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d);
+    expect(control).toEqual([0]);
   });
 });

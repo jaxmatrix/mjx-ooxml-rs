@@ -925,7 +925,7 @@ export function listboxKeyAction(
       return editable ? undefined : open ? 'commit' : 'open';
     default:
       if (editable) return undefined;
-      return key.length === 1 && key !== ' ' ? 'typeahead' : undefined;
+      return key.length === 1 && key !== ' ' ? 'typeahead' : undefined;
   }
 }
 

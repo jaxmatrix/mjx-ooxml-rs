@@ -45,7 +45,7 @@ import {
   type ListboxAction,
   type OptionDescriptor,
 } from './input-model.ts';
-import { ListSurface, type ListSurfaceHost } from './list-surface.ts';
+import { ListSurface, type ListSurfaceHost, type PopupSurface } from './list-surface.ts';
 import { optionDescriptorsIn, optionsChangedEvent } from './descriptors.ts';
 
 /** The sheet every list field adopts. */
@@ -72,7 +72,7 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
   #entry: HTMLElement | undefined;
   #disclosure: HTMLElement | undefined;
   #explanationElement: HTMLElement | undefined;
-  #surface: ListSurface | undefined;
+  #surface: PopupSurface | undefined;
   #declaredOptions: readonly OptionDescriptor[] | undefined;
   #lightOptions: readonly OptionDescriptor[] = [];
   #watching = false;
@@ -94,6 +94,30 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
 
   /** Write what the entry shows. */
   protected abstract setEntryText(text: string): void;
+
+  /**
+   * Build the thing that pops up under the field.
+   *
+   * A third decision, added by MJXOFF-187, and it is the same *kind* of decision as the other two:
+   * a colour picker is this field with a **grid** under it instead of a list, and everything else
+   * — the ARIA combobox contract, the single tab stop, the dismissal model, the placement, the
+   * commit ordering — is identical and had better stay identical. Overriding this is how a
+   * subclass says what pops up; a subclass that reimplemented the field around its own popup would
+   * be a second answer to all five of those.
+   */
+  protected createSurface(idPrefix: string): PopupSurface {
+    return new ListSurface(this, idPrefix);
+  }
+
+  /**
+   * A hook for a subclass that needs to decorate the rows its surface builds.
+   *
+   * A no-op here, and it is declared rather than left off so `ListSurfaceHost` is satisfied by
+   * this class rather than by each subclass separately.
+   */
+  decorateOption(_row: HTMLElement, _option: OptionDescriptor, _index: number): void {
+    // Nothing.
+  }
 
   // ── lifecycle ──────────────────────────────────────────────────────────────
 
@@ -180,7 +204,7 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
    * is somewhere plausible; with the inputs it asserts that the component and the model agree,
    * which is the only comparison that can catch a placement wrong in both places at once.
    */
-  get surface(): ListSurface | undefined {
+  get surface(): PopupSurface | undefined {
     return this.#surface;
   }
 
@@ -229,7 +253,7 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
     disclosure.setAttribute('aria-hidden', 'true');
     disclosure.classList.add('trailing');
 
-    const surface = new ListSurface(this, this.#id);
+    const surface = this.createSurface(this.#id);
     surface.element.id = `${this.#id}-list`;
     entry.setAttribute('aria-controls', surface.element.id);
 
@@ -458,6 +482,13 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
     // that swallowed either would be a list a person cannot get out of.
     if (event.ctrlKey || event.metaKey || event.altKey) return;
 
+    // A subclass's first look, before the listbox map sees the key at all.
+    if (this.interceptKey(event) === 'handled') {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const action = listboxKeyAction(event.key, { open: this.open, editable: this.editable });
     if (action === undefined) return;
     if (this.handleAction(action, event) === 'handled') {
@@ -465,6 +496,24 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
       event.stopPropagation();
     }
   };
+
+  /**
+   * A subclass's first look at a key press, **before** the listbox map is consulted.
+   *
+   * Added by MJXOFF-187, and it exists for a difference the listbox map cannot express rather than
+   * as a general escape hatch: a colour grid is two-dimensional, so it has meanings for
+   * `ArrowLeft` and `ArrowRight` that a listbox correctly has none for, and those two keys are
+   * also a text box's caret keys. Widening `ListboxAction` with two grid movements would have put
+   * a grid's vocabulary into a list's key map, where every reader of that map would then have to
+   * work out which of the twelve actions a dropdown can actually produce.
+   *
+   * Returning `'handled'` prevents the default and stops the propagation, exactly as the listbox
+   * map's own handling does. The default is `'passed'`, so nothing changes for a subclass that
+   * does not want it.
+   */
+  protected interceptKey(_event: KeyboardEvent): 'handled' | 'passed' {
+    return 'passed';
+  }
 
   /**
    * Do what an action says. A subclass overrides it to add its own meanings for `commit` and

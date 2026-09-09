@@ -18,6 +18,7 @@ import { defineRibbonElements } from '../src/ribbon/index.ts';
 import { defineMenus } from '../src/menus/index.ts';
 import { defineGalleryElements } from '../src/gallery/index.ts';
 import { defineInputs, inputDocumentCss } from '../src/inputs/index.ts';
+import { definePickers } from '../src/pickers/index.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
@@ -45,6 +46,11 @@ defineGalleryElements();
 // attributes have nowhere to go — a dropdown that never defined them would render an empty field
 // beside a row of nothing, which reads as a data problem rather than as a missing registration.
 defineInputs();
+// MJXOFF-187's two pickers. Registered here for the reason above and one of their own: an
+// unregistered <mjx-color-picker> is an inert element, so its popup never exists — and a colour
+// picker that shows no colours reads as a data problem in whichever story happens to be open
+// rather than as a missing registration.
+definePickers();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;

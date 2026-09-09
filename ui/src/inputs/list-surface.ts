@@ -71,6 +71,48 @@ export interface ListSurfaceHost {
   chose(option: OptionDescriptor, index: number): void;
   /** The pointer moved the keyboard cursor. */
   movedActive(index: number): void;
+  /**
+   * A last look at a row the surface has just built.
+   *
+   * Added by MJXOFF-187 so a font picker can draw each family's name **in its own face** and hang
+   * its substitution mark on the row, without a second list surface existing. The alternative was
+   * a fork, and a fork is two places where the virtualiser's one-row-tall precondition has to stay
+   * true.
+   *
+   * ⚠ **A decorator may not change the row's height.** The virtualiser turns a scroll offset into
+   * a row index by dividing, so a decoration that grew a row would put every row below it at the
+   * wrong index — the failure U07 found and made structural, and the one a list of faces walks
+   * straight back into. `.option`'s explicit `block-size` is what holds it; the decorator adds
+   * content *inside* that box and never around it.
+   */
+  decorateOption?(row: HTMLElement, option: OptionDescriptor, index: number): void;
+}
+
+/**
+ * What a **field** needs of the thing that pops up under it.
+ *
+ * `MjxListField` drives a listbox and a colour grid through exactly this, which is what lets the
+ * two share one field, one ARIA combobox contract, one dismissal model and one placement — while
+ * differing in the only thing they genuinely differ in, which is what a row looks like.
+ *
+ * It is deliberately the *smallest* set of members the field actually calls. A wider interface
+ * would have made `ListSurface`'s virtualisation accessors part of the contract, and a colour grid
+ * of eighty swatches does not virtualise and should not be made to pretend it does.
+ */
+export interface PopupSurface {
+  readonly element: HTMLElement;
+  readonly open: boolean;
+  readonly options: readonly OptionDescriptor[];
+  readonly activeIndex: number;
+  readonly activeOption: OptionDescriptor | undefined;
+  readonly activeDescendantId: string | undefined;
+  setOptions(options: readonly OptionDescriptor[]): void;
+  setSelected(value: string | undefined): void;
+  setActive(index: number): void;
+  show(anchor: HTMLElement, direction: Direction): void;
+  place(anchor: HTMLElement, direction: Direction): void;
+  hide(): void;
+  dispose(): void;
 }
 
 /** One built row, so the surface can find its element again without a query per keystroke. */
@@ -79,7 +121,7 @@ interface BuiltRow {
   readonly element: HTMLElement;
 }
 
-export class ListSurface {
+export class ListSurface implements PopupSurface {
   readonly #list: HTMLElement;
   readonly #top: HTMLElement;
   readonly #bottom: HTMLElement;
@@ -426,6 +468,10 @@ export class ListSurface {
       description.textContent = option.description;
       row.append(description);
     }
+
+    // The owner's last look at the row. See `ListSurfaceHost.decorateOption` for the one rule it
+    // has to keep, which is that the row is still exactly one row tall afterwards.
+    this.#host.decorateOption?.(row, option, index);
 
     return row;
   }

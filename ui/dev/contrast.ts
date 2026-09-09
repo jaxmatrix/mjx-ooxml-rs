@@ -31,44 +31,30 @@
 import { tokens, customProperties } from '../tokens/tokens.ts';
 import { generatedValue } from './token-choice.ts';
 import type { TokenPath } from '../src/tokens/resolver.ts';
+import {
+  bodyTextMinimum,
+  contrastRatio,
+  formatRatio,
+  nonTextMinimum,
+  relativeLuminance,
+} from '../src/tokens/contrast.ts';
 
-/** WCAG AA's minimum for normal-size body text. */
-export const bodyTextMinimum = 4.5;
-
-/** WCAG AA's minimum for UI components, large text, borders and indicators. */
-export const nonTextMinimum = 3;
-
-/** `#rrggbb` or `#rrggbbaa` to its three 8-bit channels. Alpha is ignored: a contrast ratio is
- *  defined over composited colours, and every exemplar here is painted on an opaque background. */
-function channels(hex: string): [number, number, number] | undefined {
-  const match = /^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/.exec(hex.trim());
-  if (match?.[1] === undefined) return undefined;
-  const value = Number.parseInt(match[1], 16);
-  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
-}
-
-function linearise(channel: number): number {
-  const scaled = channel / 255;
-  return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
-}
-
-/** WCAG relative luminance, or `undefined` for a value that is not an opaque hex colour. */
-export function relativeLuminance(hex: string): number | undefined {
-  const parsed = channels(hex);
-  if (parsed === undefined) return undefined;
-  const [red, green, blue] = parsed;
-  return 0.2126 * linearise(red) + 0.7152 * linearise(green) + 0.0722 * linearise(blue);
-}
-
-/** WCAG contrast ratio between two opaque hex colours, or `undefined` if either is not one. */
-export function contrastRatio(a: string, b: string): number | undefined {
-  const first = relativeLuminance(a);
-  const second = relativeLuminance(b);
-  if (first === undefined || second === undefined) return undefined;
-  const lighter = Math.max(first, second);
-  const darker = Math.min(first, second);
-  return (lighter + 0.05) / (darker + 0.05);
-}
+/*
+ * ⚠ **The arithmetic moved down to `src/tokens/contrast.ts` and is re-exported here rather than
+ * kept twice** (MJXOFF-187).
+ *
+ * A colour picker paints with the colour a person chose, so it has to ask *"is the selection
+ * indicator visible on this swatch"* at paint time — which makes contrast arithmetic a shipped
+ * dependency for the first time. The choice was one implementation both tiers reach, or a second
+ * one in `src/`.
+ *
+ * Keeping a copy here would have quietly destroyed the gate this module exists for.
+ * `tests/contrast.test.ts` asserts that this arithmetic and **axe's** agree, and its whole value
+ * is that the two come from different authors; a second copy would have turned it into a
+ * comparison between two of our own, which is the failure `mjx-paint`'s `compare_painters`
+ * refuses by name.
+ */
+export { bodyTextMinimum, contrastRatio, nonTextMinimum, relativeLuminance };
 
 /** One colour token measured against a background. */
 export interface MeasuredToken {
@@ -150,7 +136,5 @@ export function contrastExemplars(background: string = tokens.theme.light.surfac
   };
 }
 
-/** `3.39 : 1`, for a caption. */
-export function formatRatio(ratio: number): string {
-  return `${ratio.toFixed(2)} : 1`;
-}
+/** `3.39 : 1`, for a caption. Re-exported from the shipped module, for the reason above. */
+export { formatRatio };

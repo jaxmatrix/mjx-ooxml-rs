@@ -220,11 +220,43 @@ export class MjxComboBox extends MjxListField {
   };
 
   /**
+   * The value of the option whose label a person typed, or `undefined`.
+   *
+   * `normaliseForMatch` is the model's own comparison, so "cambria", " Cambria " and "CAMBRIA" are
+   * one answer. Separated from `resolveTyped` by MJXOFF-187 so a subclass with its own grammar can
+   * still get label matching for free rather than reimplementing it and getting the normalisation
+   * subtly different.
+   */
+  protected matchByLabel(text: string): string | undefined {
+    const wanted = normaliseForMatch(text);
+    const match = this.options.find(
+      (option) => normaliseForMatch(option.label) === wanted && option.unavailable !== true,
+    );
+    return match?.value;
+  }
+
+  /**
+   * ⚠ **What a typed string resolves to as a value, or `undefined` for a refusal.**
+   *
+   * Three answers here and no fourth: a matching option, the text itself under `allow-custom`, or
+   * nothing. A subclass overrides it when its field has a **grammar** rather than a list — a
+   * colour picker accepts `#123457`, `rgb(18, 52, 87)` and `theme:accent1/lighter40`, none of
+   * which is an option's label and all of which must normalise to one canonical value before they
+   * are committed. `allow-custom` alone would have committed the typed string verbatim, so the
+   * same colour typed three ways would have been three different values, and the field would have
+   * shown a spelling the control did not report.
+   */
+  protected resolveTyped(text: string): string | undefined {
+    const byLabel = this.matchByLabel(text);
+    if (byLabel !== undefined) return byLabel;
+    return this.allowCustom ? text.trim() : undefined;
+  }
+
+  /**
    * What the typed text resolves to, and what to do about it.
    *
-   * Three answers and no fourth: a matching option, the text itself under `allow-custom`, or a
-   * refusal that reverts *and reports*. `normaliseForMatch` is the model's own comparison, so
-   * "cambria", " Cambria " and "CAMBRIA" are one answer.
+   * `resolveTyped` above says what it resolves *to*; this says what happens when it resolves to
+   * nothing, which is a revert that reports rather than a silent one.
    */
   #finishFromText(): void {
     const typed = this.text;
@@ -242,24 +274,16 @@ export class MjxComboBox extends MjxListField {
       return;
     }
 
-    const match = this.options.find(
-      (option) => normaliseForMatch(option.label) === wanted && option.unavailable !== true,
-    );
-    if (match !== undefined) {
-      this.commitValue(match.value);
+    const resolved = this.resolveTyped(typed);
+    if (resolved !== undefined) {
+      this.commitValue(resolved);
       this.syncText();
       return;
     }
 
-    if (this.allowCustom) {
-      this.commitValue(typed.trim());
-      this.syncText();
-      return;
-    }
-
-    // No option, and custom values are not allowed. The field goes back to what it reports — and
-    // says what it refused, so a host may explain it. Reverting *silently* is the behaviour this
-    // child was told not to have.
+    // Nothing the field could make of it. It goes back to what it reports — and says what it
+    // refused, so a host may explain it. Reverting *silently* is the behaviour this child was told
+    // not to have.
     this.syncText();
     this.dispatchEvent(
       new CustomEvent(inputEvents.invalid, {
