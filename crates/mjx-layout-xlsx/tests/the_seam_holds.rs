@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
-const SOURCE_FILE_COUNT: usize = 12;
+const SOURCE_FILE_COUNT: usize = 13;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[
@@ -52,6 +52,11 @@ const FORBIDDEN: &[&str] = &[
     "mjx-geometry",
     "mjx-scene",
     "mjx-scene-pptx",
+    // Its own companion (MJXOFF-244). Cargo would refuse the cycle before this file spoke, and it
+    // is named anyway: the day the companion stops depending on the box model — a resolver that
+    // answered from a table rather than from a catalogue would do exactly that — the cycle check
+    // goes quiet on the day the seam needs it most.
+    "mjx-scene-xlsx",
     "mjx-paint",
     "mjx-view",
     "mjx-session",

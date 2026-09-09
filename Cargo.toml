@@ -89,6 +89,17 @@ members = [
     # display list (1.7) and the geometry tables (2.5) at once, and it is below `mjx-view` (3.8) so a
     # viewport still reaches PowerPoint through nothing.
     "crates/mjx-scene-pptx",
+    # Excel's companion to the box model — rank 3.7 (MJXOFF-244). The `ResourceResolver` that turns
+    # the handles `mjx-layout-xlsx` issued into `mjx-scene`'s fills and strokes: a cell's pattern or
+    # gradient, a border band's colour, and a run's own font colour — the last of which PowerPoint's
+    # companion still cannot answer, because a worksheet addresses a cell and a slide addresses a
+    # run inside a paragraph inside a shape. It exists for the same reason `mjx-scene-pptx` does and
+    # not by analogy: `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene` there
+    # **by name**. The **same rank** as PowerPoint's companion, deliberately — an edge between the
+    # two would be sideways, and `xtask/tests/layering.rs` refuses that; a spreadsheet's resolver has
+    # no business knowing what a slide is. It names no geometry table, because a worksheet's
+    # fragment tree carries no shape.
+    "crates/mjx-scene-xlsx",
     # Viewport windowing, byte-budgeted per-stage caches and frame scheduling — rank 3.8
     # (MJXOFF-168). It materialises the pages on screen plus a small prefetch ring, holds every
     # stage that keeps something expensive under a declared byte ceiling, and gives a frame a time
@@ -161,7 +172,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.146"
+version = "0.0.147"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -299,6 +310,7 @@ mjx-session = { path = "crates/mjx-session" }
 mjx-layout-pptx = { path = "crates/mjx-layout-pptx" }
 mjx-layout-xlsx = { path = "crates/mjx-layout-xlsx" }
 mjx-scene-pptx = { path = "crates/mjx-scene-pptx" }
+mjx-scene-xlsx = { path = "crates/mjx-scene-xlsx" }
 mjx-view = { path = "crates/mjx-view" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }

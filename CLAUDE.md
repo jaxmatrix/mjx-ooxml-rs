@@ -44,7 +44,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
   | 3.6 — the box models | `mjx-layout-pptx`, `mjx-layout-xlsx` |
-  | 3.7 — PowerPoint's scene companion | `mjx-scene-pptx` |
+  | 3.7 — the scene companions | `mjx-scene-pptx`, `mjx-scene-xlsx` |
   | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
@@ -154,6 +154,36 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `crates/mjx-scene-pptx/tests/the_seam_holds.rs`, which refuses `mjx-pptx` in `[dependencies]` and
   permits it in `[dev-dependencies]` — a suite that proves a real deck's fills resolve has to open
   one.
+
+  **`mjx-scene-xlsx` (MJXOFF-244) shares 3.7 for the same reason the two box models share 3.6.** It
+  is Excel's companion — the resolver that turns `mjx-layout-xlsx`'s handles into a cell's pattern or
+  gradient, a border band's colour and a run's own font colour — and it exists because
+  `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene` there by name, which is the
+  same argument run again rather than an analogy to PowerPoint's. The shared rank makes an edge
+  between the two companions **sideways**, and `xtask/tests/layering.rs` refuses that: the two
+  formats meet at `mjx-scene`, which is the whole point of there being a display list, and a
+  spreadsheet's resolver that could read a slide's would have made the display list a place where two
+  formats negotiate rather than a vocabulary both answer in.
+
+  What the rank buys is that `mjx-layout-xlsx` cannot grow a display-list builder and `mjx-scene`
+  cannot learn what a `.xlsx` is. What it does not buy is either of two things a reader might assume.
+  *A resolver reads no document* is held by `crates/mjx-scene-xlsx/tests/the_seam_holds.rs`, which
+  refuses `mjx-xlsx` in `[dependencies]` and permits it in `[dev-dependencies]`. And the **absence of
+  `mjx-geometry`** is not the rank's doing either — 2.5 is below 3.7, so that edge is legal and
+  always will be. The crate does not declare it because a worksheet's fragment tree carries no
+  `ShapeFragment` at all: a cell is a rectangle and so is a border band, so its `SheetGeometry`
+  refuses every handle rather than standing in, and `DrawReport::placeholders` on an Excel render is
+  a genuine but *narrow* assertion — zero against zero — rather than the count of unanswerable
+  presets it is for a deck.
+
+  **Two changes to R16's box model came out of building it, and both were "check before you
+  consume" findings rather than scope.** A cell's four borders cannot be carried on a
+  `mjx_scene::Decoration`, which has one stroke — so `mjx-layout-xlsx` now emits each edge as its own
+  filled `BoxFragment`, exactly as `mjx-layout-pptx` does for a table cell, and `crates/mjx-layout-xlsx/src/border.rs`
+  owns the (GUESS-laden) weight table. And a gradient fill carried a bare `is_gradient: bool`, which
+  names no stops, so a gradient-filled cell had no path to a pixel at all; the stops are carried now.
+  Both are stated where a reader will look, and the dash a filled band cannot draw is asserted as a
+  loss in `crates/mjx-scene-xlsx/tests/the_dash_is_lost_at_the_band.rs` rather than described.
 
   `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*

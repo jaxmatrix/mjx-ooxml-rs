@@ -62,6 +62,13 @@ mjx-opc.workspace = true
 [dev-dependencies]
 mjx-layout-pptx.workspace = true
 mjx-scene-pptx.workspace = true
+# Rank 3.0, 3.6 and 3.7, test-only (MJXOFF-244). Excel's three stages between a package and a
+# display list, here for exactly the reason PowerPoint's are: `tests/a_real_worksheet_reaches_pixels.rs`
+# is the one place a real workbook travels the whole pipeline, and this crate is the only one in the
+# workspace that may name a format crate (3.0) and `mjx-paint` (5.5) together.
+mjx-xlsx.workspace = true
+mjx-layout-xlsx.workspace = true
+mjx-scene-xlsx.workspace = true
 # Rank 1.6, test-only. `FragmentTree`, `BoxModel` and `PageIndex` — the vocabulary the box model
 # answers in, which neither of the two above re-exports.
 mjx-layout.workspace = true

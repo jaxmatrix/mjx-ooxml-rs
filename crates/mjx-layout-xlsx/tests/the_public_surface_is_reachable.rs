@@ -9,22 +9,22 @@
 //! export, uses it, and reads something back.
 //!
 //! It is also the gate that would notice a re-export **disappearing**. A consumer above this crate —
-//! Excel's scene companion, when it exists — is written against these names, and removing one is a
+//! `mjx-scene-xlsx`, Excel's scene companion — is written against these names, and removing one is a
 //! breaking change that should cost a deliberate edit here.
 
 mod support;
 
 use mjx_layout::{BoxModel, Fragment};
 use mjx_layout_xlsx::{
-    autofit, constraints_for, AutoFit, AutoFitCache, BorderEdge, CellBorders, CellFill, CellHit,
-    CellReport, CellRunStyle, CellStyle, ColumnGeometry, ColumnSpan, Decoration, GridGeometry,
-    MaximumDigitWidth, MergeIndex, MergedRegion, Overflow, OverflowDirection, PageCatalogue,
-    PaneRegion, PaneSplit, PlacedLine, PlacedText, RegionEdge, RowGeometry, RowSpan, SheetBoxModel,
-    SheetGrid, SheetLayoutError, TextEngine, Window,
+    autofit, constraints_for, AutoFit, AutoFitCache, BorderBand, BorderEdge, CellBorders, CellFill,
+    CellGradient, CellGradientStop, CellHit, CellReport, CellRunStyle, CellStyle, ColumnGeometry,
+    ColumnSpan, Decoration, GridGeometry, MaximumDigitWidth, MergeIndex, MergedRegion, Overflow,
+    OverflowDirection, PageCatalogue, PaneRegion, PaneSplit, PlacedLine, PlacedText, RegionEdge,
+    RowGeometry, RowSpan, SheetBoxModel, SheetGrid, SheetLayoutError, TextEngine, Window,
 };
 use mjx_ooxml_core::measure::Emu;
 use mjx_ooxml_types::spreadsheetml::{
-    BorderStyle, HorizontalAlignment, Pane, PaneState, VerticalAlignment,
+    BorderStyle, GradientType, HorizontalAlignment, Pane, PaneState, VerticalAlignment,
 };
 
 use support::{grid_from, model, styles, viewport};
@@ -186,6 +186,10 @@ fn every_exported_name_is_reachable_and_answers() {
     assert!(decoration.borders.edge(RegionEdge::Left).is_none());
     let _ = decoration.font.as_ref();
     let _ = decoration.number_format.as_ref();
+    assert!(
+        decoration.border_band.is_none(),
+        "a cell's own decoration is never a border band"
+    );
 
     // --- the vocabulary types, constructed directly --------------------------------------------
     let mut borders = CellBorders::default();
@@ -201,9 +205,45 @@ fn every_exported_name_is_reachable_and_answers() {
         pattern: None,
         foreground: None,
         background: None,
-        is_gradient: true,
+        gradient: Some(CellGradient {
+            kind: GradientType::Path,
+            degrees: 45.0,
+            inset: [0.2, 0.8, 0.1, 0.9],
+            stops: vec![CellGradientStop {
+                position: 0.0,
+                colour: Some(mjx_sml::Color::from_theme(4, Some(-0.25))),
+            }],
+        }),
     };
-    assert!(fill.is_gradient);
+    let gradient = fill.gradient.as_ref().expect("a gradient");
+    assert_eq!(gradient.kind, GradientType::Path);
+    assert_eq!(gradient.stops.len(), 1);
+    assert!((gradient.degrees - 45.0).abs() < f64::EPSILON);
+
+    // --- border bands --------------------------------------------------------------------------
+    let stated = BorderEdge {
+        style: BorderStyle::Double,
+        colour: None,
+    };
+    let mut double = CellBorders::default();
+    double.set(RegionEdge::Top, Some(stated.clone()));
+    let drawn: Vec<BorderBand> = mjx_layout_xlsx::bands(
+        mjx_layout::LayoutRect::from_edges(
+            mjx_ooxml_core::measure::Emu::ZERO,
+            mjx_ooxml_core::measure::Emu::ZERO,
+            mjx_ooxml_core::measure::Emu::from_inches(1.0),
+            mjx_ooxml_core::measure::Emu::from_inches(1.0),
+        ),
+        &double,
+    );
+    assert_eq!(drawn.len(), 2, "a `double` edge is two lines");
+    assert_eq!(drawn[0].edge, RegionEdge::Top);
+    assert_eq!(drawn[0].stated, stated);
+    assert!(drawn[0].rect.height() > mjx_ooxml_core::measure::Emu::ZERO);
+    assert!(
+        mjx_layout_xlsx::band_width(BorderStyle::Thick)
+            > mjx_layout_xlsx::band_width(BorderStyle::Thin)
+    );
 
     // --- overflow ------------------------------------------------------------------------------
     assert_eq!(

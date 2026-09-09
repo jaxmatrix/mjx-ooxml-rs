@@ -244,6 +244,40 @@ enum Tier {
     /// `[dependencies]` — and permits it in `[dev-dependencies]`, because a suite that proves a real
     /// deck's fills resolve has to open one.
     ScenePresentation,
+    /// `mjx-scene-xlsx` — rank 3.7 (MJXOFF-244). Excel's companion to the box model: the
+    /// `ResourceResolver` that turns the handles `mjx-layout-xlsx` issued into `mjx-scene`'s fills —
+    /// a cell's pattern or gradient, a border band's colour, and a run's own font colour.
+    ///
+    /// **It exists for the same reason `mjx-scene-pptx` does, run again on the same seam rather than
+    /// by analogy to it.** `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene`
+    /// there by name, on the ground that a box model which built a display list would have merged
+    /// two stages the architecture separates on purpose. That gate is right, so the resolver got a
+    /// crate.
+    ///
+    /// **The same rank as `mjx-scene-pptx`, and that is the decision rather than an accident.** It
+    /// must name the box model (3.6) for the handles and the display list (1.7) for what they
+    /// resolve into, so 3.7 is the lowest rank available; it must stay below `mjx-view` (3.8) or a
+    /// viewport would reach Excel through it. Sharing the rank with PowerPoint's companion makes an
+    /// edge between the two **sideways**, which this file refuses by name — exactly as it does
+    /// between the two box models at 3.6, and for the same reason: a spreadsheet's resolver has no
+    /// business knowing what a slide is, and a slide's none what a worksheet is. The two formats
+    /// meet at `mjx-scene`, which is the whole point of there being a display list.
+    ///
+    /// **What the rank buys**, beyond that refusal: `mjx-layout-xlsx` cannot grow a display-list
+    /// builder, `mjx-sml` cannot learn what a paint is, and `mjx-scene` cannot learn what a `.xlsx`
+    /// is.
+    ///
+    /// **What it deliberately does not buy.** At 3.7 every format crate is a legal downward edge, so
+    /// *a resolver reads no document* is held by `crates/mjx-scene-xlsx/tests/the_seam_holds.rs`,
+    /// which refuses `mjx-xlsx` in `[dependencies]` — and permits it in `[dev-dependencies]`,
+    /// because a suite that proves a real workbook's fills resolve has to open one. **It also does
+    /// not buy the *absence* of `mjx-geometry`**: 2.5 is below 3.7, so that edge is legal and always
+    /// will be. The crate does not declare it because a worksheet's fragment tree carries no
+    /// `ShapeFragment` at all — a cell is a rectangle and so is a border band — and its
+    /// `SheetGeometry` therefore refuses every handle rather than standing in. When MJXOFF-173 puts
+    /// `xdr:twoCellAnchor` drawings on a sheet, that edge is the one it will add, and the manifest
+    /// gate is where the addition has to be argued.
+    SceneSpreadsheet,
     /// `mjx-view` — rank 3.8 (MJXOFF-168). Viewport windowing, byte-budgeted per-stage caches and
     /// frame scheduling: the layer that makes a four-hundred-page document behave.
     ///
@@ -407,6 +441,7 @@ impl Tier {
             Self::LayoutPresentation => Rank(3, 6),
             Self::LayoutSpreadsheet => Rank(3, 6),
             Self::ScenePresentation => Rank(3, 7),
+            Self::SceneSpreadsheet => Rank(3, 7),
             Self::Viewport => Rank(3, 8),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
@@ -440,6 +475,7 @@ impl Tier {
             Self::LayoutPresentation => "PowerPoint's box model",
             Self::LayoutSpreadsheet => "Excel's box model",
             Self::ScenePresentation => "PowerPoint's scene companion",
+            Self::SceneSpreadsheet => "Excel's scene companion",
             Self::Viewport => "the viewport",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
@@ -490,6 +526,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-layout-pptx", Tier::LayoutPresentation),
     ("mjx-layout-xlsx", Tier::LayoutSpreadsheet),
     ("mjx-scene-pptx", Tier::ScenePresentation),
+    ("mjx-scene-xlsx", Tier::SceneSpreadsheet),
     ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),
