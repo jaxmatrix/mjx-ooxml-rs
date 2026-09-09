@@ -101,14 +101,26 @@ impl Workbook {
     /// # Errors
     /// Returns [`XlsxError`] if the workbook part cannot be read, or if `@date1904` holds a value
     /// that is not an `xsd:boolean` — which is reported rather than guessed at.
-    pub fn date_system(&mut self) -> Result<DateSystem, XlsxError> {
-        let uses_1904 = self.workbook_markup(|part, interner| {
-            part.properties()
-                .map_or(Ok(false), |properties| {
-                    properties.uses_1904_date_system(interner)
-                })
-                .map_err(XlsxError::from)
-        })??;
+    /// Takes `&Workbook` rather than `&mut Workbook`: nothing here writes, and reading a part does
+    /// not dirty the package — the same courtesy [`Workbook::sheet_formatting`] extends, and what
+    /// lets a *box model* holding a `&Workbook` ask which epoch it is laying out.
+    pub fn date_system(&self) -> Result<DateSystem, XlsxError> {
+        let part = self.workbook_part().clone();
+        let Some(bytes) = self.package().part_bytes(&part) else {
+            return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
+        };
+        let document = mjx_xml::fidelity::parse(bytes)?;
+        let Some(markup) = mjx_sml::WorkbookPart::read_part(&document)? else {
+            return Err(XlsxError::MalformedWorkbook(
+                "root element is not x:workbook",
+            ));
+        };
+        let uses_1904 = markup
+            .properties()
+            .map_or(Ok(false), |properties| {
+                properties.uses_1904_date_system(&document.interner)
+            })
+            .map_err(XlsxError::from)?;
         Ok(if uses_1904 {
             DateSystem::Macintosh1904
         } else {

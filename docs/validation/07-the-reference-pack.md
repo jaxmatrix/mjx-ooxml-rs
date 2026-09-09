@@ -203,3 +203,21 @@ comparison.
   rests on, and says so.
 * **A hatch bitmap the export blurred.** The reader recovers a tile only when the render is periodic
   enough to find a period, and reports that it could not otherwise. It always reports the coverage.
+* **Whether a number format renders the string Excel renders.** MJXOFF-172 built the `numFmt`
+  evaluator and could not source its expectations from Excel; most of its conformance table is a
+  change detector rather than evidence, and it says so per row. If you have Excel open anyway, this
+  is *ten minutes* and it is the single cheapest way to turn two hundred guesses into facts:
+
+  ```sh
+  MJX_NUMFMT_CONFORMANCE_SHEET=numfmt.tsv \
+      cargo test -p mjx-layout-xlsx --test the_format_language_is_evaluated
+  ```
+
+  Open `numfmt.tsv` in Excel. Column B is a format code, column C a stored value, column E what we
+  render; put what Excel renders in column F. Apply the code from column B to the value in column C
+  with *Format Cells → Custom*, which is exactly what a `numFmt` on an `xf` means. Rows whose column
+  D says `1904` need *File → Options → Advanced → Use 1904 date system* — do those together, at the
+  end, and turn it off afterwards.
+
+  **It is not part of the four exports and nothing is blocked on it.** Bring back the column and the
+  table's `EngineDerived` rows become `Documented` ones.

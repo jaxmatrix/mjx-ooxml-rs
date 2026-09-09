@@ -38,6 +38,7 @@ const PERMITTED_FORMAT_CALLS: &[&str] = &[
     "alignment",
     "number_format",
     "format_code",
+    "format_code_in",
     "properties",
 ];
 
@@ -183,12 +184,22 @@ fn the_permitted_calls_are_actually_made() {
 }
 
 #[test]
-fn nothing_here_evaluates_a_number_format_or_a_formula() {
-    // Two whole subjects this child deliberately does not have. A `numFmt` evaluator is MJXOFF-172
-    // and there is no calculation engine in this loop at all — a cached value is rendered as stored,
-    // which is correct for a viewer. Both are easy to start by accident while making a cell's text
-    // "look right", so both are refused by name.
-    let forbidden = ["format_value", "evaluate", "recalculate", "calc_chain"];
+fn nothing_here_evaluates_a_formula() {
+    // There is no calculation engine in this loop at all — a cached value is rendered as stored,
+    // which is correct for a viewer — and it is easy to start one by accident while making a cell's
+    // text "look right".
+    //
+    // ⚠ This gate used to forbid `evaluate` as well, because until MJXOFF-172 a `numFmt` evaluator
+    // was the other subject this crate deliberately did not have. R17 **is** that evaluator, so the
+    // identifier is now expected rather than refused, and what replaced the refusal is
+    // `the_number_format_engine_carries_no_table_of_its_own` below: the evaluator is welcome, a
+    // second copy of §18.8.30 is not.
+    let forbidden = [
+        "recalculate",
+        "calc_chain",
+        "CalcChain",
+        "shared_formula_expand",
+    ];
     let mut offences = Vec::new();
     for (file, line) in code_lines() {
         for identifier in forbidden {
@@ -198,4 +209,52 @@ fn nothing_here_evaluates_a_number_format_or_a_formula() {
         }
     }
     assert!(offences.is_empty(), "{}", offences.join("\n"));
+}
+
+#[test]
+fn the_number_format_engine_carries_no_table_of_its_own() {
+    // ⚠ The defect MJXOFF-172's ticket names by name: **the built-in formats are a table nobody
+    // wrote down**. Ids 0–49 are defined by ECMA-376 Part 1 §18.8.30 and are *not* present in the
+    // file — a cell that says `numFmtId="14"` carries no format string anywhere — so an evaluator
+    // that kept its own copy would look right and drift, and a *short* copy would fall back to
+    // `General` for the missing ids and look plausible while doing it.
+    //
+    // `mjx-sml` already holds that table (`builtin_format_code`, twenty-eight ids under *All
+    // Languages* plus five locale tables), and `REDERIVATION` above already refuses this crate to
+    // name the function. This refuses the other half: the **codes themselves** must not appear in
+    // this crate's source, because a second table pasted in as string literals would satisfy the
+    // identifier gate perfectly.
+    //
+    // The check asks `mjx-sml` for the list rather than restating it, so a code added on either side
+    // is covered without editing this file.
+    let all: String = code_lines()
+        .into_iter()
+        .map(|(file, line)| format!("{}\u{1}{line}", file.display()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut offences = Vec::new();
+    for id in 0..=49_u32 {
+        let Some(code) = mjx_sml::builtin_format_code(id) else {
+            continue;
+        };
+        // Short codes are tokens of the language as well as table entries — `0`, `@`, `0.00`,
+        // `h:mm` — and refusing those would refuse the parser's own vocabulary. Everything longer is
+        // a table entry and nothing else.
+        if code.chars().count() < 5 || code == "General" {
+            continue;
+        }
+        for line in all.lines() {
+            if line.contains(code) {
+                let (file, text) = line.split_once('\u{1}').unwrap_or(("?", line));
+                offences.push(format!(
+                    "{file}: the §18.8.30 code for id {id} — `{code}`\n    {text}"
+                ));
+            }
+        }
+    }
+    assert!(
+        offences.is_empty(),
+        "a second copy of the built-in format table:\n{}",
+        offences.join("\n")
+    );
 }

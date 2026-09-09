@@ -33,11 +33,12 @@
 
 use mjx_layout::PartId;
 use mjx_ooxml_types::spreadsheetml::CellType;
+use mjx_sml::NumberFormatLanguage;
 use mjx_sml::{
     CellReference, GridBounds, InlineString, SharedStringTable, SheetFormatProperties,
     WorksheetPart,
 };
-use mjx_xlsx::{SheetFormatting, Workbook};
+use mjx_xlsx::{DateSystem, SheetFormatting, Workbook};
 
 use crate::address;
 use crate::error::SheetLayoutError;
@@ -52,6 +53,8 @@ pub struct SheetGrid {
     name: String,
     formatting: SheetFormatting,
     shared_strings: Option<SharedStringTable>,
+    dates: DateSystem,
+    language: Option<NumberFormatLanguage>,
     rows: RowGeometry,
     merges: MergeIndex,
     split: PaneSplit,
@@ -81,7 +84,11 @@ impl SheetGrid {
             return Err(SheetLayoutError::NotAWorksheet { index });
         };
         let shared_strings = workbook.shared_strings()?;
-        Ok(Self::from_parts(index, name, formatting, shared_strings))
+        // ⚠ Read from the workbook rather than assumed. The two epochs are 1,462 days apart, so a
+        // snapshot that defaulted to 1900 would shift every date in a Macintosh-authored workbook by
+        // just over four years — silently, and in the one place a reader would notice at a glance.
+        let dates = workbook.date_system()?;
+        Ok(Self::from_parts(index, name, formatting, shared_strings).with_date_system(dates))
     }
 
     /// The snapshot over parts a caller already holds — the path a suite that authored a worksheet
@@ -107,11 +114,54 @@ impl SheetGrid {
             name,
             formatting,
             shared_strings,
+            dates: DateSystem::Windows1900,
+            language: None,
             rows,
             merges,
             split,
             used,
         }
+    }
+
+    /// The same snapshot counting its date serials from `dates`.
+    ///
+    /// [`SheetGrid::read`] sets this from `workbookPr@date1904`. A suite that authored a worksheet
+    /// in memory gets [`DateSystem::Windows1900`], which is the schema default and what an absent
+    /// `workbookPr` means.
+    #[must_use]
+    pub fn with_date_system(mut self, dates: DateSystem) -> Self {
+        self.dates = dates;
+        self
+    }
+
+    /// Which epoch this sheet's date serials count from.
+    #[must_use]
+    pub fn date_system(&self) -> DateSystem {
+        self.dates
+    }
+
+    /// The same snapshot resolving §18.8.30's **locale-dependent** built-in ids in `language`.
+    ///
+    /// Ids 27–36, 50–58 and the Thai block 59–62 / 67–81 have a *different* format code per UI
+    /// language — id 30 is `m/d/yy` in `zh-tw`, `m-d-yy` in `zh-cn` and `mm-dd-yy` in `ko-kr` — so a
+    /// consumer that does not know its language cannot answer for them at all, and
+    /// [`mjx_sml::builtin_format_code`] correctly answers `None` rather than picking one.
+    ///
+    /// **This is the host's answer and not the document's.** §18.8.30 says the code depends on *"the
+    /// consumer's UI language"*; nothing in a `.xlsx` states it, and reading one out of the file
+    /// would be inventing it. So the default is `None` — those ids resolve to `General`, which is
+    /// visibly wrong and honestly wrong — and a shell that knows what language it is running in says
+    /// so here.
+    #[must_use]
+    pub fn with_number_format_language(mut self, language: Option<NumberFormatLanguage>) -> Self {
+        self.language = language;
+        self
+    }
+
+    /// Which UI language the locale-dependent built-in ids resolve in, or `None`.
+    #[must_use]
+    pub fn number_format_language(&self) -> Option<NumberFormatLanguage> {
+        self.language
     }
 
     /// Which tab this is.
@@ -242,12 +292,16 @@ impl SheetGrid {
         self.worksheet().sheet_data()?.row(row.checked_add(1)?)
     }
 
-    /// The text a cell displays.
+    /// The text a cell **stores**, before its number format is applied.
     ///
-    /// **No number formatting**: MJXOFF-171 renders a cell's raw stored value, and the `numFmt`
-    /// evaluator is MJXOFF-172's whole subject. A numeric cell therefore shows the digits the file
-    /// wrote, which is right for a shared string and visibly wrong for a date — deliberately, and
-    /// only until R17.
+    /// This is the raw value: `45719` for a date, `1234.5` for a currency. The string a reader sees
+    /// is [`crate::numfmt`]'s answer for this text and the cell's format code, and the box model
+    /// asks for it per cell — see `SheetBoxModel::formats`.
+    ///
+    /// It stays public and stays raw because *occupancy* is a question about the stored value and
+    /// not about the formatted one: [`cell_is_occupied`](Self::cell_is_occupied) reads this, and a
+    /// format that renders a value as nothing (`;;;`) must not make a populated cell look empty to
+    /// its neighbour's overflow.
     ///
     /// Follows [`Workbook::cell_text`] exactly rather than re-deriving it: a shared-string index is
     /// resolved through the table, an `<is>` is parsed, and everything else is the `<v>` the file

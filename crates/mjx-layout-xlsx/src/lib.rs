@@ -53,12 +53,27 @@
 //! | Which merge covers this cell, and what is its anchor? | [`WorksheetPart::merged_ranges`](mjx_sml::WorksheetPart::merged_ranges) |
 //! | What does this cell hold? | `mjx-sml`'s packed cell store, plus the shared-string table |
 //! | Where is the sheet frozen or split? | `x:sheetView/pane`, unconverted, exactly as the file wrote it |
+//! | What format code does `numFmtId="14"` mean? | [`mjx_sml::builtin_format_code`] and the workbook's own `numFmts` |
+//! | Which epoch do this workbook's date serials count from? | [`mjx_xlsx::DateSystem`] |
 //!
 //! The `xf` indirection, the cell → row → column → default walk, the `cellXfs`/`cellStyleXfs`
 //! layering and the `applyX` gating have **all already run** by the time anything here reads a
 //! value. That is the whole reason this crate sits above the format tier rather than inside it, and
 //! `tests/the_ladder_is_consumed.rs` holds it by grepping this crate's own source for the
 //! identifiers a re-derivation would need.
+//!
+//! # A cell shows what Excel shows, not what the file stores
+//!
+//! MJXOFF-172 added [`crate::numfmt`]: the `numFmt` evaluator. A cell's text is the *formatted*
+//! value — `04/03/2025` rather than `45719`, `$1,234.50` rather than `1234.5` — and the format's
+//! own `[Red]` reaches the painter on [`Decoration::text_colour`], which is per **value** and so
+//! cannot live on a decoration shared by a whole effective format.
+//!
+//! The engine is a module of this crate rather than of `mjx-sml`, deliberately: `mjx-sml` reports
+//! *which* code is in force and says so in as many words, and turning a code into a string is a
+//! renderer's job. It is nevertheless independent of everything else here — it takes a code, a
+//! value and a [`mjx_xlsx::DateSystem`] and answers a string — which is what makes it testable
+//! against a conformance table rather than against a fragment tree.
 //!
 //! Every **measurement** comes from `mjx-text`: shaping, bidirectional resolution, script
 //! itemisation, face fallback and line breaking. Nothing here measures a glyph.
@@ -78,10 +93,6 @@
 //!
 //! # What is deliberately not here
 //!
-//! * **Number formatting.** A cell renders its raw stored value. `numFmt` is a small language with
-//!   its own grammar, four conditional sections, two date epochs and a set of behaviours that are
-//!   quirks rather than rules; MJXOFF-172 is its whole subject. The format code in force is carried
-//!   on every cell's [`Decoration`] so that child is a change to one crate.
 //! * **Conditional formatting, cell drawings and print layout** — MJXOFF-173.
 //! * **Charts** — MJXOFF-179 (R23). A chart on a sheet is a drawing, and drawings are R18.
 //! * **Formula evaluation**, which does not exist in this loop at all: a cell's cached value is
@@ -112,6 +123,7 @@ pub mod error;
 pub mod geometry;
 pub mod merge;
 pub mod model;
+pub mod numfmt;
 pub mod overflow;
 pub mod panes;
 pub mod sheet;
@@ -130,6 +142,7 @@ pub use model::{
     BorderEdge, CellBorders, CellFill, CellGradient, CellGradientStop, CellReport, Decoration,
     PageCatalogue, SheetBoxModel,
 };
+pub use numfmt::{CellValue, CompiledFormat, FormatCache, FormattedValue};
 pub use overflow::{Overflow, OverflowDirection};
 pub use panes::{PaneRegion, PaneSplit, Window};
 pub use sheet::SheetGrid;

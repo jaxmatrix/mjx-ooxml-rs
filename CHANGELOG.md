@@ -58,6 +58,107 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.148] - 2026-09-09
+
+**The number-format engine — a date stops being a serial (MJXOFF-172, R17).**
+
+R16 built Excel's box model and deliberately left number formatting out: a cell rendered its **raw
+stored value**, so a date read `45719` and a currency read `1234.5`. MJXOFF-244 then built
+`mjx-scene-xlsx`, which made that output visible. This child is the evaluator — `numFmt@formatCode`
+applied to a cell's value — and it is a sub-project rather than a feature: a small language with its
+own grammar, four conditional sections, bracketed conditions, colour codes, two date epochs and a set
+of behaviours that are quirks rather than rules.
+
+### Added
+
+- **`mjx_layout_xlsx::numfmt`** — the evaluator, six modules: the two-phase parser (a format code
+  cannot be classified while it is being read — `,` groups or divides depending on what *follows* it,
+  `/` is a fraction bar only between digit runs, and `m` is a month or a minute depending on its
+  neighbours), the numeric renderer, the date arithmetic, `General` and the fifteen-digit display
+  clamp, the two caches, and the module that joins them.
+- **Everything the language has, except five things named as absent**: the three digit placeholders
+  and their padding, decimal points, thousands grouping, trailing-comma scaling, percentages,
+  scientific *and engineering* notation (`##0.0E+0` on `12345` is `12.3E+3`), fractions with variable
+  and fixed denominators, quoted and escaped literals, `_` skips, `*` fills, `@` substitution,
+  `General`, the eight colour names and `[ColorN]`, bracketed conditions, `[$…]` currency and locale
+  prefixes, every date and time token, `AM/PM` in four spellings, sub-seconds, elapsed `[h]`/`[mm]`/
+  `[ss]`, and both date systems.
+- **`Decoration::text_colour`** and a decoration table keyed on `(effective format, colour)`. A
+  number format states its colour per **section**, and which section runs depends on the *value* — so
+  the negative cells of a `#,##0;[Red]#,##0` column are red and the positive ones are not, with one
+  `xf` between them. Every mechanism the two crates share for *not* duplicating a decoration worked
+  against that, and this is what resolves it.
+- **`SheetPalette::resolve_indexed`** in `mjx-scene-xlsx`, and a `text_decoration` that prefers a
+  format's colour over the font's. `[Red]` travels as a bare **row of `indexedColors`**, unresolved,
+  for the same reason a `mjx_sml::Color` does: resolving a palette row is the companion's job.
+- **`CellReport::text`** — what a cell displayed, after its format ran. A `GlyphRunFragment` carries a
+  shaped run and a byte range and *not* the string those bytes index, so a hit test, an accessibility
+  tree or an exporter had nowhere to ask. It moves the string the box model already built.
+- **`SheetGrid::with_number_format_language`**, and with it the *other* half of §18.8.30. Ids 27–36,
+  50–58 and the Thai block have a **different** code per UI language — id 30 is `m/d/yy` in `zh-tw`,
+  `m-d-yy` in `zh-cn` and `mm-dd-yy` in `ko-kr` — and nothing in a `.xlsx` states which language a
+  consumer runs in, so `builtin_format_code` correctly answers `None` for all of them. The default is
+  still `None` (those ids fall back to `General`, which is visibly and honestly wrong); a shell that
+  knows its language now has somewhere to say so, and `format_code_in` is used when it does.
+- **`SheetGrid::date_system` / `with_date_system`**, read from `workbookPr@date1904` by
+  `SheetGrid::read`. The two epochs are 1,462 days apart, so a snapshot that defaulted to 1900 would
+  shift every date in a Macintosh-authored workbook by four years, silently.
+- **Four new suites** — 29 cases across `mjx-layout-xlsx` and `mjx-scene-xlsx`, plus five more in the two crates’ existing surface and ladder gates. A conformance table of **193 rows** with a declared provenance on each;
+  a malformed-code suite over 57 broken codes × 21 values × two epochs × four value kinds; an
+  end-to-end suite that reaches the engine through a real `numFmtId`; and a reachability gate that
+  fails if any construct of the language — any `Element`, any `DateToken`, any `SectionKind`, any of
+  the four `AM/PM` spellings — is not reached **by a row of the table**.
+
+### Changed
+
+- **`Workbook::date_system` takes `&self`** rather than `&mut self`. Reading a part does not dirty
+  the package, and a box model holding a `&Workbook` has to be able to ask which epoch it is laying
+  out. Relaxing a receiver is source-compatible.
+- **`mjx-layout-xlsx`'s seven fragment baselines regenerated.** Four moved, all in the same
+  direction: a one-character cell became an eight- or ten-character one. `100.000%` where the file
+  says `1`; `2.00  USD;` where it says `2`. Still `approver = generator` — a change detector, not a
+  human review.
+- **`tests/the_ladder_is_consumed.rs` no longer forbids `evaluate`**, because R17 *is* the evaluator
+  the refusal was holding the place for. What replaced it is stronger and aimed at this child's own
+  named trap: the built-in format codes of §18.8.30 are a table nobody wrote down, a short copy falls
+  back to `General` and **looks plausible**, so the gate now greps this crate's source for the codes
+  themselves — asking `mjx-sml` for the list rather than restating it.
+
+### ⚠ Two Excel quirks, reproduced rather than corrected
+
+- **Serial 60 is 1900-02-29**, a day that never existed. Lotus 1-2-3 had the defect, Excel copied it
+  for file compatibility, and a renderer that prints the arithmetically right answer prints something
+  no Excel user has ever seen. The 1900 epoch is therefore *three* branches and not one constant.
+- **Fifteen significant digits.** Excel stores a `f64` and displays it as a fifteen-digit decimal,
+  which is why `=0.1+0.2` shows `0.3` in one cell while `=(0.1+0.2)=0.3` is `FALSE` in the next. That
+  clamp also makes the rounding **decimal**: `2.675` is stored as `2.67499999999999982…`, and rounding
+  the binary value to two places gives `2.67` where Excel gives `2.68`.
+
+Both are asserted, and a renderer that "fixes" either fails deliberately.
+
+### ⚠ Nothing here is parity with Excel, and the conformance table says so per row
+
+The ticket asked for a table *transcribed from real Excel output*, and correctly warned that a table
+whose expectations came from running the engine is green for any behaviour whatsoever. **No such
+transcription was possible**: nobody ran Excel. So every row declares where its expectation came from
+— 31 spec-transcribed codes, 110 documented behaviours, 52 engine-derived rows that are change
+detectors and **not** evidence — and a test prints the split so nobody mistakes a green run for one.
+`MJX_NUMFMT_CONFORMANCE_SHEET=<path>` writes the table as a sheet a person takes to Excel;
+`docs/validation/07-the-reference-pack.md` §7 says how, and it is ten minutes.
+
+Every behaviour chosen rather than read is marked `GUESS:` at its site. The sharpest: where a `-`
+lands relative to a currency sign; whether a *conditioned* second section still renders unsigned;
+what a conditional code no section matches shows (Excel fills the cell with `#`, which needs a
+width); `General`'s digit count and its scientific thresholds, both of which are width-dependent in
+Excel and are not here; how wide `_` is; and that a whole number under `# ?/?` blanks its fraction.
+
+### Deliberately not implemented
+
+Localised month and weekday names (English only — no locale database may enter the cross-build
+matrix, and ECMA-376 publishes no name table), the Japanese era and Thai Buddhist calendars, `*`
+expansion and `#######` overflow (both need a cell width the evaluator does not have, and a width in
+the evaluator would put a column's geometry into the cache key of every value on the sheet).
+
 ## [0.0.147] - 2026-09-09
 
 **`mjx-scene-xlsx` — Excel's scene companion, and the first worksheet to reach pixels (MJXOFF-244).**

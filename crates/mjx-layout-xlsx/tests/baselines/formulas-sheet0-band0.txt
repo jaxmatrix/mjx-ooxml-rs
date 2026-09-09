@@ -116,8 +116,8 @@ fragment-tree nodes=120 roots=1
     #109 box rect=[2324100,952500,2905125,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/4 chars=0..0 decoration=0 cell=r5c4 span=1x1
     #110 box rect=[2905125,952500,3486150,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/5 chars=0..0 decoration=0 cell=r5c5 span=1x1
     #111 box rect=[3486150,952500,4067175,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/6 chars=0..0 decoration=0 cell=r5c6 span=1x1
-      #112 line rect=[3741260,972468,3812065,1143000] transform=TransformId(0) clip=ClipId(20) part=0 path=/5/6 chars=0..1 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
-        #113 glyph run rect=[3741260,972468,3812065,1143000] transform=TransformId(0) clip=ClipId(20) part=0 path=/5/6 chars=0..1 face=0 origin=[3741260,1105483] direction=LeftToRight level=BidiLevel(0) glyphs=1
+      #112 line rect=[3625775,972468,3927549,1143000] transform=TransformId(0) clip=ClipId(20) part=0 path=/5/6 chars=0..4 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #113 glyph run rect=[3625775,972468,3927549,1143000] transform=TransformId(0) clip=ClipId(20) part=0 path=/5/6 chars=0..4 face=0 origin=[3625775,1105483] direction=LeftToRight level=BidiLevel(0) glyphs=4
     #114 box rect=[4067175,952500,4648200,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/7 chars=0..0 decoration=0 cell=r5c7 span=1x1
     #115 box rect=[4648200,952500,5229225,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/8 chars=0..0 decoration=0 cell=r5c8 span=1x1
     #116 box rect=[5229225,952500,5810250,1143000] transform=TransformId(0) clip=ClipId(0) part=0 path=/5/9 chars=0..0 decoration=0 cell=r5c9 span=1x1
