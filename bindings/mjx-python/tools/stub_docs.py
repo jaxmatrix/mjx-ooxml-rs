@@ -128,7 +128,12 @@ def _docstring_span(body: list[ast.stmt], indent: int) -> tuple[int, int]:
         and isinstance(first.value, ast.Constant)
         and isinstance(first.value.value, str)
     ):
-        return first.lineno - 1, first.end_lineno
+        # `end_lineno` is `int | None` on every `ast.stmt`, because a node the compiler
+        # synthesises carries no end position. A node this function sees came out of
+        # `ast.parse`, which fills it in — so the fallback is unreachable for a real parse,
+        # and `lineno` is the right value for it anyway: a docstring that ends where it
+        # begins is the one-line case.
+        return first.lineno - 1, first.end_lineno or first.lineno
     return first.lineno - 1, first.lineno - 1
 
 

@@ -68,23 +68,65 @@ fn every_pptx_fixture_is_schema_valid() {
     }
 }
 
+/// Every part of the `.pptx` corpus that carries markup compatibility, found rather than listed.
+///
+/// A part qualifies when its bytes name `mc:AlternateContent` or carry an `mc:Ignorable`
+/// attribute — the two spellings that made the harness skip a part before MCE was resolved.
+fn pptx_parts_carrying_markup_compatibility() -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    for name in package_fixtures_with_extension("pptx") {
+        let bytes = fixture(&name);
+        let package = Package::open(&bytes)
+            .unwrap_or_else(|error| panic!("{name}: opening package: {error}"));
+        let mut parts: Vec<PartName> = package.part_names().collect();
+        parts.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+        for part in parts {
+            let Some(payload) = package.part_bytes(&part) else {
+                continue;
+            };
+            let carries = payload
+                .windows(b"mc:AlternateContent".len())
+                .any(|window| window == b"mc:AlternateContent")
+                || payload
+                    .windows(b"mc:Ignorable".len())
+                    .any(|window| window == b"mc:Ignorable");
+            if carries {
+                found.push((name.clone(), part.as_str().to_owned()));
+            }
+        }
+    }
+    found
+}
+
 #[test]
 fn markup_compatibility_is_resolved_and_validated_rather_than_skipped() {
     // The MCE skip used to be a hole with a name on it: a part carrying `mc:AlternateContent` was
     // reported skipped and never validated. Resolving instead is what lets `word/document.xml` —
     // which LibreOffice writes `mc:Ignorable` on — be validated at all, so pin the PowerPoint half
-    // of that mechanism: both fixtures that carry markup compatibility are *validated*, against
-    // `pml.xsd`, with the winning `mc:Choice` or `mc:Fallback` in place.
+    // of that mechanism: every corpus part that carries markup compatibility is *validated*,
+    // against `pml.xsd`, with the winning `mc:Choice` or `mc:Fallback` in place.
+    //
+    // The parts are **found, not named** (MJXOFF-252). This case used to spell out the pair that
+    // carried MCE the day it was written, under a comment that said "both fixtures that carry
+    // markup compatibility" — a claim about a derivable subset, hand-written, which is exactly the
+    // shape `xtask/tests/derived_rosters.rs` exists to reject and which that sweep found here once
+    // the fixture corpus became one of its populations. A third fixture with an
+    // `mc:AlternateContent` in it would have left the sentence false and the case green.
+    let carriers = pptx_parts_carrying_markup_compatibility();
+    assert!(
+        carriers.len() >= 2,
+        "the scan for markup compatibility in the .pptx corpus has stopped matching: it found {} \
+         part(s). With nothing to check, this case passes exactly as a working one does.",
+        carriers.len()
+    );
+
     let Some(harness) = harness() else { return };
 
-    for (name, part) in [
-        ("ole.pptx", "/ppt/slides/slide1.xml"),
-        ("ink.pptx", "/ppt/slides/slide1.xml"),
-    ] {
+    for (name, part) in &carriers {
         let rows = inspect_deck(&harness, name, &fixture(name), &[]);
         let row = rows
             .iter()
-            .find(|row| row.name == part)
+            .find(|row| &row.name == part)
             .unwrap_or_else(|| panic!("{name}: {part} is not in the sweep"));
         assert!(
             matches!(row.outcome, PartOutcome::Validated("pml.xsd")),
@@ -93,6 +135,11 @@ fn markup_compatibility_is_resolved_and_validated_rather_than_skipped() {
             row.outcome.describe()
         );
     }
+
+    println!(
+        "markup compatibility: {} corpus part(s) found and validated against pml.xsd: {carriers:?}",
+        carriers.len()
+    );
 }
 
 // ---------------------------------------------------------------------------------------------

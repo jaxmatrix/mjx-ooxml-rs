@@ -99,16 +99,25 @@
 //! | make the element parser require a bare string literal | [`the_roster_scanner_matches_the_three_spellings_a_roster_is_written_in`] |
 //! | point a `ROSTERS` row at a file that has no such roster | both [`every_registered_roster_is_still_in_the_source`] (the row matches nothing) and [`every_roster_in_the_workspace_is_the_whole_of_a_derived_population`] (the site it left is now unregistered) |
 //! | give `mjx-sml` an `mjx-omml` dependency | `package_writer.rs`'s own assertion — and **not** the roster it had before MJXOFF-225, which named five of the nine and passed |
+//! | drop a variant from `BasePopulation::ALL` | [`the_base_population_roster_names_every_variant_of_its_own_enum`] (MJXOFF-252) |
+//! | make the `PresetShapeType` token reader require a marker the generator does not write | `published_markup.rs`'s `the_preset_shape_tokens_are_ordinary_words`, on its own floor (MJXOFF-252) |
+//! | drop `charts.pptx` from `fixture_provenance.rs`'s `KNOWN_IMPERSONATORS` | that suite's own negative first, and [`every_roster_in_the_workspace_is_the_whole_of_a_derived_population`] on the register row (MJXOFF-252) |
 //!
 //! # What this sweep cannot catch
 //!
 //! Stated rather than left implicit, because an unstated hole is how a gate becomes vacuous.
 //!
 //! * **A population nobody named.** [`BasePopulation`] is hand-written, and it is this file's own
-//!   instance of the defect it exists to close. A roster over some enumerable thing not on it —
-//!   the fixture corpus, the guide set, the preset shape names — is invisible here. The honest
-//!   mitigation is that adding a population is one variant and the scanner then sweeps the whole
-//!   workspace for it; MJXOFF-252 owns the residue.
+//!   instance of the defect it exists to close. MJXOFF-252 owned that residue and **closed it as
+//!   far as it goes**: the candidates it named were worked through one at a time — the fixture
+//!   corpus, the child-order schema stems, the guide examples and the validation area ids joined;
+//!   the guide pages and the preset shape names were tried or considered and rejected *on
+//!   measurement*, which the table on [`BasePopulation`] records. What remains is irreducible —
+//!   deciding what counts as an enumerable thing is judgement, not a fact on disk — so the two
+//!   mechanical halves are checked instead:
+//!   [`the_base_population_roster_names_every_variant_of_its_own_enum`] stops the list shrinking,
+//!   and every derivation carries a floor. Adding a population is still one variant, and the
+//!   scanner then sweeps the whole workspace for it.
 //! * **A roster that is not a literal list.** A `match` with one arm per table, a chain of
 //!   `assert!`s, a `format!` naming three crates: none is a `[…]`, and none is found.
 //! * **A roster whose elements are not strings.** `facade_curation.rs`'s
@@ -128,9 +137,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::process::Command;
 
-use xtask::codegen::SIMPLE_TYPE_MODULES;
+use xtask::codegen::{CHILD_ORDER_SCHEMAS, SIMPLE_TYPE_MODULES};
 use xtask::facade_surface;
-use xtask::validation::ArtefactFormat;
+use xtask::fixture_corpus;
+use xtask::guide_examples;
+use xtask::validation::{ArtefactFormat, AREAS};
 
 // ===============================================================================================
 // Reading the repository
@@ -300,8 +311,63 @@ fn declared_members() -> BTreeSet<String> {
 // The populations
 // ===============================================================================================
 
-/// What a roster's elements are drawn from — the six kinds of thing this workspace can enumerate
-/// for itself, and the only kinds the scanner recognises a roster by.
+/// What a roster's elements are drawn from — the kinds of thing this workspace can enumerate for
+/// itself, and the only kinds the scanner recognises a roster by.
+///
+/// # This list is hand-written, and that is the residue MJXOFF-252 owned
+///
+/// It cannot be derived: *"the enumerable things this repository has"* is a judgement about what
+/// counts as a population, not a fact on disk. What MJXOFF-252 asked for is that the judgement be
+/// **made** rather than left implicit, so it is made here, and the two mechanical halves of it are
+/// checked — [`the_base_population_roster_names_every_variant_of_its_own_enum`] stops [`ALL`] from
+/// silently losing a variant (it is itself a roster over this enum, and until MJXOFF-252 it was the
+/// one roster in this workspace nothing swept), and every derivation below carries a floor that
+/// fails when it stops matching.
+///
+/// [`ALL`]: BasePopulation::ALL
+///
+/// ## The sweep, and what it decided
+///
+/// The candidates MJXOFF-252 named, each worked through rather than counted:
+///
+/// | Enumerable thing | Derived from | Verdict |
+/// |---|---|---|
+/// | the workspace crates | `Cargo.toml`'s `members` | in, since MJXOFF-225 |
+/// | the child-order tables | the committed `child_order.rs` | in, since MJXOFF-225 |
+/// | the simple-type modules | `SIMPLE_TYPE_MODULES` | in, since MJXOFF-225 |
+/// | the facade handles | the facade's module layout | in, since MJXOFF-225 |
+/// | the validation catalogue pages | `docs/validation/*.md` | in, since MJXOFF-225 |
+/// | the validation artefact formats | `ArtefactFormat::all()` | in, since MJXOFF-225 |
+/// | the committed fixture corpus | `mjx_fixtures::all_fixture_files()` | **in** — `CLAUDE.md` forbids a `const FIXTURES` list in so many words, and until now nothing checked it |
+/// | the child-order schema stems | `xtask::codegen::CHILD_ORDER_SCHEMAS` | **in** — nine stems that three format crates' suites name |
+/// | the guide examples | the three `guide_examples` directories | **in** — enumerable since MJXOFF-267 made `xtask::guide_examples` derive them |
+/// | the validation area ids | `xtask::validation::AREAS` | **in** — `V-PPTX-01` and its kind |
+/// | the guide pages | `xtask::guide_examples::pages` | **out** — that walk answers with *every* `.md` in the repository, `README.md` and `PLAN.md` included, so it is not the guide pages at all: see below |
+/// | the preset shape names | `ST_ShapeType` in the generated `drawingml` | **out**, and the reason is measured rather than asserted, in `xtask/tests/published_markup.rs`'s `the_preset_shape_tokens_are_ordinary_words` — that file owns the token set, and a second reader of it here would be a second answer to one question |
+/// | a guide example's markers, and the packages it offers | derived per page, per example | **out** — neither is a population a roster could *range over*; they are properties of one member of a population already here |
+///
+/// A population is worth adding when its members are strings a test could plausibly list **and**
+/// distinctive enough that a list of them is a roster rather than a coincidence. The last three
+/// rows are where that second half does work, and the guide pages are the one that was tried and
+/// **withdrawn on the evidence**: added as a population, the sweep immediately read
+/// `entry_points.rs`'s `ENTRY_POINTS` — `["README.md", "PLAN.md", "docs/api/README.md"]`, three
+/// landing pages chosen by hand and no population's whole — as a roster over it, because all three
+/// are Markdown files and `pages` returns every Markdown file there is. A population that broad
+/// does not find rosters; it manufactures them.
+///
+/// ## What the sweep found when the rest were added
+///
+/// Two real instances, both the `child_order.rs` shape — correct the day they were written, silent
+/// afterwards — and both fixed by deriving in place rather than by a register row:
+///
+/// * `crates/mjx-pptx/tests/schema_validity.rs` named the two fixtures carrying markup
+///   compatibility under a comment that said *"both fixtures that carry markup compatibility"*. It
+///   now finds them.
+/// * `crates/mjx-xlsx/tests/comments.rs`'s `every_producer_workbook_…` named three fixtures. It now
+///   finds every `.xlsx` carrying a comment part, which is what its name promises.
+///
+/// A third, `crates/mjx-xlsx/tests/schema_gate.rs`, was a pair with no population behind it; it
+/// runs over the whole `.xlsx` corpus now, and doing so surfaced MJXOFF-272.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum BasePopulation {
     /// Every workspace member, from `Cargo.toml`'s `members`.
@@ -316,17 +382,36 @@ enum BasePopulation {
     ValidationCataloguePages,
     /// The three `--format` tokens, from `ArtefactFormat::all()`.
     ValidationArtefactFormats,
+    /// Every file of the committed corpus, from `mjx_fixtures::all_fixture_files()`.
+    FixtureFiles,
+    /// The schema stems that get a child-order table, from `CHILD_ORDER_SCHEMAS`.
+    ChildOrderSchemas,
+    /// Every guide example, from the three directories its halves live in.
+    GuideExamples,
+    /// Every validation area id, from `xtask::validation::AREAS`.
+    ValidationAreaIds,
 }
 
 impl BasePopulation {
-    /// The six, in the order a failure message lists them.
-    const ALL: [Self; 6] = [
+    /// Every population, in the order a failure message lists them.
+    ///
+    /// A roster over this enum's own variants, and so exactly the shape this file exists to
+    /// reject — but not one the sweep can see, because the sweep excludes this file (see
+    /// [`workspace_rosters`]) and because the variants are identifiers rather than strings. It is
+    /// held to the enum by [`the_base_population_roster_names_every_variant_of_its_own_enum`]
+    /// instead: adding a variant already fails to compile against the exhaustive matches below,
+    /// and now fails here too if it never joins this array.
+    const ALL: [Self; 10] = [
         Self::WorkspaceCrates,
         Self::ChildOrderTables,
         Self::SimpleTypeModules,
         Self::FacadeHandleTypes,
         Self::ValidationCataloguePages,
         Self::ValidationArtefactFormats,
+        Self::FixtureFiles,
+        Self::ChildOrderSchemas,
+        Self::GuideExamples,
+        Self::ValidationAreaIds,
     ];
 
     fn describe(self) -> &'static str {
@@ -337,6 +422,10 @@ impl BasePopulation {
             Self::FacadeHandleTypes => "the facade handle types",
             Self::ValidationCataloguePages => "the validation catalogue pages",
             Self::ValidationArtefactFormats => "the validation artefact formats",
+            Self::FixtureFiles => "the committed fixture corpus",
+            Self::ChildOrderSchemas => "the child-order schema stems",
+            Self::GuideExamples => "the guide examples",
+            Self::ValidationAreaIds => "the validation area ids",
         }
     }
 
@@ -354,6 +443,12 @@ impl BasePopulation {
             }
             Self::ValidationCataloguePages => "the `.md` files under docs/validation/",
             Self::ValidationArtefactFormats => "xtask::validation::ArtefactFormat::all()",
+            Self::FixtureFiles => "mjx_fixtures::all_fixture_files(), i.e. tests/fixtures/",
+            Self::ChildOrderSchemas => "xtask::codegen::CHILD_ORDER_SCHEMAS",
+            Self::GuideExamples => {
+                "the three directories xtask::guide_examples::Language::directory names"
+            }
+            Self::ValidationAreaIds => "the `id` of every xtask::validation::AREAS entry",
         }
     }
 
@@ -366,6 +461,10 @@ impl BasePopulation {
             Self::FacadeHandleTypes
             | Self::ValidationCataloguePages
             | Self::ValidationArtefactFormats => 3,
+            Self::FixtureFiles
+            | Self::ChildOrderSchemas
+            | Self::GuideExamples
+            | Self::ValidationAreaIds => 5,
         }
     }
 
@@ -408,6 +507,26 @@ impl BasePopulation {
                 .into_iter()
                 .map(|format| format.extension().to_owned())
                 .collect(),
+            Self::FixtureFiles => mjx_fixtures::all_fixture_files().into_iter().collect(),
+            Self::ChildOrderSchemas => CHILD_ORDER_SCHEMAS
+                .iter()
+                .map(|stem| (*stem).to_owned())
+                .collect(),
+            // The union over the three languages rather than any one of them: an example whose
+            // Rust half exists and whose Python half does not is still an example, and
+            // `walkthrough_triples.rs` is what holds the three directories to each other.
+            Self::GuideExamples => {
+                let root = repository_root();
+                let mut names = BTreeSet::new();
+                for language in guide_examples::Language::ALL {
+                    names.extend(
+                        guide_examples::halves_present(&root, language)
+                            .expect("reading a guide-example directory"),
+                    );
+                }
+                names
+            }
+            Self::ValidationAreaIds => AREAS.iter().map(|area| area.id.to_owned()).collect(),
         }
     }
 }
@@ -427,6 +546,12 @@ enum Population {
     CratesRankedAtOrAbove(&'static str),
     /// `Deck`, `Document`, `Workbook`.
     FacadeHandleTypes,
+    /// Every committed package fixture whose `docProps/app.xml` names Microsoft.
+    ///
+    /// A set of *questions*, not of Office-authored files: both members were written by somebody
+    /// else. `xtask/tests/fixture_provenance.rs`'s `KNOWN_IMPERSONATORS` is the ledger that answers
+    /// them, and it is the roster this population exists to hold.
+    FixturesClaimingMicrosoftAuthorship,
 }
 
 impl Population {
@@ -437,6 +562,7 @@ impl Population {
                 BasePopulation::WorkspaceCrates
             }
             Self::FacadeHandleTypes => BasePopulation::FacadeHandleTypes,
+            Self::FixturesClaimingMicrosoftAuthorship => BasePopulation::FixtureFiles,
         }
     }
 
@@ -450,6 +576,10 @@ impl Population {
                 format!("every crate `CLAUDE.md` ranks at or above {rank}")
             }
             Self::FacadeHandleTypes => "the facade handle types".to_owned(),
+            Self::FixturesClaimingMicrosoftAuthorship => {
+                "every committed package fixture whose `docProps/app.xml` names Microsoft"
+                    .to_owned()
+            }
         }
     }
 
@@ -463,6 +593,10 @@ impl Population {
                  xtask/tests/layering.rs's TIERS by that file's own comparison"
             }
             Self::FacadeHandleTypes => BasePopulation::FacadeHandleTypes.source(),
+            Self::FixturesClaimingMicrosoftAuthorship => {
+                "xtask::fixture_corpus::fixtures_claiming_microsoft_authorship, which \
+                 xtask/tests/fixture_provenance.rs derives the same ledger from"
+            }
         }
     }
 
@@ -502,6 +636,15 @@ impl Population {
                 members
             }
             Self::FacadeHandleTypes => BasePopulation::FacadeHandleTypes.members(),
+            Self::FixturesClaimingMicrosoftAuthorship => {
+                let members = fixture_corpus::fixtures_claiming_microsoft_authorship();
+                assert!(
+                    !members.is_empty(),
+                    "no committed fixture's `docProps/app.xml` names Microsoft, so the ledger \
+                     below compares against nothing — the corpus reader has stopped matching"
+                );
+                members
+            }
         }
     }
 }
@@ -599,6 +742,16 @@ const ROSTERS: &[Roster] = &[
         what: "the three surface signature sets",
         enumerates: Population::FacadeHandleTypes,
         note: "table 2 has one column per facade handle, so the columns are the handles",
+    },
+    Roster {
+        file: "xtask/tests/fixture_provenance.rs",
+        what: "KNOWN_IMPERSONATORS",
+        enumerates: Population::FixturesClaimingMicrosoftAuthorship,
+        note: "the ledger of fixtures that claim Microsoft authorship. This is the one roster in \
+               the workspace that was already held in both directions where it stands — that \
+               suite's own two cases do it — so the row states the population rather than \
+               introducing the check, and the shared derivation in `xtask::fixture_corpus` is what \
+               stops this file and that one deriving it twice",
     },
     Roster {
         file: "crates/mjx-sml/tests/package_writer.rs",
@@ -924,6 +1077,75 @@ fn the_roster_scanner_matches_the_three_spellings_a_roster_is_written_in() {
     println!(
         "roster scanner: 3 of 3 spellings matched, and both near-misses rejected (a list with a \
          non-member, and a list naming one crate twice)"
+    );
+}
+
+/// **[`BasePopulation::ALL`] names every variant of the enum it claims to enumerate.**
+///
+/// MJXOFF-252's item 2 is that [`BasePopulation`] is hand-written. The list of *populations* has to
+/// be — deciding what counts as an enumerable thing is judgement, and the header records the
+/// judgement — but the array that is supposed to hold all of them does not, and until this test it
+/// was checked by nothing. Adding a variant fails to compile against `describe`, `source`, `floor`
+/// and `members`, all of which match exhaustively; it does **not** fail against
+/// `const ALL: [Self; N]`, which only has to have `N` entries. A variant that never joined `ALL`
+/// would be a population the scanner never looks for, reporting green over every roster in it.
+///
+/// So the array is held against the enum's own declaration, parsed out of this file. That is the
+/// same instrument the rest of the file uses on everybody else, finally pointed at the one roster
+/// here that the sweep cannot reach: [`workspace_rosters`] excludes this file on purpose, and the
+/// variants are identifiers rather than string literals, so neither half of the scanner applies.
+#[test]
+fn the_base_population_roster_names_every_variant_of_its_own_enum() {
+    let source = read(THIS_FILE);
+    let start = source
+        .find("enum BasePopulation {")
+        .expect("this file declares `enum BasePopulation`");
+    let body_start = start + "enum BasePopulation {".len();
+    let end = body_start
+        + source[body_start..]
+            .find("\n}")
+            .expect("the `BasePopulation` declaration closes");
+
+    let declared: BTreeSet<String> = source[body_start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("///") && !line.starts_with("//"))
+        .filter_map(|line| line.strip_suffix(','))
+        .map(str::to_owned)
+        .collect();
+    assert!(
+        declared.len() >= 6,
+        "only {} variant(s) were parsed out of `enum BasePopulation` — the parser has stopped \
+         matching, and with nothing to compare this test passes exactly as a working one does. \
+         Parsed: {declared:?}",
+        declared.len()
+    );
+
+    let listed: BTreeSet<String> = BasePopulation::ALL
+        .into_iter()
+        .map(|base| format!("{base:?}"))
+        .collect();
+
+    let missing: Vec<&String> = declared.difference(&listed).collect();
+    assert!(
+        missing.is_empty(),
+        "`BasePopulation::ALL` does not name {:?}. A variant outside that array is a population \
+         the scanner never looks for: `derived_populations` never derives it, `rosters_in` never \
+         matches a list against it, and every roster over it passes unswept — which is this file's \
+         own defect, in this file.",
+        missing
+    );
+
+    let stray: Vec<&String> = listed.difference(&declared).collect();
+    assert!(
+        stray.is_empty(),
+        "`BasePopulation::ALL` names {stray:?}, which the enum above does not declare — the \
+         variant parser is matching something that is not a variant"
+    );
+
+    println!(
+        "BasePopulation: all {} declared variant(s) are in `ALL`, and `ALL` names nothing else",
+        declared.len()
     );
 }
 

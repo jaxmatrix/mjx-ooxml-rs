@@ -35,9 +35,14 @@ features = ["pyo3/extension-module"]
 
 [tool.mypy]
 strict = true
-# The stubs are the contract; the tests are checked against them and nothing else.
+# Every line of Python this binding owns, which is two things and not the same thing twice:
+# `tests/` is checked *against* the stubs — the stubs are the contract, and the tests are what
+# holds the compiled module to it — while `tools/` is the program that *writes* the stub, so it
+# is the one file here whose correctness the contract depends on. Checking one and not the other
+# left `mypy --strict` green over the generator (MJXOFF-270). CI runs `python -m mypy --strict`
+# from this directory with no path argument, so this list is the whole of its scope.
 mypy_path = "python"
-files = ["tests"]
+files = ["tests", "tools"]
 warn_unused_configs = true
 
 [tool.pytest.ini_options]

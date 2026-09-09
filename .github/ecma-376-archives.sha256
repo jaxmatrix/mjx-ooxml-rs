@@ -8,11 +8,15 @@
 #
 # Part 4 (Transitional) carries the markup schemas: pml.xsd, dml-main.xsd, dml-chart.xsd.
 # Part 2 (OPC) carries the packaging schemas: opc-relationships.xsd, opc-contentTypes.xsd.
-# Part 1 carries no schema this gate validates against. It is here for `OfficeOpenXML-SpreadsheetMLStyles`,
-# whose `presetCellStyles.xml` and `presetTableStyles.xml` are the only SpreadsheetML *markup* ECMA
-# publishes — and therefore the only evidence, short of a file Office wrote, for what a `@theme`
-# position means. `crates/mjx-sml/tests/theme_index.rs` derives the mapping from them (MJXOFF-246).
-# It is the largest of the three at 43 MB, almost all of it a PDF the script never extracts; the
+# Part 1 carries no schema this gate validates against. It is here for the *markup* ECMA publishes
+# alongside the schemas — two members of it, both extracted from this one download.
+# `OfficeOpenXML-SpreadsheetMLStyles` holds `presetCellStyles.xml` and `presetTableStyles.xml`, the
+# only SpreadsheetML markup ECMA publishes and therefore the only evidence, short of a file Office
+# wrote, for what a `@theme` position means; `crates/mjx-sml/tests/theme_index.rs` derives the
+# mapping from them (MJXOFF-246). `OfficeOpenXML-DrawingMLGeometries` holds
+# `presetShapeDefinitions.xml`, which `xtask/tests/published_markup.rs` holds `PresetShapeType`'s
+# wire tokens to (MJXOFF-250).
+# Part 1 is the largest of the three at 43 MB, almost all of it a PDF the script never extracts; the
 # download happens once per cache key, and buying a derived answer with it beats asserting one.
 bd25da1109f73762356596918bf5ff8b74a1331642dba5f1c1d1dfc6bed34ecd  ECMA-376-4_5th_edition_december_2016.zip
 1d489dc491168ea1f9e9a59063acc8dd5f02b4ad1d21aa7ec19ba9a58d020c70  ECMA-376-2_5th_edition_december_2021.zip

@@ -40,6 +40,11 @@ readonly ARCHIVES=(
     # position table from them rather than restating it (MJXOFF-246). The outer archive is 43 MB
     # because of the Part 1 PDF; only the 84 KB member below is ever extracted.
     "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-SpreadsheetMLStyles.zip|presetCellStyles.xml"
+    # Also not a schema, and from the archive already downloaded above: ECMA's own preset shape and
+    # text-warp geometries. `xtask/tests/published_markup.rs` holds every published geometry name to
+    # `PresetShapeType`'s wire tokens (MJXOFF-250). A second member out of one outer archive costs
+    # one `unzip`, and the marker below fails loudly if the inner layout ever changes.
+    "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-DrawingMLGeometries.zip|presetShapeDefinitions.xml"
 )
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -88,13 +88,47 @@ fn saved_parts(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
 // Tier 1: a producer's file comes back unchanged
 // -------------------------------------------------------------------------------------------
 
+/// Every `.xlsx` fixture that carries a legacy comment part, found rather than listed.
+///
+/// The three above are the whole of it today. They are **derived** here rather than named
+/// (MJXOFF-252): a list of fixture names inside a case called *every producer workbook* is a claim
+/// about a subset this repository can enumerate for itself, hand-written — the shape
+/// `xtask/tests/derived_rosters.rs` exists to reject, and the shape that sweep found here once the
+/// committed corpus became one of its populations. A fourth producer file dropped into
+/// `tests/fixtures/` joins this case the moment it lands, which is what the case's name promises.
+fn workbooks_carrying_comment_parts() -> Vec<(String, Vec<u8>)> {
+    let mut found = Vec::new();
+    for name in mjx_fixtures::package_fixtures_with_extension("xlsx") {
+        let bytes = mjx_fixtures::fixture(&name);
+        let package = Package::open(&bytes).expect("open");
+        if package
+            .part_names()
+            .any(|part| part.as_str().starts_with("/xl/comments"))
+        {
+            found.push((name, bytes));
+        }
+    }
+    found
+}
+
 #[test]
 fn every_producer_workbook_re_emits_its_comment_parts_byte_for_byte() {
-    for (name, bytes) in [
-        ("cell_comments.xlsx", libreoffice_comments()),
-        ("legacy_form_control.xlsx", libreoffice_control()),
-        ("comments_third_party.xlsx", xlsxwriter_comments()),
-    ] {
+    let workbooks = workbooks_carrying_comment_parts();
+    assert!(
+        workbooks.len() >= 3,
+        "the scan for workbooks carrying a comment part has stopped matching: it found {}. With \
+         nothing to round-trip, this case passes exactly as a working one does.",
+        workbooks.len()
+    );
+    println!(
+        "producer workbooks carrying comment parts: {:?}",
+        workbooks
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<&str>>()
+    );
+
+    for (name, bytes) in workbooks {
         let workbook = Workbook::open(&bytes).expect("open");
         let saved = workbook.save().expect("save");
         let before = saved_parts(&bytes);
