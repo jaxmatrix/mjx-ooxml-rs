@@ -637,3 +637,137 @@ fn a_document_with_an_alt_chunk_is_schema_valid() {
     let saved = document.save().expect("save");
     mjx_schema_gate::assert_authored_deck_is_schema_valid("document with an altChunk", &saved);
 }
+
+// =================================================================================================
+// MJXOFF-251: a named child comes back where the file put it, not where the schema puts it.
+//
+// `Placeholder`, the four `CustomXml*` wrappers and `SmartTagRun` each name exactly one of their
+// children (`w:docPart`, `w:customXmlPr`, `w:smartTagPr`) and pass the rest through. The reader used
+// to take the first name match wherever it sat and the writer used to put it back at the front, so
+// two different files came back as the same file — a child order the producer chose was replaced by
+// the one `wml.xsd` prescribes. The round-trip contract has no conformance clause, so that is a
+// fidelity defect and not a correction.
+//
+// Every case below round-trips one element through its own `FromXml`/`ToXml` pair and compares
+// bytes, for the same reason `drawing_placement.rs` does: the committed fixture corpus is canonical,
+// so a per-fixture preservation gate reproduces the order it was given and sees nothing.
+// -------------------------------------------------------------------------------------------------
+
+/// One element through `T::from_xml` then `T::to_xml`, serialized back to bytes.
+///
+/// `None` for the source, deliberately: a verbatim byte range would let a child that only kept its
+/// place because its range still covers it pass for a child the model put back where it found it.
+fn round_trip<T: mjx_ooxml_core::FromXml + mjx_ooxml_core::ToXml>(markup: &str) -> String {
+    let mut document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("the fragment parses");
+    let value = T::from_xml(&document.root, &document.interner).expect("from_xml");
+    let rebuilt = value.to_xml(&mut document.interner);
+    let mut out = Vec::new();
+    mjx_xml::fidelity::serialize_element(&rebuilt, &document.interner, None, &mut out);
+    String::from_utf8(out).expect("utf8")
+}
+
+/// The namespace declarations every fragment below needs.
+const WML_NS: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main""#;
+
+#[test]
+fn a_block_custom_xml_wrapper_keeps_a_properties_child_the_file_put_second() {
+    let markup =
+        format!(r#"<w:customXml {WML_NS} w:element="e"><w:p/><w:customXmlPr/></w:customXml>"#);
+    assert_eq!(
+        round_trip::<mjx_docx::CustomXmlBlock>(&markup),
+        markup,
+        "a `w:customXmlPr` the file wrote after the content must come back after the content"
+    );
+}
+
+#[test]
+fn a_run_custom_xml_wrapper_keeps_a_properties_child_the_file_put_second() {
+    let markup = format!(
+        r#"<w:customXml {WML_NS} w:element="e"><w:r><w:t>x</w:t></w:r><w:customXmlPr/></w:customXml>"#
+    );
+    assert_eq!(round_trip::<mjx_docx::CustomXmlRun>(&markup), markup);
+}
+
+#[test]
+fn a_row_custom_xml_wrapper_keeps_a_properties_child_the_file_put_second() {
+    let markup =
+        format!(r#"<w:customXml {WML_NS} w:element="e"><w:tr/><w:customXmlPr/></w:customXml>"#);
+    assert_eq!(round_trip::<mjx_docx::CustomXmlRow>(&markup), markup);
+}
+
+#[test]
+fn a_cell_custom_xml_wrapper_keeps_a_properties_child_the_file_put_second() {
+    let markup =
+        format!(r#"<w:customXml {WML_NS} w:element="e"><w:tc/><w:customXmlPr/></w:customXml>"#);
+    assert_eq!(round_trip::<mjx_docx::CustomXmlCell>(&markup), markup);
+}
+
+#[test]
+fn a_smart_tag_keeps_a_properties_child_the_file_put_second() {
+    let markup = format!(
+        r#"<w:smartTag {WML_NS} w:element="e"><w:r><w:t>x</w:t></w:r><w:smartTagPr/></w:smartTag>"#
+    );
+    assert_eq!(round_trip::<mjx_docx::SmartTagRun>(&markup), markup);
+}
+
+#[test]
+fn a_placeholder_keeps_a_doc_part_the_file_put_second() {
+    let markup =
+        format!(r#"<w:placeholder {WML_NS}><w:p/><w:docPart w:val="Intro"/></w:placeholder>"#);
+    assert_eq!(
+        round_trip::<mjx_docx::Placeholder>(&markup),
+        markup,
+        "a `w:docPart` the file wrote second must come back second"
+    );
+}
+
+/// The half of MJXOFF-251 its own report did not reach: **a conforming file is affected too.**
+///
+/// Indentation is made of text nodes, and a text node is a child. A pretty-printed wrapper whose
+/// `w:customXmlPr` is the first *element* is still not the first *node*, so hoisting the properties
+/// to index 0 stepped it over the producer's own newline — a byte difference in a file whose element
+/// order was already exactly what `wml.xsd` asks for.
+#[test]
+fn an_indented_custom_xml_wrapper_keeps_its_own_indentation_around_a_leading_properties_child() {
+    let markup = format!(
+        "<w:customXml {WML_NS} w:element=\"e\">\n  <w:customXmlPr/>\n  <w:p/>\n</w:customXml>"
+    );
+    assert_eq!(
+        round_trip::<mjx_docx::CustomXmlBlock>(&markup),
+        markup,
+        "the whitespace a producer wrote before `w:customXmlPr` must stay before it"
+    );
+}
+
+/// The same, for the inline shape [`mjx_docx::Placeholder`] carries.
+#[test]
+fn an_indented_placeholder_keeps_its_own_indentation_around_its_doc_part() {
+    let markup =
+        format!("<w:placeholder {WML_NS}>\n  <w:docPart w:val=\"Intro\"/>\n</w:placeholder>");
+    assert_eq!(round_trip::<mjx_docx::Placeholder>(&markup), markup);
+}
+
+/// The accessors keep working across the move: the properties are still reachable when the file put
+/// them second, so this is a positional fix rather than a decision to stop modelling them.
+#[test]
+fn a_properties_child_the_file_put_second_is_still_reachable_through_the_accessor() {
+    let markup =
+        format!(r#"<w:customXml {WML_NS} w:element="e"><w:p/><w:customXmlPr/></w:customXml>"#);
+    let document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("parses");
+    let wrapper =
+        mjx_docx::CustomXmlBlock::from_xml(&document.root, &document.interner).expect("from_xml");
+    assert!(
+        wrapper.properties().is_some(),
+        "a trailing `w:customXmlPr` is still this wrapper's properties element"
+    );
+
+    let placeholder_markup =
+        format!(r#"<w:placeholder {WML_NS}><w:p/><w:docPart w:val="Intro"/></w:placeholder>"#);
+    let document = mjx_xml::fidelity::parse(placeholder_markup.as_bytes()).expect("parses");
+    let placeholder =
+        mjx_docx::Placeholder::from_xml(&document.root, &document.interner).expect("from_xml");
+    assert_eq!(
+        placeholder.doc_part_name(&document.interner).as_deref(),
+        Some("Intro")
+    );
+}

@@ -8,29 +8,37 @@ that directory could not resolve a single intra-doc link into this crate — the
 
 ## Read this first: VML's guarantee is weaker than every other crate's, and by how much
 
-**A VML part is never schema-validated by anything in this workspace, and nothing derives its child
-order from an XSD. The round trip is the only real check there is.**
+**A VML part is schema-validated one child at a time, and nothing derives its child order from an
+XSD.**
 
-That is not an oversight, and both halves have a cause:
+Both halves have a cause, and the first half used to be stronger than it is:
 
-* **`vml-main.xsd` cannot compile.** It depends on the `xml.xsd` that ECMA does not ship with the
-  Transitional schema set, so no validator in this project can load it.
 * **A `.vml` part's root is a bare `<xml>` element in no namespace at all**, which none of the five
-  VML schemas declares a global element for. There is nothing for a validator to start from even if
-  one could load them.
+  VML schemas declares a global element for. `xmllint` pointed at the document reports *Element
+  'xml': No matching global declaration available for the validation root* and gets no further, so
+  the part as a whole cannot be validated. Its children can: `v:shape`, `v:shapetype`,
+  `o:shapelayout`, `x:ClientData` and the rest are global elements, and `vml-main.xsd` imports its
+  four siblings, so one driver over it reaches every child kind a producer writes.
+* **No `vml-*` schema is in the child-order generator's `CHILD_ORDER_SCHEMAS`**, so nothing checks
+  the *sequence* a drawing's children are written in — only that each child is itself well formed
+  against the XSD. MJXOFF-264 owns that gap.
 
-`crates/mjx-schema-gate/src/categories.rs` therefore files a VML part under
-`ForeignMarkupKey::NoNamespace` in `PRESERVED_FOREIGN_MARKUP` — category 2, *markup this project
-preserves verbatim and never validates* — with that reason written on the entry itself. `COVERAGE.md`
-records all five `vml-*` schemas as **not modelled** for simple types *and* for child order, and means
-it literally: this crate never authors an `ST_*` value, and nothing re-sequences a VML part.
+`crates/mjx-schema-gate/src/categories.rs` therefore files a VML part as a `WrapperRoot` — the
+category whose parts are validated child by child — with that reason written on the entry itself.
+
+Until MJXOFF-245 it was category 2, *markup this project preserves verbatim and never validates*, on
+a reason with a third bullet: that `vml-main.xsd` could not compile at all without an `xml.xsd` the
+Transitional set does not ship. That stopped being true when MJXOFF-134 gave every schema a
+generated driver, and the entry kept saying it for two phases. `COVERAGE.md` still records all five
+`vml-*` schemas as **not modelled** for simple types and for child order, and both remain literally
+true: this crate never authors an `ST_*` value, and nothing re-sequences a VML part.
 
 ### What that means for a caller, concretely
 
 | A `.pptx`, `.docx` or `.xlsx` part | What checks it |
 |---|---|
 | a slide, a document, a worksheet, a chart | `xmllint` against the ECMA schema, **plus** a generated child-order walk, **plus** the round trip |
-| a VML drawing | the round trip |
+| a VML drawing | `xmllint` against `vml-main.xsd`, **one child of the `<xml>` wrapper at a time**, **plus** the round trip — but **no** child-order walk |
 
 So:
 
@@ -38,10 +46,14 @@ So:
   rest of the workspace uses, it is exercised by `crates/mjx-vml/tests/drawing.rs`, and
   `xtask/tests/upper_markup_ledger.rs` holds this crate's one serialization mechanism to writing back
   every field it read.
-* **Authoring or editing carries a risk the other crates do not.** If a shape this crate writes were
-  in the wrong order or carried an attribute VML does not admit, nothing in CI would say so —
-  the first thing to notice would be Office. That is why `docs/validation/06-the-office-pass.md`
-  exists and why the VML entries in it matter more than their size suggests.
+* **Authoring or editing still carries a risk the other crates do not, and it is now a narrower
+  one.** An attribute VML does not admit is caught: MJXOFF-245 put every child of an authored
+  wrapper through `xmllint`, and `crates/mjx-pptx/tests/schema_validity.rs`'s
+  `a_vml_child_that_breaks_the_schema_is_reported_invalid_naming_it` breaks one on purpose to prove
+  the check is live. A shape written in the wrong *order* is not caught, because no VML schema has a
+  child-order table (MJXOFF-264) — the first thing to notice would be Office. That is why
+  `docs/validation/06-the-office-pass.md` exists and why the VML entries in it matter more than
+  their size suggests.
 * **Nothing about `.vml` is enumerated by a hand-written list any more, and that took a defect to
   arrange.** MJXOFF-114 found `mjx-opc`'s exception list of suffix-less XML content types carrying
   `…vmlDrawing` in Office's own capitalisation while `is_xml_content_type` folded its argument, so the

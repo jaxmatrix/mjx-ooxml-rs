@@ -430,7 +430,13 @@ fn the_ordering_audit_visits_real_structure_in_every_artefact() {
 /// A skip is indistinguishable from a pass at a glance, so the *set* is asserted rather than the
 /// count: a part that starts skipping under a label not listed here fails, which is the only way a
 /// new silent skip becomes visible.
-const EXPECTED_FOREIGN_SKIPS: &[&str] = &["a VML drawing part"];
+///
+/// **It is empty, and that is the claim.** It held `"a VML drawing part"` until MJXOFF-245, which
+/// found that half the reason such a part was skipped had stopped being true and moved `.vml` into
+/// the category whose parts are validated child by child. So no part of any generated artefact is
+/// skipped as foreign markup at all, and the case below asserts that directly rather than leaving a
+/// row nothing produces.
+const EXPECTED_FOREIGN_SKIPS: &[&str] = &[];
 
 #[test]
 fn every_skip_in_the_generated_set_is_reported_by_name() {
@@ -441,6 +447,7 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
     let (directory, _) = generated();
     let mut skipped_labels = BTreeSet::new();
     let mut binary_skips = 0usize;
+    let mut wrappers_validated: Vec<String> = Vec::new();
     for area in AREAS {
         for variant in Variant::all() {
             let name = area.artefact_name(variant);
@@ -457,6 +464,14 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
                         skipped_labels.insert(*label);
                     }
                     PartOutcome::SkippedBinary(_) => binary_skips += 1,
+                    PartOutcome::ValidatedPerChild { root, children, .. } => {
+                        wrappers_validated.push(format!("{}: <{root}> ×{children}", row.name));
+                    }
+                    PartOutcome::WrapperHeldNothing { root } => panic!(
+                        "{name} {}: <{root}> was handed to the per-child validator with no child \
+                         in it, which validates nothing",
+                        row.name
+                    ),
                     PartOutcome::Uncategorised { namespace } => panic!(
                         "{name} {}: root namespace {namespace:?} is on no list",
                         row.name
@@ -472,8 +487,17 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
         "a part in the generated set skipped under a label this file does not pin: {:?}",
         skipped_labels.difference(&expected).collect::<Vec<_>>()
     );
+    // The other direction, so an empty `EXPECTED_FOREIGN_SKIPS` is a statement rather than a
+    // vacuity: the `.vml` parts the generated set carries must have been *validated*, child by
+    // child, and not merely have stopped reporting a skip.
+    assert!(
+        !wrappers_validated.is_empty(),
+        "no wrapper root was validated child by child across the generated set — the artefacts \
+         that carry a `.vml` part have stopped carrying one, or the scanner has stopped matching"
+    );
     println!(
-        "skips: preserved-foreign {skipped_labels:?}, binary payloads {binary_skips} — all named"
+        "skips: preserved-foreign {skipped_labels:?}, binary payloads {binary_skips} — all named\n\
+         wrappers validated child by child: {wrappers_validated:?}"
     );
 }
 

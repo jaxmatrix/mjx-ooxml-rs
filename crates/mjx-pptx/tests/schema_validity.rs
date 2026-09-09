@@ -129,7 +129,12 @@ fn every_schema_arm_is_exercised_and_every_preserved_skip_is_reached() {
     //  * every entry of the category-2 allowlist is reached by something — a dead entry is an
     //    unproven claim about markup the corpus does not contain.
     //
-    // The third fact — a namespace on neither list fails, naming it — is enforced per part by
+    //  * every wrapper root is reached by something — MJXOFF-245's per-child validator is handed a
+    //    `.vml` part by the corpus, and a validator nothing hands a part to is indistinguishable
+    //    from one that does not exist. That is the same claim as the first two, for the category
+    //    that replaced the VML entry of the second.
+    //
+    // The remaining fact — a namespace on no list fails, naming it — is enforced per part by
     // `PartOutcome::Uncategorised`, which is why it is not restated here.
     let Some(harness) = harness() else { return };
 
@@ -149,6 +154,7 @@ fn every_schema_arm_is_exercised_and_every_preserved_skip_is_reached() {
 
     sweep.assert_every_modeled_schema_was_exercised();
     sweep.assert_pinned_skips();
+    sweep.assert_every_wrapper_root_was_reached();
 }
 
 #[test]
@@ -1621,9 +1627,11 @@ fn authored_ink_is_schema_valid() {
 #[test]
 #[cfg(feature = "vml")]
 fn an_authored_vml_drawing_is_schema_valid() {
-    // The VML part itself is Transitional-only markup outside the base schema set and is reported
-    // skipped-as-foreign; what must still hold is that the *deck* around it — the content types with
-    // their new `vml` Default, and the slide's relationships — validates.
+    // Until MJXOFF-245 this case could only assert that the *deck around* the VML part validated —
+    // the content types with their new `vml` Default and the slide's relationships — because the
+    // part itself was reported skipped-as-foreign. It is validated now, child by child, and
+    // `the_authored_vml_parts_children_are_each_validated` below is the case that says so; this one
+    // keeps its original claim about the deck.
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let mut drawing = mjx_vml::DrawingPart::new();
     {
@@ -1642,6 +1650,102 @@ fn an_authored_vml_drawing_is_schema_valid() {
 
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("authored VML drawing", &saved);
+}
+
+/// The VML this workspace **authors** goes through `xmllint`, one child of the `<xml>` wrapper at a
+/// time (MJXOFF-245).
+///
+/// `mjx-vml` models `shape.rs`, `control.rs`, `drawing.rs` and `office.rs` and `mjx-pptx --features
+/// vml` builds a deck around them, and until this ran none of that markup met a schema: a `.vml`
+/// part was category 2, skipped with a written reason whose load-bearing half — that `vml-main.xsd`
+/// could not compile at all — had been false since MJXOFF-134 gave every schema a driver.
+///
+/// The row is asserted rather than the suite's green, and the child count with it: a per-child
+/// validator handed a wrapper it found no children in would report `WrapperHeldNothing`, and one
+/// that quietly validated nothing would still leave the deck green.
+#[test]
+#[cfg(feature = "vml")]
+fn the_authored_vml_parts_children_are_each_validated() {
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let mut drawing = mjx_vml::DrawingPart::new();
+    {
+        let (model, interner) = drawing.drawing_and_interner();
+        model.push(mjx_vml::DrawingContent::ShapeLayout(
+            mjx_vml::ShapeLayout::new(interner, "1"),
+        ));
+        model.push(mjx_vml::DrawingContent::Shape(mjx_vml::Shape::new(
+            interner,
+            "_x0000_s1026",
+            "position:absolute;width:100pt;height:50pt",
+        )));
+    }
+    pres.add_vml_drawing(0, &drawing.to_bytes())
+        .expect("add VML drawing");
+    let saved = pres.save().expect("save");
+
+    let rows = inspect_deck(&harness, "authored VML drawing", &saved, &[]);
+    println!("{}", outcome_table("authored VML", &rows));
+    let vml = rows
+        .iter()
+        .find(|row| row.name.ends_with(".vml"))
+        .expect("the deck carries the VML part it was given");
+    match &vml.outcome {
+        PartOutcome::ValidatedPerChild {
+            schema,
+            root,
+            children,
+        } => {
+            assert_eq!(*schema, "vml-main.xsd");
+            assert_eq!(root, "xml");
+            assert_eq!(
+                *children, 2,
+                "the `o:shapelayout` and the `v:shape` this test authored are two children, and \
+                 each must have been handed to the validator on its own"
+            );
+        }
+        other => panic!(
+            "the authored VML part must be validated child by child, not {}",
+            other.describe()
+        ),
+    }
+}
+
+/// …and the validator behind that row is a real one: a `v:shape` carrying an attribute VML does not
+/// admit is reported invalid, naming the part, the child and the attribute.
+///
+/// Without this the case above cannot tell a live `xmllint` from an arm that always reports success
+/// — the same question `a_malformed_dcterms_created_value_is_caught_naming_the_core_properties_part`
+/// asks of the core-properties arm.
+#[test]
+#[cfg(feature = "vml")]
+fn a_vml_child_that_breaks_the_schema_is_reported_invalid_naming_it() {
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    // `filled` is `ST_TrueFalse` — `t`, `f`, `true` or `false` and nothing else.
+    pres.add_vml_drawing(
+        0,
+        br#"<xml xmlns:v="urn:schemas-microsoft-com:vml"><v:shape id="s" filled="maybe"/></xml>"#,
+    )
+    .expect("add VML drawing");
+    let saved = pres.save().expect("save");
+
+    let rows = inspect_deck(&harness, "invalid VML", &saved, &[]);
+    let vml = rows
+        .iter()
+        .find(|row| row.name.ends_with(".vml"))
+        .expect("the deck carries the VML part");
+    let PartOutcome::Failed { schema, report } = &vml.outcome else {
+        panic!(
+            "a `v:shape` with an out-of-range `filled` must be reported invalid, not {}",
+            vml.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "vml-main.xsd");
+    assert!(
+        report.contains("filled") && report.contains("<v:shape>"),
+        "the report must name the child and the attribute: {report}"
+    );
 }
 
 #[test]
@@ -1776,5 +1880,96 @@ fn document_properties_set_through_blank_with_properties_are_schema_valid_and_re
         .expect("extended properties part is present");
     assert!(
         String::from_utf8_lossy(extended_bytes).contains("<Application>mjx-ooxml-rs</Application>")
+    );
+}
+
+/// The fifth [wildcard slot] can fire, and this is the first thing that has ever reached it.
+///
+/// `vml-officeDrawing.xsd`'s `CT_EquationXml` declares its whole content model as a bare
+/// `<xsd:any namespace="##any"/>`, whose `minOccurs` defaults to 1, so an `o:equationxml` whose only
+/// child was ignorable is rejected — *Missing child element(s)* — the moment markup-compatibility
+/// resolution takes that child away. That is exactly the composition MJXOFF-196 built the slot rule
+/// for, and `o:equationxml` has been in `WILDCARD_SLOTS` since, unreachable: it is declared in a VML
+/// schema, and no VML part was validated, so no VML part was ever resolved either.
+///
+/// MJXOFF-245 made a `.vml` part go through the same resolve-then-validate path every other part
+/// takes, which is what puts the slot in reach. The wrapper carries a `v:shape` beside the
+/// `o:equationxml` deliberately: the slot rule removes the emptied element, and a wrapper the
+/// splitter finds no children in reports `WrapperHeldNothing` rather than a pass.
+///
+/// [wildcard slot]: mjx_schema_gate::wildcard_slots::WILDCARD_SLOTS
+#[test]
+#[cfg(feature = "vml")]
+fn an_equationxml_emptied_by_resolution_is_dropped_with_the_content_it_held() {
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_vml_drawing(
+        0,
+        concat!(
+            r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" "#,
+            r#"xmlns:o="urn:schemas-microsoft-com:office:office" "#,
+            r#"xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" "#,
+            r#"xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" "#,
+            r#"mc:Ignorable="w14">"#,
+            r#"<v:shape id="s"/>"#,
+            r#"<o:equationxml><w14:oMath/></o:equationxml>"#,
+            "</xml>"
+        )
+        .as_bytes(),
+    )
+    .expect("add VML drawing");
+    let saved = pres.save().expect("save");
+
+    let rows = inspect_deck(&harness, "VML with an ignorable equation", &saved, &[]);
+    let vml = rows
+        .iter()
+        .find(|row| row.name.ends_with(".vml"))
+        .expect("the deck carries the VML part");
+    match &vml.outcome {
+        PartOutcome::ValidatedPerChild { children, .. } => assert_eq!(
+            *children, 1,
+            "the `v:shape` survives and the emptied `o:equationxml` goes with the content it held"
+        ),
+        other => panic!("expected the slot to be dropped, got {}", other.describe()),
+    }
+}
+
+/// …and the slot rule still fires only on an element *resolution* emptied.
+///
+/// The exact counterweight `an_extension_slot_we_author_empty_is_still_a_failure` is for the two
+/// `CT_Extension` slots, applied to the VML one: an `o:equationxml` that was already childless is
+/// handed to the validator and fails, because the third condition of
+/// `resolution_emptied_a_wildcard_slot` is that the source element **had** element children.
+#[test]
+#[cfg(feature = "vml")]
+fn an_equationxml_we_author_empty_is_still_a_failure() {
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_vml_drawing(
+        0,
+        concat!(
+            r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" "#,
+            r#"xmlns:o="urn:schemas-microsoft-com:office:office">"#,
+            r#"<v:shape id="s"/><o:equationxml/></xml>"#
+        )
+        .as_bytes(),
+    )
+    .expect("add VML drawing");
+    let saved = pres.save().expect("save");
+
+    let rows = inspect_deck(&harness, "VML with an empty equation", &saved, &[]);
+    let vml = rows
+        .iter()
+        .find(|row| row.name.ends_with(".vml"))
+        .expect("the deck carries the VML part");
+    let PartOutcome::Failed { report, .. } = &vml.outcome else {
+        panic!(
+            "an `o:equationxml` nobody emptied must still be validated, not {}",
+            vml.outcome.describe()
+        );
+    };
+    assert!(
+        report.contains("Missing child element(s)") && report.contains("equationxml"),
+        "the report must name the element and what it lacks: {report}"
     );
 }
