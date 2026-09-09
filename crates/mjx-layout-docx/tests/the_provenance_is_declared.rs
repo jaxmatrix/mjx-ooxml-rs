@@ -17,9 +17,38 @@
 //!   not evidence about Word**, and every one of them is a candidate for the Windows sitting.
 //!
 //! MJXOFF-172 (R17) split 31 / 110 / 52, MJXOFF-173 (R18) repeated it, and MJXOFF-174 (R19) opened
-//! this crate at 13 / 15 / 19. MJXOFF-175 (R20) adds sections, columns, headers and notes, and
-//! MJXOFF-176 (R21) adds tables and floating objects. The split is printed rather than described so
-//! that a reader of a green run sees the shape of the evidence rather than the fact of a pass.
+//! this crate at 13 / 15 / 19. MJXOFF-175 (R20) adds sections, columns, headers and notes,
+//! MJXOFF-176 (R21) adds tables and floating objects, and MJXOFF-177 (R22) adds fields, numbering,
+//! revision marks and OMML. The split is printed rather than described so that a reader of a green
+//! run sees the shape of the evidence rather than the fact of a pass.
+//!
+//! # ⚠ MJXOFF-177 cites the schema and not the prose, and that is a change of standard
+//!
+//! Every child before this one cited section numbers of ECMA-376 Part 1 freely. This one cites the
+//! **XSDs** — which are in `References/` as text and were read — and never a `§`, because the prose
+//! is in `References/` only as a five thousand page PDF and was not. So every value that lives only
+//! in the prose (`w:start`'s default of one, `w:suff`'s default of a tab, `m:grow`'s default of
+//! true, the delimiter characters) is an `EngineDerived` row here with the reading written out,
+//! where an earlier child would have cited a section and called it `SpecCode`.
+//!
+//! That makes this child's `SpecCode` count *lower* than it would otherwise be and its
+//! `EngineDerived` count higher, and the difference is in **what was checked** rather than in what
+//! is known. A reader comparing the ratios across children should know that the two halves of the
+//! table were built to different standards, and this is the note that says so.
+//!
+//! # And its `DocumentedBehaviour` tier is the strongest since R19, for a nameable reason
+//!
+//! R21 recorded that its evidence was weak because *there is no external standard for text wrapping
+//! at all*. Mathematics is the opposite case: the OpenType `MATH` table states the two script
+//! scale-downs, MathML Core states the axis-height fallback, *The TeXbook*'s Appendix G states the
+//! fraction and radical gaps, and Unicode's own `LineBreak.txt` states what class an object
+//! replacement character has. Fourteen of this child's fifty-five rows are `DocumentedBehaviour` —
+//! a quarter, against R21's own eleven per cent — and the reason is that this subject has external
+//! definitions and text wrapping does not.
+//!
+//! **None of them is Word.** TeX's constants and Word's are different numbers, so what those rows
+//! are evidence *of* is that a bar is on an axis and a script is at a stated fraction — the
+//! relationships — and not that any measurement matches Microsoft's.
 //!
 //! **R21's evidence is weaker again, and for a nameable reason: there is no external standard for
 //! text wrapping at all.** UAX #14 defines what a line breaker consumes and nothing defines what a
@@ -991,6 +1020,432 @@ const LEDGER: &[Row] = &[
                   leave one row at a page foot is `w:cantSplit`'s job and the author says which rows",
     },
 
+    // ---------------------------------------------------------------------------------------
+    // MJXOFF-177 (R22) — fields, numbering, revision marks and OMML.
+    //
+    // ⚠ This child's `SpecCode` rows cite the **schema** and the members it declares, never a
+    // section number of the prose. `References/` holds the XSDs and the specification as a five
+    // thousand page PDF; the XSDs were read and the prose was not, so a `§` here would be a
+    // citation from memory. Every default that lives only in the prose is therefore an
+    // `EngineDerived` row with the reading written out, which is exactly what the sitting's list is
+    // for. R20 and R21 cited sections freely and this child does not, and that is a difference in
+    // what was checked rather than in what is known.
+    // ---------------------------------------------------------------------------------------
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a field has two wire forms, `w:fldSimple` and the `w:fldChar` triple",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s `CT_SimpleField` and `CT_FldChar`, through `mjx_docx::FieldForm`",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "the instruction is `w:instrText` and is never displayed",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd` gives `w:instrText` its own element distinct from `w:t`, and \
+                  `mjx_docx`'s own `Run::text` already excludes it",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "the cached result is the content between `w:separate` and `w:end`",
+        provenance: Provenance::SpecCode,
+        because: "`ST_FldCharType`'s three members are exactly the three markers, so the zones \
+                  they delimit are the schema's own",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "`w:fldLock` means the result must not be recomputed",
+        provenance: Provenance::SpecCode,
+        because: "`CT_FldChar`'s and `CT_SimpleField`'s own `fldLock` attribute",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a field's instruction is a keyword, then arguments, then backslash switches",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the field instruction language is defined outside `wml.xsd` and is stable across \
+                  every producer; the split is checkable against any document Word saved",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a quoted argument is one token and a backslash escapes inside quotes",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the same instruction language; a bookmark whose name holds a space is written \
+                  quoted by every producer, so a whitespace split is falsifiable against real files",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a field name is compared case-insensitively",
+        provenance: Provenance::EngineDerived,
+        because: "Word writes `PAGE` and accepts `Page`; nothing this child read states the \
+                  comparison, and a case-sensitive reader shows the cache for a document another \
+                  producer wrote",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "`\\* roman`/`ROMAN`/`alphabetic`/`ALPHABETIC` name numeral systems",
+        provenance: Provenance::EngineDerived,
+        because: "the `\\*` vocabulary is the instruction language's and is **not** `w:numFmt`'s; \
+                  the four spellings here are the ones Word writes and the mapping onto \
+                  `ST_NumberFormat` is this crate's",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a `SEQ` counter advances once per field and `\\c` repeats without advancing",
+        provenance: Provenance::EngineDerived,
+        because: "the switch letters are the instruction language's; that the counter is over \
+                  document order and is reset per pass is this engine's own arrangement",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a `SEQ` field's value is a function of document order and of nothing else",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: the *n*th `SEQ Figure` is *n* because *n*\u{2212}1 precede it, which \
+                  is checkable against any document without knowing anything about Word — and is \
+                  what makes composing them once in document order the only answer that does not \
+                  depend on which page a reader opened",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a field whose data the package does not carry renders its cache",
+        provenance: Provenance::EngineDerived,
+        because: "the ticket's own constraint rather than a specified behaviour: nothing says a \
+                  renderer must not invent a `MERGEFIELD`'s value, and this crate refuses to",
+    },
+    Row {
+        suite: "a_stale_field_is_recomputed",
+        subject: "a nested field belongs to the field it is inside rather than to the paragraph",
+        provenance: Provenance::SpecCode,
+        because: "`CT_SimpleField`'s content model is `EG_PContent`, which holds a `fldSimple` \
+                  again — the nesting is structural in the schema",
+    },
+    Row {
+        suite: "a_field_fixed_point_terminates",
+        subject: "a bounded iteration over a discrete map terminates",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: a loop with a constant bound stops, whatever the map does",
+    },
+    Row {
+        suite: "a_field_fixed_point_terminates",
+        subject: "a pass that produces the environment it was given is a fixed point",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: `f(x) == x` is the definition, and equality of the whole environment \
+                  is what is compared",
+    },
+    Row {
+        suite: "a_field_fixed_point_terminates",
+        subject: "four passes is the budget",
+        provenance: Provenance::EngineDerived,
+        because: "reasoned rather than measured against Word — one pass settles a document with no \
+                  length-changing field, two settle `PAGE`, three settle a `TOC` that grows a page, \
+                  and the fourth is where an oscillator is declared one",
+    },
+    Row {
+        suite: "a_field_fixed_point_terminates",
+        subject: "a non-converging document falls back to the cached results",
+        provenance: Provenance::EngineDerived,
+        because: "the ticket names it as a legitimate answer and Word behaves the same way under \
+                  F9; that this crate hands the caller the choice rather than making it is ours",
+    },
+    Row {
+        suite: "a_field_fixed_point_terminates",
+        subject: "a page of fields still assembles at most twice",
+        provenance: Provenance::EngineDerived,
+        because: "the bound is MJXOFF-175's own proof and this child's contribution is the reason \
+                  it survives — a field environment constant for the layout run — which is an \
+                  argument about this engine and not about Word",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "the four tracked-change containers are `w:ins`, `w:del`, `w:moveFrom`, `w:moveTo`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s `EG_RunLevelElts`, through `mjx_docx::RevisionKind`",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "deleted text is `w:delText` and inserted text is ordinary `w:t`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd` declares `w:delText` as its own member of `EG_RunInnerContent`, which \
+                  is why an insertion needs no second element and a deletion does",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "*No Markup* drops the deletions and *Original* drops the insertions",
+        provenance: Provenance::EngineDerived,
+        because: "`w:revisionView` states which marks a document suppresses and not what a viewer \
+                  shows; the four views are Word's interface, and the mapping onto which spans are \
+                  measured is this crate's reading",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "*Simple Markup* measures what *No Markup* measures",
+        provenance: Provenance::EngineDerived,
+        because: "the sharpest revision guess in this child: Word's simple view shows the finished \
+                  document with a bar in the margin, and reading it as the markup view would make a \
+                  reviewer's default a different document from everyone else's",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "a change bar is drawn in the two marking views and not the other two",
+        provenance: Provenance::EngineDerived,
+        because: "the bar is Word's own interface rather than a document property; nothing in the \
+                  schema mentions it",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "the innermost container wins when they nest",
+        provenance: Provenance::EngineDerived,
+        because: "Word writes a `w:del` inside a `w:ins` for text one reviewer added and another \
+                  removed; that the inner one decides is a reading of what a reader must see",
+    },
+    Row {
+        suite: "a_deletion_changes_the_page",
+        subject: "a document with no revisions paginates identically in all four views",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: with no span to drop, the three subsets are the same string",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:ilvl` runs 0 to 8 and `w:lvlText` holds `%1` to `%9`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s own restriction, and `mjx_docx::LevelTextSegment` parses the grammar",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "a `%n` placeholder is one-based and `w:ilvl` is zero-based",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic over the two ranges above: conflating them renders a second-level \
+                  marker with the first level's number",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:startOverride` outranks the abstract definition's own `w:start`",
+        provenance: Provenance::SpecCode,
+        because: "`CT_NumLvl`'s own member, resolved by `mjx_docx::NumberingResolution`",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:isLgl` writes every placeholder in Arabic",
+        provenance: Provenance::SpecCode,
+        because: "`w:isLgl` is *Legal Numbering* and has no other meaning; it is the one member \
+                  whose whole content is what this asserts",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:numId=\"0\"` removes an inherited numbering reference",
+        provenance: Provenance::SpecCode,
+        because: "zero is not a `w:num` any document defines, and `mjx-docx` resolves it to none",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:start` defaults to one and `w:suff` to a tab",
+        provenance: Provenance::EngineDerived,
+        because: "both are prose defaults this child did not read; one and a tab are what every \
+                  list Word writes behaves as, and a different reading would renumber or unindent \
+                  every unstated list in every document",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:lvlRestart=\"0\"` means never restart",
+        provenance: Provenance::EngineDerived,
+        because: "the reading a renderer gets wrong: as a level index zero is almost the default \
+                  and therefore looks right on a two-level list, and turns a continuous numbering \
+                  into a run of ones",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "`w:lvlRestart=\"n\"` restarts this level when a level at or above number *n* \
+                  advances, and not the other way round",
+        provenance: Provenance::EngineDerived,
+        because: "the direction is the whole rule and the inverted reading makes every stated \
+                  `w:lvlRestart` behave like the default — so a two-level list is identical under \
+                  both and only a three-level one can tell them apart; this engine had it backwards \
+                  until a fixture with three levels was written",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "an unstated `w:lvlRestart` restarts whenever any higher level advances",
+        provenance: Provenance::EngineDerived,
+        because: "what an ordinary nine-level outline does with nothing written anywhere; the \
+                  default is prose this child did not read",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "a placeholder naming an undefined level renders as nothing",
+        provenance: Provenance::EngineDerived,
+        because: "a zero would be a number a reader takes for the list's and `%3` would be markup \
+                  on the page; nothing states which of the three a renderer should draw",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "a marker's `w:suff=\"tab\"` is a real tab and resolves against the paragraph's stops",
+        provenance: Provenance::EngineDerived,
+        because: "it is what makes `9.` and `10.` line their texts up, and it is this crate's \
+                  choice to make the marker text rather than a positioned box",
+    },
+    Row {
+        suite: "a_list_composes_its_marker",
+        subject: "a list inherited through a `w:pStyle` numbers the same as a direct one",
+        provenance: Provenance::SpecCode,
+        because: "the ladder resolves both into one `EffectiveNumberingReference`, which is \
+                  `mjx-docx`'s own contract and is asserted there too",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a script is set at 80 % of its base and a script of a script at 60 %",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the OpenType `MATH` table's `ScriptPercentScaleDown` and \
+                  `ScriptScriptPercentScaleDown` defaults, which every shaper applies when a font \
+                  carries no table — an external, checkable definition that is not this repository's",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "the two scale-downs are stated independently rather than compounding",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the same table declares two constants and not a ratio applied twice; squaring \
+                  the first gives 64 % and is a different number",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "the mathematical axis is a quarter of an em above the baseline",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "TeX's `\\fontdimen22` for Computer Modern, and MathML Core's own stated fallback \
+                  for a font with no `MATH` table",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "the default rule thickness is 0.04 em",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "TeX's `\\fontdimen8` (`default_rule_thickness`) for Computer Modern",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a fraction's gaps are three times the rule thickness",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "*The TeXbook*, Appendix G, rule 15 — stated as a multiple of the rule thickness \
+                  exactly as TeX states it",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a fraction bar is centred on the axis and not on the baseline",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the axis is what the `MATH` table's `AxisHeight` exists for and what every \
+                  typesetting account of a fraction says; it is why a nested fraction's two bars \
+                  are at two heights",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a growing delimiter reaches its content and a non-growing one does not",
+        provenance: Provenance::SpecCode,
+        because: "`shared-math.xsd`'s `m:grow` on `CT_DPr` is the flag, and the assertion compares \
+                  the same delimiter around the same content with it on and off",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a delimiter grows by being set at a larger size",
+        provenance: Provenance::EngineDerived,
+        because: "**the weakest thing in this child's OMML**: a real math font grows a bracket \
+                  through the `MATH` table's `MathVariants` ladder and then an assembly, `mjx-text` \
+                  parses no such table, and scaling the glyph grows its stroke weight with its \
+                  height — visibly not what Word does for a very tall one",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "an equation array centres its rows on one alignment axis",
+        provenance: Provenance::EngineDerived,
+        because: "`CT_EqArrPr` states a `m:baseJc` and nothing about horizontal alignment at all; \
+                  centring is the reading, and `m:aln` alignment points are not implemented",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "a matrix's column gap is one em and its row gap a third of one",
+        provenance: Provenance::EngineDerived,
+        because: "`m:cGp`/`m:rSp` state them in twentieths of a point when a document says so and \
+                  are among the spacing overrides this crate declares it does not read; these are \
+                  what a matrix that states nothing gets",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "an absent `m:sty` is italic",
+        provenance: Provenance::EngineDerived,
+        because: "why a single variable is italic in every renderer without the file saying so; \
+                  `shared-math.xsd` makes the element optional and states no default, so the \
+                  reading is this crate's and setting every equation upright is the alternative",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "`m:chr` defaults to `\u{222B}` and `m:begChr`/`m:endChr` to `(` and `)`",
+        provenance: Provenance::EngineDerived,
+        because: "the schema makes all three optional and states no default; these are what every \
+                  implementation draws and what Word's own editor writes, and no prose was read",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "an expression deeper than thirty-two levels lays out as an empty box",
+        provenance: Provenance::EngineDerived,
+        because: "a bound against a malformed file rather than a behaviour: `m:e` nests without \
+                  limit and a recursive walker would blow its stack on a hand-made document",
+    },
+    Row {
+        suite: "an_equation_is_typeset",
+        subject: "an equation is set in the paragraph's own family rather than in `m:mathFont`",
+        provenance: Provenance::EngineDerived,
+        because: "`word/settings.xml`'s `m:mathPr` names a math font and `mjx-docx`'s settings \
+                  residency does not carry it; an equation in a Times document is therefore set in \
+                  Times, which is wrong in one direction for every glyph rather than per glyph",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "`U+FFFC` has UAX #14 line-break class `CB`",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "Unicode's own `LineBreak.txt`; the class exists for an embedded object whose \
+                  breaking behaviour is the embedder's, which is exactly what an inline drawing is",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "an inline object is measured all-or-nothing",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic over the above: one character has no interior, so a candidate range \
+                  either contains it or does not",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "a footnote reference mark contributes a character to the line",
+        provenance: Provenance::SpecCode,
+        because: "`w:footnoteReference` is a position and the mark is generated from the note's \
+                  own numbering, which `mjx_docx::NoteReference` documents; that it must be **on \
+                  the line** follows from a reader seeing it",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "a reference mark is set at 65 % of the run it sits in",
+        provenance: Provenance::EngineDerived,
+        because: "`w:vertAlign=\"superscript\"` is *raised and smaller* and states no number; \
+                  this ratio changes a **width**, so it moves a line break and belongs in the \
+                  sitting's list",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "a mark's ordinal is the note's own, in document order",
+        provenance: Provenance::EngineDerived,
+        because: "exact for `continuous` and `eachSect`, which are functions of document order, \
+                  and **approximate for `eachPage`**, which needs the page the composition is an \
+                  input to — declared at `crate::model::note_mark` rather than hidden",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "an inline drawing raises its line to its own height",
+        provenance: Provenance::EngineDerived,
+        because: "an inline object is a character of the line, so it raises the ascent — which \
+                  MJXOFF-176 wrote as `float::inline_height` and never called, so no fixture has \
+                  ever compared it against Word",
+    },
+    Row {
+        suite: "a_generated_mark_is_measured",
+        subject: "generated content maps to the empty document range at its anchor",
+        provenance: Provenance::EngineDerived,
+        because: "the same answer this crate already gives a hyphen, a tab leader and a line \
+                  number; nothing outside this repository says where a caret goes beside a value \
+                  the file does not contain",
+    },
 ];
 
 fn split() -> BTreeMap<Provenance, usize> {
@@ -1025,15 +1480,15 @@ fn the_split_is_printed_and_asserted_in_both_directions() {
     // had stopped asserting anything at all.
     assert_eq!(spec + documented + engine, LEDGER.len());
     assert!(
-        spec >= 34,
+        spec >= 48,
         "the specification really does state this many of them: {spec}"
     );
     assert!(
-        documented >= 21,
+        documented >= 35,
         "these are the rows that are evidence, and there must be some: {documented}"
     );
     assert!(
-        engine >= 53,
+        engine >= 89,
         "and this many are only this engine agreeing with itself — a count that *fell* would mean \
          somebody had relabelled a guess: {engine}"
     );

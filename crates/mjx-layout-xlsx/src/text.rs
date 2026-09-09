@@ -182,6 +182,9 @@ pub fn composer_runs<'a>(
             size,
             features,
             language: None,
+            // A worksheet cell holds no inline object: `mjx-sml`'s rich text is runs of characters
+            // and nothing else. See `mjx_layout::TextRun::advance`.
+            advance: None,
         });
     }
     runs

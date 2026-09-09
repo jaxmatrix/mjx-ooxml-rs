@@ -58,6 +58,111 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.153] - 2026-09-09
+
+**Fields, numbering, revision marks and OMML mathematical layout — and the two defects the last two
+children declared rather than fixed (MJXOFF-177, R22). Word is complete for view.**
+
+The four things left in Word are each a small engine rather than a layout rule, and two of them are
+circular with pagination. What ties them together is that **every one of them puts something on a
+line that the file does not contain**: a list's number, a field's value, a footnote's reference mark,
+an equation's box — and a tracked deletion is the same problem inverted, text the file *does* contain
+that a display mode may not show. Each changes the width of a line, so each changes where the page
+breaks, so each changes which page every later paragraph lands on. None of them is decoration.
+
+### Added
+
+- **`mjx-docx`'s residency reads the four things it used to skip.** `ParagraphFormatting::fields`
+  carries every field's instruction, the bytes of its cached result, and its nesting;
+  `::revisions` carries the four tracked-change containers as spans; `::equations` carries every
+  `m:oMath` resolved to plain values by a new `document/equations.rs`; and
+  `DocumentFormatting::numbering_definitions` resolves every `w:num` a paragraph reaches into all
+  nine of its levels — needed because `w:lvlText` may hold `%1` through `%9` and composing a
+  third-level marker needs the first two levels' own formats.
+- **`w:ins` used to contribute nothing, so a document with tracked insertions was read with the
+  inserted text missing** — as though every change had been rejected, with no error anywhere. The
+  four containers are now descended into, `w:delText` contributes its characters, and
+  `ParagraphFormatting::text` is therefore the *all-markup* view with each of Word's four display
+  modes a subset of it. `addressable = false` keeps `revisions.rs`'s crate-wide rule that a run
+  inside one consumes no run-index slot, so no existing `RunPath` moved.
+- **`mjx_layout::TextRun::advance` — a change to the box-model contract all three formats share.**
+  A fixed width that replaces the shaper's answer, so an atomic inline box can be measured. It is
+  what closes both inherited defects: an inline object is one `U+FFFC OBJECT REPLACEMENT CHARACTER`
+  (UAX #14 class `CB`, the class that exists for exactly this) in a run of its own, all-or-nothing
+  because an object has no interior. `mjx-layout-pptx` and `mjx-layout-xlsx` pass `None` and are
+  otherwise untouched.
+- **Five modules in `mjx-layout-docx`, twenty-six in all, and `generated` is the one that makes the
+  other four share a line.** A `Composition` is the string a paragraph is *actually* laid out from —
+  the document's text with the marker, the field values, the note marks and the objects spliced in,
+  hidden revisions dropped, and a **map back to the document's own offsets** so that every
+  `SourceRef` still names the file rather than a string no part of the `.docx` holds.
+- **Fields, with the fixed point's termination argument written out.** `PAGE`, `NUMPAGES`,
+  `SECTIONPAGES`, `PAGEREF`, `REF`, `SEQ`, `QUOTE` and the date family are computed; everything else
+  renders its cache and is reported with a reason. A `TOC` is in the second list on purpose: its
+  nested `PAGEREF`s *are* recomputed and its entry list is not, which is the split Word's own markup
+  makes.
+- **List numbering composed from `w:lvlText`**, with each placeholder in its referenced level's own
+  format, `w:isLgl` forcing Arabic, `w:startOverride` outranking `w:start`, `w:lvlRestart="0"`
+  meaning *never*, and a `w:suff="tab"` emitted as a real tab so the hanging-indent interaction falls
+  out of the existing tab machinery.
+- **Revision display modes that change pagination**, not colour. `RevisionView` decides which spans
+  are measured, and `mjx-layout-docx` reports the change bar rather than drawing it — this crate
+  resolves no paint.
+- **An OMML typesetter**: all twenty members of `EG_OMathMathElements`, with a fraction bar on the
+  axis, delimiters that grow to what they enclose, two independent script scale-downs, matrices,
+  equation arrays and a depth bound against a malformed file.
+
+### Fixed
+
+- **A footnote's reference mark is measured.** MJXOFF-175 declared it; a line carrying one was
+  measured a superscript numeral too narrow.
+- **An inline drawing's advance is measured, and so is its height.** MJXOFF-176 declared the first.
+  The second was not declared at all: `float::inline_height` was written to raise the line and is
+  called by nothing — a grep of the crate finds it only in its own definition and in the `pub use`.
+  So an inline picture changed neither the width of its line nor its height.
+
+### Changed
+
+- `mjx_layout_docx::flow::lay_out_composed` is what the crate calls; `lay_out` is the same thing over
+  a paragraph with nothing generated, so every suite written before this child still compiles.
+- The two committed fragment baselines that hold numbered paragraphs moved, because their markers are
+  now drawn. Both were regenerated and both are still stamped `approver = generator`.
+
+### ⚠ The two-assembly bound survives, and the argument is written down
+
+A `PAGE` field's value depends on where the page break fell; its width decides where the line breaks.
+That is a second cycle in a crate that already holds one, and it is cut so that MJXOFF-175's proof is
+**untouched**: a `FieldEnvironment` is constant for a whole layout run, so a field's text is the same
+string in assembly one and assembly two and the monotonicity fact the note proof rests on is
+unchanged. In particular a body `PAGE` field reads *the page its block started on in the previous
+pass* rather than *the page being assembled* — the obvious implementation, and wrong twice over,
+because it would make a field's text depend on the assembly and would make a paragraph that splits
+across a page boundary lay out differently on the two pages.
+
+The circularity lives in an **outer** loop that paginates the whole document, observes, and
+paginates again. It terminates by a **bound** and not by a proof of convergence, because a document
+can be built whose `NUMPAGES` is 9 when it is ten pages long and 10 when it is nine — Word has the
+same problem and the same answer. Four passes, then `Convergence::Exhausted` and the caller chooses
+the cached results. A deliberately non-converging fixture exercises the fallback, because a fallback
+that is never exercised is a fallback that does not work.
+
+### Provenance, and a change of standard
+
+**54 SpecCode / 37 DocumentedBehaviour / 90 EngineDerived** over 181 rows; this child's own
+contribution is **14 / 14 / 27** over 55. That `DocumentedBehaviour` quarter is the strongest since
+MJXOFF-174 and the reason is nameable: MJXOFF-176 recorded that there is no external standard for
+text wrapping at all, and mathematics is the opposite case — the OpenType `MATH` table states the
+script scale-downs, MathML Core the axis-height fallback, *The TeXbook* the fraction gaps, and
+Unicode's `LineBreak.txt` what class an object replacement character has.
+
+**This child cites the XSDs and never a section number**, where every child before it cited the prose
+freely. `References/` holds the schemas as text and the specification as a five thousand page PDF;
+the schemas were read and the prose was not, so a `§` here would have been a citation from memory.
+Every value that lives only in the prose — `w:start`'s default of one, `w:suff`'s default of a tab,
+`m:grow`'s default of true, the delimiter characters — is an `EngineDerived` row with the reading
+written out. That lowers the `SpecCode` count and raises the `EngineDerived` one relative to R20 and
+R21, and the difference is in what was **checked** rather than in what is known.
+
 ## [0.0.152] - 2026-09-09
 
 **Tables that split across pages, floating objects, and the text that flows around them

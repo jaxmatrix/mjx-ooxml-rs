@@ -792,6 +792,28 @@ pub fn cache_key(index: usize, width: Emu, top: Emu, floating: bool) -> (usize, 
 /// would hit the first one's entry and the float would change nothing at all. That was a live defect
 /// for the length of one test run, and it produced a wrapping engine whose every geometric unit test
 /// passed and whose documents were unchanged.
+///
+/// # ⚠ MJXOFF-177 did **not** widen the key, and the reason is the whole compatibility argument
+///
+/// A block's layout is now a function of its *composition* as well as its measure — the list marker,
+/// the field values, the note marks and the inline objects [`crate::generated`] splices in. So the
+/// obvious question is whether the key needs a fourth field, and the answer is no because every one
+/// of those is **constant for a whole layout run**:
+///
+/// * a list marker is a function of the paragraph's position in the document, computed once by
+///   [`crate::lists::ListNumbering::read`];
+/// * a note mark is a function of the paragraph;
+/// * an inline object's extent is a function of the drawing or the equation;
+/// * a field's value comes from a [`FieldEnvironment`](crate::fields::FieldEnvironment), which
+///   [`crate::model::DocumentFlow::with_fields`] fixes before the first page is laid out — see
+///   [`crate::fields`] for why a body `PAGE` field reads *the page its block started on last pass*
+///   rather than *the page being assembled*, which is exactly what would have made this key wrong;
+/// * a [`RevisionView`](crate::revision::RevisionView) is fixed on the flow the same way.
+///
+/// **The one thing that is not constant is a stream's own page number**, and a header, a footer and
+/// a note are laid out afresh per page and reach no cache at all. If a later child caches them, this
+/// key is where the page number has to go — and it must be gated the way this constant now is, by a
+/// test that reads a *document* and not only a geometry.
 pub const NO_FLOATS: i64 = i64::MIN;
 
 /// One block's layout, from the memo or from `layout_of`.

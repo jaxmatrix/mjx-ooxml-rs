@@ -35,7 +35,16 @@ use std::path::{Path, PathBuf};
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
 ///
-/// Thirteen at MJXOFF-174, **seventeen** at MJXOFF-175 and **twenty-one** at MJXOFF-176.
+/// Thirteen at MJXOFF-174, **seventeen** at MJXOFF-175, **twenty-one** at MJXOFF-176 and
+/// **twenty-six** at MJXOFF-177.
+///
+/// MJXOFF-177's five are the four subsystems that child is, plus the one that lets them share a
+/// line. `fields` parses an instruction and holds the field/pagination fixed point, `lists` composes
+/// a `w:lvlText`, `revision` says which text a display mode measures, `math` is the OMML typesetter —
+/// and `generated` is the string a paragraph is actually laid out from: the document's own text with
+/// every one of those spliced in and a map back to the document's offsets. Keeping `generated`
+/// separate is what stops four subsystems each inventing their own way of putting a glyph on a line
+/// that the file does not contain.
 ///
 /// MJXOFF-175's four are the four subsystems that child is: `section` (which sheet a page is, and
 /// what a break kind means), `stream` (a header, a footer or a note laid out through the one flow
@@ -51,7 +60,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Exact rather than a floor, so adding a module stays a deliberate act; a `>=` would pass on a walk
 /// that stopped early.
-const SOURCE_FILE_COUNT: usize = 21;
+const SOURCE_FILE_COUNT: usize = 26;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

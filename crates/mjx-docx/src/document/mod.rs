@@ -92,6 +92,7 @@ mod body;
 mod charts;
 mod drawing;
 mod effective;
+mod equations;
 mod fields;
 mod font_table;
 mod headers;
@@ -180,6 +181,7 @@ pub use parts::{DocumentParts, PartKind};
 // MJXOFF-174 (R19): the read-once, resolve-many surface a flow layout engine lays out — a separate
 // `pub use`, matching MJXOFF-136's and MJXOFF-138's precedent above, so this child's cluster stays a
 // single reviewable diff hunk.
+pub use equations::{EquationFormatting, EquationNode, EquationRun};
 pub use ranges::{
     covered_text, paragraphs_spanned, Bookmark, BookmarkResolution, MarkerLocation, Markup,
     MarkupRange, RangeIndex, RangeResolution,
@@ -187,8 +189,9 @@ pub use ranges::{
 pub use residency::{
     AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
     ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, DrawingDistances,
-    DrawingFormatting, DrawingPlacement, FloatingTableAnchoring, HardBreak, HeaderFooterFormatting,
-    HeaderFooterSlots, HorizontalAnchoring, NoteFormatting, NoteReference, ParagraphFormatting,
+    DrawingFormatting, DrawingPlacement, FieldSpan, FloatingTableAnchoring, HardBreak,
+    HeaderFooterFormatting, HeaderFooterSlots, HorizontalAnchoring, NoteFormatting, NoteReference,
+    NumberingDefinition, NumberingLevelFormatting, ParagraphFormatting, RevisionSpan,
     RowFormatting, RowHeightSpecification, RunFormatting, SectionColumns, SectionFormatting,
     SectionLineNumbering, SectionNoteRules, SectionPageNumbering, TableFormatting,
     VerticalAnchoring, WidthSpecification, WrapFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,

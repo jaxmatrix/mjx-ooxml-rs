@@ -45,6 +45,7 @@
 //! | `w:cr` | `U+000A LINE FEED` |
 //! | `w:softHyphen` | `U+00AD SOFT HYPHEN` |
 //! | `w:noBreakHyphen` | `U+2011 NON-BREAKING HYPHEN` |
+//! | `w:delText` | its own text (MJXOFF-177) |
 //!
 //! and nothing else. The two hyphens are not an interpretation: UAX #14 gives `U+00AD` class `BA`
 //! (break after) and `U+2011` class `GL` (non-breaking), which is exactly what the two elements
@@ -56,6 +57,27 @@
 //! **`w:sym` contributes nothing**, and that is reported rather than guessed at. A symbol is a
 //! character code in a *named font* — the pair is the content — so a renderer that dropped the font
 //! would draw a different glyph while looking entirely plausible.
+//!
+//! # MJXOFF-177: the four tracked-change containers are descended into, and that fixed a bug
+//!
+//! `w:ins`, `w:del`, `w:moveFrom` and `w:moveTo` used to fall to this file's own wildcard, so
+//! **content inside one contributed nothing at all** — and a document with tracked insertions was
+//! read with the inserted text *missing*, as though every change had been rejected. It was
+//! consistent with `revisions.rs`'s crate-wide rule that a run inside one of the four consumes no
+//! run-index *slot*, and that rule is about addressing rather than about text.
+//!
+//! They are now walked, with `addressable = false` for the same reason a `w:fldSimple`'s content
+//! is: the runs keep their text and lose their address, and no existing `RunPath` moves.
+//! [`ParagraphFormatting::text`] is therefore the **all-markup** view and
+//! [`ParagraphFormatting::revisions`] says which bytes are which; see [`RevisionSpan`] for the three
+//! subsets each of Word's display modes is.
+//!
+//! The same walk records [`ParagraphFormatting::fields`] (a field's instruction and the bytes of its
+//! cached result) and [`ParagraphFormatting::equations`] (an `m:oMath` resolved to plain values by
+//! this crate’s own `document/equations.rs`), and `Document::formatting` resolves every `w:num` a paragraph reaches into
+//! a [`NumberingDefinition`]. All four exist for one reason: a box model has to **measure** what a
+//! reader sees, and a marker, a field's value, a deletion and an equation are all things a reader
+//! sees that a paragraph's own `w:t` runs do not contain.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -66,10 +88,11 @@ use mjx_ooxml_types::wordprocessingdrawing::{
     HorizontalAlignment, HorizontalRelativeFrom, VerticalAlignment, VerticalRelativeFrom, WrapText,
 };
 use mjx_ooxml_types::wordprocessingml::{
-    BreakType, EndnotePosition, FootnoteEndnoteType, FootnotePosition, HeaderFooterType,
-    HeightRule, HorizontalAnchor, LineNumberRestart, MergedCellType, NumberFormat,
-    NumberingRestartLocation, SectionBreakType, TableJustification, TableLayoutType,
-    TableWidthUnit, TextFlowDirection, VerticalAnchor, VerticalJustification,
+    BreakType, EndnotePosition, FieldCharacterType, FootnoteEndnoteType, FootnotePosition,
+    HeaderFooterType, HeightRule, HorizontalAnchor, Justification, LineNumberRestart,
+    MergedCellType, NumberFormat, NumberingLevelSuffix, NumberingRestartLocation, SectionBreakType,
+    TableJustification, TableLayoutType, TableWidthUnit, TextFlowDirection, VerticalAnchor,
+    VerticalJustification,
 };
 
 use super::annotations::{Endnotes, Footnotes};
@@ -81,9 +104,12 @@ use super::effective::{
     EffectiveCharacterProperties, EffectiveNumberingReference, EffectiveParagraphProperties,
     ThemeContext,
 };
+use super::equations::{resolve as resolve_equation, EquationFormatting};
+use super::fields::FieldForm;
 use super::headers::HdrFtr;
-use super::numbering::NumberingLookup;
+use super::numbering::{LevelTextSegment, NumberingLevel, NumberingLookup};
 use super::paragraph_properties::ParagraphProperties;
+use super::revisions::{RevisionKind, RunTrackChange};
 use super::run_properties::RunProperties;
 use super::sections::{SectionProperties, SectionSpan};
 use super::styles::{
@@ -149,6 +175,138 @@ pub struct NoteReference {
     pub endnote: bool,
 }
 
+/// One field in a paragraph's run stream, located in [`ParagraphFormatting::text`].
+///
+/// # The cached result is text and the instruction is not, which is the whole shape of this type
+///
+/// Both wire forms carry two things: what the field *says to compute*, and what it computed **last
+/// time Word saved the file**. The second is ordinary `w:t` content, so it is already in
+/// [`ParagraphFormatting::text`] — [`FieldSpan::result`] says which bytes it is. The first is
+/// `w:instrText` (or the `instr` attribute), which no renderer displays, so it is carried here as a
+/// string and contributes no character.
+///
+/// **A renderer that displays [`FieldSpan::result`] and computes nothing looks perfect on any file
+/// Word last saved.** That is the trap this type exists to make avoidable rather than to spring: a
+/// layout engine reads [`FieldSpan::instruction`], computes, and *replaces* those bytes — and when
+/// it cannot compute (a `MERGEFIELD` with no data source), it renders the bytes that are there and
+/// says so.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldSpan {
+    /// The byte of [`ParagraphFormatting::text`] the field begins at.
+    pub at: usize,
+    /// The bytes its cached result occupies — empty for a complex field with no `w:separate`, which
+    /// is legal markup and means the field has never been computed.
+    pub result: Range<usize>,
+    /// The instruction, verbatim and unparsed, concatenated from **this** field's own `w:instrText`
+    /// runs only — a nested field's instruction belongs to the nested field.
+    pub instruction: String,
+    /// Which wire form it was read from.
+    pub form: FieldForm,
+    /// `w:dirty` — the author asked for it to be recomputed on open.
+    pub dirty: bool,
+    /// `w:fldLock` — the result is locked and must **not** be recomputed.
+    pub locked: bool,
+    /// The index in [`ParagraphFormatting::fields`] of the field this one is nested inside, if any.
+    ///
+    /// A `TOC` field's own `PAGEREF`s are its children; each is a field in its own right and each
+    /// names the `TOC` here. Nesting is what stops a renderer computing a `TOC` by concatenating its
+    /// children's instructions.
+    pub parent: Option<usize>,
+}
+
+/// A span of [`ParagraphFormatting::text`] that one of the four tracked-change containers holds.
+///
+/// # Deleted text is in the text, and that is a decision
+///
+/// `w:ins` wraps ordinary `w:t`; `w:del` wraps `w:delText`. Both contribute characters here, so
+/// [`ParagraphFormatting::text`] is the **all-markup** view — everything the file holds — and each
+/// of Word's four display modes is a *subset* of it, selected by dropping spans:
+///
+/// | view | drops |
+/// |---|---|
+/// | all markup / simple markup | nothing |
+/// | no markup (final) | [`RevisionKind::Deleted`], [`RevisionKind::MovedFromContent`] |
+/// | original | [`RevisionKind::Inserted`], [`RevisionKind::MovedToContent`] |
+///
+/// One string and three subsets, rather than three strings: a layout engine that had to ask the
+/// residency for a different `text()` per view could not keep one set of byte offsets, and every
+/// address it produced would mean something different depending on a setting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RevisionSpan {
+    /// The bytes it covers.
+    pub range: Range<usize>,
+    /// Which container it is. Only the four *content* kinds appear here; the property-change kinds
+    /// [`Document::revisions`] also reports change no character and therefore no span.
+    pub kind: RevisionKind,
+    /// `w:author`.
+    pub author: Option<String>,
+    /// `w:date`, as the wire string — never parsed, exactly as [`RevisionInfo`](crate::RevisionInfo)
+    /// does not parse it.
+    pub date: Option<String>,
+}
+
+/// One level of one `w:num`, resolved: everything needed to *compose the marker* a paragraph at that
+/// level shows.
+///
+/// # Why the residency resolves this and not just the reference
+///
+/// [`EffectiveParagraphProperties::numbering`](crate::EffectiveParagraphProperties) has always
+/// carried the `(w:numId, w:ilvl)` pair, and the level's own `w:pPr`/`w:rPr` have always been folded
+/// into the ladder — so a list's *indents* were already right and its *number* was not drawn at all.
+///
+/// The number needs the level's `w:lvlText`, `w:numFmt`, `w:start`, `w:lvlRestart`, `w:suff` and
+/// `w:isLgl`, and reaching them means [`Document::resolve_numbering`], a `&mut self` call that
+/// re-parses `word/numbering.xml` and follows `w:numStyleLink` through `word/styles.xml`. A box
+/// model calling that per paragraph is the quadratic cost this whole module exists to remove, and
+/// `crates/mjx-layout-docx/tests/the_ladder_is_consumed.rs` refuses the identifier outright. So it is
+/// resolved here, once per `w:numId` the document actually reaches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumberingLevelFormatting {
+    /// `w:ilvl` — which of the nine this is.
+    pub level: i64,
+    /// `w:start`, defaulting to 1 — §17.9.25's own default.
+    pub start: i64,
+    /// The `w:startOverride` this instance states for this level, which outranks `w:start`.
+    pub start_override: Option<i64>,
+    /// `w:numFmt`. `None` when the level states none.
+    pub format: Option<NumberFormat>,
+    /// `w:lvlText`, parsed into its literal and `%1`…`%9` parts.
+    ///
+    /// Empty when the level states none, which is a level that draws nothing.
+    pub template: Vec<LevelTextSegment>,
+    /// `w:suff` — what separates the marker from the paragraph's own text.
+    pub suffix: Option<NumberingLevelSuffix>,
+    /// `w:lvlRestart` — the **one-based** level whose advance resets this one's count. Zero means
+    /// *never restart*, which is the one value a reader must not treat as "level zero".
+    pub restart_after: Option<i64>,
+    /// `w:isLgl` — every placeholder in the template is written in Arabic numerals whatever each
+    /// level's own `w:numFmt` says. A III.B.2 outline becomes 3.2.2.
+    pub legal: bool,
+    /// `w:lvlJc` — how the marker is aligned in the space before the text.
+    pub alignment: Option<Justification>,
+    /// `w:lvlPicBulletId` — which `w:numPicBullet` a picture bullet draws.
+    pub picture_bullet: Option<i64>,
+}
+
+/// Every level of one `w:num`, resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumberingDefinition {
+    /// `w:numId`.
+    pub numbering_id: i64,
+    /// The levels this definition states, in `w:ilvl` order. A level the definition omits is absent
+    /// rather than defaulted: a paragraph at an undefined level draws no marker, which is what Word
+    /// does and is safer than inventing a template.
+    pub levels: Vec<NumberingLevelFormatting>,
+}
+
+impl NumberingDefinition {
+    /// The level at `index`, or `None` when the definition does not state it.
+    #[must_use]
+    pub fn level(&self, index: i64) -> Option<&NumberingLevelFormatting> {
+        self.levels.iter().find(|level| level.level == index)
+    }
+}
+
 /// One paragraph, with everything a box model needs and nothing it would have to re-derive.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParagraphFormatting {
@@ -157,6 +315,9 @@ pub struct ParagraphFormatting {
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
     drawings: Vec<DrawingFormatting>,
+    fields: Vec<FieldSpan>,
+    revisions: Vec<RevisionSpan>,
+    equations: Vec<EquationFormatting>,
     properties: EffectiveParagraphProperties,
     style_id: Option<String>,
 }
@@ -195,6 +356,32 @@ impl ParagraphFormatting {
     #[must_use]
     pub fn drawings(&self) -> &[DrawingFormatting] {
         &self.drawings
+    }
+
+    /// Every field in it, in document order, outermost before innermost.
+    ///
+    /// **A field's *value* is not resolved here and never will be**, and that is the same line
+    /// [`ParagraphFormatting::note_references`] draws: a `PAGE` field's value is a fact about
+    /// pagination, which is a fact about a box model, which is a crate that does not exist at this
+    /// rank. What travels is the instruction, the cached result's bytes, and the nesting.
+    #[must_use]
+    pub fn fields(&self) -> &[FieldSpan] {
+        &self.fields
+    }
+
+    /// Every tracked insertion, deletion and move in it, in document order.
+    ///
+    /// See [`RevisionSpan`] for why [`ParagraphFormatting::text`] is the all-markup view and each
+    /// display mode is a subset of it.
+    #[must_use]
+    pub fn revisions(&self) -> &[RevisionSpan] {
+        &self.revisions
+    }
+
+    /// Every `m:oMath` and `m:oMathPara` in it, in document order, resolved to plain values.
+    #[must_use]
+    pub fn equations(&self) -> &[EquationFormatting] {
+        &self.equations
     }
 
     /// Every `CT_PPrBase` member, resolved across the whole ladder.
@@ -590,6 +777,7 @@ pub struct DocumentFormatting {
     header_footer_streams: Vec<HeaderFooterFormatting>,
     footnotes: Vec<NoteFormatting>,
     endnotes: Vec<NoteFormatting>,
+    numbering: Vec<NumberingDefinition>,
 }
 
 impl DocumentFormatting {
@@ -704,6 +892,25 @@ impl DocumentFormatting {
     pub fn endnote_of_kind(&self, kind: FootnoteEndnoteType) -> Option<&NoteFormatting> {
         self.endnotes.iter().find(|note| note.kind == kind)
     }
+
+    /// Every `w:num` the document's paragraphs actually reach, resolved into what its markers are
+    /// composed from, in `w:numId` order.
+    ///
+    /// **Only the ones reached.** `word/numbering.xml` in a document made from a template routinely
+    /// defines dozens of lists nothing uses, and resolving them all would pay a `w:numStyleLink`
+    /// walk each for a marker nobody will ever draw.
+    #[must_use]
+    pub fn numbering_definitions(&self) -> &[NumberingDefinition] {
+        &self.numbering
+    }
+
+    /// The definition for `numbering_id`, or `None` when nothing reaches it.
+    #[must_use]
+    pub fn numbering_definition(&self, numbering_id: i64) -> Option<&NumberingDefinition> {
+        self.numbering
+            .iter()
+            .find(|definition| definition.numbering_id == numbering_id)
+    }
 }
 
 /// What `word/document.xml` alone states about one paragraph, before any style is consulted.
@@ -713,6 +920,9 @@ struct DirectParagraph {
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
     drawings: Vec<DrawingFormatting>,
+    fields: Vec<FieldSpan>,
+    revisions: Vec<RevisionSpan>,
+    equations: Vec<EquationFormatting>,
     direct: EffectiveParagraphProperties,
     style_id: Option<String>,
     own_numbering: Option<EffectiveNumberingReference>,
@@ -916,10 +1126,31 @@ impl Document {
         // Every distinct list the document reaches, resolved once each rather than once per
         // paragraph: a hundred bullets in one list is one resolution, not a hundred.
         let mut numbering_effects: HashMap<(i64, i64), NumberingTier> = HashMap::new();
+        // And every distinct `w:numId`, resolved once into what its markers are *composed* from —
+        // which is per definition rather than per level, because `w:lvlText` reaches every level.
+        let mut numbering_definitions: Vec<NumberingDefinition> = Vec::new();
         for (paragraph, tier) in direct_paragraphs.iter().zip(&tiers) {
             let Some(reference) = paragraph.own_numbering.or(tier.style_numbering) else {
                 continue;
             };
+            // `w:numId="0"` is the explicit *removal* of an inherited numbering reference rather
+            // than a list, so there is nothing to resolve and an entry for it would make a caller
+            // asking "which lists does this document use" answer with one that does not exist.
+            //
+            // A definition that resolves to **no levels** is not stored either: a `w:numPr` naming a
+            // list `word/numbering.xml` does not define is a defect in the document, and reporting
+            // an empty definition rather than none would make `numbering_definition` answer `Some`
+            // for a list nobody can draw.
+            if reference.numbering_id != 0
+                && !numbering_definitions
+                    .iter()
+                    .any(|definition| definition.numbering_id == reference.numbering_id)
+            {
+                let definition = self.numbering_definition(reference.numbering_id)?;
+                if !definition.levels.is_empty() {
+                    numbering_definitions.push(definition);
+                }
+            }
             let key = (reference.numbering_id, reference.level);
             if numbering_effects.contains_key(&key) {
                 continue;
@@ -927,6 +1158,7 @@ impl Document {
             let resolved = self.numbering_tier(&theme, reference)?;
             numbering_effects.insert(key, resolved);
         }
+        numbering_definitions.sort_by_key(|definition| definition.numbering_id);
 
         let mut paragraphs = Vec::with_capacity(direct_paragraphs.len());
         for (paragraph, tier) in direct_paragraphs.into_iter().zip(tiers) {
@@ -968,6 +1200,9 @@ impl Document {
                 hard_breaks: paragraph.hard_breaks,
                 note_references: paragraph.note_references,
                 drawings: paragraph.drawings,
+                fields: paragraph.fields,
+                revisions: paragraph.revisions,
+                equations: paragraph.equations,
                 properties,
                 style_id: paragraph.style_id,
             });
@@ -997,6 +1232,7 @@ impl Document {
             header_footer_streams,
             footnotes,
             endnotes,
+            numbering: numbering_definitions,
         })
     }
 
@@ -1234,6 +1470,100 @@ impl Document {
             Err(other) => Err(other),
         }
     }
+
+    /// Every level of one `w:num`, resolved into what a marker is composed from.
+    ///
+    /// **All nine, not the one the paragraph names**, and that is the whole reason this is a
+    /// definition rather than a level: `w:lvlText` may hold `%1` through `%9`, so composing a
+    /// third-level marker needs the *first* and *second* levels' own formats. A resolver that
+    /// fetched one level would render `1.1.a` as `a`.
+    fn numbering_definition(
+        &mut self,
+        numbering_id: i64,
+    ) -> Result<NumberingDefinition, DocxError> {
+        let mut levels = Vec::new();
+        for index in 0..NUMBERING_LEVELS {
+            let resolved = self.resolve_numbering(
+                numbering_id,
+                index,
+                |lookup, interner| -> Result<Option<NumberingLevelFormatting>, DocxError> {
+                    let NumberingLookup::Resolved(resolution) = lookup else {
+                        return Ok(None);
+                    };
+                    let start_override = resolution
+                        .instance()
+                        .level_override(index, interner)
+                        .ok()
+                        .flatten()
+                        .and_then(|entry| entry.start_override(interner).ok().flatten());
+                    let Some(level) = resolution.level() else {
+                        return Ok(None);
+                    };
+                    Ok(Some(read_numbering_level(
+                        level,
+                        index,
+                        start_override,
+                        interner,
+                    )?))
+                },
+            );
+            match resolved {
+                Ok(Ok(Some(level))) => levels.push(level),
+                Ok(Ok(None)) => {}
+                Ok(Err(error)) => return Err(error),
+                // Same posture as `numbering_tier`: a list the document does not define costs the
+                // paragraph its marker and nothing else.
+                Err(DocxError::UnknownNumberingId(_)) => break,
+                Err(other) => return Err(other),
+            }
+        }
+        Ok(NumberingDefinition {
+            numbering_id,
+            levels,
+        })
+    }
+}
+
+/// How many levels a `w:num` has. Nine, and stated by the schema rather than chosen: `w:ilvl` is
+/// `ST_DecimalNumber` restricted to 0–8 by §17.9.4's own prose, and `w:lvlText`'s placeholders run
+/// `%1` to `%9`.
+const NUMBERING_LEVELS: i64 = 9;
+
+/// One `w:lvl`, resolved.
+fn read_numbering_level(
+    level: &NumberingLevel,
+    index: i64,
+    start_override: Option<i64>,
+    interner: &Interner,
+) -> Result<NumberingLevelFormatting, DocxError> {
+    Ok(NumberingLevelFormatting {
+        level: index,
+        // §17.9.25: `w:start`'s own default is 1. A level that states nothing counts from one, which
+        // is what every list in every document does.
+        start: attr(level.start(interner))?.unwrap_or(1),
+        start_override,
+        format: level
+            .format()
+            .map(|format| attr(format.format(interner)))
+            .transpose()?,
+        template: level
+            .text_template()
+            .map(|template| attr(template.segments(interner)))
+            .transpose()?
+            .flatten()
+            .unwrap_or_default(),
+        suffix: level
+            .suffix()
+            .map(|suffix| attr(suffix.suffix(interner)))
+            .transpose()?,
+        restart_after: attr(level.restart_after_level(interner))?,
+        legal: attr(level.is_legal_numbering(interner))?.unwrap_or(false),
+        alignment: level
+            .alignment()
+            .map(|alignment| attr(alignment.value(interner)))
+            .transpose()?,
+        picture_bullet: attr(level.picture_bullet_id(interner))?,
+    })
 }
 
 /// `w:docDefaults`, both halves, read once.
@@ -1422,11 +1752,27 @@ fn read_direct_paragraph(
         hard_breaks: collected.hard_breaks,
         note_references: collected.note_references,
         drawings: collected.drawings,
+        fields: collected.fields,
+        revisions: collected.revisions,
+        equations: collected.equations,
         direct,
         style_id,
         own_numbering,
         table_style: None,
     })
+}
+
+/// A complex field whose `w:fldChar begin` has been seen and whose `end` has not.
+///
+/// The stack this lives on is what makes nesting work: a `TOC`'s `PAGEREF` opens while the `TOC` is
+/// still open, its `w:instrText` belongs to it and not to the `TOC`, and when it closes the `TOC` is
+/// on top again.
+struct OpenField {
+    /// Which entry of `Collected::fields` this is — reserved at `begin` so that a nested field can
+    /// name it as its parent before it closes.
+    index: usize,
+    /// Where the result begins, once `w:separate` has been seen.
+    result_start: Option<usize>,
 }
 
 /// What one walk of a paragraph's content accumulates.
@@ -1437,6 +1783,74 @@ struct Collected {
     hard_breaks: Vec<HardBreak>,
     note_references: Vec<NoteReference>,
     drawings: Vec<DrawingFormatting>,
+    fields: Vec<FieldSpan>,
+    revisions: Vec<RevisionSpan>,
+    equations: Vec<EquationFormatting>,
+    /// The complex fields currently open, innermost last.
+    open_fields: Vec<OpenField>,
+}
+
+impl Collected {
+    /// Opens a complex field at the current position, reserving its entry.
+    fn begin_field(&mut self, dirty: bool, locked: bool) {
+        let index = self.fields.len();
+        let parent = self.open_fields.last().map(|open| open.index);
+        self.fields.push(FieldSpan {
+            at: self.text.len(),
+            result: self.text.len()..self.text.len(),
+            instruction: String::new(),
+            form: FieldForm::Complex,
+            dirty,
+            locked,
+            parent,
+        });
+        self.open_fields.push(OpenField {
+            index,
+            result_start: None,
+        });
+    }
+
+    /// Appends `text` to the innermost open field's instruction.
+    ///
+    /// **Only before its own `w:separate`.** A `w:instrText` after the separator is not part of the
+    /// instruction — Word writes none there, and a reader that appended it anyway would turn a
+    /// malformed file into a field whose instruction changes what it computes.
+    fn field_instruction(&mut self, text: &str) {
+        let Some(open) = self.open_fields.last() else {
+            return;
+        };
+        if open.result_start.is_some() {
+            return;
+        }
+        let index = open.index;
+        if let Some(field) = self.fields.get_mut(index) {
+            field.instruction.push_str(text);
+        }
+    }
+
+    /// Marks the innermost open field's result as starting here.
+    fn separate_field(&mut self) {
+        let at = self.text.len();
+        if let Some(open) = self.open_fields.last_mut() {
+            open.result_start = Some(at);
+        }
+    }
+
+    /// Closes the innermost open field.
+    ///
+    /// An `end` with nothing open is a malformed file and is **ignored** rather than refused: a
+    /// stray `w:fldChar` must not stop a document opening, and this crate's whole posture towards
+    /// untrusted input is to render what can be rendered.
+    fn end_field(&mut self) {
+        let at = self.text.len();
+        let Some(open) = self.open_fields.pop() else {
+            return;
+        };
+        if let Some(field) = self.fields.get_mut(open.index) {
+            let start = open.result_start.unwrap_or(at);
+            field.result = start.min(at)..at;
+        }
+    }
 }
 
 /// Walks a paragraph's content the way `paragraph_content_text` does — descending into every
@@ -1505,6 +1919,18 @@ fn walk_paragraph_content(
                 // lose their address, and `slot` deliberately does not advance — a `w:fldSimple` is
                 // invisible to `Paragraph::run_count`, so counting it here would shift every
                 // address after it.
+                let index = collected.fields.len();
+                let at = collected.text.len();
+                let parent = collected.open_fields.last().map(|open| open.index);
+                collected.fields.push(FieldSpan {
+                    at,
+                    result: at..at,
+                    instruction: field.instruction(interner),
+                    form: FieldForm::Simple,
+                    dirty: attr(field.dirty(interner))?,
+                    locked: attr(field.locked(interner))?,
+                    parent,
+                });
                 walk_paragraph_content(
                     field.content(),
                     &mut Vec::new(),
@@ -1513,10 +1939,99 @@ fn walk_paragraph_content(
                     interner,
                     collected,
                 )?;
+                let end = collected.text.len();
+                if let Some(span) = collected.fields.get_mut(index) {
+                    span.result = at..end;
+                }
+            }
+            // **The four tracked-change containers, descended into rather than skipped.** Before
+            // MJXOFF-177 they fell to the wildcard below, which meant a document with tracked
+            // insertions laid out with the inserted text *missing* — every `w:ins` is ordinary
+            // `w:t`, and dropping it silently renders the file as though every change had been
+            // rejected. See `RevisionSpan` for why the text is now the all-markup view.
+            //
+            // `addressable` is `false` for the same reason a `w:fldSimple`'s is: `revisions.rs`'s
+            // own crate-wide invariant is that a run inside one of these four consumes no run-index
+            // slot, so producing a `RunPath` here would invent an address that does not resolve.
+            ParagraphContent::Ins(change) => {
+                read_revision(change, RevisionKind::Inserted, theme, interner, collected)?;
+            }
+            ParagraphContent::Del(change) => {
+                read_revision(change, RevisionKind::Deleted, theme, interner, collected)?;
+            }
+            ParagraphContent::MoveFrom(change) => {
+                read_revision(
+                    change,
+                    RevisionKind::MovedFromContent,
+                    theme,
+                    interner,
+                    collected,
+                )?;
+            }
+            ParagraphContent::MoveTo(change) => {
+                read_revision(
+                    change,
+                    RevisionKind::MovedToContent,
+                    theme,
+                    interner,
+                    collected,
+                )?;
+            }
+            // An equation is a sibling of `w:r`, not a child of one — `EG_MathContent` sits at run
+            // level — so it is met here rather than in `read_run`. Like a note reference it
+            // contributes no character: what is drawn is generated by a typesetter, and the run
+            // stream holds no glyph for it.
+            ParagraphContent::Math(math) => {
+                collected.equations.push(EquationFormatting {
+                    at: collected.text.len(),
+                    display: false,
+                    justification: None,
+                    nodes: resolve_equation(math, interner),
+                });
+            }
+            ParagraphContent::MathParagraph(paragraph) => {
+                let justification = paragraph
+                    .properties(interner)
+                    .and_then(|properties| properties.justification(interner));
+                for equation in paragraph.equations(interner) {
+                    collected.equations.push(EquationFormatting {
+                        at: collected.text.len(),
+                        display: true,
+                        justification,
+                        nodes: resolve_equation(&equation, interner),
+                    });
+                }
             }
             _ => {}
         }
     }
+    Ok(())
+}
+
+/// One `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`: the characters its content contributes, and the span
+/// that says which they are.
+fn read_revision(
+    change: &RunTrackChange,
+    kind: RevisionKind,
+    theme: &ThemeContext,
+    interner: &Interner,
+    collected: &mut Collected,
+) -> Result<(), DocxError> {
+    let start = collected.text.len();
+    walk_paragraph_content(
+        change.content(),
+        &mut Vec::new(),
+        false,
+        theme,
+        interner,
+        collected,
+    )?;
+    collected.revisions.push(RevisionSpan {
+        range: start..collected.text.len(),
+        kind,
+        author: change.author(interner),
+        date: change.date(interner),
+    });
     Ok(())
 }
 
@@ -1532,6 +2047,11 @@ fn read_run(
     for item in run.content() {
         match item {
             RunInnerContent::Text(value) => collected.text.push_str(value.text()),
+            // `w:delText` is `w:t` for content that has been deleted, and it contributes its
+            // characters for the same reason `w:t` does: in an all-markup view a deletion is drawn,
+            // struck through, and **occupies space** — which is what makes the same document
+            // paginate differently in two views. Which bytes they are is `Collected::revisions`.
+            RunInnerContent::DeletedText(value) => collected.text.push_str(value.text()),
             RunInnerContent::TabCharacter(_) => collected.text.push('\t'),
             RunInnerContent::CarriageReturn(_) => collected.text.push('\n'),
             RunInnerContent::OptionalHyphen(_) => collected.text.push(SOFT_HYPHEN),
@@ -1570,6 +2090,22 @@ fn read_run(
                     });
                 }
                 collected.text.push('\n');
+            }
+            // A field's three markers. Each contributes no character — a `w:fldChar` is a bracket,
+            // not content — and together they delimit the instruction and the cached result. See
+            // `FieldSpan`.
+            RunInnerContent::ComplexFieldCharacter(marker) => match attr(marker.kind(interner))? {
+                FieldCharacterType::Begin => collected.begin_field(
+                    attr(marker.dirty(interner))?,
+                    attr(marker.locked(interner))?,
+                ),
+                FieldCharacterType::Separate => collected.separate_field(),
+                FieldCharacterType::End => collected.end_field(),
+            },
+            // The instruction itself: read, and deliberately **not** pushed to the text. It is what
+            // the field says to compute, and no renderer displays it.
+            RunInnerContent::FieldCode(value) | RunInnerContent::DeletedFieldCode(value) => {
+                collected.field_instruction(value.text());
             }
             _ => {}
         }

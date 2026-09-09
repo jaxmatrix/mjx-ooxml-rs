@@ -21,6 +21,10 @@
 
 #![allow(dead_code)]
 
+/// MJXOFF-177 (R22)'s own builders: numbering definitions, deliberately stale fields, tracked
+/// changes and Office Math.
+pub(crate) mod generated;
+
 use std::path::PathBuf;
 
 use mjx_docx::{Document, PageSize, PartName};

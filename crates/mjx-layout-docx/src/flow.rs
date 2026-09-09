@@ -39,6 +39,7 @@ use mjx_layout::{ComposedLine, LayoutRect};
 use mjx_ooxml_core::measure::Emu;
 use mjx_text::{BidiAnalysis, FaceId, FontError, Hyphenator, LineBreakOptions, ShapedRun};
 
+use crate::generated::Composition;
 use crate::justify::{place, points, LineContext, LinePlacement};
 use crate::style::{LineHeight, ParagraphStyle, RunStyle};
 use crate::tabs::TabRuler;
@@ -98,6 +99,14 @@ pub struct ParagraphLayout {
     pub hyphen: Option<(FaceId, ShapedRun, Emu)>,
     /// Where every `bar` tab stop sits, which is drawn whatever the text does.
     pub bars: Vec<Emu>,
+    /// The string this paragraph was laid out from, and the map back to the document's own offsets.
+    ///
+    /// **Carried rather than recomputed**, because every line's `range` is in the *layout* string's
+    /// offsets and a caller turning one into a [`mjx_layout::SourceRef`] needs the map. Recomposing
+    /// it at emission time would mean composing every paragraph twice and would let the two
+    /// compositions disagree — which is the failure that produces a caret in the wrong place with no
+    /// error anywhere.
+    pub composition: Composition,
 }
 
 impl ParagraphLayout {
@@ -179,23 +188,36 @@ pub fn lay_out(
     paragraph: &ParagraphFormatting,
     context: FlowContext<'_>,
 ) -> Result<ParagraphLayout, FontError> {
-    let style = ParagraphStyle::of(paragraph.properties());
-    let runs: Vec<RunStyle> = paragraph
-        .runs()
-        .iter()
-        .map(|run| RunStyle::of(run.range.clone(), &run.properties))
-        .collect();
+    lay_out_composed(engine, &Composition::plain(paragraph), context)
+}
+
+/// Lays a **composed** paragraph out into lines inside `context`'s column.
+///
+/// The one this crate actually calls. [`lay_out`] is the same thing over a paragraph with nothing
+/// generated — no list marker, no field value, no note mark, no inline object — which is what a
+/// caller measuring one paragraph in isolation wants and what every suite written before
+/// MJXOFF-177 asks for.
+///
+/// # Errors
+/// [`FontError`] when a face will not shape.
+pub fn lay_out_composed(
+    engine: &mut TextEngine<'_>,
+    composition: &Composition,
+    context: FlowContext<'_>,
+) -> Result<ParagraphLayout, FontError> {
+    let style = composition.style().clone();
+    let runs: Vec<RunStyle> = composition.runs().to_vec();
     let tabs = TabRuler::new(
         &style.tab_stops,
         Emu::from_twips(context.settings.default_tab_stop_twips),
     );
     let bars: Vec<Emu> = tabs.bars().collect();
 
-    let text = paragraph.text();
+    let text = composition.text();
     let direction = paragraph_direction(style.direction == mjx_text::TextDirection::RightToLeft);
     let bidi = BidiAnalysis::resolve(text, direction);
     let policy = CutPolicy::of(style.alignment);
-    let items = itemise_paragraph(engine, text, &runs, &bidi, policy)?;
+    let items = itemise_paragraph(engine, text, &runs, &bidi, policy, composition.objects())?;
     let composer_runs = composer_runs(engine.rasteriser, engine.features, &items);
 
     // The hyphen is shaped once per paragraph, in the first run's face at the first run's size,
@@ -328,6 +350,23 @@ pub fn lay_out(
         };
 
         let end = composed.range.end;
+        // **An inline object raises the line it sits on**, exactly as a very tall run does — which
+        // is the other half of MJXOFF-176's declared gap. `crate::float::inline_height` computed
+        // this and was never called; the composition now carries each object's own extent, so the
+        // line it lands on is as tall as it is.
+        let (object_ascent, object_descent) = composition.objects().iter().fold(
+            (Emu::ZERO, Emu::ZERO),
+            |(ascent, descent), object| {
+                if object.at >= offset && object.at < end.max(offset + 1) {
+                    (
+                        ascent.maximum(object.ascent),
+                        descent.maximum(object.descent),
+                    )
+                } else {
+                    (ascent, descent)
+                }
+            },
+        );
         let mut laid_out = lay_out_line(
             text,
             &items,
@@ -337,6 +376,8 @@ pub fn lay_out(
             measure,
             left,
             end >= text.len(),
+            object_ascent,
+            object_descent,
         );
         // A band this line could not enter at all is skipped by growing the line box above the text
         // rather than by inserting a block of nothing: `ParagraphLayout::height_of` then reports the
@@ -372,6 +413,7 @@ pub fn lay_out(
         style,
         hyphen,
         bars,
+        composition: composition.clone(),
     })
 }
 
@@ -443,6 +485,8 @@ fn lay_out_line(
     measure: Emu,
     left: Emu,
     is_last: bool,
+    object_ascent: Emu,
+    object_descent: Emu,
 ) -> LaidOutLine {
     let is_tab: Vec<bool> = composed
         .segments
@@ -469,8 +513,8 @@ fn lay_out_line(
         || text
             .get(composed.range.clone())
             .is_some_and(|slice| slice.ends_with(mjx_docx::SOFT_HYPHEN));
-    let ascent = points(composed.ascent_in_points);
-    let descent = points(composed.descent_in_points);
+    let ascent = points(composed.ascent_in_points).maximum(object_ascent);
+    let descent = points(composed.descent_in_points).maximum(object_descent);
     let natural = ascent + descent;
     let height = style.line_height.applied_to(natural);
     // Where the baseline sits inside a line box the paragraph resized. Under `exact` the box may be

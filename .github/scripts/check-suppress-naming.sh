@@ -31,10 +31,14 @@
 #     Text", and `Suppressed` would be wrong rather than clearer. Allow-listed by exact token and by
 #     the `Deleted`-prefixed identifiers derived from them, so an unrelated `deleted` still fails.
 #     The **bare** `Deleted` — which `CT_ParaRPr`'s tracked-change wrapper needs as an enum variant —
-#     is allowed **only under `crates/mjx-docx/` and `crates/mjx-omml/`**, the two crates whose
-#     schemas carry tracked changes. Allowing it workspace-wide would let the chart concept return
-#     as `enum ChartLabelTier { Deleted }` inside `mjx-chart` itself, which is the one place this
-#     gate exists to police; scoping it by path closes that while leaving Word's variant legal.
+#     is allowed **only under `crates/mjx-docx/`, `crates/mjx-omml/` and
+#     `crates/mjx-layout-docx/`** — the two crates whose schemas carry tracked changes, and the one
+#     crate that *lays them out*. MJXOFF-177 added the third: Word's box model has to decide whether
+#     a `RevisionKind::Deleted` span is measured in the current display mode, which means naming
+#     `mjx-docx`'s own variant, and a box model has no chart concept to confuse it with. Allowing it
+#     workspace-wide would let the chart concept return as `enum ChartLabelTier { Deleted }` inside
+#     `mjx-chart` itself, which is the one place this gate exists to police; scoping it by path
+#     closes that while leaving Word's variant legal.
 #   * **Every other delete-family identifier MJXOFF-126 (revision marks) adds under those same two
 #     crates** — `CellDeleted`/`cell_deleted` (`w:cellDel`, "a tracked-deleted table cell"),
 #     `MarkerDeleted` (the enumeration a bare tracked-deletion marker reports),
@@ -279,7 +283,7 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/delText/<wire-token>/g' \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
-        -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
+        -e '/^crates\/(mjx-docx|mjx-omml|mjx-layout-docx)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
         -e '/^crates\/mjx-sml\/src\/formula\//s/(first|second)_input_cell_deleted/<data-table-input>/g' \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/locks_deleting_(columns|rows)/<sheet-protection-lock>/g' \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/input_cell_was_deleted|deletion_was_undone/<scenario-input-cell>/g' \

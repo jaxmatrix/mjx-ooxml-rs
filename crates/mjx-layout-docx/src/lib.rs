@@ -91,24 +91,35 @@
 //! 5. the **generated marks** ([`crate::numbering`]) — line numbers in the margin, which nothing in
 //!    the run stream contains and nothing above this crate will ever draw.
 //!
+//! # What a paragraph is laid out *from*, since MJXOFF-177
+//!
+//! Not its own text. A [`Composition`] is the document's text with a
+//! list's marker, every field's **computed** value, every footnote's reference mark and one
+//! `U+FFFC` per inline object spliced in, tracked changes the current
+//! [`RevisionView`] hides dropped, and a map back to the document's
+//! own offsets so that every address this crate produces still names the file.
+//!
+//! Every one of those changes the width of a line, so every one changes where a page breaks. They
+//! are not decoration a later stage can add. Two of them — a footnote's mark and an inline drawing's
+//! advance — were declared as gaps by MJXOFF-175 and MJXOFF-176 and are closed here; the argument
+//! that closing them cannot break `crate::notes`' two-assembly bound is written out in
+//! [`crate::fields`], because a field's value is the one piece of generated content that depends on
+//! the pagination it changes.
+//!
 //! **The document's own geometry outranks the caller's [`Constraints`](mjx_layout::Constraints)**,
 //! and falls back to it wherever a section states nothing. That is not a preference: which section
 //! page 200 is in is not knowable without laying out the 199 before it, so a caller cannot choose.
 //!
 //! # What is deliberately not here
 //!
-//! * **A chart's or a picture's own content.** MJXOFF-176 places the *frame* — a floating object's
-//!   rectangle, an inline one's extent — and what goes inside it is MJXOFF-179 (R23). An inline
-//!   drawing's own **advance** is not measured either, and that is a declared gap rather than an
-//!   oversight: reserving one means a fixed advance on a composer run, and `mjx_layout::TextRun` has
-//!   no such field. See [`crate::float::inline_height`], which says so at the site.
-//! * **Fields, numbering, revision marks and OMML** — MJXOFF-177/178 (R22). A list's *number* is not
-//!   drawn; its indents are, because they are ordinary `w:pPr` members the ladder already resolved.
-//!   The same line separates the three generated marks this crate meets: a **page** number is
-//!   computed here ([`PageReport::page_number`]) and displayed by a `PAGE` field, a **footnote's
-//!   mark** is computed here ([`PageReport::notes`]) and drawn from `w:footnoteRef`, and a **line**
-//!   number is computed *and drawn* here — because it is in no run stream at all and no later child
-//!   would ever have anything to render it from.
+//! * **A picture's own content.** MJXOFF-176 places the *frame* — a floating object's rectangle, an
+//!   inline one's extent — and what goes inside it is MJXOFF-178 (R23). Its **advance** is no longer
+//!   a gap: MJXOFF-177 added [`mjx_layout::TextRun::advance`] and an inline object is now one
+//!   `U+FFFC` with a fixed width, so the line it sits on is measured with it on. See
+//!   [`crate::generated`].
+//! * **A chart's or a diagram's own content** — MJXOFF-178 (R23). An equation's is *not* in that
+//!   list any more: [`crate::math`] typesets one, because its width is what the line it sits on
+//!   reserves and no later stage can supply that.
 //! * **A display list.** This crate never paints and never resolves a handle;
 //!   `tests/the_seam_holds.rs` refuses `mjx-scene`, `mjx-paint` and `mjx-geometry` by name. **Word's
 //!   scene companion does not exist yet** — PowerPoint's is `mjx-scene-pptx` and Excel's is
@@ -120,6 +131,11 @@
 //!   [`DocumentBoxModel::with_hyphenator`]. See [`crate::flow`].
 //! * **`w:sym`.** A symbol is a character code in a *named font*, and `mjx-docx`'s residency
 //!   deliberately contributes no character for one rather than drawing the wrong glyph.
+//! * **A `TOC`'s entry list.** Its nested `PAGEREF`s *are* recomputed and its headings are not
+//!   regenerated; see [`crate::fields`] for why that is the split Word's own markup makes.
+//! * **A math font.** `mjx-text` parses no OpenType `MATH` table at all, so every constant in
+//!   [`crate::math`] is TeX's or MathML Core's rather than the font's, and a stretchy delimiter is
+//!   scaled rather than assembled. That module says so at the top and marks each one `GUESS:`.
 //!
 //! # ⚠ Nothing in this crate is parity with Word, and it is not described as such
 //!
@@ -147,14 +163,19 @@ pub mod block;
 pub mod checkpoint;
 pub mod decoration;
 pub mod error;
+pub mod fields;
 pub mod float;
 pub mod flow;
+pub mod generated;
 pub mod justify;
+pub mod lists;
+pub mod math;
 pub mod measure;
 pub mod model;
 pub mod notes;
 pub mod numbering;
 pub mod paginate;
+pub mod revision;
 pub mod section;
 pub mod stream;
 pub mod style;
@@ -167,10 +188,27 @@ pub use block::{BlockConstraints, BlockLayout};
 pub use checkpoint::{Continuation, STATE_BYTES, VERSION};
 pub use decoration::{stroke_rect, DecorationCatalogue, ParagraphDecoration, Rule};
 pub use error::DocumentLayoutError;
+pub use fields::{
+    evaluate as evaluate_field, resolve as resolve_fields, CachedReason, Convergence, Evaluation,
+    FieldAddress, FieldEnvironment, FieldKind, Instruction, SequenceCounters, SequenceValues,
+    MAXIMUM_PASSES,
+};
 pub use float::{inline_height, place as place_float, place_table, Anchorage, PlacedFloat};
-pub use flow::{lay_out, FlowContext, LaidOutLine, ParagraphLayout, BAND_COMPOSITIONS};
+pub use flow::{
+    lay_out, lay_out_composed, FlowContext, LaidOutLine, ParagraphLayout, BAND_COMPOSITIONS,
+};
+pub use generated::{
+    compose, Composition, Generated, InlineObject, InlineObjectKind, Piece, PieceKind,
+    PieceRevision, OBJECT_REPLACEMENT, SUPERSCRIPT_SCALE,
+};
 pub use justify::{
     expansion_points, is_east_asian, place, LineContext, LinePlacement, PlacedLeader, PlacedSegment,
+};
+pub use lists::{ListNumbering, Marker, LEVELS};
+pub use math::{
+    grow_delimiter, lay_out as lay_out_math, MathBox, MathContent, MathContext, PlacedMathBox,
+    AXIS_HEIGHT_IN_EMS, MAXIMUM_DELIMITER_GROWTH, MAXIMUM_DEPTH, RULE_THICKNESS_IN_EMS,
+    SCRIPT_SCALE, SCRIPT_SCRIPT_SCALE,
 };
 pub use measure::{border_width, half_of, HAIRLINE};
 pub use model::{
@@ -184,6 +222,7 @@ pub use paginate::{
     FlowPosition, FlowProgram, LayoutCache, LayoutRequest, PageAssembly, PageShape, PlacedBlock,
     NO_FLOATS,
 };
+pub use revision::{changes_anything, has_content_change, RevisionView};
 pub use section::{required_parity, starts_a_page, ColumnBand, Parity, SectionGeometry};
 pub use stream::{lay_out_stream, StreamLayout, StreamLine, UNBOUNDED_HEIGHT};
 pub use style::{Alignment, LineHeight, ParagraphStyle, RunStyle, ASSUMED_FONT_SIZE_POINTS};

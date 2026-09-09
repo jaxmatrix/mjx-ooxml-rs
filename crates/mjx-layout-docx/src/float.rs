@@ -363,15 +363,18 @@ pub fn place_table(
 /// which is the whole of "a very tall run" and is what makes a paragraph containing a picture taller
 /// than one containing only text.
 ///
-/// # ⚠ Its *advance* is not measured, and that is a declared gap rather than an oversight
+/// # ⚠ Nothing calls this any more, and that is the correction rather than the feature
 ///
-/// Reserving an inline object's **width** means giving the line composer a fixed advance for one
-/// character, and `mjx_layout::TextRun` has no such field: a composer run is a face, a size and a
-/// range, and its width is whatever the shaper says. Adding one is a change to the box-model
-/// contract every format shares, not to this crate, so it is stated here rather than approximated:
-/// **a line carrying an inline drawing is measured as if the drawing were not on it**, and can
-/// therefore be one object too long. Exactly the shape of R20's footnote-mark gap, and it belongs to
-/// the same later child.
+/// MJXOFF-176 wrote this to raise a line for an inline object's height and **never called it** — a
+/// grep of the crate found it only here and in the `pub use`. So an inline picture changed neither
+/// the width of its line nor its height, and the second half of that was not even declared.
+///
+/// MJXOFF-177 closed both, and not here: an inline object is now one `U+FFFC` in
+/// [`crate::generated::Composition`] carrying a fixed [`mjx_layout::TextRun::advance`] and its own
+/// ascent, so [`crate::flow`] measures the line *with the object on it* and raises it to the
+/// object's height in the same pass. This is kept because it is a correct, self-contained answer to
+/// *how tall are the inline drawings in this byte range* and because deleting a function to hide
+/// that it was dead is not a fix.
 #[must_use]
 pub fn inline_height(drawings: &[DrawingFormatting], range: std::ops::Range<usize>) -> Emu {
     drawings

@@ -245,3 +245,171 @@ fn the_pagination_types_are_reachable() {
     assert_eq!(shape.columns, 2);
     assert_eq!(shape.section_last, Some(9));
 }
+
+#[test]
+fn the_field_types_are_reachable() {
+    use mjx_layout_docx::{
+        evaluate_field, resolve_fields, CachedReason, Convergence, Evaluation, FieldAddress,
+        FieldEnvironment, FieldKind, Instruction, SequenceCounters, MAXIMUM_PASSES,
+    };
+    const { assert!(MAXIMUM_PASSES >= 2) };
+    assert_eq!(FieldAddress::BODY, 0);
+    assert_eq!(FieldAddress::body(3, 1).paragraph, 3);
+    assert_eq!(FieldAddress::stream(0, 1, 0).stream, 1);
+    let instruction = Instruction::parse(" PAGE ");
+    assert_eq!(instruction.kind(), FieldKind::Page);
+    let mut counters = SequenceCounters::new();
+    assert_eq!(counters.next("Figure"), 1);
+    assert_eq!(counters.current("Figure"), 1);
+    counters.reset("Figure", 5);
+    assert_eq!(counters.current("Figure"), 5);
+    let mut environment = FieldEnvironment::cached_results();
+    assert!(environment.is_empty());
+    environment.observe_total_pages(4);
+    environment.observe_block(0, 1);
+    environment.observe_section_pages(0, 4);
+    environment.observe_bookmark("target", 2, "a heading");
+    assert_eq!(environment.total_pages(), Some(4));
+    assert_eq!(environment.page_of_block(0), Some(1));
+    assert_eq!(environment.for_page(9).total_pages(), Some(4));
+    assert_eq!(
+        environment.clone().with_now("1 January 2026").total_pages(),
+        Some(4)
+    );
+    let field = mjx_docx::FieldSpan {
+        at: 0,
+        result: 0..1,
+        instruction: " PAGE ".to_owned(),
+        form: mjx_docx::FieldForm::Complex,
+        dirty: false,
+        locked: false,
+        parent: None,
+    };
+    assert_eq!(
+        evaluate_field(&field, &environment, &mut counters, Some(0), Some(0)),
+        Evaluation::Computed("1".to_owned())
+    );
+    assert_eq!(
+        evaluate_field(
+            &field,
+            &FieldEnvironment::cached_results(),
+            &mut counters,
+            None,
+            None
+        ),
+        Evaluation::Cached(CachedReason::TargetAbsent)
+    );
+    let (_, convergence) = resolve_fields(|_| -> Result<FieldEnvironment, ()> {
+        Ok(FieldEnvironment::cached_results())
+    })
+    .expect("the loop runs");
+    assert!(convergence.converged());
+    assert!(!Convergence::Exhausted.converged());
+}
+
+#[test]
+fn the_generated_content_types_are_reachable() {
+    use mjx_layout_docx::{
+        compose, Composition, Generated, InlineObjectKind, PieceKind, PieceRevision, RevisionView,
+        OBJECT_REPLACEMENT, SUPERSCRIPT_SCALE,
+    };
+    assert_eq!(OBJECT_REPLACEMENT, '\u{FFFC}');
+    const { assert!(SUPERSCRIPT_SCALE > 0.0 && SUPERSCRIPT_SCALE < 1.0) };
+    let mut document = support::document(&[support::paragraph("", "a plain paragraph")]);
+    let flow = support::flow(&mut document);
+    let paragraph = &flow.paragraphs()[0];
+    let composed: Composition = compose(paragraph, &Generated::default());
+    assert_eq!(composed.text(), "a plain paragraph");
+    assert!(!composed.change_bar());
+    assert!(composed.objects().is_empty());
+    assert!(composed.equations().is_empty());
+    assert_eq!(composed.pieces()[0].kind, PieceKind::Document);
+    assert_eq!(composed.document_range(&(0..3)), 0..3);
+    assert!(composed.object_at(0).is_none());
+    assert_eq!(
+        composed.style().alignment,
+        mjx_layout_docx::Alignment::Start
+    );
+    assert_eq!(composed.runs().len(), 1);
+    let plain = Composition::plain(paragraph);
+    assert_eq!(plain.text(), composed.text());
+    // The two enumerations, named so that a change to either fails here.
+    let _ = InlineObjectKind::Equation(0);
+    let _ = PieceRevision {
+        kind: mjx_docx::RevisionKind::Inserted,
+        author: None,
+    };
+    assert!(RevisionView::default().shows_change_bars());
+}
+
+#[test]
+fn the_list_types_are_reachable() {
+    use mjx_layout_docx::{ListNumbering, Marker, LEVELS};
+    const { assert!(LEVELS == 9) };
+    let marker = Marker {
+        text: "1.".to_owned(),
+        suffix: mjx_ooxml_types::wordprocessingml::NumberingLevelSuffix::Tab,
+        level: 0,
+        exact: true,
+        picture_bullet: None,
+    };
+    assert_eq!(marker.with_suffix(), "1.\t");
+    let empty = ListNumbering::default();
+    assert!(empty.is_empty() && empty.marker(0).is_none());
+    assert_eq!(empty.len(), 0);
+}
+
+#[test]
+fn the_revision_types_are_reachable() {
+    use mjx_docx::{RevisionKind, RevisionSpan};
+    use mjx_layout_docx::{changes_anything, has_content_change, RevisionView};
+    let spans = vec![RevisionSpan {
+        range: 0..4,
+        kind: RevisionKind::Deleted,
+        author: Some("Priya".to_owned()),
+        date: None,
+    }];
+    assert!(has_content_change(&spans));
+    assert!(changes_anything(&spans, RevisionView::NoMarkup));
+    assert!(!changes_anything(&spans, RevisionView::AllMarkup));
+    assert!(RevisionView::AllMarkup.shows(RevisionKind::Deleted));
+    assert!(!RevisionView::Original.shows(RevisionKind::Inserted));
+}
+
+#[test]
+fn the_math_types_are_reachable() {
+    use mjx_layout_docx::{
+        MathBox, MathContent, MathContext, PlacedMathBox, AXIS_HEIGHT_IN_EMS,
+        MAXIMUM_DELIMITER_GROWTH, MAXIMUM_DEPTH, RULE_THICKNESS_IN_EMS, SCRIPT_SCALE,
+        SCRIPT_SCRIPT_SCALE,
+    };
+    const { assert!(AXIS_HEIGHT_IN_EMS > 0.0 && RULE_THICKNESS_IN_EMS > 0.0) };
+    const { assert!(SCRIPT_SCRIPT_SCALE < SCRIPT_SCALE && SCRIPT_SCALE < 1.0) };
+    const { assert!(MAXIMUM_DELIMITER_GROWTH > 1.0) };
+    const { assert!(MAXIMUM_DEPTH >= 8) };
+    let style = RunStyle {
+        range: 0..0,
+        family: "Liberation Sans".to_owned(),
+        size: mjx_text::FontSize::from_points(12.0),
+        weight: mjx_text::FontWeight::REGULAR,
+        slant: mjx_text::FontSlant::Upright,
+        language: None,
+        hidden: false,
+    };
+    let context = MathContext::new(&style);
+    assert_eq!(context.script_level, 0);
+    assert_eq!(context.scripted().script_level, 1);
+    assert!(context.axis() > Emu::ZERO);
+    assert!(context.rule_thickness() > Emu::ZERO);
+    assert!(context.deeper().depth == 1);
+    assert!(context.em() > Emu::ZERO);
+    let empty = MathBox::empty();
+    assert_eq!(empty.height(), Emu::ZERO);
+    assert_eq!(empty.content, MathContent::Group);
+    let placed = PlacedMathBox {
+        x: Emu::ZERO,
+        baseline: Emu::ZERO,
+        content: MathBox::empty(),
+    };
+    assert_eq!(placed.content.width, Emu::ZERO);
+}
