@@ -259,20 +259,70 @@ indices, so taking the row first would put each offset beside the wrong one. The
 down the element it writes, which is the same reason `mjx_sml::CellReference::relative` takes
 `(column, row)`.
 
-```
+<!-- guide-example: the_calls_that_take_the_column_first rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{ChartData, ChartKind, ResizingBehavior, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut workbook = Workbook::blank()?;
 let chart = ChartData::new(ChartKind::Bar)
     .categories(["Q1", "Q2"])
     .series("North", [12.5, 18.0]);
-// from column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
-let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", ResizingBehavior::MoveAndResizeWithAnchorCells)?;
+
+// From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+let resizing = ResizingBehavior::MoveAndResizeWithAnchorCells;
+let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", resizing)?;
 assert_eq!(workbook.chart_anchor_indices(0)?, vec![anchor]);
+
+let saved = workbook.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: the_calls_that_take_the_column_first python -->
+```python
+from mjx_ooxml import ChartData, ChartKind, ResizingBehavior, Workbook
+
+workbook = Workbook.blank()
+chart = ChartData(ChartKind.Bar).categories(["Q1", "Q2"]).series("North", [12.5, 18.0])
+
+# From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+resizing = ResizingBehavior.MoveAndResizeWithAnchorCells
+anchor = workbook.add_chart(0, chart, 1, 1, 7, 16, "Revenue", resizing)
+assert workbook.chart_anchor_indices(0) == [anchor]
+
+saved = workbook.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: the_calls_that_take_the_column_first js -->
+```js
+import { ChartData, ChartKind, ResizingBehavior, Workbook } from "@mjx/ooxml";
+
+const workbook = Workbook.blank();
+const chart = new ChartData(ChartKind.Bar).categories(["Q1", "Q2"]).series("North", [12.5, 18.0]);
+
+// From column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+const resizing = ResizingBehavior.MoveAndResizeWithAnchorCells;
+const anchor = workbook.addChart(0, chart, 1, 1, 7, 16, "Revenue", resizing);
+const anchors = workbook.chartAnchorIndices(0);
+if (anchors.length !== 1 || anchors[0] !== anchor) {
+  throw new Error("the sheet should carry exactly the chart just added");
+}
+
+const saved = workbook.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [workbook, chart]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+The three saved workbooks are compared to each other part by part, which matters more here than
+anywhere else on this page: a transposed `(column, row)` pair is still four valid numbers, so it
+raises nothing and changes exactly one part, `xl/drawings/drawing1.xml`. That is the failure a
+comparison catches and a reader cannot.
 
 There is no compiler that will catch a caller who transposes those, because both arguments are
 `u32`. That is the cost of the asymmetry, it is recorded rather than papered over, and changing it is
