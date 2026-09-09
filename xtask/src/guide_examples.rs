@@ -128,6 +128,54 @@ pub const PRELUDE_START: &str = "guide-example:prelude-start";
 /// pairs cannot be confused for one another by the scan below.
 pub const PRELUDE_END: &str = "guide-example:prelude-end";
 
+/// The sentinel a Rust half declares the packages its example offers with (MJXOFF-262/MJXOFF-260).
+///
+/// # Why the fact is declared rather than inferred
+///
+/// Both binding harnesses compare their package against the Rust one part by part, and until
+/// MJXOFF-262 they decided *whether there was one* by looking for a binding named `saved`. Seven of
+/// nineteen examples have none — five of them are about a refusal the library reports and have
+/// nothing to save — so the harnesses took a skip path more than a third of the time, and **an
+/// example whose `saved` binding was deleted was indistinguishable from one that never had one.**
+/// A skip that is correct for seven examples is a skip nobody reads.
+///
+/// So every Rust half states it, once, on one line above its `fn main`:
+///
+/// ```text
+/// // guide-example:packages saved
+/// // guide-example:packages saved saved_document
+/// // guide-example:packages none
+/// ```
+///
+/// The names are the bindings all three halves use — `let saved_document` in Rust,
+/// `saved_document =` in Python, `export { saved, saved_document }` in JavaScript — and
+/// `xtask/tests/guide_examples.rs` holds the three halves to the declaration rather than to each
+/// other. Deleting a binding from all three then fails against the statement instead of quietly
+/// becoming a skip, which is the whole point.
+///
+/// # Why it is a list rather than a boolean (MJXOFF-260)
+///
+/// Two examples genuinely author **two** packages, because that is what their guide section claims:
+/// `the_same_chart_on_all_three` puts one `ChartData` on a slide *and* into a Word paragraph, and
+/// `one_authoring_vocabulary` puts one `FillSpec` on a shape in a deck *and* on a chart series in a
+/// workbook. A mechanism that could carry one package made the second one's bytes uncompared, and
+/// the choice of which to offer was explained in prose — which is exactly the shape this whole
+/// mechanism exists to replace.
+pub const PACKAGES_DECLARATION: &str = "guide-example:packages";
+
+/// The token a Rust half declares "this example offers no package" with.
+///
+/// Spelled out rather than left as an empty list, so that *saying nothing* and *saying none* are
+/// different things and only the second one passes.
+pub const NO_PACKAGES_TOKEN: &str = "none";
+
+/// The prefix every package binding's name starts with.
+///
+/// `saved` alone is the single-package spelling and nothing already written changes; a second
+/// package is `saved_<something>`, and the suffix is also what the Rust half puts into its output
+/// path so a harness can find the file to compare against.
+pub const PACKAGE_BINDING_PREFIX: &str = "saved";
+
 /// The hidden line a copied Rust region is wrapped in so the block is a runnable doctest.
 ///
 /// It is hidden (`#`) rather than shown because it is scaffolding, not API: the reader sees the
@@ -565,6 +613,97 @@ pub fn rust_only_examples(root: &Path) -> Result<BTreeMap<String, Vec<String>>> 
         }
     }
     Ok(declared)
+}
+
+/// The packages one example offers, as its **Rust half declares them**.
+///
+/// See [`PACKAGES_DECLARATION`] for why this is a declaration rather than an inference. The answer
+/// is a set of binding names in the order the half declares them, empty for an example that
+/// declares [`NO_PACKAGES_TOKEN`].
+///
+/// # Errors
+///
+/// A Rust half with no declaration, with more than one, with an empty one, or naming a binding that
+/// does not begin with [`PACKAGE_BINDING_PREFIX`]. Every one of those is an error where it is parsed
+/// rather than a half quietly treated as offering nothing — a missing statement is the state this
+/// declaration exists to make impossible.
+pub fn declared_packages(source: &str, path: &str) -> Result<Vec<String>> {
+    let mut found: Option<Vec<String>> = None;
+    for (index, line) in source.lines().enumerate() {
+        let Some(offset) = line.find(PACKAGES_DECLARATION) else {
+            continue;
+        };
+        let number = index + 1;
+        if found.is_some() {
+            bail!(
+                "{path}:{number}: a second `{PACKAGES_DECLARATION}` line. The packages an example \
+                 offers are stated once, or the three halves have two statements to disagree with."
+            );
+        }
+        let rest = line[offset + PACKAGES_DECLARATION.len()..].trim();
+        let words: Vec<&str> = rest.split_whitespace().collect();
+        if words.is_empty() {
+            bail!(
+                "{path}:{number}: `{PACKAGES_DECLARATION}` names the bindings this example offers, \
+                 or `{NO_PACKAGES_TOKEN}`. An empty declaration is the silence it exists to replace."
+            );
+        }
+        if words == [NO_PACKAGES_TOKEN] {
+            found = Some(Vec::new());
+            continue;
+        }
+        for word in &words {
+            if *word == NO_PACKAGES_TOKEN {
+                bail!(
+                    "{path}:{number}: `{NO_PACKAGES_TOKEN}` is the whole declaration or none of it"
+                );
+            }
+            if !word.starts_with(PACKAGE_BINDING_PREFIX) {
+                bail!(
+                    "{path}:{number}: {word:?} is not a package binding. Every one is named \
+                     `{PACKAGE_BINDING_PREFIX}` or `{PACKAGE_BINDING_PREFIX}_<something>`, because \
+                     that name is what all three halves bind and what the harnesses look for."
+                );
+            }
+        }
+        found = Some(words.iter().map(|word| (*word).to_owned()).collect());
+    }
+    found.ok_or_else(|| {
+        anyhow!(
+            "{path}: no `{PACKAGES_DECLARATION}` line. Every Rust half states the packages its \
+             example offers — `{PACKAGE_BINDING_PREFIX}`, a list of bindings, or \
+             `{NO_PACKAGES_TOKEN}` — so that a half which stopped producing one fails against the \
+             statement instead of turning its comparison into a skip nobody reads."
+        )
+    })
+}
+
+/// The file one of a package binding's packages is written to, given the harness's output path.
+///
+/// The first declared binding takes the path itself, so every single-package example writes exactly
+/// where it always did. A second one has its suffix inserted before the extension —
+/// `facade_guide_x.pkg` becomes `facade_guide_x.document.pkg` — which is the same rule the Rust
+/// half applies when it writes and the harness applies when it reads, stated once here.
+#[must_use]
+pub fn package_output_path(output: &Path, binding: &str) -> PathBuf {
+    let Some(suffix) = binding
+        .strip_prefix(PACKAGE_BINDING_PREFIX)
+        .and_then(|rest| rest.strip_prefix('_'))
+    else {
+        return output.to_path_buf();
+    };
+    let extension = output
+        .extension()
+        .map(|value| value.to_string_lossy().into_owned());
+    let stem = output
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let file = match extension {
+        Some(extension) => format!("{stem}.{suffix}.{extension}"),
+        None => format!("{stem}.{suffix}"),
+    };
+    output.with_file_name(file)
 }
 
 /// The examples a directory holds a half of, derived from the filesystem rather than listed.

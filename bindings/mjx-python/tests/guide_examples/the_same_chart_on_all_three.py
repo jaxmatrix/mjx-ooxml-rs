@@ -6,10 +6,9 @@ literally, because `cargo run -p xtask -- guide-examples` copies it there and
 `xtask/tests/guide_examples.rs` proves the copy is current.
 
 Importing this module *is* running the example: the code below is top level, so `pytest` collecting
-`tests/test_guide_examples.py` executes every assertion in it. `saved` is the deck it produced,
-compared against `crates/mjx-ooxml/examples/guide_the_same_chart_on_all_three.rs` part by part. The
-Word document the example also authors is held by the readers the block calls; a Word chart is
-compared byte for byte by `tests/test_build_a_document.py`.
+`tests/test_guide_examples.py` executes every assertion in it. It offers **both** packages it
+authors — `saved` is the deck and `saved_document` is the Word document — and each is compared
+against `crates/mjx-ooxml/examples/guide_the_same_chart_on_all_three.rs` part by part (MJXOFF-260).
 """
 
 # guide-example:start
@@ -43,4 +42,5 @@ assert len(deck.chart_series(slide, shape)) == 1
 assert len(document.chart_series(drawing)) == 1
 
 saved = deck.save()
+saved_document = document.save()
 # guide-example:end

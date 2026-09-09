@@ -6,14 +6,11 @@
 //! `bindings/mjx-wasm/tests/node/guide_examples/the_same_chart_on_all_three.mjs`. `cargo run -p
 //! xtask -- guide-examples` does the copying and `xtask/tests/guide_examples.rs` proves it was done.
 //!
-//! # Why the deck is the package it saves
+//! # It authors two packages, and both are compared
 //!
-//! The example authors **two** packages — a chart on a slide and the same chart in a Word document
-//! — because that is the claim: one description, two owners, one vocabulary. A guide example offers
-//! one package for the two binding harnesses to compare, so it offers the deck, and the Word half is
-//! held by the readers the block itself calls. Nothing is lost by that choice:
-//! `crates/mjx-ooxml/examples/build_a_document.rs` authors a Word chart and **is** compared byte for
-//! byte in both bindings, since MJXOFF-239.
+//! A chart on a slide and the same chart in a Word document — because that is the claim: one
+//! description, two owners, one vocabulary. Both are offered, under `saved` and `saved_document`,
+//! and both binding harnesses compare both against this program part by part (MJXOFF-260).
 //!
 //! ```sh
 //! cargo run -p mjx-ooxml --example guide_the_same_chart_on_all_three -- out.pptx
@@ -24,6 +21,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+// guide-example:packages saved saved_document
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:start
     use mjx_ooxml::{ChartData, ChartKind, Deck, Document, PageSize};
@@ -54,14 +52,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     assert_eq!(document.chart_series(drawing)?.len(), 1);
 
     let saved = deck.save()?;
+    let saved_document = document.save()?;
     // guide-example:end
 
-    write_output(&saved)
+    write_output(&[
+        ("saved", saved.as_slice()),
+        ("saved_document", saved_document.as_slice()),
+    ])
 }
 
 /// Where this example writes: its first argument, or `target/examples/` by default.
-fn write_output(saved: &[u8]) -> Result<(), Box<dyn Error>> {
-    let path = match std::env::args().nth(1) {
+///
+/// The first package declared takes the path itself; a second has its binding's suffix inserted
+/// before the extension, which is the rule `xtask::guide_examples::package_output_path` states once
+/// and both binding harnesses apply when they look for the file to compare against.
+fn write_output(packages: &[(&str, &[u8])]) -> Result<(), Box<dyn Error>> {
+    let base = match std::env::args().nth(1) {
         Some(argument) => PathBuf::from(argument),
         None => {
             let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/examples");
@@ -69,7 +75,32 @@ fn write_output(saved: &[u8]) -> Result<(), Box<dyn Error>> {
             directory.join("facade_guide_the_same_chart_on_all_three.pptx")
         }
     };
-    std::fs::write(&path, saved)?;
-    println!("wrote {} ({} bytes)", path.display(), saved.len());
+    for (binding, bytes) in packages {
+        let path = output_path_for(&base, binding);
+        std::fs::write(&path, bytes)?;
+        println!("wrote {} ({} bytes)", path.display(), bytes.len());
+    }
     Ok(())
+}
+
+/// [`xtask::guide_examples::package_output_path`], restated here because a `cargo` example under
+/// `mjx-ooxml` may not depend on `xtask` — the layering rule points downward only, and `xtask` is
+/// outside the ranked graph entirely. `xtask/tests/guide_examples.rs` holds the two to the same
+/// answer, so the restatement cannot drift.
+fn output_path_for(base: &std::path::Path, binding: &str) -> PathBuf {
+    let Some(suffix) = binding
+        .strip_prefix("saved")
+        .and_then(|rest| rest.strip_prefix('_'))
+    else {
+        return base.to_path_buf();
+    };
+    let stem = base
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let file = match base.extension() {
+        Some(extension) => format!("{stem}.{suffix}.{}", extension.to_string_lossy()),
+        None => format!("{stem}.{suffix}"),
+    };
+    base.with_file_name(file)
 }

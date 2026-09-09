@@ -32,8 +32,10 @@
 //! * **A Rust-only declaration is held to the names it makes the claim with** — see below.
 //! * **Content equality** — every committed block byte-equals the region of its source today.
 //! * **Sentinels** — every half really has a region, and the region is not empty.
-//! * **The three halves agree about producing a package**, so the output comparison is present in
-//!   both bindings or absent from all three by construction, never missing from one.
+//! * **The three halves offer the packages the Rust half declares** (MJXOFF-262, MJXOFF-260). The
+//!   fact is stated once, by the Rust half, as a *list* of binding names or the word `none` — so an
+//!   example that stops producing a package fails against its own statement instead of turning its
+//!   comparison into a skip in one binding, and an example that authors two can offer two.
 //! * **Each binding harness runs the Rust example and reads both packages through that binding's
 //!   one shared payload reader** — `part_payloads` in `bindings/mjx-python/tests/opc.py`,
 //!   `partPayloads` in `bindings/mjx-wasm/tests/node/zip.mjs`. The same two ingredients
@@ -133,7 +135,9 @@
 //! | move a hidden prelude into the Python half | [`a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts`] |
 //! | add a fourth marker naming an example with no files | that test, and [`every_guide_example_exists_in_all_three_languages_and_is_shown_in_all_three`] on all three missing halves |
 //! | add a Python half no page marks | the population test, on the stray |
-//! | stop the JavaScript half exporting its package | [`the_three_halves_of_an_example_agree_about_whether_it_produces_a_package`] |
+//! | stop the JavaScript half exporting its package | [`the_three_halves_offer_the_packages_the_rust_half_declares`] |
+//! | delete `saved` from **all three** halves of an example that declares one | that test, three times — the mutation the boolean form could not see (MJXOFF-262) |
+//! | drop a Rust half's `guide-example:packages` line | the declaration parse itself, before any comparison |
 //! | have a harness return a hand-written list of examples | [`each_binding_harness_runs_the_rust_example_and_reads_both_packages_through_the_shared_reader`] |
 //! | `SlideSize::widescreen` → `SlideSize::standard` in one half | the binding's own comparison, naming `ppt/presentation.xml` and `ppt/slideMasters/slideMaster1.xml` — **not** anything in this file, which is the limit stated above |
 //! | declare a projected example Rust-only (`addressing_a_workbook rust-only write_cells`) | [`a_rust_only_declaration_is_held_to_the_names_it_makes_the_claim_with`], naming both surfaces that still have it |
@@ -481,63 +485,225 @@ fn a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts() {
     );
 }
 
+/// **The three halves of an example offer the packages its Rust half declares** (MJXOFF-262,
+/// MJXOFF-260).
+///
+/// # What this replaced, and why the replacement is not the same test
+///
+/// Until MJXOFF-262 this asked whether the three halves *agreed with each other* about producing a
+/// package, by looking for a binding named `saved` in each. That is a real check and it caught one
+/// half falling behind — which is the shape MJXOFF-239 found in the Word walkthrough — but it could
+/// not see all three stopping together, which is exactly what an author who "simplified" an example
+/// would do. Seven of the seventeen tri-language examples produce no package, five of them because
+/// they are about a refusal the library reports, so **more than a third of the corpus took the
+/// harnesses' skip path** and a skip that is correct that often is a skip nobody reads.
+///
+/// So the fact is now *stated*, once, by the Rust half — see
+/// [`guide_examples::PACKAGES_DECLARATION`] — and all three halves are held to the statement rather
+/// than to each other. An example that declares `none` and then binds something fails; one that
+/// declares `saved` and binds nothing fails, in every language at once.
+///
+/// # And it is a set rather than a boolean (MJXOFF-260)
+///
+/// Two examples author two packages, because that is what their guide section claims. The mechanism
+/// could carry one, so the second one's bytes were compared by nothing and the choice of which to
+/// offer was explained in prose — the shape this whole mechanism exists to replace. A declaration is
+/// a list, the halves are held to the whole list, and both harnesses loop over it.
 #[test]
-fn the_three_halves_of_an_example_agree_about_whether_it_produces_a_package() {
-    // An example that saves a package binds `saved`, in each language's own spelling, and its two
-    // binding harnesses then compare that package against the Rust one part by part. If one half
-    // stopped producing one, the comparison would go missing from that binding *and from nowhere
-    // else*, which is precisely the shape MJXOFF-239 found in the Word walkthrough.
+fn the_three_halves_offer_the_packages_the_rust_half_declares() {
     let root = repository_root();
     let rust_only = guide_examples::rust_only_examples(&root).expect("the pages parse");
     let mut failures: Vec<String> = Vec::new();
-    let mut producing = 0usize;
+    let mut declaring = 0usize;
+    let mut offering = 0usize;
+    let mut packages = 0usize;
 
     for name in marked_examples(&root) {
+        // Every Rust half declares, this one included: a rust-only example has no harness to compare
+        // against, but a declaration that some halves may skip is a declaration that can be
+        // forgotten. What is skipped below is the comparison against the other two, which do not
+        // exist.
+        let rust_path = Language::Rust.source_path(&name);
+        let declared = match guide_examples::declared_packages(&read(&rust_path), &rust_path) {
+            Ok(declared) => declared,
+            Err(error) => {
+                failures.push(format!("{error:#}"));
+                continue;
+            }
+        };
+        declaring += 1;
+        packages += declared.len();
+        if !declared.is_empty() {
+            offering += 1;
+        }
         if rust_only.contains_key(&name) {
-            // One half cannot disagree with itself, and there is no harness to compare against.
-            // Counting it as an agreement would inflate the figure this test prints.
             continue;
         }
-        let mut produces: Vec<(Language, bool)> = Vec::new();
+
         for language in Language::ALL {
             let relative = language.source_path(&name);
             let Ok(source) = std::fs::read_to_string(root.join(&relative)) else {
                 continue;
             };
-            let signal = match language {
-                Language::Rust => "let saved",
-                Language::Python => "saved =",
-                Language::JavaScript => "export { saved }",
-            };
-            produces.push((language, source.contains(signal)));
-        }
-        let agreed = produces.iter().all(|(_, yes)| *yes)
-            || produces.iter().all(|(_, yes)| !*yes)
-            || produces.is_empty();
-        if !agreed {
-            failures.push(format!(
-                "`{name}`: {}",
-                produces
-                    .iter()
-                    .map(|(language, yes)| format!(
-                        "{language} {}",
-                        if *yes { "saves" } else { "does not save" }
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        } else if produces.iter().all(|(_, yes)| *yes) && !produces.is_empty() {
-            producing += 1;
+            let bound = packages_bound_by(language, &source);
+            let declared_set: BTreeSet<&str> = declared.iter().map(String::as_str).collect();
+            for missing in declared_set.difference(&bound) {
+                failures.push(format!(
+                    "{relative}: `{name}` declares it offers `{missing}` and this half binds no \
+                     such package. A half that stops producing one used to turn its comparison \
+                     into a skip in that binding and nowhere else."
+                ));
+            }
+            for stray in bound.difference(&declared_set) {
+                failures.push(format!(
+                    "{relative}: this half binds `{stray}`, which `{rust_path}`'s \
+                     `{}` line does not declare. A package no harness knows about is a package \
+                     nothing compares.",
+                    guide_examples::PACKAGES_DECLARATION
+                ));
+            }
         }
     }
 
-    println!("{producing} example(s) produce a package in all three languages");
+    // Floors phrased as *the walk is still matching*, never as totals. Both are needed: a
+    // declaration parser that matched nothing would leave `offering` at zero, and one that found
+    // only the `none` declarations would leave `packages` there.
+    assert!(
+        declaring > 0,
+        "no example declared its packages at all — the declaration parser has stopped matching"
+    );
+    assert!(
+        packages > 0,
+        "every example declared `{}` — the declaration parser has stopped reading names",
+        guide_examples::NO_PACKAGES_TOKEN
+    );
     assert!(
         failures.is_empty(),
-        "these example(s) disagree across languages about producing a package:\n  {}\n\nOne half \
-         that stops saving takes a comparison with it, and only that binding notices.",
+        "these half(s) disagree with the packages their example declares:\n  {}",
         failures.join("\n  ")
     );
+    println!(
+        "{declaring} example(s) declare their packages; {offering} of them offer {packages} \
+         package(s), each compared in all three languages"
+    );
+}
+
+/// **`package_output_path` says the same thing the two two-package examples say when they write.**
+///
+/// The rule — the first declared package takes the harness's output path, a later one has its
+/// suffix inserted before the extension — is stated in `xtask` and restated inside each Rust half,
+/// because a `cargo` example under `mjx-ooxml` may not depend on `xtask`: the layering rule points
+/// downward only and `xtask` is outside the ranked graph. A restatement that nothing compares is a
+/// second copy of a decision, which is this repository's most-repaired defect, so the two are held
+/// against each other here.
+#[test]
+fn the_output_path_rule_is_the_one_the_examples_restate() {
+    let base = Path::new("/tmp/facade_guide_x.pkg");
+    assert_eq!(
+        guide_examples::package_output_path(base, "saved"),
+        base,
+        "the first declared package takes the path the harness passed"
+    );
+    assert_eq!(
+        guide_examples::package_output_path(base, "saved_document"),
+        Path::new("/tmp/facade_guide_x.document.pkg"),
+        "a later one has its suffix inserted before the extension"
+    );
+    assert_eq!(
+        guide_examples::package_output_path(Path::new("/tmp/out"), "saved_deck"),
+        Path::new("/tmp/out.deck"),
+        "a path with no extension still gets the suffix"
+    );
+
+    // And the restatement inside every Rust half that has one is textually the same rule. Compared
+    // by behaviour rather than by text would need `xtask` inside the example, which is the edge the
+    // restatement exists to avoid; compared by text, a divergence is visible in a diff.
+    let root = repository_root();
+    let mut restating = 0usize;
+    for name in marked_examples(&root) {
+        let relative = Language::Rust.source_path(&name);
+        let source = read(&relative);
+        let declared =
+            guide_examples::declared_packages(&source, &relative).expect("the half declares");
+        let needs_restatement = declared.len() > 1;
+        let restates = source.contains("fn output_path_for(");
+        assert_eq!(
+            needs_restatement,
+            restates,
+            "{relative} declares {} package(s) and {} the output-path rule. A half with one \
+             package writes where it always did and needs no rule; a half with two cannot do \
+             without one.",
+            declared.len(),
+            if restates {
+                "restates"
+            } else {
+                "does not restate"
+            }
+        );
+        if restates {
+            restating += 1;
+        }
+    }
+    assert!(
+        restating > 0,
+        "no Rust half restates the output-path rule — the scan has stopped matching, and the \
+         comparison above checked nothing"
+    );
+    println!("{restating} Rust half(s) restate the output-path rule");
+}
+
+/// The packages one half binds, in that language's own spelling.
+///
+/// Rust and Python bind theirs inside the region a reader sees; JavaScript exports them below it,
+/// which is why an export may rename — the block keeps `savedDocument` and the harness protocol
+/// keeps `saved_document`, and neither language has to write the other's casing.
+fn packages_bound_by(language: Language, source: &str) -> BTreeSet<&str> {
+    let mut bound = BTreeSet::new();
+    match language {
+        Language::Rust | Language::Python => {
+            for line in source.lines() {
+                let trimmed = line.trim_start();
+                let rest = match language {
+                    Language::Rust => trimmed.strip_prefix("let "),
+                    _ => Some(trimmed),
+                };
+                let Some(rest) = rest else { continue };
+                let Some(name) = rest.split(['=', ':', ' ']).next() else {
+                    continue;
+                };
+                if is_package_binding(name) && rest[name.len()..].trim_start().starts_with('=') {
+                    bound.insert(name);
+                }
+            }
+        }
+        Language::JavaScript => {
+            for line in source.lines() {
+                let Some(rest) = line.trim_start().strip_prefix("export {") else {
+                    continue;
+                };
+                let Some(inner) = rest.split('}').next() else {
+                    continue;
+                };
+                for entry in inner.split(',') {
+                    // `savedDocument as saved_document` exports under the protocol name; a bare
+                    // `saved` exports under its own.
+                    let exported = entry.rsplit(" as ").next().unwrap_or(entry).trim();
+                    if is_package_binding(exported) {
+                        bound.insert(exported);
+                    }
+                }
+            }
+        }
+    }
+    bound
+}
+
+/// Whether a name is one of the package bindings this protocol reserves.
+fn is_package_binding(name: &str) -> bool {
+    name == guide_examples::PACKAGE_BINDING_PREFIX
+        || name
+            .strip_prefix(guide_examples::PACKAGE_BINDING_PREFIX)
+            .is_some_and(|rest| rest.starts_with('_'))
 }
 
 #[test]

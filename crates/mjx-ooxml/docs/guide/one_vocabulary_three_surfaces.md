@@ -56,6 +56,7 @@ assert_eq!(deck.chart_series(slide, shape.into())?.len(), 1);
 assert_eq!(document.chart_series(drawing)?.len(), 1);
 
 let saved = deck.save()?;
+let saved_document = document.save()?;
 # Ok(())
 # }
 ```
@@ -93,6 +94,7 @@ assert len(deck.chart_series(slide, shape)) == 1
 assert len(document.chart_series(drawing)) == 1
 
 saved = deck.save()
+saved_document = document.save()
 ```
 <!-- guide-example end -->
 
@@ -131,6 +133,7 @@ if (document.chartSeries(drawing).length !== 1) {
 }
 
 const saved = deck.save();
+const savedDocument = document.save();
 // a wasm handle owns memory the garbage collector cannot see
 for (const handle of [chart, deck, document, slide, bounds]) {
   handle.free();
@@ -139,10 +142,7 @@ for (const handle of [chart, deck, document, slide, bounds]) {
 <!-- guide-example end -->
 
 The example authors **two** packages, because that is the claim — one chart description, two owners,
-one vocabulary — and offers the deck to the two binding harnesses, which compare it part by part in
-all three languages. A guide example offers one package, and nothing is lost by that choice: a Word
-chart is authored by `crates/mjx-ooxml/examples/build_a_document.rs`, which is itself compared byte
-for byte in both bindings.
+one vocabulary — and both are compared part by part in all three languages.
 
 `chart_surface_parity.rs` checks two separate things, and the second is the one that would have been
 easy to skip: that the names exist on every surface with matching argument order after the address —
@@ -228,6 +228,7 @@ workbook.set_chart_series_fill(0, anchor, 0, &navy)?;
 assert!(workbook.chart_series_fill(0, anchor, 0)?.is_some());
 
 let saved = workbook.save()?;
+let saved_deck = deck.save()?;
 # Ok(())
 # }
 ```
@@ -257,6 +258,7 @@ workbook.set_chart_series_fill(0, anchor, 0, navy)
 assert workbook.chart_series_fill(0, anchor, 0) is not None
 
 saved = workbook.save()
+saved_deck = deck.save()
 ```
 <!-- guide-example end -->
 
@@ -288,6 +290,7 @@ if (workbook.chartSeriesFill(0, anchor, 0) === undefined) {
 }
 
 const saved = workbook.save();
+const savedDeck = deck.save();
 // a wasm handle owns memory the garbage collector cannot see
 for (const handle of [navy, deck, slide, bounds, workbook, chart]) {
   handle.free();
@@ -295,10 +298,7 @@ for (const handle of [navy, deck, slide, bounds, workbook, chart]) {
 ```
 <!-- guide-example end -->
 
-Two packages again, and the one offered for comparison is the **workbook** this time — deliberately.
-`set_shape_fill` is already authored and compared byte for byte by
-`crates/mjx-ooxml/examples/build_a_deck.rs`; `set_chart_series_fill` is authored by no walkthrough at
-all, so the workbook is the half of this example whose bytes nothing else in the repository checks.
+Two packages again, and again both are compared part by part in all three languages.
 
 One vocabulary is also what makes the two bindings possible at all: `bindings/mjx-python` and
 `bindings/mjx-wasm` each wrap **this** list of types once, not three times.
