@@ -60,6 +60,60 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.153] - 2026-09-09
+
+### The Word walkthrough was claimed to be compared byte for byte in both bindings, and was compared by nothing (MJXOFF-239, H9)
+
+`CLAUDE.md` said of the acceptance triples that *"every one compares its output against the Rust one
+part by part, byte for byte. A method wired to the wrong `Deck` method changes one payload and fails
+there."* That was **false for Word in both bindings**.
+`bindings/mjx-python/tests/test_build_a_document.py` and
+`bindings/mjx-wasm/tests/node/build_a_document.mjs` transcribed
+`crates/mjx-ooxml/examples/build_a_document.rs` call for call and each wrote its *own* `.docx` into
+`target/examples/`. Nothing ran the Rust example; nothing compared. Both files passed, which is why
+nobody saw it: a gate phrased *"X is covered and green"* is green precisely when X is skipped.
+
+Both Word walkthroughs now run the Rust example as a subprocess and assert the part-name sets are
+equal and no payload differs, exactly as PowerPoint's and Excel's have. Each was proved able to fail
+before it was believed: one table cell changed from `+12%` to `+13%` reddens both and names
+`word/document.xml`.
+
+**`xtask/tests/walkthrough_triples.rs` closes the class.** It derives the walkthroughs from
+`crates/mjx-ooxml/examples/` rather than listing them, and fails when a walkthrough has no copy in a
+binding, when a binding holds a copy of a walkthrough that does not exist, or when a copy does not
+both run the Rust example of its own name and read two packages through the shared payload reader.
+Checked out against the pre-fix files it names all four defects; against a fourth walkthrough with no
+copies it names both absences. What it deliberately does not claim is that a comparison it can see
+actually asserts anything — that is an assertion in a language this crate cannot execute, and a
+textual gate claiming otherwise would be the same nominal check the file exists to prevent.
+
+**The Python OPC helper exists once.** `_part_payloads` had three copies — one each in
+`test_build_a_deck.py`, `test_build_a_workbook.py` and `test_validation_artefacts.py` — plus an
+open-coded fourth reading in `test_surface_coverage.py`. All four now go through
+`bindings/mjx-python/tests/opc.py`, which is the Python half of what
+`bindings/mjx-wasm/tests/node/zip.mjs` already was. A helper copied per file is a comparison that can
+go missing from a file unnoticed, so the gate also fails any binding test that names archive
+machinery (`zipfile`, `node:zlib`) outside the one reader.
+
+**The rest of the set was swept, and Word was the only hole.** The validation-catalogue triple is
+whole in both bindings: `test_the_generator_set_is_the_whole_catalogue` compares the produced set
+against `GENERATORS` in both directions, and its Node sibling makes the same both-directions
+`deepEqual` inside its one comparison test. The prose that asserted the false claim — `CLAUDE.md`,
+`README.md`, `crates/mjx-ooxml/docs/guide/README.md`,
+`bindings/mjx-python/docs/guide/how_much_is_exercised.md`, `xtask/tests/binding_projection.rs`'s own
+header and the Rust example's — now says what is checked and names the gate that checks it.
+
+### Also: the derived-roster gate failed on its own calibration sample (MJXOFF-253)
+
+`epic/phase-h` was red at `ffa5a25`. `xtask/tests/derived_rosters.rs`'s scanner calibration holds a
+`SAMPLE` of three deliberately *partial* rosters, so that a scanner which has stopped matching fails
+there — and `workspace_rosters()` swept every tracked `.rs` file including that one, so the fixture
+was in the corpus it calibrates and was exactly the shape the corpus sweep rejects. No `ROSTERS` row
+could truthfully register it: a row asserts *"this list is the whole of that population"*. The sweep
+now skips that one file, with the reason where the skip is and an assertion that the excluded path
+is still in `git ls-files`, so a rename cannot make the exclusion a silent no-op. The calibration is
+untouched — it calls `rosters_in` on `SAMPLE` directly under a synthetic path.
+
 ## [0.0.152] - 2026-09-09
 
 ### Blind sweeps: no test enumerates by hand what the repository enumerates itself (MJXOFF-225, H8)
