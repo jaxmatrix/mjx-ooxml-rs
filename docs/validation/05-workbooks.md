@@ -182,6 +182,18 @@ number formats and effective cell formatting). **This is the highest-risk area i
   Calls: `Workbook::append_pattern_fill` · `Workbook.append_pattern_fill` · `Workbook.appendPatternFill`
   Result: — · — · — · —
 
+#### V-XLSX-02.7 — the theme index a cell colour names
+
+- **Risk** high — a **defect found and fixed by `MJXOFF-246`**, whose ultimate tie-break is this check.
+- **Shipped by** `MJXOFF-105`, corrected by `MJXOFF-246`.
+- **Artefact** `v-xlsx-02-authored.xlsx`
+- **Object** `xl/styles.xml`'s font 0 — `<color theme="1"/>` — and the cells on the *Formats* sheet that name no font of their own, which is every cell outside `A1:C1`.
+- **Action** open the file in Excel and read the colour of the unstyled cells' text. Then Home → Font → Font Colour → **More Colours → Custom** on one of them, or Page Layout → Colours, and note which named theme colour Excel says is in force.
+- **Expect** **black text, and Excel naming it *Text 1*** — not *Background 1*. SpreadsheetML's `@theme` is a position in `theme1.xml`'s `clrScheme`, and the two readings of that position differ on exactly the first two dark/light pairs: `1` is `dk1` under the one this library implements and `lt1` under the sequence order §20.1.6.2 prints for `clrScheme`'s children. This library used to author `theme="1"` meaning *text* and resolve it meaning *background*, so it read the default font colour of every workbook it wrote as **white**; `crates/mjx-sml/tests/theme_index.rs` now derives the mapping from ECMA's own `presetCellStyles.xml` and `presetTableStyles.xml` and holds the writer to it. **That derivation is from markup, not from Office** — this is the check that closes it against the reference implementation, and it is the one entry on this page where an Excel answer of *Background 1* would mean the fix went the wrong way.
+  Calls: `Workbook::blank` · `Workbook.blank` · `Workbook.blank`
+  Calls: `Workbook::effective_cell_format` · `Workbook.effective_cell_format` · `Workbook.effectiveCellFormat`
+  Result: — · — · — · —
+
 ## `V-XLSX-03` · `grid` — merged ranges, row heights, column widths, hiding and outline levels
 
 Risk **medium**. Shipped by `MJXOFF-117`.
