@@ -201,29 +201,104 @@ The specs are shared too, and this is where the payoff shows: `mjx_dml::FillSpec
 them are the same types whichever surface you hand them to — re-exported here as [`FillSpec`],
 [`ColorSpec`], [`LineSpec`] and the rest, so no caller ever names `mjx-dml`.
 
-```
-use mjx_ooxml::{ColorSpec, Deck, FillSpec, PresetShapeType, ShapeBounds, SlideSize, Surface, Workbook};
+<!-- guide-example: one_authoring_vocabulary rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{ChartData, ChartKind, ColorSpec, Deck, FillSpec};
+use mjx_ooxml::{PresetShapeType, ResizingBehavior, ShapeBounds, SlideSize, Surface, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let navy = FillSpec::solid(ColorSpec::Srgb("1F3864".into()));
 
+// On a shape in a deck.
 let mut deck = Deck::blank(SlideSize::widescreen())?;
 let slide = Surface::Slide(deck.add_slide_from_layout(0)?);
-let shape = deck.add_shape(slide, PresetShapeType::Rectangle, ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0))?;
+let bounds = ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0);
+let shape = deck.add_shape(slide, PresetShapeType::Rectangle, bounds)?;
 deck.set_shape_fill(slide, shape.into(), &navy)?;
+assert!(deck.shape_fill(slide, shape.into())?.is_some());
 
-// The same `FillSpec` value, on a chart series in a workbook.
+// The same value, on a chart series in a workbook.
 let mut workbook = Workbook::blank()?;
-let chart = mjx_ooxml::ChartData::new(mjx_ooxml::ChartKind::Bar)
+let chart = ChartData::new(ChartKind::Bar)
     .categories(["Q1"])
     .series("North", [12.5]);
-let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue",
-    mjx_ooxml::ResizingBehavior::MoveAndResizeWithAnchorCells)?;
+let resizing = ResizingBehavior::MoveAndResizeWithAnchorCells;
+let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", resizing)?;
 workbook.set_chart_series_fill(0, anchor, 0, &navy)?;
 assert!(workbook.chart_series_fill(0, anchor, 0)?.is_some());
+
+let saved = workbook.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: one_authoring_vocabulary python -->
+```python
+from mjx_ooxml import ChartData, ChartKind, ColorSpec, Deck, FillSpec
+from mjx_ooxml import PresetShapeType, ResizingBehavior, ShapeBounds, SlideSize, Surface, Workbook
+
+navy = FillSpec.solid(ColorSpec.srgb("1F3864"))
+
+# On a shape in a deck.
+deck = Deck.blank(SlideSize.widescreen())
+slide = Surface.slide(deck.add_slide_from_layout(0))
+bounds = ShapeBounds.from_inches(1.0, 1.0, 2.0, 1.0)
+shape = deck.add_shape(slide, PresetShapeType.Rectangle, bounds)
+deck.set_shape_fill(slide, shape, navy)
+assert deck.shape_fill(slide, shape) is not None
+
+# The same value, on a chart series in a workbook.
+workbook = Workbook.blank()
+chart = ChartData(ChartKind.Bar).categories(["Q1"]).series("North", [12.5])
+resizing = ResizingBehavior.MoveAndResizeWithAnchorCells
+anchor = workbook.add_chart(0, chart, 1, 1, 7, 16, "Revenue", resizing)
+workbook.set_chart_series_fill(0, anchor, 0, navy)
+assert workbook.chart_series_fill(0, anchor, 0) is not None
+
+saved = workbook.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: one_authoring_vocabulary js -->
+```js
+import { ChartData, ChartKind, ColorSpec, Deck, FillSpec } from "@mjx/ooxml";
+import { PresetShapeType, ResizingBehavior, ShapeBounds, SlideSize, Surface, Workbook } from "@mjx/ooxml";
+
+const navy = FillSpec.solid(ColorSpec.srgb("1F3864"));
+
+// On a shape in a deck.
+const deck = Deck.blank(SlideSize.widescreen());
+const slide = Surface.slide(deck.addSlideFromLayout(0));
+const bounds = ShapeBounds.fromInches(1.0, 1.0, 2.0, 1.0);
+const shape = deck.addShape(slide, PresetShapeType.Rectangle, bounds);
+deck.setShapeFill(slide, shape, navy);
+if (deck.shapeFill(slide, shape) === undefined) {
+  throw new Error("the shape should carry the fill just set");
+}
+
+// The same value, on a chart series in a workbook.
+const workbook = Workbook.blank();
+const chart = new ChartData(ChartKind.Bar).categories(["Q1"]).series("North", [12.5]);
+const resizing = ResizingBehavior.MoveAndResizeWithAnchorCells;
+const anchor = workbook.addChart(0, chart, 1, 1, 7, 16, "Revenue", resizing);
+workbook.setChartSeriesFill(0, anchor, 0, navy);
+if (workbook.chartSeriesFill(0, anchor, 0) === undefined) {
+  throw new Error("the series should carry the fill just set");
+}
+
+const saved = workbook.save();
+// a wasm handle owns memory the garbage collector cannot see
+for (const handle of [navy, deck, slide, bounds, workbook, chart]) {
+  handle.free();
+}
+```
+<!-- guide-example end -->
+
+Two packages again, and the one offered for comparison is the **workbook** this time — deliberately.
+`set_shape_fill` is already authored and compared byte for byte by
+`crates/mjx-ooxml/examples/build_a_deck.rs`; `set_chart_series_fill` is authored by no walkthrough at
+all, so the workbook is the half of this example whose bytes nothing else in the repository checks.
 
 One vocabulary is also what makes the two bindings possible at all: `bindings/mjx-python` and
 `bindings/mjx-wasm` each wrap **this** list of types once, not three times.
