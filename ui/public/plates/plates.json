@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "generator": "ui/scripts/make-sample-plate.mjs (a fixture, not mjx-render-oracle)",
+  "premultiplied": false,
+  "provider": "none",
+  "authoritative": false,
+  "parityClaimed": false,
+  "plates": [
+    {
+      "name": "document-surface",
+      "description": "The document surface as the tokens describe it: a true-white page on the light backdrop, with the warm page border. A fixture for the loader, not a render of any document.",
+      "file": "document-surface.png",
+      "width": 320,
+      "height": 200,
+      "sha256": "228ff4767057b14043bc1d279e014a928a2b1839186df528028f0cc24ea58268",
+      "content": "solid fills",
+      "provider": "none",
+      "excluded": "This plate was not produced by mjx-render-oracle and no reference provider has seen it. It exercises the loader; it is not evidence about the renderer.",
+      "placeholders": 0,
+      "drawCalls": 3,
+      "covered": 64000,
+      "approver": "fixture",
+      "reviewed": false,
+      "parity": false,
+      "referenceFile": null,
+      "diffFile": null,
+      "difference": null
+    }
+  ],
+  "documents": [
+    {
+      "fixture": "(none)",
+      "format": "pptx",
+      "verdict": "excluded",
+      "reason": "No format renders yet, and this fixture manifest was not produced by the oracle in any case. See crates/mjx-render-oracle/src/plate.rs::NO_FORMAT_RENDERS_YET."
+    }
+  ]
+}
