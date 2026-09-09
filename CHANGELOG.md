@@ -60,6 +60,59 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.151] - 2026-09-09
+
+### `mjx-docx`'s 158 hand-written serialization pairs, and the three that were losing content (MJXOFF-218, H7)
+
+MJXOFF-216 found four `mjx-dml` types destroying foreign attributes, foreign children and `xmlns`
+declarations, and MJXOFF-217 answered it with a gate that reads that crate's own sources: every
+hand-written `FromXml`/`ToXml` must be on a ledger with an **idiom checked against the impl body**.
+MJXOFF-220 wrote `mjx-sml`'s. This closes the last of the three.
+
+`mjx-docx` writes serialization out by hand for **158 types** and every one of them is a pair, so the
+shape of the risk is different from either of the other two crates. 146 of the 158 are *the same body
+typed out again* — a reader storing the element's `name`, `attributes`, unknown bucket and
+self-closing flag, and a writer rebuilding from exactly those four — with nothing shared, no macro
+and no helper. The question is therefore not *"did somebody design this type's preservation wrongly"*
+but **"did somebody copy the body wrongly"**, 146 times over, and a ledger with 146 rows would be the
+longest list in the workspace and would say nothing about the one character that matters.
+
+`crates/mjx-docx/tests/serialization_ledger.rs` compares each body against the canonical text
+**character for character**, in both directions, requiring the bucket field to agree across the pair.
+The twelve pairs that are genuinely different carry a row with one of three idioms, each checked
+against its own body. It found three losses on its first run, all in `document/drawing.rs`:
+
+- **`Control`** — MJXOFF-216's shape exactly. Its reader stored **no children at all** (the struct
+  had no field for them) and its writer handed `RawElement::rebuilt` a fresh `Vec::new()` with the
+  self-closing flag hard-coded `true`. A foreign child, a comment or an `o:` extension inside a
+  `w:control` was destroyed, and `<w:control></w:control>` came back `<w:control/>`. `CT_Control`
+  declares no content model, which is what made it look safe — the fidelity rule has no "the schema
+  says this cannot happen" clause.
+- **`WordprocessingShape`** and **`TextboxInfo`** — both read `element.empty` into a field their
+  writers ignored in favour of a literal `false`, so `<wp:wsp/>` and `<wp:txbx/>` came back as
+  open/close pairs. That is the loss MJXOFF-217 found twice in `mjx-dml`, twice more here.
+
+Four cases in `crates/mjx-docx/tests/drawing_placement.rs` prove all three against markup rather than
+against a source shape, and each fails against 0.0.150. `ObjectEmbed` and `ObjectLink` were correct
+but spelled differently and were folded onto the canonical text, so the family really is one body and
+the gate can compare rather than list.
+
+### Three ledger files, one scanner, and a hole closed in the oldest of them
+
+The gate lives in three per-crate files rather than one shared crate, and that is now recorded with
+its third data point: the files share a source scanner — sixty lines of brace matching — and share
+nothing else, because the idioms are the finding and they differ. `mjx-dml` checks three idioms over
+eight bespoke pairs; `mjx-sml` follows a one-line delegation into the `as_raw_element` behind it; this
+one compares 146 copies of one body to a canonical string, an arm that would be meaningless in
+`mjx-dml`, where no two bodies are alike.
+
+What the duplication costs is that a scanner improvement has to be made three times, and it had
+already happened once. MJXOFF-218's own census reported 5 `FromXml` and 57 `ToXml` in `mjx-sml` where
+there are 6 and 58, because a scanner keyed on a bare `impl ToXml for` cannot see
+`impl mjx_ooxml_core::ToXml for ColorElement`. MJXOFF-220 fixed that in its own file;
+`crates/mjx-dml/tests/serialization_ledger.rs` still carried the bare needle and now carries the
+fixed scanner too, because a known hole in a gate is not a thing to leave for a ticket.
+
 ## [0.0.150] - 2026-09-09
 
 ### SpreadsheetML `@theme`: the writer and the resolver meant different colours by the same number (MJXOFF-246, H6)
