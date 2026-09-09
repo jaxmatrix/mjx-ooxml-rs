@@ -93,20 +93,36 @@ Collapsing to eleven codes loses nothing for a Rust caller. [`Error`] implements
 `mjx_pptx::PptxError`, `mjx_docx::DocxError` or `mjx_xlsx::XlsxError` — downcast it when you want the
 variant rather than the code.
 
-```
-use mjx_ooxml::{Deck, PptxError, SlideSize};
+**There is one block below, not three, and that is this section's whole subject.** Every other
+example in this guide is shown in Rust, Python and JavaScript. This one cannot be: `PptxError` is
+declared by neither binding and neither language has `downcast_ref`, so the marker beside it
+declares the block **Rust-only, naming those two** — and `xtask/tests/guide_examples.rs` reads both
+binding surfaces on every run to check the claim is still true. The move a binding caller makes
+instead is the one [§ Eleven codes](#eleven-codes-and-what-each-one-means-you-should-do) already
+shows in all three languages: branch on the code. Repeating it here would make this section about
+the thing a binding caller *can* do, which is the opposite of what it is for.
+
+<!-- guide-example: downcasting_to_the_typed_cause rust-only PptxError downcast_ref -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{Deck, ErrorCode, PptxError, SlideSize};
 use std::error::Error as _;
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let failure = deck.shape_count(7.into()).expect_err("slide 7 does not exist");
 
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure = deck.shape_count(7.into()).expect_err("no slide 7");
+assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
+
+// Collapsing to eleven codes loses nothing here: the variant the crate below raised is still
+// underneath, reachable by downcasting the source.
 let cause = failure.source().expect("a typed cause");
-let pptx = cause.downcast_ref::<PptxError>().expect("the cause is a PptxError");
-assert!(matches!(pptx, PptxError::SlideIndexOutOfRange { .. }), "{pptx:?}");
+let pptx = cause.downcast_ref::<PptxError>().expect("a PptxError");
+assert!(matches!(pptx, PptxError::SlideIndexOutOfRange { .. }));
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
 
 Only [`mjx_pptx::PptxError`] is re-exported here by name, because it is the one a `Deck` caller is
 most likely to want; a Word or Excel caller who wants the same reaches for `mjx_docx` or `mjx_xlsx`
