@@ -65,16 +65,20 @@ above, exactly as `mjx_opc::guide`'s sixth page is hosted by `mjx-mce`.
 |---|---|---|---|
 | `mjx-chart` | **yes** — `dml-chart.xsd`, a category-1 modelled schema in `mjx-schema-gate` | **yes** — generated into `mjx_ooxml_types::child_order` | yes |
 | `mjx-omml` | **yes**, as a subtree — there is no math *part*; an `m:oMath` is validated with the `word/document.xml` that carries it | **yes** — `shared-math` is in the generator's `CHILD_ORDER_SCHEMAS` | yes |
-| `mjx-vml` | **no** | **no** | **yes — and it is the only check there is** |
+| `mjx-vml` | **one child at a time** — `vml-main.xsd`, through a `WrapperRoot` in `mjx-schema-gate` | **no** | yes |
 
-`vml-main.xsd` cannot compile without an `xml.xsd` the Transitional set does not ship, and a `.vml`
-part's root is a bare `<xml>` wrapper in no namespace at all, which no VML schema declares a global
-element for. `crates/mjx-schema-gate/src/categories.rs` therefore files a VML part under
-`ForeignMarkupKey::NoNamespace` in `PRESERVED_FOREIGN_MARKUP` — category 2, *markup this project
-preserves verbatim and never validates* — with that reason written on the entry.
+A `.vml` part's root is a bare `<xml>` wrapper in no namespace at all, which no VML schema declares a
+global element for, so the document as a whole cannot be handed to a validator. Its children can:
+`crates/mjx-schema-gate/src/categories.rs` files a VML part as a `WrapperRoot` and validates each
+child of the wrapper separately against a driver over `vml-main.xsd`.
 
-So for VML the round-trip is the whole guarantee. `mjx_vml::guide` states what that does and does not
-buy a caller, and it is worth reading before trusting anything this library does to a VML part.
+It was category 2 — *markup this project preserves verbatim and never validates* — until MJXOFF-245,
+on a reason that also claimed `vml-main.xsd` could not compile without an `xml.xsd` the Transitional
+set does not ship. MJXOFF-134's driver schema had removed that obstacle two phases earlier.
+
+What VML still has no gate for is **child order**: no `vml-*` schema is in the generator's
+`CHILD_ORDER_SCHEMAS` (MJXOFF-264). `mjx_vml::guide` states what that does and does not buy a caller,
+and it is worth reading before trusting anything this library does to a VML part.
 
 ## What none of these crates does
 

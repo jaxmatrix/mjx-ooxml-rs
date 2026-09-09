@@ -271,7 +271,11 @@ pub fn parts_that_must_be_audited(label: &str, bytes: &[u8]) -> Vec<String> {
             .name
             .namespace
             .map(|symbol| document.interner.resolve(symbol).to_owned());
-        if let NamespaceCategory::Modeled(schema) = categorise(namespace.as_deref()) {
+        let local_name = document
+            .interner
+            .resolve(document.root.name.local)
+            .to_owned();
+        if let NamespaceCategory::Modeled(schema) = categorise(namespace.as_deref(), &local_name) {
             if schema.ordering == OrderingCoverage::Generated {
                 expected.push(part.as_str().to_owned());
             }

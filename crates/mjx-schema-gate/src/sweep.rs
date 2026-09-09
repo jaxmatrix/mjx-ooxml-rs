@@ -23,7 +23,7 @@ use mjx_opc::Package;
 use mjx_xml::fidelity;
 
 use crate::categories::{
-    categorise, ForeignMarkupKey, NamespaceCategory, MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP,
+    categorise, NamespaceCategory, MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP, WRAPPER_ROOTS,
 };
 use crate::inspect::{PartOutcome, PartRow};
 
@@ -36,6 +36,8 @@ pub struct Sweep {
     schemas_exercised: BTreeSet<&'static str>,
     /// The category-2 entries actually reached, by label.
     foreign_reached: BTreeSet<&'static str>,
+    /// The category-1b wrapper roots actually reached, by root element as written.
+    wrappers_reached: BTreeSet<String>,
     /// Every namespace reported as preserved-foreign, printed with the pinned list.
     namespaces_skipped: BTreeSet<String>,
 }
@@ -53,6 +55,11 @@ impl Sweep {
         for row in rows {
             if let Some(schema) = row.outcome.validated_against() {
                 self.schemas_exercised.insert(schema);
+            }
+            if let PartOutcome::ValidatedPerChild { root, .. }
+            | PartOutcome::WrapperHeldNothing { root } = &row.outcome
+            {
+                self.wrappers_reached.insert(root.clone());
             }
             if let PartOutcome::SkippedPreservedForeign {
                 namespace, label, ..
@@ -91,6 +98,41 @@ impl Sweep {
              either a fixture or an authoring case must reach it, or the arm does not belong in \
              MODELED_SCHEMAS",
             unexercised.join(", "),
+            self.sources.len(),
+            self.sources
+        );
+    }
+
+    /// Every [wrapper root](crate::categories::WrapperRoot) must have been reached.
+    ///
+    /// The same claim `assert_pinned_skips` makes about the category-2 allowlist, for the category
+    /// that replaced its VML entry: an arm nothing reaches is an arm nobody would notice breaking,
+    /// and a per-child validator that is never handed a part is exactly the shape MJXOFF-245 found
+    /// — coverage stated rather than run.
+    ///
+    /// # Panics
+    /// Naming every wrapper root nothing reached.
+    pub fn assert_every_wrapper_root_was_reached(&self) {
+        println!(
+            "wrapper roots validated child by child across {} package(s): {:?}",
+            self.sources.len(),
+            self.wrappers_reached
+        );
+        let dead: Vec<&str> = WRAPPER_ROOTS
+            .iter()
+            .filter(|entry| {
+                !self
+                    .wrappers_reached
+                    .iter()
+                    .any(|root| root == entry.root_local_name)
+            })
+            .map(|entry| entry.label)
+            .collect();
+        assert!(
+            dead.is_empty(),
+            "these WRAPPER_ROOTS entries were reached by nothing in the sweep: {dead:?}.\nThe \
+             sweep covered {} package(s): {:?}.\nA per-child validator nothing hands a part to is \
+             indistinguishable from one that does not exist",
             self.sources.len(),
             self.sources
         );
@@ -151,11 +193,15 @@ pub fn assert_authored_parts_are_categorised(label: &str, package: &Package) {
             .name
             .namespace
             .map(|symbol| document.interner.resolve(symbol).to_owned());
-        if let NamespaceCategory::Uncategorised = categorise(namespace.as_deref()) {
+        let local_name = document
+            .interner
+            .resolve(document.root.name.local)
+            .to_owned();
+        if let NamespaceCategory::Uncategorised = categorise(namespace.as_deref(), &local_name) {
             uncategorised.push(format!(
                 "{} (root {} in {})",
                 part.as_str(),
-                document.interner.resolve(document.root.name.local),
+                local_name,
                 namespace.as_deref().unwrap_or("no namespace")
             ));
         }
@@ -175,9 +221,6 @@ pub fn assert_authored_parts_are_categorised(label: &str, package: &Package) {
 pub fn preserved_foreign_keys() -> Vec<String> {
     PRESERVED_FOREIGN_MARKUP
         .iter()
-        .map(|entry| match entry.key {
-            ForeignMarkupKey::Namespace(namespace) => namespace.to_owned(),
-            ForeignMarkupKey::NoNamespace => "«no namespace»".to_owned(),
-        })
+        .map(|entry| entry.namespace.to_owned())
         .collect()
 }
