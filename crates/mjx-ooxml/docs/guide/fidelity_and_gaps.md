@@ -26,33 +26,98 @@ method one layer down, and `crates/mjx-ooxml/tests/preservation/main.rs` is the 
 delegation kept the contract: every committed fixture under `tests/fixtures/`, crossed with every
 mutating method of all three surfaces, checked part by part.
 
-```
-use mjx_ooxml::{Deck, Surface};
+**It is shown on a [`Workbook`], and that is not an arbitrary choice.** [`Workbook::part_names`]
+and [`Workbook::part_bytes`] are the only general part door on this facade — a [`Deck`] and a
+[`Document`] have none, which is a gap this page's own table names — and they are the only one
+present in all three languages. So the project's central claim is stated below in Rust, Python and
+JavaScript rather than exempted from two of them. A Rust caller who needs the same comparison on a
+deck reaches for `mjx_opc::Package`, one layer down, which is what
+`crates/mjx-ooxml/tests/preservation/main.rs` does for every committed fixture crossed with every
+mutating method of all three surfaces.
 
+The three blocks do **not** differ in shape here: this one reads the same on all three surfaces.
+
+<!-- guide-example: the_round_trip_contract rust -->
+```rust
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
-let original = mjx_fixtures::fixture("charts.pptx");
-let mut deck = Deck::open(&original)?;
+# let original = mjx_fixtures::fixture("sample.xlsx");
+use mjx_ooxml::Workbook;
 
-// One edit, on the chart that `charts.pptx` carries as the first shape of its second slide.
-deck.set_chart_title(Surface::Slide(1), 0.into(), Some("Revised"))?;
-let saved = deck.save()?;
+// One edit: the first tab's name, which `xl/workbook.xml` states and no other part does.
+let mut workbook = Workbook::open(&original)?;
+workbook.rename_sheet(0, "Revised")?;
+let saved = workbook.save()?;
 
-// Compared at the container, because a `Deck` has no general part door — see the gaps below.
-let before = mjx_opc::Package::open(&original)?;
-let after = mjx_opc::Package::open(&saved)?;
-let names: Vec<_> = before.part_names().collect();
-assert_eq!(names, after.part_names().collect::<Vec<_>>(), "no part appeared or vanished");
+let before = Workbook::open(&original)?;
+let after = Workbook::open(&saved)?;
+assert_eq!(before.part_names(), after.part_names(), "no part appeared");
 
-let changed: Vec<String> = names
-    .iter()
-    .filter(|part| before.part_bytes(part) != after.part_bytes(part))
-    .map(|part| part.as_str().to_owned())
-    .collect();
-assert_eq!(changed.len(), 1, "one edit touched {changed:?}");
-assert!(changed[0].contains("chart"), "and it was the chart part: {}", changed[0]);
+let mut changed = Vec::new();
+for part in before.part_names() {
+    if before.part_bytes(&part)? != after.part_bytes(&part)? {
+        changed.push(part);
+    }
+}
+// Everything else came back byte for byte — the whole of the contract.
+assert_eq!(changed, ["/xl/workbook.xml"]);
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: the_round_trip_contract python -->
+```python
+from mjx_ooxml import Workbook
+
+# One edit: the first tab's name, which `xl/workbook.xml` states and no other part does.
+workbook = Workbook.open(original)
+workbook.rename_sheet(0, "Revised")
+saved = workbook.save()
+
+before = Workbook.open(original)
+after = Workbook.open(saved)
+assert before.part_names() == after.part_names(), "no part appeared"
+
+changed = [
+    part for part in before.part_names() if before.part_bytes(part) != after.part_bytes(part)
+]
+# Everything else came back byte for byte — the whole of the contract.
+assert changed == ["/xl/workbook.xml"]
+```
+<!-- guide-example end -->
+
+<!-- guide-example: the_round_trip_contract js -->
+```js
+import { Workbook } from "@mjx/ooxml";
+
+// One edit: the first tab's name, which `xl/workbook.xml` states and no other part does.
+const workbook = Workbook.open(original);
+workbook.renameSheet(0, "Revised");
+const saved = workbook.save();
+
+const before = Workbook.open(original);
+const after = Workbook.open(saved);
+const names = before.partNames();
+if (names.join("\n") !== after.partNames().join("\n")) {
+  throw new Error("no part appeared or vanished");
+}
+
+const changed = names.filter((part) => {
+  const was = before.partBytes(part);
+  const now = after.partBytes(part);
+  return was.length !== now.length || was.some((byte, at) => byte !== now[at]);
+});
+// Everything else came back byte for byte — the whole of the contract.
+if (changed.join() !== "/xl/workbook.xml") {
+  throw new Error(`one edit touched ${changed.join(", ")}`);
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+workbook.free();
+before.free();
+after.free();
+```
+<!-- guide-example end -->
 
 ## Nothing is repaired, and nothing is evaluated
 

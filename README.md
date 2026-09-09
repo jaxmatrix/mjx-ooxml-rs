@@ -268,7 +268,7 @@ a written reason beside every asymmetry and a test that fails when the table and
 
 ### Examples
 
-Forty-five runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
+Forty-six runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
 measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
 it**, because an example that only produced a file would prove nothing. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
@@ -329,6 +329,7 @@ cargo run -p mjx-ooxml --example guide_the_calls_that_take_the_column_first
 cargo run -p mjx-ooxml --example guide_the_escape_hatches
 cargo run -p mjx-ooxml --example guide_the_same_chart_on_all_three
 cargo run -p mjx-ooxml --example guide_the_round_trip
+cargo run -p mjx-ooxml --example guide_the_round_trip_contract
 
 # The serialization measurement docs/BENCHMARKS.md reproduces
 cargo run -p mjx-xml --example mjx248_measure
