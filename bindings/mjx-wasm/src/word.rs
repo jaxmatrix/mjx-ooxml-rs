@@ -70,7 +70,8 @@ impl PageSize {
         Self(ooxml::PageSize::us_letter())
     }
 
-    /// An arbitrary page extent, in twips, with the given orientation.
+    /// An arbitrary page extent, in twips, with the given orientation. Not checked here —
+    /// `Document.blank` checks the result before writing anything.
     #[wasm_bindgen(js_name = "fromTwips")]
     pub fn from_twips(width_twips: u32, height_twips: u32, orientation: PageOrientation) -> Self {
         Self(ooxml::PageSize::from_twips(
@@ -86,7 +87,7 @@ impl PageSize {
         Self(self.0.landscape())
     }
 
-    /// The page width, in twips — the larger dimension when landscape.
+    /// The page width, in twips (1/1440 inch) — the larger dimension when landscape.
     #[wasm_bindgen(getter, js_name = "widthTwips")]
     pub fn width_twips(&self) -> u32 {
         self.0.width_twips
@@ -159,7 +160,7 @@ impl PageMargins {
 
 #[wasm_bindgen]
 impl EffectiveColor {
-    /// Whether the document leaves this colour to the renderer.
+    /// Whether the document leaves this colour to the renderer (`w:val="auto"`).
     #[wasm_bindgen(getter, js_name = "isAuto")]
     pub fn is_auto(&self) -> bool {
         matches!(self.0, ooxml::EffectiveColor::Auto)
@@ -204,7 +205,7 @@ impl EffectiveFonts {
 
 #[wasm_bindgen]
 impl EffectiveCharacterProperties {
-    /// Bold, resolved.
+    /// Bold, resolved (XOR-combined across the style chain, per ECMA-376 Part 1 §17.7.3).
     #[wasm_bindgen(getter, js_name = "bold")]
     pub fn bold(&self) -> Option<bool> {
         self.0.bold
@@ -222,7 +223,7 @@ impl EffectiveCharacterProperties {
         self.0.strikethrough
     }
 
-    /// Hidden text, resolved.
+    /// Hidden text (`w:vanish`), resolved.
     #[wasm_bindgen(getter, js_name = "hidden")]
     pub fn hidden(&self) -> Option<bool> {
         self.0.hidden
@@ -240,7 +241,8 @@ impl EffectiveCharacterProperties {
         self.0.small_caps
     }
 
-    /// The font size, in half-points, as the raw wire string.
+    /// The font size, in half-points, as the raw wire string (`ST_HpsMeasure` — an unsigned decimal
+    /// or a universal measure, never renormalized).
     #[wasm_bindgen(getter, js_name = "fontSizeHalfPoints")]
     pub fn font_size_half_points(&self) -> Option<String> {
         self.0
@@ -288,7 +290,7 @@ impl EffectiveParagraphProperties {
         self.0.widow_control
     }
 
-    /// The paragraph's resolved alignment.
+    /// The paragraph's resolved alignment (`w:jc`).
     #[wasm_bindgen(getter, js_name = "alignment")]
     pub fn alignment(&self) -> Result<Option<Justification>, JsValue> {
         match self.0.alignment {
@@ -297,7 +299,7 @@ impl EffectiveParagraphProperties {
         }
     }
 
-    /// The resolved outline level, `0`-based; absent for body text.
+    /// The resolved outline level (`w:outlineLvl`), `0`-based; absent for body text.
     #[wasm_bindgen(getter, js_name = "outlineLevel")]
     pub fn outline_level(&self) -> Option<f64> {
         #[expect(
@@ -503,7 +505,7 @@ impl Field {
         self.0.instruction().to_owned()
     }
 
-    /// The instruction's own field-type keyword, if recognizable.
+    /// The instruction's own field-type keyword (`"HYPERLINK"`, `"TOC"`, …), if recognizable.
     #[wasm_bindgen(getter, js_name = "fieldName")]
     pub fn field_name(&self) -> Option<String> {
         self.0.field_name().map(str::to_owned)
@@ -515,13 +517,14 @@ impl Field {
         self.0.arguments().to_owned()
     }
 
-    /// The field's cached result, excluding any nested field's own result.
+    /// The field's cached result, excluding any nested field's own result — `undefined` only for a
+    /// complex field with no `separate` marker (legal markup, not a missing value).
     #[wasm_bindgen(getter, js_name = "cachedResult")]
     pub fn cached_result(&self) -> Option<String> {
         self.0.cached_result().map(str::to_owned)
     }
 
-    /// Every field nested inside this one, in document order.
+    /// Every field nested inside this one's own instruction or result zone, in document order.
     #[wasm_bindgen(getter, js_name = "nestedFields")]
     pub fn nested_fields(&self) -> Vec<Field> {
         self.0.nested_fields().iter().cloned().map(Field).collect()

@@ -127,3 +127,78 @@ fn invalid_entity_is_error() {
     let result = Leaf::from_xml(&doc.root, &doc.interner);
     assert!(matches!(result, Err(FromXmlError::InvalidEntity(_))));
 }
+
+// =================================================================================================
+// Child order (MJXOFF-265). The census in `xtask/tests/child_order_census.rs` establishes that no
+// hand-written serialization body in the workspace moves a child out of the order its file put it
+// in; the derive is the mechanism the *rest* of the workspace reads through, and this is where its
+// half of that claim is made.
+//
+// `unknown_namespaced_child_preserved_as_raw` above already places a foreign child before a typed
+// one. What it does not do is present two *typed* children in an order the schema would not put
+// them in, which is the shape MJXOFF-251 was: a writer that emits from the model in the order the
+// model declares rather than the order the file held.
+// =================================================================================================
+
+/// A container with **two** typed children, so a fragment can be written whose element order is
+/// deliberately the reverse of the one this type declares.
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(namespace = DML_MAIN)]
+struct Ordered {
+    name: RawName,
+    attributes: Vec<RawAttribute>,
+    empty: bool,
+    #[xml(
+        children,
+        child(local = "a", variant = First, ty = Leaf),
+        child(local = "b", variant = Second, ty = Leaf)
+    )]
+    content: Vec<OrderedContent>,
+}
+
+/// One child of [`Ordered`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OrderedContent {
+    First(Leaf),
+    Second(Leaf),
+    Raw(RawNode),
+}
+
+/// Two typed children written in the reverse of the order the type declares them come back in the
+/// order the *file* had, not the order the type declares.
+#[test]
+fn typed_children_come_back_in_the_files_order_not_the_types_order() {
+    const FRAG: &[u8] = br#"<demo xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:b>second</a:b><a:a>first</a:a></demo>"#;
+    let (ordered, doc): (Ordered, _) = parse_typed(FRAG);
+    assert!(
+        matches!(ordered.content[0], OrderedContent::Second(_))
+            && matches!(ordered.content[1], OrderedContent::First(_)),
+        "the content vector must hold the file's order, not the declaration's"
+    );
+    assert_round_trips(&ordered, doc, FRAG);
+}
+
+/// The half MJXOFF-251's own report did not reach, at the derive: **indentation is made of text
+/// nodes, and a text node is a child.** A pretty-printed container whose elements are already in
+/// declaration order still round-trips only if the whitespace between them keeps its place too.
+#[test]
+fn indentation_between_typed_children_keeps_its_place() {
+    const FRAG: &[u8] = b"<demo xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">\n  <a:a>first</a:a>\n  <a:b>second</a:b>\n</demo>";
+    let (ordered, doc): (Ordered, _) = parse_typed(FRAG);
+    assert_eq!(
+        ordered.content.len(),
+        5,
+        "three whitespace text nodes and two elements — a text node is a child"
+    );
+    assert_round_trips(&ordered, doc, FRAG);
+}
+
+/// A foreign child *between* two typed ones stays between them, rather than being swept to either
+/// end of the content vector.
+#[test]
+fn a_foreign_child_between_two_typed_ones_stays_between_them() {
+    const FRAG: &[u8] = br#"<demo xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:z="urn:z"><a:a>first</a:a><z:custom/><a:b>second</a:b></demo>"#;
+    let (ordered, doc): (Ordered, _) = parse_typed(FRAG);
+    assert!(matches!(ordered.content[1], OrderedContent::Raw(_)));
+    assert_round_trips(&ordered, doc, FRAG);
+}

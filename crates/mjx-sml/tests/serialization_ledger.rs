@@ -57,6 +57,14 @@
 //! delegation repeated and a family of rebuilders behind it, and `mjx-docx`'s are 158 copies of a
 //! fourth thing. Sharing the cheap half and duplicating the expensive half buys nothing and adds a
 //! crate to `CLAUDE.md`'s table.
+//!
+//! # This file asks what a pair **loses**, never what it **moves**
+//!
+//! Child order is outside every idiom here by construction, and MJXOFF-251 is what that cost: six
+//! `mjx-docx` pairs re-ordered a child they never dropped, and all four ledgers stayed green.
+//! `xtask/tests/child_order_census.rs` (MJXOFF-265) is where that question is answered, over every
+//! function in every workspace member's `src/` rather than over impl bodies — the defect lived in a
+//! free function both halves called, which is exactly what a ledger of impls cannot see.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

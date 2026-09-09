@@ -1740,7 +1740,7 @@ impl FontProperties {
         self.0.underline.map(UnderlineType::from_model).transpose()
     }
 
-    /// `scheme`.
+    /// `scheme` — whether this is the theme's major or minor font rather than a named one.
     #[wasm_bindgen(getter, js_name = "scheme")]
     pub fn scheme(&self) -> Result<Option<SpreadsheetFontScheme>, JsValue> {
         self.0
@@ -2131,37 +2131,37 @@ impl CellFormatSpec {
         self.0.text_is_quote_prefixed
     }
 
-    /// `@applyNumberFormat`.
+    /// `@applyNumberFormat`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesNumberFormat")]
     pub fn applies_number_format(&self) -> Option<bool> {
         self.0.applies_number_format
     }
 
-    /// `@applyFont`.
+    /// `@applyFont`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesFont")]
     pub fn applies_font(&self) -> Option<bool> {
         self.0.applies_font
     }
 
-    /// `@applyFill`.
+    /// `@applyFill`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesFill")]
     pub fn applies_fill(&self) -> Option<bool> {
         self.0.applies_fill
     }
 
-    /// `@applyBorder`.
+    /// `@applyBorder`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesBorder")]
     pub fn applies_border(&self) -> Option<bool> {
         self.0.applies_border
     }
 
-    /// `@applyAlignment`.
+    /// `@applyAlignment`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesAlignment")]
     pub fn applies_alignment(&self) -> Option<bool> {
         self.0.applies_alignment
     }
 
-    /// `@applyProtection`.
+    /// `@applyProtection`. Three-valued: `undefined` writes no attribute at all.
     #[wasm_bindgen(getter, js_name = "appliesProtection")]
     pub fn applies_protection(&self) -> Option<bool> {
         self.0.applies_protection
