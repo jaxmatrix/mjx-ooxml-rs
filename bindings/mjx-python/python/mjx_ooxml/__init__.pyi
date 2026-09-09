@@ -3598,7 +3598,7 @@ class EffectiveCharacterProperties:
     projected* for which fields, and why not all of them.
     """
     bold: bool | None
-    """Bold, resolved (XOR-combined across the style chain — see the guide)."""
+    """Bold, resolved (XOR-combined across the style chain, per ECMA-376 Part 1 §17.7.3)."""
     italic: bool | None
     """Italic, resolved."""
     strikethrough: bool | None

@@ -102,6 +102,15 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   every type that derives it. **The exceptions are named in
   `crates/mjx-opc/docs/guide/the_round_trip_contract.md`**, and a hand-written `FromXml`/`ToXml` pair
   is outside the codegen's guarantee by definition.
+- **A child comes back where the file put it, not where the schema would.** The four serialization
+  ledgers ask what a hand-written pair *loses*; none of them can see what it *moves*, which is how
+  MJXOFF-251 shipped six `mjx-docx` types that hoisted a named child to the front while dropping
+  nothing. `xtask/tests/child_order_census.rs` (MJXOFF-265) is the census: over every function in
+  every workspace member's `src/` — functions rather than impl bodies, because that defect lived in a
+  free function both halves called — it finds every child vector whose order is decided by the code
+  rather than by the file, and every one is on a ledger with a written reason and, where it really
+  moves a child, the markup that proves the position travels. **Indentation is made of text nodes and
+  a text node is a child**, so the counting is over nodes, not elements.
 - **`#[xml(text)]` re-escapes minimally on write.** A text leaf that goes through the derive decodes
   its character data on read and writes it back escaping only `<` and `&`, so an entity spelling, a
   character reference, a CDATA section or an interleaved comment does not survive a rebuild — and a
@@ -142,9 +151,14 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   that talks about Rust is already wrong in `help()` — and `bindings/mjx-python/tools/stub_docs.py`
   copies each `__doc__` into the committed stub, with `bindings/mjx-python/tests/test_stub_docs.py`
   as the drift check over 1,937 governed docstrings. Editing a docstring in the `.pyi` is a test
-  failure. Only the prose is generated; the signatures are still hand-written. What is **not**
-  checked is the two bindings against each other: their `///` comments are independently written, so
-  a TypeScript reader and a Python reader can still be told different things (MJXOFF-266).
+  failure. Only the prose is generated; the signatures are still hand-written. The two bindings are
+  checked **against each other** too since MJXOFF-266 — their `///` comments are independently
+  written, so `xtask/tests/binding_doc_parity.rs` pairs every member both project under one name and
+  one argument count and requires the two sentences to agree once identifiers inside backtick spans
+  are `snake_case`d and a closed table folds `str`/`string`, `None`/`undefined` and the rest. What
+  still differs is a ledger with a reason per row, held to the measurement in both directions;
+  equality could never have been the gate, and building it found twenty-three members where the
+  TypeScript reader was told strictly less than the Python one.
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are
   **camelCase**, because a `snake_case` API is an immediate smell to a TypeScript consumer: 1,629 of
   the 1,767 exported functions carry an explicit `js_name`, and the 138 that do not are single words
