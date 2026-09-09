@@ -54,17 +54,36 @@
 //! a block to drift from the file it copies. It does not make it impossible to write a comparison
 //! that compares nothing.
 //!
-//! # A second limit, and it belongs to the example rather than to the mechanism
+//! # The second limit was real, and `the_round_trip` closed it
 //!
 //! `saving_validates` starts from [`Deck::blank`], so **every part in the package it compares was
 //! authored by this library and none was preserved from an input file.** The comparison is a real
-//! one — three languages, one package, part by part — but it says nothing about copy-on-write or
-//! about verbatim re-emission, which is the whole point of the round-trip contract. It is the same
-//! blind spot `crates/mjx-ooxml/examples/build_a_document.rs` has, and for the same reason. An
-//! example that *opens a committed fixture* would close it, and it is the first item of the backlog
-//! in MJXOFF-254 for that reason rather than by alphabet.
+//! one — three languages, one package, part by part — but on its own it says nothing about
+//! copy-on-write or about verbatim re-emission, which is the whole point of the round-trip contract.
+//! It is the same blind spot `crates/mjx-ooxml/examples/build_a_document.rs` has.
+//!
+//! `the_round_trip` (MJXOFF-254, this backlog's first item for that reason rather than by alphabet)
+//! is the example that closes it. It **opens `tests/fixtures/sample.xlsx`**, which this project did
+//! not author, and each of its three halves asserts preservation *inside the block a reader sees*:
+//! the same part names before and after, and byte-identical payloads for every one of them. So the
+//! property is established by an assertion in the example rather than by the harness's agreement —
+//! three languages agreeing on a wrong answer would not pass it, because each one is checked against
+//! the input file rather than against the other two.
+//!
+//! The harness comparison on top of that is a *second* fact: that all three preserved the fixture
+//! **the same way**. Both are needed and neither implies the other.
 //!
 //! [`Deck::blank`]: https://docs.rs/mjx-ooxml
+//!
+//! # The hidden prelude, and why only Rust has one
+//!
+//! An example that starts from a file needs bytes, and reading a file is the caller's job — every
+//! guide page says so. A Python or JavaScript half gets that for free: whatever it does above its
+//! sentinel is simply not in the block. A Rust half cannot, because its block is *also* a compiled
+//! doctest and a doctest that names `original` without binding it does not compile. So a Rust half
+//! may carry an earlier, hidden region, emitted into the block as rustdoc's `#` lines.
+//! [`a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts`] holds it to that: a prelude in
+//! another language would be a no-op nobody notices.
 //!
 //! # The mutation register
 //!
@@ -74,11 +93,13 @@
 //! | Mutation | Fails |
 //! |---|---|
 //! | reword a comment inside a committed block by hand | [`every_committed_block_is_a_current_copy_of_the_file_a_runner_executes`] |
+//! | move a hidden prelude into the Python half | [`a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts`] |
 //! | add a fourth marker naming an example with no files | that test, and [`every_guide_example_exists_in_all_three_languages_and_is_shown_in_all_three`] on all three missing halves |
 //! | add a Python half no page marks | the population test, on the stray |
 //! | stop the JavaScript half exporting its package | [`the_three_halves_of_an_example_agree_about_whether_it_produces_a_package`] |
 //! | have a harness return a hand-written list of examples | [`each_binding_harness_runs_the_rust_example_and_reads_both_packages_through_the_shared_reader`] |
 //! | `SlideSize::widescreen` → `SlideSize::standard` in one half | the binding's own comparison, naming `ppt/presentation.xml` and `ppt/slideMasters/slideMaster1.xml` — **not** anything in this file, which is the limit stated above |
+//! | one `rename_sheet` inserted into `the_round_trip`'s Python half | **the example's own assertion**, `AssertionError: /xl/workbook.xml changed`, before the harness comparison is even reached — which is what makes preservation a property of the block rather than of the three languages agreeing |
 //!
 //! # Anti-vacuity
 //!
@@ -277,6 +298,45 @@ fn every_half_of_every_example_carries_a_region_with_something_in_it() {
 }
 
 #[test]
+fn a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts() {
+    // A hidden prelude is what lets a Rust block open a file it did not author without showing the
+    // reader how this repository finds its fixtures. In the other two languages the same lines are
+    // already invisible — they sit above the sentinel — so a prelude there is a no-op that reads
+    // like a feature. Saying so is cheaper than discovering it.
+    let root = repository_root();
+    let mut failures: Vec<String> = Vec::new();
+    let mut preludes = 0usize;
+
+    for name in marked_examples(&root) {
+        for language in Language::ALL {
+            let relative = language.source_path(&name);
+            let Ok(source) = std::fs::read_to_string(root.join(&relative)) else {
+                continue; // the population test above owns a missing file, and names it better.
+            };
+            match guide_examples::prelude(&source, &relative) {
+                Ok(None) => {}
+                Ok(Some(_)) if language == Language::Rust => preludes += 1,
+                Ok(Some(_)) => failures.push(format!(
+                    "{relative}: only the Rust half hides a prelude, because only its block is also \
+                     a doctest; in {language} everything above the sentinel is already hidden"
+                )),
+                Err(failure) => failures.push(failure.to_string()),
+            }
+        }
+    }
+
+    println!("{preludes} Rust half/halves hide a prelude");
+    assert!(
+        failures.is_empty(),
+        "the hidden preludes are not whole:\n  {}\n\nA prelude is delimited by `{}` and `{}` in a \
+         comment, and belongs to the Rust half alone.",
+        failures.join("\n  "),
+        guide_examples::PRELUDE_START,
+        guide_examples::PRELUDE_END
+    );
+}
+
+#[test]
 fn the_three_halves_of_an_example_agree_about_whether_it_produces_a_package() {
     // An example that saves a package binds `saved`, in each language's own spelling, and its two
     // binding harnesses then compare that package against the Rust one part by part. If one half
@@ -431,6 +491,53 @@ fn the_region_extractor_still_matches_the_sentinels_it_is_written_against() {
     assert!(
         guide_examples::region(twice, "sample").is_err(),
         "two regions in one file means the block shows one of them and nothing says which"
+    );
+
+    // ---- The hidden prelude, over samples held here --------------------------------------------
+    // Absence is the ordinary answer and must not be an error; a half-open pair must be.
+    assert_eq!(
+        guide_examples::prelude(sample, "sample").expect("a file with no prelude has none"),
+        None,
+        "most examples need no setup, and `Ok(None)` is what says so"
+    );
+    let with_prelude = concat!(
+        "fn main() {\n",
+        "    // guide-example:prelude-start\n",
+        "    let original = fixture();\n",
+        "    // guide-example:prelude-end\n",
+        "    // guide-example:start\n",
+        "    open(&original);\n",
+        "    // guide-example:end\n",
+        "}\n"
+    );
+    assert_eq!(
+        guide_examples::prelude(with_prelude, "sample").expect("the sample has a prelude"),
+        Some("let original = fixture();".to_owned()),
+        "the prelude is the lines between its own two sentinels, dedented like any other region"
+    );
+    assert_eq!(
+        guide_examples::region(with_prelude, "sample").expect("the sample has a region"),
+        "open(&original);",
+        "neither prelude sentinel contains a region sentinel, so the two pairs cannot collide"
+    );
+    assert_eq!(
+        Language::Rust.block_body("open(&original);", Some("let original = fixture();")),
+        concat!(
+            "# fn main() -> Result<(), Box<dyn std::error::Error>> {\n",
+            "# let original = fixture();\n",
+            "open(&original);\n",
+            "# Ok(())\n# }"
+        ),
+        "a prelude line is emitted hidden, so it compiles and runs and no reader sees it"
+    );
+    assert_eq!(
+        Language::Python.block_body("open(original)", Some("original = fixture()")),
+        "open(original)",
+        "the other two languages hide their setup by leaving it above the sentinel"
+    );
+    assert!(
+        guide_examples::prelude("// guide-example:prelude-start\nlet a = 1;\n", "sample").is_err(),
+        "an unclosed prelude would silently vanish from the block it is there to make compile"
     );
 
     // ---- The marker scanner, over a page held here ---------------------------------------------

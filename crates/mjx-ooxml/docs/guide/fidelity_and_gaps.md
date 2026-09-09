@@ -79,20 +79,75 @@ query tables, custom XML mappings, the legacy VML that draws an OLE object's fal
 not ignored and it is not lost**: every part of every one of those comes back byte for byte through
 an unrelated edit, and each has a reader here that says what it is without a model behind it.
 
-```
-# fn main() -> Result<(), mjx_ooxml::Error> {
+<!-- guide-example: preserved_rather_than_modelled rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let original = mjx_fixtures::fixture("preserved_parts.xlsx");
 use mjx_ooxml::Workbook;
 
-let workbook = Workbook::open(&mjx_fixtures::fixture("preserved_parts.xlsx"))?;
+let workbook = Workbook::open(&original)?;
+
+// Inventoried from the relationships, with no markup parsed at all.
 let summary = workbook.preserved_parts()?;
-assert!(!summary.pivot_tables.is_empty(), "inventoried from relationships, with no markup parsed");
-assert!(!summary.pivot_cache_definitions.is_empty(), "and the caches they read");
+assert!(!summary.pivot_tables.is_empty());
+assert!(!summary.pivot_cache_definitions.is_empty());
+
+// And resolved far enough to say which tab each one sits on.
 for table in workbook.pivot_tables()? {
-    assert!(!table.sheet_name.is_empty(), "every pivot table names the tab it sits on");
+    assert!(!table.sheet_name.is_empty());
 }
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: preserved_rather_than_modelled python -->
+```python
+from mjx_ooxml import Workbook
+
+workbook = Workbook.open(original)
+
+# Inventoried from the relationships, with no markup parsed at all.
+summary = workbook.preserved_parts()
+assert summary.pivot_tables
+assert summary.pivot_cache_definitions
+
+# And resolved far enough to say which tab each one sits on.
+for table in workbook.pivot_tables():
+    assert table.sheet_name
+```
+<!-- guide-example end -->
+
+<!-- guide-example: preserved_rather_than_modelled js -->
+```js
+import { Workbook } from "@mjx/ooxml";
+
+const workbook = Workbook.open(original);
+
+// Inventoried from the relationships, with no markup parsed at all.
+const summary = workbook.preservedParts();
+if (summary.pivotTables.length === 0 || summary.pivotCacheDefinitions.length === 0) {
+  throw new Error("this workbook carries pivot tables and the caches they read");
+}
+
+// And resolved far enough to say which tab each one sits on.
+for (const table of workbook.pivotTables()) {
+  if (table.sheetName === "") {
+    throw new Error("every pivot table names the tab it sits on");
+  }
+  table.free();
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+summary.free();
+workbook.free();
+```
+<!-- guide-example end -->
+
+`original` is the file's bytes, read by each runner before the block starts: this library is bytes in
+and bytes out and never touches a filesystem. The example saves nothing, because reading is the whole
+of what it demonstrates — so the two binding harnesses have no package to compare, and the three
+halves agreeing about producing nothing is itself checked.
 
 **A documented gap is not a validation failure.** Nothing on that list is a defect to be filed, and
 the per-format pages say which clusters each format holds:
