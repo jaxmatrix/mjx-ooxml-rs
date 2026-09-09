@@ -1928,8 +1928,12 @@ impl Deck {
         ))
     }
 
-    /// Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface` references so
-    /// its cells hold exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+    /// references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+    /// answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. `regenerateChartWorkbook`
+    /// is the one that replaces the workbook wholesale.
     #[wasm_bindgen(js_name = "refreshChartWorkbook")]
     pub fn refresh_chart_workbook(
         &mut self,

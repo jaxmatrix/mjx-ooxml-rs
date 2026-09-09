@@ -136,7 +136,15 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   vocabulary added five more.) Committed `.pyi` + `py.typed`, checked by
   `mypy --strict` and by `bindings/mjx-python/tests/test_stub_parity.py`, which compares the stub to
   the compiled module
-  in both directions.
+  in both directions. That comparison is over **names**; the sentence beside each name is not
+  written in the stub at all (MJXOFF-234). PyO3 compiles each `///` doc comment verbatim into the
+  member's `__doc__`, so **the binding's `///` comment *is* the Python docstring** — a comment there
+  that talks about Rust is already wrong in `help()` — and `bindings/mjx-python/tools/stub_docs.py`
+  copies each `__doc__` into the committed stub, with `bindings/mjx-python/tests/test_stub_docs.py`
+  as the drift check over 1,937 governed docstrings. Editing a docstring in the `.pyi` is a test
+  failure. Only the prose is generated; the signatures are still hand-written. What is **not**
+  checked is the two bindings against each other: their `///` comments are independently written, so
+  a TypeScript reader and a Python reader can still be told different things (MJXOFF-266).
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are
   **camelCase**, because a `snake_case` API is an immediate smell to a TypeScript consumer: 1,629 of
   the 1,767 exported functions carry an explicit `js_name`, and the 138 that do not are single words
@@ -239,6 +247,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from References/ (local only)
 cargo run -p xtask -- guide-examples  # copy each guide example's region into the blocks the guide commits
 cargo run -p xtask -- guide-examples --check   # write nothing; report whether those blocks are current
+python bindings/mjx-python/tools/stub_docs.py           # restate the committed .pyi's docstrings from the module
+python bindings/mjx-python/tools/stub_docs.py --check   # write nothing; report whether they are current
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
 

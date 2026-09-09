@@ -72,7 +72,12 @@ fn exceptions(py: Python<'_>) -> PyResult<&Exceptions> {
         let root = PyErr::new_type(
             py,
             c"mjx_ooxml.OoxmlError",
-            Some(c"Every failure this library reports. Carries `code` and the coordinates `surface`, `shape`, `row`, `column` and `index`."),
+            Some(
+                c"Every failure this library reports.\n\n\
+                  `code` is the stable classification — `\"IndexOutOfRange\"`, `\"MalformedDocument\"`, and so on —\n\
+                  and the five coordinates say where. Each is `None` when the failure carried no such coordinate,\n\
+                  so none of them ever raises `AttributeError`.",
+            ),
             Some(&py.get_type::<PyException>()),
             None,
         )?;
@@ -91,7 +96,9 @@ fn exceptions(py: Python<'_>) -> PyResult<&Exceptions> {
         namespace.set_item("__module__", "mjx_ooxml")?;
         namespace.set_item(
             "__doc__",
-            "An index or range argument is outside what the document holds. Also an `IndexError`, so `except IndexError` catches it.",
+            "An index or range argument is outside what the document holds.\n\n\
+             Also an `IndexError`, so code that already guards a lookup with `except IndexError` keeps\n\
+             working when the lookup is a slide index.",
         )?;
         let index_out_of_range = py
             .get_type::<PyType>()

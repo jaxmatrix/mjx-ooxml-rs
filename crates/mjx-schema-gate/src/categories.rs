@@ -319,7 +319,7 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
 /// matching global declaration available for the validation root* — an obstacle in the **root**, not
 /// in the schema. Until MJXOFF-245 the written reason for skipping such a part also claimed
 /// `vml-main.xsd` could not compile at all without an `xml.xsd` the Transitional set does not ship;
-/// [MJXOFF-134's driver schema](crate::harness) had already removed that half, and
+/// [MJXOFF-134's driver schema](mod@crate::harness) had already removed that half, and
 /// [`Harness::validate`](crate::harness::Harness::validate) builds a driver for every schema on one
 /// code path, so `vml-main.xsd` compiles today and the wrapper root is all that is left.
 #[derive(Debug, Clone, Copy)]

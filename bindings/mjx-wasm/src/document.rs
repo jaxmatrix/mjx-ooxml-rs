@@ -1182,8 +1182,11 @@ impl Document {
             .map(|values| values.into_iter().map(DocumentChartWorkbook).collect())
     }
 
-    /// Rewrites the embedded workbook of the chart `drawingId` frames. Answers whether it rewrote
-    /// one.
+    /// Writes the chart's data into the workbook the chart `drawingId` frames already embeds — the
+    /// cells its own `c:f` formulas name, and nothing else — and answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. `regenerateChartWorkbook`
+    /// is the one that replaces the workbook wholesale.
     #[wasm_bindgen(js_name = "refreshChartWorkbook")]
     pub fn refresh_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, JsValue> {
         map_error(self.inner.refresh_chart_workbook(drawing_id))
