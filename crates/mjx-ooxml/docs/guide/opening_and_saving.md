@@ -58,22 +58,79 @@ assert!(failure.message().contains("Workbook"), "{}", failure.message());
 library's own element builders. **No template is embedded and nothing is read from disk**, which is
 what makes a document buildable in a browser, or from a `pip install`, with no input file.
 
-```
+<!-- guide-example: authoring_from_nothing rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Deck, Document, PageSize, SlideSize, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
+// One master, one layout, a theme — and no slides yet.
 let deck = Deck::blank(SlideSize::widescreen())?;
-assert_eq!(deck.slide_count(), 0, "one master, one layout, a theme — and no slides yet");
+assert_eq!(deck.slide_count(), 0);
 assert_eq!(deck.master_count(), 1);
 
+// One empty paragraph, because a `w:body` needs one.
 let mut document = Document::blank(PageSize::a4())?;
-assert_eq!(document.paragraph_count()?, 1, "one empty paragraph, because a `w:body` needs one");
+assert_eq!(document.paragraph_count()?, 1);
 
+// One empty worksheet, named Sheet1.
 let workbook = Workbook::blank()?;
-assert_eq!(workbook.sheet_count(), 1, "one empty worksheet named Sheet1");
+assert_eq!(workbook.sheet_count(), 1);
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: authoring_from_nothing python -->
+```python
+from mjx_ooxml import Deck, Document, PageSize, SlideSize, Workbook
+
+# One master, one layout, a theme — and no slides yet.
+deck = Deck.blank(SlideSize.widescreen())
+assert deck.slide_count() == 0
+assert deck.master_count() == 1
+
+# One empty paragraph, because a `w:body` needs one.
+document = Document.blank(PageSize.a4())
+assert document.paragraph_count() == 1
+
+# One empty worksheet, named Sheet1.
+workbook = Workbook.blank()
+assert workbook.sheet_count() == 1
+```
+<!-- guide-example end -->
+
+<!-- guide-example: authoring_from_nothing js -->
+```js
+import { Deck, Document, PageSize, SlideSize, Workbook } from "@mjx/ooxml";
+
+// One master, one layout, a theme — and no slides yet.
+const deck = Deck.blank(SlideSize.widescreen());
+if (deck.slideCount() !== 0 || deck.masterCount() !== 1) {
+  throw new Error("a blank deck is one master, one layout and no slides");
+}
+
+// One empty paragraph, because a `w:body` needs one.
+const document = Document.blank(PageSize.a4());
+if (document.paragraphCount() !== 1) {
+  throw new Error("a blank document has one empty paragraph");
+}
+
+// One empty worksheet, named Sheet1.
+const workbook = Workbook.blank();
+if (workbook.sheetCount() !== 1) {
+  throw new Error("a blank workbook has one worksheet");
+}
+
+deck.free(); // a wasm handle owns memory the garbage collector cannot see
+document.free();
+workbook.free();
+```
+<!-- guide-example end -->
+
+This example saves nothing, so there is no package for the two binding harnesses to compare —
+what it demonstrates is precisely that none of the three needed an input file. The three halves
+agreeing about producing nothing is itself checked, so a half that quietly started saving would not
+pass unnoticed.
 
 Each writes a theme part. That was not always true, and the reason it is now is worth knowing before
 you author a chart: a chart series states no explicit fill, so its colour comes from the theme's
