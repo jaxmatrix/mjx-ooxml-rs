@@ -158,21 +158,91 @@ before the worksheet is opened, so a failed write leaves the workbook exactly as
 caller point at the thing that failed rather than re-deriving it from a message string, which is the
 one thing a message must never be parsed for.
 
-```
-use mjx_ooxml::{Deck, ErrorCode, SlideSize, Surface};
+**The three differ in shape here.** The detail is a value behind `detail()` in Rust, **five
+attributes on the exception itself** in Python — always present, `None` where the failure knew no
+such coordinate — and a **plain `detail` object** in JavaScript carrying only the coordinates it
+did have, so a caller there reads `detail.row ?? null` rather than expecting a key. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
+<!-- guide-example: an_error_says_where rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{Deck, ErrorCode, ShapePath, SlideSize, Surface};
+
 let mut deck = Deck::blank(SlideSize::widescreen())?;
 let slide = Surface::Slide(deck.add_slide_from_layout(0)?);
 
-let failure = deck.shape_bounds(slide, 4.into()).expect_err("the slide has no shapes");
+// The slide carries the layout's placeholders and nothing at index 4.
+let failure = deck.shape_bounds(slide, 4.into()).expect_err("no shape 4");
 assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
+
+// The failure says *where*, in the same addressing the call used to get there.
 assert_eq!(failure.detail().surface, Some(slide));
-assert_eq!(failure.detail().shape.as_ref().map(mjx_ooxml::ShapePath::indices), Some(&[4][..]));
+let shape = failure.detail().shape.as_ref().map(ShapePath::indices);
+assert_eq!(shape, Some(&[4][..]));
 assert!(!failure.detail().is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: an_error_says_where python -->
+```python
+from mjx_ooxml import Deck, IndexOutOfRangeError, SlideSize, Surface
+
+deck = Deck.blank(SlideSize.widescreen())
+slide = Surface.slide(deck.add_slide_from_layout(0))
+
+# The slide carries the layout's placeholders and nothing at index 4.
+try:
+    deck.shape_bounds(slide, 4)
+    raise AssertionError("no shape 4")
+except IndexOutOfRangeError as failure:
+    assert failure.code == "IndexOutOfRange"
+
+    # The failure says *where*, in the same addressing the call used to get there.
+    assert failure.surface == slide
+    assert failure.shape.indices == [4]
+    assert failure.row is None and failure.column is None
+```
+<!-- guide-example end -->
+
+<!-- guide-example: an_error_says_where js -->
+```js
+import { Deck, SlideSize, Surface } from "@mjx/ooxml";
+
+const deck = Deck.blank(SlideSize.widescreen());
+const slide = Surface.slide(deck.addSlideFromLayout(0));
+
+// The slide carries the layout's placeholders and nothing at index 4.
+let failure;
+try {
+  deck.shapeBounds(slide, 4);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "IndexOutOfRange") {
+  throw new Error("no shape 4");
+}
+
+// The failure says *where*, in the same addressing the call used to get there.
+if (failure.detail.surface.kind !== "slide" || failure.detail.surface.index !== slide.index) {
+  throw new Error("the failure names the surface the call named");
+}
+if (failure.detail.shape.indices.join() !== "4") {
+  throw new Error("and the shape address it was asked for");
+}
+if (failure.detail.row !== undefined || failure.detail.column !== undefined) {
+  throw new Error("a coordinate the failure did not have is simply not a key");
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+failure.detail.surface.free();
+failure.detail.shape.free();
+slide.free();
+deck.free();
+```
+<!-- guide-example end -->
 
 ## The typed cause is still there
 
