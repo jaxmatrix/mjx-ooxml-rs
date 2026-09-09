@@ -179,8 +179,13 @@ jobs:
       # The same harness pointed at the other two formats. `mjx-docx` and `mjx-xlsx` carry no model
       # code yet; these are the gates Phases C and D inherit, and they are what makes "the schema
       # gate covers Word" a fact instead of a sentence.
+      # `-p mjx-sml` is here for `tests/theme_index.rs`, which is not a schema gate but follows the
+      # same skip-without-References convention and is therefore only *required* where the tree
+      # exists. It derives SpreadsheetML's `@theme` position table from ECMA's own preset styles
+      # (MJXOFF-246); with no References/ it prints a notice and passes, which is why it has to run
+      # in this job rather than in `lint-test` to mean anything.
       - name: schema-validity suite (Word and Excel)
-        run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
+        run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate -p mjx-sml
 
       # The validation harness, the Office-authored corpus and the MCE/CT_Extension seam. All three
       # reach the gate, and the first two had their schema halves **skipping in every CI run**
