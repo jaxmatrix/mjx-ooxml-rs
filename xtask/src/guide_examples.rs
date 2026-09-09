@@ -34,6 +34,13 @@
 //! Everything between the two marker lines is rewritten from the source, so hand-editing a block is
 //! an edit that the next `--check` reports and the next run discards.
 //!
+//! The page walk covers **every `.md` in the repository**, deliberately: a marker in a page nobody
+//! thought to list would otherwise be a block nothing regenerates. The cost is that a document which
+//! *shows* the marker syntax — a changelog entry, a contributor note — must not put it at the start
+//! of a line, or it is read as a marker and reported as unclosed. Write it inline, in backticks. The
+//! alternative, skipping fenced blocks, cannot work here: a marked block's own content is inside a
+//! fence this module emits.
+//!
 //! # The fourth marker form: a block that is Rust-only, and says which names make it so
 //!
 //! Three languages is the rule and it is the right default — it is what stops one of them quietly

@@ -35,14 +35,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // `bytes` is a Word document. Nothing here looks at a filename: detection opens the container,
     // follows the root `officeDocument` relationship and reads the content type it lands on.
-    let format = detect_format(&bytes)?;
-    assert_eq!(format, Format::Document);
-    assert_eq!(format.family(), FormatFamily::WordProcessing);
-    assert_eq!(format.conventional_extension(), "docx");
-    assert!(format.is_editable());
-    assert!(!format.is_macro_enabled());
+    let detected = detect_format(&bytes)?;
+    assert_eq!(detected, Format::Document);
+    assert_eq!(detected.family(), FormatFamily::WordProcessing);
+    assert_eq!(detected.conventional_extension(), "docx");
+    assert!(detected.is_editable());
+    assert!(!detected.is_macro_enabled());
     // guide-example:end
 
-    println!("{format:?} ({})", format.conventional_extension());
+    println!("{detected:?} ({})", detected.conventional_extension());
     Ok(())
 }

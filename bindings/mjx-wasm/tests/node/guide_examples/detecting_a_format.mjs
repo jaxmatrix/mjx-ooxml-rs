@@ -38,17 +38,17 @@ import {
 
 // `data` is a Word document. Nothing here looks at a filename: detection opens the container,
 // follows the root `officeDocument` relationship and reads the content type it lands on.
-const format = detectFormat(data);
-if (format !== Format.Document) {
+const detected = detectFormat(data);
+if (detected !== Format.Document) {
   throw new Error("these bytes are a Word document");
 }
-if (formatFamily(format) !== FormatFamily.WordProcessing) {
+if (formatFamily(detected) !== FormatFamily.WordProcessing) {
   throw new Error("and its family is WordProcessing");
 }
-if (formatConventionalExtension(format) !== "docx") {
+if (formatConventionalExtension(detected) !== "docx") {
   throw new Error("whose conventional extension is docx");
 }
-if (!formatIsEditable(format) || formatIsMacroEnabled(format)) {
+if (!formatIsEditable(detected) || formatIsMacroEnabled(detected)) {
   throw new Error("this build can edit it, and it carries no macros");
 }
 // guide-example:end

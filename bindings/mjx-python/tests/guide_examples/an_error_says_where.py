@@ -30,6 +30,7 @@ except IndexOutOfRangeError as failure:
 
     # The failure says *where*, in the same addressing the call used to get there.
     assert failure.surface == slide
-    assert failure.shape.indices == [4]
+    shape = failure.shape
+    assert shape is not None and shape.indices == [4]
     assert failure.row is None and failure.column is None
 # guide-example:end

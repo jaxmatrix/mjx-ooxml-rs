@@ -27,10 +27,10 @@ from mjx_ooxml import Format, FormatFamily, detect_format
 
 # `data` is a Word document. Nothing here looks at a filename: detection opens the container,
 # follows the root `officeDocument` relationship and reads the content type it lands on.
-format = detect_format(data)
-assert format == Format.Document
-assert format.family == FormatFamily.WordProcessing
-assert format.conventional_extension == "docx"
-assert format.is_editable
-assert not format.is_macro_enabled
+detected = detect_format(data)
+assert detected == Format.Document
+assert detected.family == FormatFamily.WordProcessing
+assert detected.conventional_extension == "docx"
+assert detected.is_editable
+assert not detected.is_macro_enabled
 # guide-example:end
