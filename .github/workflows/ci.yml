@@ -202,8 +202,12 @@ jobs:
       # MJX_REQUIRE_OFFICE_CORPUS is deliberately NOT set: the corpus is empty and no agent may fill
       # it. Set it here once `tests/office-authored/` has files, and an empty corpus becomes a
       # failure rather than a reported count.
+      #
+      # `published_markup` (MJXOFF-250) is named here for exactly the reason this comment already
+      # gives: it derives from ECMA's published markup and skips without `References/`, so run under
+      # `lint-test` it would report green having compared nothing at all.
       - name: schema-validity suite (the validation harness, the Office corpus and the MCE seam)
-        run: cargo test -p xtask --test validation_harness --test office_corpus --test mce_extension_seam
+        run: cargo test -p xtask --test validation_harness --test office_corpus --test mce_extension_seam --test published_markup
 
   # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
   # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or
