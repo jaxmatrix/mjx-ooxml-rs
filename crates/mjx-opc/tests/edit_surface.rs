@@ -499,7 +499,24 @@ fn cascading_removal_takes_exclusive_targets_and_spares_shared_ones() {
     ));
     pkg.remove_relationship(Some(&part("/ppt/presentation.xml")), &inbound)
         .expect("drop the inbound relationship");
-    Package::open(&pkg.save().expect("save")).expect("reopen");
+
+    // …and dropping the relationship is not the end of it, which is what MJXOFF-238 was about. The
+    // presentation's own markup still carries the `p:sldId` that named `inbound`, and until
+    // MJXOFF-238 this line read `pkg.save().expect("save")` — a green assertion over a deck
+    // PowerPoint would have offered to repair. The relationship-reference check now reaches a part
+    // whose `.rels` this library edited, for the ids it removed, so the save says so.
+    assert!(
+        matches!(
+            pkg.save(),
+            Err(mjx_opc::OpcError::Invalid(
+                mjx_opc::PackageDefect::UndeclaredRelationshipReference { ref part, ref element, .. }
+            )) if part == "/ppt/presentation.xml" && element == "p:sldId"
+        ),
+        "the markup that named the dropped relationship is still there"
+    );
+    // The container itself is still writable — `save_unchecked` is what exists for a package a
+    // caller knows to be inconsistent — and it reopens.
+    Package::open(&pkg.save_unchecked().expect("save")).expect("reopen");
 }
 
 #[test]
@@ -577,8 +594,12 @@ fn remove_part_drops_entry_override_and_rels() {
     pkg.remove_relationship(Some(&part("/ppt/presentation.xml")), &inbound)
         .expect("drop the inbound relationship");
 
-    // Saves + reopens cleanly, and the specific content type is gone.
-    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    // The presentation's `p:sldId` still names that relationship, so `save` refuses (MJXOFF-238) —
+    // see `a_relationship_removed_from_a_part_whose_markup_names_it_is_refused` for the case that
+    // is about that. What is asserted here is the removal itself, so the container is written
+    // through `save_unchecked`, which is what exists for a package a caller knows to be
+    // inconsistent.
+    let reopened = Package::open(&pkg.save_unchecked().expect("save")).expect("reopen");
     assert!(reopened.part_bytes(&slide).is_none());
     assert_ne!(
         reopened.content_type_of(&slide),

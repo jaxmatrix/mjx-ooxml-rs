@@ -458,13 +458,32 @@ fn a_wrong_reference_in_a_part_this_library_did_not_write_is_preserved_not_fault
 /// namespace naming a declared relationship — is generic, predates this child, and needs no help:
 /// duplicating it would make one defect two. What this case pins is that the `pageSetup@r:id` is
 /// **reached** by it, which is a property of the markup this child added rather than of that check.
+///
+/// Since MJXOFF-238 the removal is caught **twice**, at two different moments, and the first of them
+/// is new: `mjx_opc::Package::save` now refuses the removal itself, because the worksheet's `.rels`
+/// is one this library edited and `rId1` is an id it removed. Before that, this case had to write
+/// the broken container out and reopen it — laundering the worksheet's provenance — for the check to
+/// reach the markup at all. Both moments are asserted below, in the order they happen.
 #[test]
 fn dropping_the_printer_settings_relationship_is_caught_by_the_packaging_check() {
     let mut package = Package::open(&mjx_fixtures::fixture(FIXTURE)).expect("opens");
     assert!(package
         .remove_relationship(Some(&part(WORKSHEET_PART)), "rId1")
         .expect("the .rels parses"));
-    let bytes = package.save().expect("saves");
+    // The first moment (MJXOFF-238): the removal alone is refused, and the worksheet body was never
+    // touched on the way there.
+    let refusal = package
+        .save()
+        .expect_err("the pageSetup still names the relationship that has just gone")
+        .to_string();
+    assert!(
+        refusal.contains("pageSetup") && refusal.contains("rId1"),
+        "the refusal must name the element and the reference: {refusal}"
+    );
+    // The second moment, which is what the rest of this case is about: the container is written
+    // anyway — `save_unchecked` is what exists for a package a caller knows to be inconsistent — and
+    // the same defect is reported again once the worksheet is re-authored on the other side.
+    let bytes = package.save_unchecked().expect("saves");
 
     let mut workbook = Workbook::open(&bytes).expect("the container still opens");
     let markup = workbook.sheet_markup(0).expect("read").expect("a part");
