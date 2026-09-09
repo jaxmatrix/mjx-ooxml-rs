@@ -19,6 +19,8 @@ import { defineMenus } from '../src/menus/index.ts';
 import { defineGalleryElements } from '../src/gallery/index.ts';
 import { defineInputs, inputDocumentCss } from '../src/inputs/index.ts';
 import { definePickers } from '../src/pickers/index.ts';
+import { defineSurfaces } from '../src/surfaces/index.ts';
+import { surfaceDocumentCss } from '../src/surfaces/surface-model.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
@@ -51,6 +53,11 @@ defineInputs();
 // picker that shows no colours reads as a data problem in whichever story happens to be open
 // rather than as a missing registration.
 definePickers();
+// MJXOFF-188's three surfaces. Registered here for the reason above and one of their own: an
+// unregistered <mjx-task-pane> is an unknown inline element, so a pane that is *supposed* to be a
+// third of the workspace lays out as a run of text beside the document — which reads as a broken
+// layout rather than as a missing registration.
+defineSurfaces();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -69,6 +76,14 @@ document.head.append(galleryItemRule);
 const inputDescriptorRule = document.createElement('style');
 inputDescriptorRule.textContent = inputDocumentCss;
 document.head.append(inputDescriptorRule);
+
+// MJXOFF-188's surfaces, and this one is load-bearing rather than cosmetic: it carries the three
+// SCHEME-KEYED custom properties — the scrim, the modal's edge and the sheet's handle — which can
+// only be declared on `:root`, because which token carries each of them is a different answer in
+// the two schemes. A catalogue without it renders a modal with no scrim at all.
+const surfaceRule = document.createElement('style');
+surfaceRule.textContent = surfaceDocumentCss;
+document.head.append(surfaceRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.

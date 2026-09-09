@@ -329,8 +329,15 @@ export function insetRect(rect: Rect, inset: number): Rect {
  * the story content is *slotted* into `<mjx-resizable-container>`'s `.frame`, so the element that
  * actually clips it is never on the `parentNode` chain at all, and a boundary walk that used one
  * would return the viewport and place every menu half outside its frame.
+ *
+ * ⚠ **Exported by MJXOFF-188, and for the same reason it was written.** Making the rest of a
+ * document unreachable while a modal surface is open means walking *out* of the surface to the
+ * root and marking everything that is not on that path — and the path a `parentNode` walk takes
+ * leaves out every shadow host between a dialog and the page, so a background hold built on one
+ * would leave the harness frame, the story root and the whole document still tabbable. The answer
+ * to a second consumer is one implementation both can reach.
  */
-function flatTreeParent(node: Node): Node | null {
+export function flatTreeParent(node: Node): Node | null {
   if (node instanceof Element) {
     const slot = node.assignedSlot;
     if (slot !== null) return slot;
@@ -451,6 +458,14 @@ export const floatingProperties = {
   maxInlineSize: '--mjx-floating-max-inline-size',
   /** Written only by `pinFloating`: a pinned box is as wide as the boundary it is pinned to. */
   inlineSize: '--mjx-floating-inline-size',
+  /**
+   * Written only by `pinFloating`, and only for an **inline** edge.
+   *
+   * A sheet is pinned across the boundary's inline axis and is as tall as its content; a docked
+   * pane is pinned down the boundary's block axis and is as tall as the boundary. The two need
+   * different sizes written, which is why there are two properties rather than one called `size`.
+   */
+  blockSize: '--mjx-floating-block-size',
 } as const;
 
 /** The gap and the inset, in spacing units, so a re-seed of `--spacing` moves both. */
@@ -541,13 +556,21 @@ export function clearPlacement(element: HTMLElement): void {
     floatingProperties.maxBlockSize,
     floatingProperties.maxInlineSize,
     floatingProperties.inlineSize,
+    floatingProperties.blockSize,
   ]) {
     element.style.removeProperty(property);
   }
 }
 
+/** Which edge of its boundary a pinned box sits on. Logical, so RTL is one function call. */
+export type PinEdge = LogicalSide;
+
+/** The edge a sheet takes when nobody says otherwise: the one a thumb reaches. */
+export const defaultPinEdge: PinEdge = 'blockEnd';
+
 /**
- * Pin a box to one edge of its boundary, at the boundary's full width — what a sheet is.
+ * Pin a box to one edge of its boundary, across that boundary's whole other axis — what a sheet
+ * is, and, since MJXOFF-188, what a docked task pane is too.
  *
  * **Not `inset: auto 0 0 0`, and the difference is measured rather than assumed.** A fixed box's
  * percentages and zeroes resolve against its containing block, and Chromium does not make a
@@ -556,32 +579,204 @@ export function clearPlacement(element: HTMLElement): void {
  * presentations answering to one boundary, which is what makes a container resize across the
  * threshold move the menu from one to the other and not from one to something else.
  *
- * `blockFraction` is how much of the boundary a sheet may cover before it scrolls.
+ * `fraction` is how much of the boundary the box may cover before it scrolls, measured **on the
+ * axis the edge names**: for a block edge it is the sheet's height budget, and for an inline edge
+ * it is the pane's width. The two are one parameter because they are one idea — *how much of the
+ * screen this surface is allowed to take* — and a `blockFraction` plus an `inlineFraction`, only
+ * one of which is ever read, is two chances to pass the wrong one.
+ *
+ * ⚠ **The three-argument call is unchanged, byte for byte**, which is what let MJXOFF-184's menu
+ * sheet and MJXOFF-185's gallery sheet keep their behaviour while a third and fourth surface were
+ * added. `tests/surfaces.test.ts` asserts that equivalence against a stubbed element rather than
+ * leaving it as a claim in this paragraph.
  */
 export function pinFloating(
   element: HTMLElement,
   boundary: Rect,
-  blockFraction: number,
+  fraction: number,
+  edge: PinEdge = defaultPinEdge,
+  direction: Direction = 'ltr',
 ): Placement {
-  const maxBlockSize = Math.round(boundary.height * blockFraction);
-  element.style.setProperty(floatingProperties.inlineSize, `${String(Math.round(boundary.width))}px`);
-  element.style.setProperty(floatingProperties.maxBlockSize, `${String(maxBlockSize)}px`);
-  const height = Math.min(element.getBoundingClientRect().height, maxBlockSize);
+  const side = physicalSide(edge, direction);
+
+  if (isBlockSide(side)) {
+    const maxBlockSize = Math.round(boundary.height * fraction);
+    const inlineSize = Math.round(boundary.width);
+    element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+    element.style.setProperty(floatingProperties.maxBlockSize, `${String(maxBlockSize)}px`);
+    const height = Math.min(element.getBoundingClientRect().height, maxBlockSize);
+    const placement: Placement = {
+      x: boundary.x,
+      y: side === 'bottom' ? boundary.y + boundary.height - height : boundary.y,
+      side,
+      align: 'start',
+      flipped: false,
+      shifted: false,
+      constrained: height >= maxBlockSize,
+      maxBlockSize,
+      maxInlineSize: boundary.width,
+    };
+    applyPlacement(element, placement);
+    // `applyPlacement` rewrites the caps from the placement; the width is this function's own.
+    element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+    return placement;
+  }
+
+  // An inline edge: the pane runs the full height of the boundary and takes a fraction of its
+  // width. The block size is *written* rather than left to the content, because a docked pane whose
+  // height came from what happens to be inside it is a pane that changes height as its content
+  // changes — which is the one thing a dock may never do.
+  const inlineSize = Math.round(boundary.width * fraction);
+  const blockSize = Math.round(boundary.height);
+  element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+  element.style.setProperty(floatingProperties.blockSize, `${String(blockSize)}px`);
+  element.style.setProperty(floatingProperties.maxBlockSize, `${String(blockSize)}px`);
   const placement: Placement = {
-    x: boundary.x,
-    y: boundary.y + boundary.height - height,
-    side: 'bottom',
+    x: side === 'right' ? boundary.x + boundary.width - inlineSize : boundary.x,
+    y: boundary.y,
+    side,
     align: 'start',
+    flipped: false,
+    shifted: false,
+    constrained: inlineSize >= boundary.width,
+    maxBlockSize: blockSize,
+    maxInlineSize: inlineSize,
+  };
+  applyPlacement(element, placement);
+  element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+  element.style.setProperty(floatingProperties.blockSize, `${String(blockSize)}px`);
+  return placement;
+}
+
+/**
+ * Centre a box inside its boundary — what a dialog is.
+ *
+ * The third of the three ways this file puts a box somewhere, and it is genuinely a third: a
+ * dialog is not placed *against* anything, so `placeFloating`'s flip-shift-constrain has no anchor
+ * to work from, and it is not pinned to an edge either. Writing it here rather than inside
+ * `<mjx-dialog>` is the same decision `pinFloating` records: a second implementation of *where a
+ * surface goes* is how two surfaces come to disagree about what their boundary is.
+ *
+ * `fractions` cap the box on both axes, so a dialog on a short screen scrolls its body instead of
+ * running off the bottom — the same answer `Placement.constrained` gives a menu.
+ */
+export function centreFloating(
+  element: HTMLElement,
+  boundary: Rect,
+  fractions: { readonly inline: number; readonly block: number },
+): Placement {
+  const maxInlineSize = Math.round(boundary.width * fractions.inline);
+  const maxBlockSize = Math.round(boundary.height * fractions.block);
+  element.style.setProperty(floatingProperties.maxInlineSize, `${String(maxInlineSize)}px`);
+  element.style.setProperty(floatingProperties.maxBlockSize, `${String(maxBlockSize)}px`);
+  const box = element.getBoundingClientRect();
+  const width = Math.min(box.width, maxInlineSize);
+  const height = Math.min(box.height, maxBlockSize);
+  const placement: Placement = {
+    x: boundary.x + Math.max(0, (boundary.width - width) / 2),
+    y: boundary.y + Math.max(0, (boundary.height - height) / 2),
+    side: 'bottom',
+    align: 'center',
     flipped: false,
     shifted: false,
     constrained: height >= maxBlockSize,
     maxBlockSize,
+    maxInlineSize,
+  };
+  applyPlacement(element, placement);
+  return placement;
+}
+
+/**
+ * Cover the boundary exactly — what a scrim is.
+ *
+ * ⚠ **Not `position: fixed; inset: 0`, and the reason is the one `pinFloating` records.** A fixed
+ * box's zeroes resolve against its containing block, and `<mjx-resizable-container>`'s frame is a
+ * `container-type` element, which Chromium does *not* make one — so four zeroes produce a scrim
+ * the size of the window. A modal opened inside a phone-sized frame would then dim the whole page
+ * around it, which reports a modality the container never had.
+ *
+ * It is also why `::backdrop` was not used for the scrim: the UA's backdrop is the viewport's, and
+ * the viewport is not this catalogue's unit of responsiveness.
+ */
+export function coverFloating(element: HTMLElement, boundary: Rect): Placement {
+  const inlineSize = Math.round(boundary.width);
+  const blockSize = Math.round(boundary.height);
+  element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+  element.style.setProperty(floatingProperties.blockSize, `${String(blockSize)}px`);
+  const placement: Placement = {
+    x: boundary.x,
+    y: boundary.y,
+    side: 'bottom',
+    align: 'start',
+    flipped: false,
+    shifted: false,
+    constrained: false,
+    maxBlockSize: boundary.height,
     maxInlineSize: boundary.width,
   };
   applyPlacement(element, placement);
-  // `applyPlacement` rewrites the caps from the placement; the width is this function's own.
-  element.style.setProperty(floatingProperties.inlineSize, `${String(Math.round(boundary.width))}px`);
+  // `applyPlacement` rewrites the caps from the placement; the two sizes are this function's own.
+  element.style.setProperty(floatingProperties.inlineSize, `${String(inlineSize)}px`);
+  element.style.setProperty(floatingProperties.blockSize, `${String(blockSize)}px`);
   return placement;
+}
+
+/**
+ * Put an element in the **top layer** while it is open, and take it out again.
+ *
+ * ⚠ **This was written four times before it was written once**, and hoisting it is the whole of
+ * MJXOFF-188's claim that this file is a primitive rather than a menu's private helper.
+ * `<mjx-menu>`, `<mjx-gallery>`, the inputs' `ListSurface` and the pickers' `SwatchSurface` each
+ * carried their own eight-line copy of it; a fifth, sixth and seventh copy were about to be added
+ * for a dialog, a popover and a task pane. The project's standing rule is that the answer to a
+ * second consumer is one implementation both can reach — and a fifth copy that spelled one
+ * condition differently would put one surface behind a clipping ancestor with every gate green.
+ *
+ * **`manual`, never `auto`**, and the reason is measured rather than stylistic: an `auto` popover
+ * light-dismisses, and light dismissal closes the *ancestor* popover when a descendant opens. A
+ * submenu inside a menu, a gallery flyout inside a collapsed ribbon group, and a popover opened
+ * from a dialog are all that shape, so dismissal, nesting and focus stay the component's own.
+ *
+ * Feature-detected rather than assumed: where the API is missing the surface still opens, still
+ * places itself and still announces itself, and only a surface inside a *clipping* ancestor
+ * degrades. Degrading is better than throwing.
+ *
+ * @param element the box that is drawn — never the host, whose layout the page owns.
+ * @param inTopLayer whether this presentation belongs in the top layer at all. `false` removes the
+ *   attribute, which is what an inline menu needs: a popover that is merely never shown is still
+ *   a popover, and `display` on it answers to the UA stylesheet rather than to ours.
+ * @param open whether it should be showing right now.
+ * @param connected whether the owner is in a document. Calling `showPopover()` on a detached
+ *   element throws, and a component renders before it connects.
+ */
+export function syncTopLayer(
+  element: HTMLElement,
+  { inTopLayer, open, connected }: TopLayerRequest,
+): void {
+  if (typeof element.showPopover !== 'function') return;
+  if (!inTopLayer) {
+    if (element.hasAttribute('popover')) {
+      if (element.matches(':popover-open')) element.hidePopover();
+      element.removeAttribute('popover');
+    }
+    return;
+  }
+  if (element.getAttribute('popover') !== topLayerMode) element.setAttribute('popover', topLayerMode);
+  if (!connected) return;
+  const showing = element.matches(':popover-open');
+  if (open && !showing) element.showPopover();
+  else if (!open && showing) element.hidePopover();
+}
+
+/** The popover mode every surface in this catalogue uses. Named once so nobody types `auto`. */
+export const topLayerMode = 'manual';
+
+/** What `syncTopLayer` needs to know, and nothing about what is being shown. */
+export interface TopLayerRequest {
+  readonly inTopLayer: boolean;
+  readonly open: boolean;
+  readonly connected: boolean;
 }
 
 /**

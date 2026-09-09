@@ -43,6 +43,7 @@ import {
   placeFloating,
   rectOf,
   resolveLength,
+  syncTopLayer,
   type Align,
   type Direction,
   type LogicalSide,
@@ -573,12 +574,12 @@ export class ListSurface implements PopupSurface {
    * auto popover would close on a light dismiss the owner had not decided about yet.
    */
   #syncTopLayer(): void {
-    const list = this.#list;
-    if (typeof list.showPopover !== 'function') return;
-    if (list.getAttribute('popover') !== 'manual') list.setAttribute('popover', 'manual');
-    if (!list.isConnected) return;
-    const showing = list.matches(':popover-open');
-    if (this.#open && !showing) list.showPopover();
-    else if (!this.#open && showing) list.hidePopover();
+    // ⚠ The dance moved into `overlay/floating.ts` in MJXOFF-188, which was its fifth consumer.
+    // The conditions are unchanged: always `manual`, always in the top layer while it exists.
+    syncTopLayer(this.#list, {
+      inTopLayer: true,
+      open: this.#open,
+      connected: this.#list.isConnected,
+    });
   }
 }

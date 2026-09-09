@@ -83,6 +83,7 @@ import {
   placeFloating,
   rectOf,
   resolveLength,
+  syncTopLayer,
   type Placement,
   type Rect,
 } from '../overlay/floating.ts';
@@ -1256,12 +1257,12 @@ export class MjxGallery extends HTMLElement {
    * `auto` popover would close its host the moment it opened.
    */
   #syncTopLayer(box: HTMLElement): void {
-    if (typeof box.showPopover !== 'function') return;
-    if (box.getAttribute('popover') !== 'manual') box.setAttribute('popover', 'manual');
-    if (!this.isConnected) return;
-    const showing = box.matches(':popover-open');
-    if (this.expanded && !showing) box.showPopover();
-    else if (!this.expanded && showing) box.hidePopover();
+    // ⚠ The dance moved into `overlay/floating.ts` in MJXOFF-188. Conditions unchanged.
+    syncTopLayer(box, {
+      inTopLayer: true,
+      open: this.expanded,
+      connected: this.isConnected,
+    });
   }
 
   #place(): void {

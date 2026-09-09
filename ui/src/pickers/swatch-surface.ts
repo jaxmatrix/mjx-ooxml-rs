@@ -35,6 +35,7 @@ import {
   placeFloating,
   rectOf,
   resolveLength,
+  syncTopLayer,
   type Direction,
   type Placement,
   type Rect,
@@ -457,12 +458,11 @@ export class SwatchSurface implements PopupSurface {
    * and focus belong to the owner and an auto popover would light-dismiss out from under it.
    */
   #syncTopLayer(): void {
-    const palette = this.#palette;
-    if (typeof palette.showPopover !== 'function') return;
-    if (palette.getAttribute('popover') !== 'manual') palette.setAttribute('popover', 'manual');
-    if (!palette.isConnected) return;
-    const showing = palette.matches(':popover-open');
-    if (this.#open && !showing) palette.showPopover();
-    else if (!this.#open && showing) palette.hidePopover();
+    // ⚠ The dance moved into `overlay/floating.ts` in MJXOFF-188. Conditions unchanged.
+    syncTopLayer(this.#palette, {
+      inTopLayer: true,
+      open: this.#open,
+      connected: this.#palette.isConnected,
+    });
   }
 }

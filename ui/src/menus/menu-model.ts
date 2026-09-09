@@ -775,7 +775,37 @@ export const focusManagementPatterns = {
     tabStops: 'many',
     dismissal: 'Escape, or a click outside; focus cannot leave by Tab',
     movement: 'Tab, because the stops are independent controls',
-    surfaces: 'MJXOFF-183’s collapsed ribbon group, whose commands are separately focusable buttons',
+    surfaces:
+      'MJXOFF-183’s collapsed ribbon group, whose commands are separately focusable buttons, and ' +
+      'MJXOFF-188’s modal dialog, modal sheet and flyout',
+  },
+  /**
+   * **Added by MJXOFF-188, and it is the third answer the two-way rule could not give.**
+   *
+   * The rule above decides between *trap* and *disclosure* for a surface that has taken the
+   * keyboard away from the page. A docked task pane and a modeless dialog have not: the document
+   * behind them is still live, still editable and still the reason the surface is open. They have
+   * many tab stops, so the rule as written would make them traps — and a trap a person cannot
+   * escape from, because a task pane has no Escape, no scrim and no invoker to return to.
+   *
+   * The resolution is that the rule's premise does not hold: `Tab` is only forced to mean *stay*
+   * when leaving would strand the person, and leaving a surface whose background is still live
+   * strands nobody. So its stops join the page's own sequence, `Tab` walks out of the far side
+   * exactly as it walks out of a `<form>`, and nothing is trapped and nothing is dismissed.
+   *
+   * **What decides is therefore not the stop count alone but the pair** *(stop count, is the
+   * background still reachable)* — and the two-member table was right for every surface that
+   * existed when it was written, because all of them had taken the keyboard.
+   *
+   * ⚠ It is added here rather than restated in `src/surfaces/surface-model.ts` on MJXOFF-188's own
+   * instruction — *"extend it rather than restating it"* — and it is purely additive: `roving` and
+   * `trap` are untouched, so `tests/menus.test.ts`'s two assertions about them still hold.
+   */
+  shared: {
+    tabStops: 'many',
+    dismissal: 'none by the person leaving it; the application decides when the surface goes',
+    movement: 'Tab, in the page’s own sequence — the surface shares the keyboard with what is behind it',
+    surfaces: 'MJXOFF-188’s task pane and its modeless dialog',
   },
 } as const;
 

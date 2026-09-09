@@ -1,0 +1,165 @@
+MJXOFF-188 [U09] — surfaces: dialog, modal, sheet, popover, flyout and the task pane
+branch:  epic/phase-r-renderer
+head:    831c91b
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-10T04:41:36+05:30
+
+tokens:check             exit=0   start=2026-09-10T04:41:36+05:30  finish=2026-09-10T04:41:37+05:30
+icons:check              exit=0   start=2026-09-10T04:41:37+05:30  finish=2026-09-10T04:41:44+05:30
+typecheck                exit=0   start=2026-09-10T04:41:44+05:30  finish=2026-09-10T04:41:52+05:30
+lint                     exit=0   start=2026-09-10T04:41:52+05:30  finish=2026-09-10T04:42:05+05:30
+test:unit                exit=1   start=2026-09-10T04:42:05+05:30  finish=2026-09-10T04:47:32+05:30
+    --- last 30 lines ---
+     FAIL  tests/inputs.test.ts > the indicator rule > the invalid state’s border really is the one that cannot carry it
+    AssertionError: expected 3.4370170891646175 to be less than 3
+     ❯ tests/inputs.test.ts:510:22
+        508|     // somebody delete the escape hatch rather than leave it standing.
+        509|     const measured = ratio('secondaryAccent', 'surface', 'light');
+        510|     expect(measured).toBeLessThan(nonTextMinimum);
+           |                      ^
+        511|     expect(fieldStates.invalid.nonColourCue).toBeDefined();
+        512|   });
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+    
+     FAIL  tests/pickers.test.ts > the swatch indicator > a swatch is told from the popup's own surface, in dark
+    AssertionError: worst boundary was 2.85 : 1 on #ff2222: expected 2.8538506219374633 to be greater than or equal to 3
+     ❯ tests/pickers.test.ts:357:78
+        355|         }
+        356|       }
+        357|       expect(lowest, `worst boundary was ${lowest.toFixed(2)} : 1 on $…
+           |                                                                              ^
+        358|         nonTextMinimum,
+        359|       );
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+    
+    
+     Test Files  2 failed | 11 passed (13)
+          Tests  3 failed | 431 passed (434)
+       Start at  04:42:11
+       Duration  321.53s (tests 97%, import 2%, transform 1%)
+    
+build-storybook          exit=0   start=2026-09-10T04:47:32+05:30  finish=2026-09-10T04:48:26+05:30
+test:browser             exit=1   start=2026-09-10T04:48:26+05:30  finish=2026-09-10T05:00:22+05:30
+    --- last 30 lines ---
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · Under Right To Left 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · In Compact Density 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · The States Matrix 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · What The Warning Is For 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · Every Row Says What It Is 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · Four Hundred Rows Of Faces 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · A Family The List Does Not Carry 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · In Compact Density 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · The Priority Ladder 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Three Presentations At One Width 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · On A Phone 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Ribbon States 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · The Simplified Form 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Contextual Tab Sets 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Worst Case 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Worst Case On A Phone 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Demotion Rules 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · Returned To Its Invoker 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · Modeless — The Document Is Still Live 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · The Scrim, Measured 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · One Stop Or Many 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · A Popover That Disagrees With Itself 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · At The Bottom Of Its Room 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · Under Right To Left 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Docked Beside The Document 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Against A Coloured Page 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Docked At The Start Of The Line 
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · In Compact Density 
+        [chromium] › tests/browser/a11y.spec.ts:100:3 › the contrast rule, as DESIGN_TOKENS.md §2.2 states it › axe and this project agree about which token is legal as body text 
+      290 passed (11.9m)
+cargo metadata           exit=0   start=2026-09-10T05:00:22+05:30  finish=2026-09-10T05:00:22+05:30
+
+finished: 2026-09-10T05:00:22+05:30
+failures: 2
+
+────────────────────────────────────────────────────────────────────────────────
+ANNOTATION, added by MJXOFF-188 after the run above. Nothing was edited between
+the run and this note; it is an account of what the two non-zero exits are.
+
+⚠ THIS TREE IS NOT THE TREE THIS CHILD COMMITS.
+
+MJXOFF-271 is re-seeding the design tokens from the user's hermes-universal app
+in this same checkout, and its work was live in the working directory while the
+run happened:
+
+    M ui/tokens/tokens.css        M ui/tokens/tokens.ts
+    M docs/client-platform/data/tokens.json   (+ crates/, xtask/)
+    ?? ui/tokens/derivations.css  ?? ui/tokens/chromium-agreement.mjs
+
+`ui/tokens/` is NOT owned by this child and is deliberately EXCLUDED from
+pipeline/u09-surfaces. The committed tree is ef208b0's palette plus this child's
+ui/src, ui/stories, ui/tests, ui/.storybook and ui/README.md — so none of the
+failures below exist on the branch. They exist in the working directory.
+
+test:unit  exit=1 — 3 failed / 431 passed of 434 (was 385; this child adds 49)
+
+  Every failure is in a suite this child did not write, and each fires on a
+  palette value the re-seed moved:
+
+  1. tests/pickers.test.ts › the swatch indicator › a swatch is told from the
+     popup's own surface, in dark
+       worst boundary 2.85 : 1 on #ff2222 (needs 3.00)
+     A REAL WCAG REGRESSION the re-seed introduced: U08's chosen-indicator rule
+     no longer clears the floor in the dark scheme. U08's commit records 3.47 : 1
+     light / 3.69 : 1 dark for ef208b0's palette, and an independent
+     recomputation from `git show ef208b0:ui/tokens/tokens.ts` reproduces exactly
+     those two figures. Not silenced here: weakening that gate would be the
+     monkey-patch this project refuses by name, and adding a third candidate to
+     `swatchIndicatorCandidates` is a design change to another child's model.
+     → belongs to MJXOFF-271.
+
+  2. tests/inputs.test.ts › the indicator rule › the invalid state's border
+     really is the one that cannot carry it
+       secondaryAccent on surface is now 3.44 : 1, was 2.07 : 1
+     The re-seed changed secondaryAccent from #e9a83e to #b77e1f. U07's own
+     comment says what to do: "the day a re-seed makes the pairing legal,
+     somebody delete the escape hatch rather than leave it standing." That is a
+     deliberate edit somebody must sign, not one to make in passing.
+
+  3. tests/inputs.test.ts › the indicator rule › field: what carries each state
+     is what the model says carries it
+     The recorded indicator-attribution map moved because (2) moved. Working as
+     designed: the map exists so a state sliding from one mechanism to another is
+     a diff somebody has to write down.
+
+test:browser  exit=1 — 289 passed, ~40 failed
+
+  * ~40 of them are ONE violation, on ONE element, on stories from EVERY child
+    including U01–U08:
+
+      mjx-resizable-container , button[data-preset="desktop"]
+      colour contrast 4.23 : 1 — #1e7a49 on #dae9da at 12px, needs 4.5 : 1
+
+    That is the harness's own preset button. `accentSurface` moved from #e4f4ea
+    to #dae9da in the re-seed and took the whole catalogue's a11y sweep with it.
+    Verified identical on Ribbon/Ribbon · On A Phone (U04) and on the Pickers
+    stories (U08), so it is not this child's markup. NOT fixed here: the fix is a
+    change to <mjx-resizable-container> to suit a palette that is not in this
+    commit.
+    → belongs to MJXOFF-271.
+
+  * tests/browser/a11y.spec.ts › the contrast rule … › axe and this project
+    agree about which token is legal as body text — the same re-seed.
+
+  * tests/browser/inputs.spec.ts › a dropdown › Home and End move through the
+    list — PASSES in isolation (verified). A flake under a single-worker run
+    sharing the machine with another session's browser.
+
+THIS CHILD'S OWN SUITES, run against the RE-SEEDED palette and fully green:
+
+    tests/surfaces.test.ts            49 / 49
+    tests/browser/surfaces.spec.ts    33 / 33
+    tests/browser/a11y.spec.ts, Surfaces/*   14 stories, the only violation on
+                                             any of them being the harness
+                                             button above
+
+One violation in this child's own markup WAS found by the sweep and fixed before
+this run: two unlabelled <input>s in Surfaces/Popover · A Popover That Disagrees
+With Itself now carry aria-label.
+────────────────────────────────────────────────────────────────────────────────

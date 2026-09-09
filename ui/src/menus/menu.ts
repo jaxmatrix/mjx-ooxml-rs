@@ -69,6 +69,7 @@ import {
   placeFloating,
   rectOf,
   resolveLength,
+  syncTopLayer,
   travellingToward,
   isAlign,
   isLogicalSide,
@@ -340,20 +341,14 @@ export class MjxMenu extends HTMLElement {
    * degrades, and degrading is better than throwing.
    */
   #syncTopLayer(menu: HTMLElement, floating: boolean): void {
-    const supported = typeof menu.showPopover === 'function';
-    if (!supported) return;
-    if (!floating) {
-      if (menu.hasAttribute('popover')) {
-        if (menu.matches(':popover-open')) menu.hidePopover();
-        menu.removeAttribute('popover');
-      }
-      return;
-    }
-    if (menu.getAttribute('popover') !== 'manual') menu.setAttribute('popover', 'manual');
-    if (!this.isConnected) return;
-    const showing = menu.matches(':popover-open');
-    if (this.open && !showing) menu.showPopover();
-    else if (!this.open && showing) menu.hidePopover();
+    // ⚠ The dance itself moved into `overlay/floating.ts` in MJXOFF-188, where a fifth, sixth and
+    // seventh consumer could reach it. The conditions are unchanged: an inline menu leaves the top
+    // layer entirely, and a floating one is `manual`.
+    syncTopLayer(menu, {
+      inTopLayer: floating,
+      open: this.open,
+      connected: this.isConnected,
+    });
   }
 
   // ── the gutters ────────────────────────────────────────────────────────────
