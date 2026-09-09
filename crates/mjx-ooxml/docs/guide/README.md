@@ -25,7 +25,8 @@ crate at all, are `crates/mjx-ooxml/examples/build_a_deck.rs`,
 `crates/mjx-ooxml/examples/build_a_document.rs` and
 `crates/mjx-ooxml/examples/build_a_workbook.rs`; CI runs every one on every push, and each exists a
 second time in Python and a third in TypeScript, compared against the Rust one part by part, byte
-for byte.
+for byte — and `xtask/tests/walkthrough_triples.rs` derives that set from the examples directory, so
+a fourth walkthrough cannot arrive with no comparison the way the Word one did (MJXOFF-239).
 
 ```sh
 cargo run -p mjx-ooxml --example build_a_deck

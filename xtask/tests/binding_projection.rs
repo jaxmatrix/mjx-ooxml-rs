@@ -6,8 +6,10 @@
 //! Each of the three walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`,
 //! `build_a_document.rs`, `build_a_workbook.rs` — exists a second time under
 //! `bindings/mjx-python/tests/` and a third under `bindings/mjx-wasm/tests/node/`, and every one
-//! compares its output against the Rust one part by part, byte for byte. That is a strong gate and
-//! it proves the projection is **wired**. It does not prove it is right **across the surface**:
+//! compares its output against the Rust one part by part, byte for byte — `walkthrough_triples.rs`
+//! beside this file is what makes that true of all three rather than of the two it was true of
+//! until MJXOFF-239. That is a strong gate and it proves the projection is **wired**. It does not
+//! prove it is right **across the surface**:
 //!
 //! > Our gates reliably ask whether a value *reaches* somebody; they do not ask *at how many
 //! > distinct points* the surface was ever exercised.
