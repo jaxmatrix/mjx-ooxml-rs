@@ -839,11 +839,37 @@ fn derived_populations() -> BTreeMap<BasePopulation, BTreeSet<String>> {
         .collect()
 }
 
+/// This file, as `git ls-files` spells it.
+const THIS_FILE: &str = "xtask/tests/derived_rosters.rs";
+
 /// Every roster in the workspace.
+///
+/// **This file itself is excluded, and that is not a convenience.** The `SAMPLE` in
+/// [`the_roster_scanner_matches_the_three_spellings_a_roster_is_written_in`] is three rosters
+/// written into this source on purpose, each deliberately *partial* — two workspace crates, never
+/// the population — because a calibration that used a whole population could not tell a scanner
+/// that matches from one that does not. A partial roster is exactly what the sweep below rejects,
+/// and no `ROSTERS` row could truthfully name it: a row asserts *"this list is the whole of that
+/// population"*, which is the one thing the sample must not be. So the fixture is kept out of the
+/// corpus it calibrates, and the calibration still runs — it calls [`rosters_in`] on `SAMPLE`
+/// directly, under a synthetic path.
+///
+/// The cost is stated rather than hidden: a real roster written in *this* file is not swept. That
+/// is the same blind spot MJXOFF-252 already owns for [`BasePopulation`] and [`ROSTERS`], which are
+/// hand-written lists this gate cannot check either.
 fn workspace_rosters() -> Vec<Found> {
     let populations = derived_populations();
+    let tracked = tracked_rust_files();
+    assert!(
+        tracked.iter().any(|path| path == THIS_FILE),
+        "`{THIS_FILE}` is not in `git ls-files`, so the exclusion below is excluding nothing. \
+         Either this file moved and the constant did not, or the corpus walk has stopped matching."
+    );
     let mut found = Vec::new();
-    for path in tracked_rust_files() {
+    for path in tracked {
+        if path == THIS_FILE {
+            continue;
+        }
         let source = read(&path);
         found.extend(rosters_in(&path, &source, &populations));
     }

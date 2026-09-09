@@ -89,6 +89,8 @@ and Excel have exactly the same arrangement — `mjx_ooxml::Document` over `mjx_
 `mjx_ooxml::Workbook` over `mjx_xlsx::Workbook` — and the walkthrough above has a counterpart for
 each: `crates/mjx-ooxml/examples/build_a_document.rs` and `build_a_workbook.rs`, each of which also
 exists as a Python test and a Node test that compare their output against the Rust one part by part.
+`xtask/tests/walkthrough_triples.rs` is what keeps that true of *every* walkthrough rather than of
+the ones somebody remembered: it derives the set from `crates/mjx-ooxml/examples/`.
 
 `open` takes bytes and `save` returns bytes — the library never touches a filesystem, a network or a
 clock, which is why the same code cross-compiles to WebAssembly and runs in a browser. Every part you

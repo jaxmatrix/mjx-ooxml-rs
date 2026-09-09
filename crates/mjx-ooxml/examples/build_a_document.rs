@@ -3,7 +3,11 @@
 //! `bindings/mjx-python/tests/test_build_a_document.py` and
 //! `bindings/mjx-wasm/tests/node/build_a_document.mjs` are the same walkthrough, call for call, in
 //! the other two languages MJXOFF-139 curated `Document` for — proof that the curated surface is
-//! actually enough to author a real document, not merely to open one.
+//! actually enough to author a real document, not merely to open one — and each compares its
+//! document against the one this file writes **part by part, byte for byte**. A method wired to the
+//! wrong `Document` method changes one payload and fails there. Until MJXOFF-239 neither did: both
+//! ran this walkthrough's calls and wrote their own `.docx`, and nothing ever put the two side by
+//! side.
 //!
 //! ```sh
 //! cargo run -p mjx-ooxml --example build_a_document -- out.docx
