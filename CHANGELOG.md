@@ -60,6 +60,82 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.162] - 2026-09-10
+
+### The last residues, and the one the sweep found on its way (H18)
+
+Three named remainders, and a defect that only appeared because one of them was closed properly.
+
+#### The program that writes the committed stub is now inside the type gate (MJXOFF-270)
+
+`bindings/mjx-python/pyproject.toml` set `[tool.mypy] files = ["tests"]`, and CI runs
+`python -m mypy --strict` with no path — so `tools/stub_docs.py`, the program that *generates* the
+committed `.pyi` three languages read, was the one Python file in the binding nothing type-checked.
+It had a real error in it: `ast.stmt.end_lineno` is `int | None` and `_docstring_span` returned it
+as `int`. The scope now names both directories and says which is which, and CI's own invocation
+covers 34 files rather than 33. `bindings/mjx-wasm` was checked for the same shape and has none:
+every tracked `.mjs` under it is either matched by CI's `node --test` glob or imported by the
+`guide_examples/` runner, which derives its list from the directory.
+
+#### ECMA's published markup, swept for what it can and cannot settle (MJXOFF-250)
+
+`xtask/tests/published_markup.rs` is the written list item 2 asked for, and every verdict in it that
+names an artefact this project can read is *checked* rather than stated.
+
+The one new derivation: every preset geometry ECMA publishes is a token
+`mjx_ooxml_types::drawingml::PresetShapeType` round-trips, and the only token with no published
+geometry is `upArrow` — registered, in both directions, so neither a new gap nor a healed one can
+pass unremarked. (The artefact writes `<upDownArrow>` twice, so it publishes 186 distinct
+geometries against the schema's 187 tokens.)
+
+The more useful half is the **negatives**, because item 1's result — the standard's data confirming
+a hand-maintained table exactly — invites the reflex that every artefact is an authority.
+`presetCellStyles.xml`, in the same directory, disagrees with Annex G.2's `builtinId` table in three
+places, and in all three the prose is right: `<heading1>` carries `builtinId="17"`, which
+`<heading2>` also carries and which §18.8.7 forbids two styles from sharing; `<accent3>` carries no
+`builtinId` at all; and `<normal builtinId="0">` holds the `Percent` stylesheet. Those three are a
+register, held in both directions.
+
+Item 3's list — every place in this workspace that resolved an ambiguity by following a spec
+*cross-reference* rather than a spec *statement* — is in the same file's header, with the shape of
+each link, because they are not equally strong. The weakest is not a cross-reference at all:
+`mjx-sml`'s `x:start` / `x:end` take their meaning from WordprocessingML clauses that nothing in
+Part 1 connects to §18.8. Neither published artefact writes either element even once, which is now
+measured rather than assumed.
+
+#### The roster sweep's own population list (MJXOFF-252)
+
+`BasePopulation` in `xtask/tests/derived_rosters.rs` is hand-written, and H8 filed that against its
+own gate. Deciding *what counts as an enumerable thing* is judgement and cannot be derived, so the
+judgement is made — the candidates are worked through in a table, each with its verdict — and the
+mechanical halves are checked: `BasePopulation::ALL` is held against the enum's own declaration, so
+the array cannot silently lose a variant while the exhaustive matches still compile.
+
+The committed fixture corpus, the child-order schema stems, the guide examples and the validation
+area ids joined. The guide pages were tried and **withdrawn on the evidence**: that walk answers
+with every `.md` in the repository, so it read `entry_points.rs`'s three landing pages as a roster.
+A population that broad does not find rosters, it manufactures them.
+
+Adding the rest found three sites:
+
+* `crates/mjx-pptx/tests/schema_validity.rs` named the two fixtures carrying markup compatibility,
+  under a comment reading *"both fixtures that carry markup compatibility"*. It finds them now.
+* `crates/mjx-xlsx/tests/comments.rs`'s `every_producer_workbook_…` named three. It now finds every
+  `.xlsx` carrying a comment part, which is what its name promises.
+* `crates/mjx-xlsx/tests/schema_gate.rs` edited two named fixtures. It edits the whole corpus.
+
+#### The child-order audit and the schema arm were reading different markup (MJXOFF-272)
+
+Widening that last one surfaced it. `mjx-schema-gate`'s schema arm resolves markup compatibility
+before validating — `inspect.rs`'s header says so — and its child-order arm does not: `order.rs`
+hands `part_tree` straight to the walk. So a part whose only root child is an `mc:AlternateContent`
+is audited over nothing, and its own vacuity guard fires. One committed fixture does it,
+`legacy_form_control.xlsx`, whose `xdr:wsDr` LibreOffice wrapped entirely in an `mc:Choice`. Nothing
+this library writes is out of order and the schema arm validates the part cleanly.
+
+The ticket is open; the interim state is one register row that must *still be needed*, so fixing it
+turns the register red rather than leaving a row behind.
+
 ## [0.0.161] - 2026-09-10
 
 ### The small residues, drained (H17)
