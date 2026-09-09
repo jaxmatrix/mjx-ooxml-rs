@@ -6,14 +6,11 @@
 //! `bindings/mjx-wasm/tests/node/guide_examples/one_authoring_vocabulary.mjs`. `cargo run -p xtask
 //! -- guide-examples` does the copying and `xtask/tests/guide_examples.rs` proves it was done.
 //!
-//! # Why the workbook is the package it saves
+//! # It authors two packages, and both are compared
 //!
 //! One [`mjx_ooxml::FillSpec`] value goes onto a shape in a deck and onto a chart series in a
-//! workbook, which is two packages, and a guide example offers one for the two binding harnesses to
-//! compare. It offers the **workbook**, deliberately: `set_shape_fill` is already authored and
-//! compared byte for byte by `crates/mjx-ooxml/examples/build_a_deck.rs`, and
-//! `set_chart_series_fill` is authored by no walkthrough at all — so the workbook is the half of
-//! this example whose bytes nothing else in the repository checks.
+//! workbook. Both are offered, under `saved` and `saved_deck`, and both binding harnesses compare
+//! both against this program part by part (MJXOFF-260).
 //!
 //! ```sh
 //! cargo run -p mjx-ooxml --example guide_one_authoring_vocabulary -- out.xlsx
@@ -24,6 +21,7 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+// guide-example:packages saved saved_deck
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:start
     use mjx_ooxml::{ChartData, ChartKind, ColorSpec, Deck, FillSpec};
@@ -50,14 +48,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     assert!(workbook.chart_series_fill(0, anchor, 0)?.is_some());
 
     let saved = workbook.save()?;
+    let saved_deck = deck.save()?;
     // guide-example:end
 
-    write_output(&saved)
+    write_output(&[
+        ("saved", saved.as_slice()),
+        ("saved_deck", saved_deck.as_slice()),
+    ])
 }
 
 /// Where this example writes: its first argument, or `target/examples/` by default.
-fn write_output(saved: &[u8]) -> Result<(), Box<dyn Error>> {
-    let path = match std::env::args().nth(1) {
+///
+/// The first package declared takes the path itself; a second has its binding's suffix inserted
+/// before the extension, which is the rule `xtask::guide_examples::package_output_path` states once
+/// and both binding harnesses apply when they look for the file to compare against.
+fn write_output(packages: &[(&str, &[u8])]) -> Result<(), Box<dyn Error>> {
+    let base = match std::env::args().nth(1) {
         Some(argument) => PathBuf::from(argument),
         None => {
             let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/examples");
@@ -65,7 +71,32 @@ fn write_output(saved: &[u8]) -> Result<(), Box<dyn Error>> {
             directory.join("facade_guide_one_authoring_vocabulary.xlsx")
         }
     };
-    std::fs::write(&path, saved)?;
-    println!("wrote {} ({} bytes)", path.display(), saved.len());
+    for (binding, bytes) in packages {
+        let path = output_path_for(&base, binding);
+        std::fs::write(&path, bytes)?;
+        println!("wrote {} ({} bytes)", path.display(), bytes.len());
+    }
     Ok(())
+}
+
+/// [`xtask::guide_examples::package_output_path`], restated here because a `cargo` example under
+/// `mjx-ooxml` may not depend on `xtask` — the layering rule points downward only, and `xtask` is
+/// outside the ranked graph entirely. `xtask/tests/guide_examples.rs` holds the two to the same
+/// answer, so the restatement cannot drift.
+fn output_path_for(base: &std::path::Path, binding: &str) -> PathBuf {
+    let Some(suffix) = binding
+        .strip_prefix("saved")
+        .and_then(|rest| rest.strip_prefix('_'))
+    else {
+        return base.to_path_buf();
+    };
+    let stem = base
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let file = match base.extension() {
+        Some(extension) => format!("{stem}.{suffix}.{}", extension.to_string_lossy()),
+        None => format!("{stem}.{suffix}"),
+    };
+    base.with_file_name(file)
 }

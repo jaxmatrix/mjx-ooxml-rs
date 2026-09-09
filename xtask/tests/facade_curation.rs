@@ -58,6 +58,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use xtask::facade_surface;
+
 /// The workspace root — `xtask/`'s parent.
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -339,7 +341,57 @@ const WORKBOOK: Surface = Surface {
     ],
 };
 
+/// The three curated surfaces.
+///
+/// A roster, and one `xtask/tests/derived_rosters.rs` cannot see: its sweep reads a `[…]` whose
+/// elements begin with **string literals**, and these are identifiers. MJXOFF-252 filed that hole
+/// against that gate, naming this line as its known instance — three of three, correct, and exactly
+/// the shape that was correct in `child_order.rs` the day it was written.
+///
+/// [`the_surfaces_roster_is_the_whole_of_the_facade_handle_population`] is what closes it, holding
+/// this list against the population the facade's own module layout declares, in both directions.
 const SURFACES: &[&Surface] = &[&DECK, &DOCUMENT, &WORKBOOK];
+
+/// **`SURFACES` is the whole of the facade handle population, not three of it** (MJXOFF-252).
+///
+/// A fourth facade handle joins [`xtask::facade_surface::handle_types`] the moment its module
+/// directory lands, joins the five string-spelled rosters MJXOFF-225 registered, and — until this
+/// test — would not have joined `SURFACES`, with nothing to say so. Every audit in this file is over
+/// `SURFACES`, so a handle missing from it is a handle whose curation is checked by nothing while
+/// every count stays plausible: the granularity failure `xtask/tests/doc_gate.rs` states about
+/// losing one crate, one layer up.
+///
+/// The population is derived by the module both this file and `derived_rosters.rs` call, rather than
+/// by a second walk over the same directory that could disagree with the first with no way to say
+/// which was wrong.
+#[test]
+fn the_surfaces_roster_is_the_whole_of_the_facade_handle_population() {
+    let derived = facade_surface::handle_types(&repository_root());
+    // A floor phrased as *the walk is still matching*, never as the population's size.
+    assert!(
+        derived.len() >= 3,
+        "only {} facade handle(s) were derived from {} — the module walk has stopped matching, and \
+         the comparison below would pass on almost nothing",
+        derived.len(),
+        facade_surface::FACADE_SOURCE
+    );
+    let listed: BTreeSet<String> = SURFACES
+        .iter()
+        .map(|surface| surface.facade_type.to_ascii_lowercase())
+        .collect();
+    assert_eq!(
+        listed, derived,
+        "`SURFACES` and the handle types {} declares are not the same set. Every audit in this file \
+         is over `SURFACES`, so a handle absent from it is a handle whose curation is checked by \
+         nothing.",
+        facade_surface::FACADE_SOURCE
+    );
+    println!(
+        "{} facade handle(s), every one on `SURFACES`: {}",
+        derived.len(),
+        derived.iter().cloned().collect::<Vec<_>>().join(", ")
+    );
+}
 
 /// Every `.rs` file under `directory`, plus `directory.rs` beside it — the two shapes a Rust module
 /// tree takes in this workspace, of which `crates/mjx-ooxml/src/deck.rs` beside

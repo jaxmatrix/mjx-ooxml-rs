@@ -24,6 +24,7 @@
 
 use std::error::Error;
 
+// guide-example:packages none
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:start
     use mjx_ooxml::{Deck, ErrorCode, SlideSize};

@@ -75,12 +75,15 @@
 //! it. This suite follows that convention exactly: absent, it prints a notice and passes; with
 //! `MJX_REQUIRE_SCHEMA=1` set — which is what CI sets — the absence is a failure instead.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use mjx_dml::{ResolvedColor, SchemeColors, Theme};
 use mjx_ooxml_core::convert::FromXml;
-use mjx_sml::styles::{resolve_color, theme_color_slot, IndexedColorPalette, StylesheetPart};
+use mjx_sml::styles::{
+    builtin_table_style_name, resolve_color, theme_color_slot, BuiltInTableStyleFamily,
+    IndexedColorPalette, StylesheetPart,
+};
 use mjx_sml::write::WorkbookPackage;
 use mjx_sml::Color;
 use mjx_xml::{Element, Event, Reader};
@@ -533,4 +536,186 @@ fn the_theme_index_mapping_is_the_one_ecmas_own_preset_styles_use() {
             "position {position} is one ECMA's own styles use and must name a slot"
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The second derivation the same artefact settles: the preset table style families (MJXOFF-250)
+// ---------------------------------------------------------------------------------------------
+
+/// Every top-level element name in `presetTableStyles.xml` — the preset style names themselves.
+///
+/// The artefact is one wrapper holding one element per style, named for the style, so the names are
+/// the children of the root and nothing below them matters here.
+fn published_table_style_names(markup: &[u8]) -> BTreeSet<String> {
+    let mut reader = Reader::new(strip_bom(markup));
+    let mut names = BTreeSet::new();
+    let mut depth = 0usize;
+    loop {
+        match next_open(&mut reader, "ECMA's preset table styles") {
+            Open::Element(element, self_closing) => {
+                depth += 1;
+                if depth == 2 {
+                    names.insert(element.local().to_owned());
+                }
+                if self_closing {
+                    depth -= 1;
+                }
+            }
+            Open::Close(_) => depth -= 1,
+            Open::Done => break,
+        }
+    }
+    names
+}
+
+/// A seventh family would make this fail to compile, which is what stops the comparison below from
+/// being one-directional: a family this crate declared and ECMA did not publish would otherwise
+/// simply never be looked at.
+fn _every_family_is_accounted_for(family: BuiltInTableStyleFamily) {
+    match family {
+        BuiltInTableStyleFamily::TableLight
+        | BuiltInTableStyleFamily::TableMedium
+        | BuiltInTableStyleFamily::TableDark
+        | BuiltInTableStyleFamily::PivotLight
+        | BuiltInTableStyleFamily::PivotMedium
+        | BuiltInTableStyleFamily::PivotDark => {}
+    }
+}
+
+/// Every family this crate declares, held exhaustive by [`_every_family_is_accounted_for`].
+const EVERY_FAMILY: [BuiltInTableStyleFamily; 6] = [
+    BuiltInTableStyleFamily::TableLight,
+    BuiltInTableStyleFamily::TableMedium,
+    BuiltInTableStyleFamily::TableDark,
+    BuiltInTableStyleFamily::PivotLight,
+    BuiltInTableStyleFamily::PivotMedium,
+    BuiltInTableStyleFamily::PivotDark,
+];
+
+/// **`BuiltInTableStyleFamily`'s six prefixes and six bounds are the ones ECMA publishes**, not six
+/// numbers somebody typed (MJXOFF-250).
+///
+/// # Why this is a second consumer of the same artefact rather than a second suite
+///
+/// MJXOFF-246 turned on a source nothing in this repository had ever read — the SpreadsheetML
+/// *markup* ECMA-376 Part 1 ships beside its schemas — and the gate above is its first consumer.
+/// This is its second, and the two are deliberately different in kind. The gate above derives a
+/// mapping from a **property** of the data (a style has to be legible). This one compares a table
+/// this crate hard-codes against the data **directly**, because the artefact simply is the
+/// population: `presetTableStyles.xml` holds one element per preset style and nothing else.
+///
+/// MJXOFF-246 measured the six bounds by hand and found all six correct, so nothing here was a
+/// defect. What was wrong is that a correct hand-written table whose authority is on disk and in CI
+/// is a table nothing is holding — the same shape `xtask/tests/derived_rosters.rs` exists to close
+/// one layer up.
+///
+/// # Both directions, and the third
+///
+/// * every name ECMA publishes is one [`builtin_table_style_name`] parses, and writes back
+///   unchanged — so the crate's `Display` is the artefact's own spelling;
+/// * every family's [`highest`](BuiltInTableStyleFamily::highest) is the largest number that family
+///   actually reaches, and its numbers run from 1 with no gap;
+/// * the bound is a **bound**: one past it is refused, and is absent from the artefact.
+///
+/// It skips without `References/` on the same footing as the gate above, and `MJX_REQUIRE_SCHEMA=1`
+/// turns the absence into a failure.
+#[test]
+fn the_preset_table_style_families_are_the_ones_ecmas_own_markup_publishes() {
+    let Some(dir) = preset_styles_dir() else {
+        return;
+    };
+    let path = dir.join("presetTableStyles.xml");
+    let markup = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let published = published_table_style_names(&markup);
+
+    // A floor phrased as *the scan is still matching*, never as the artefact's size: ECMA may
+    // reissue it, and a total here would be a ledger rather than a check.
+    assert!(
+        published.len() > 100,
+        "only {} top-level element(s) were found in presetTableStyles.xml — the scan has stopped \
+         matching, and every comparison below would pass on almost nothing",
+        published.len()
+    );
+
+    // ---- Every published name is one this crate knows, and spells the same way -----------------
+    let mut numbers: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
+    let mut unknown: Vec<String> = Vec::new();
+    for name in &published {
+        match builtin_table_style_name(name) {
+            Some(style) if style.to_string() == *name => {
+                numbers
+                    .entry(style.family().prefix().to_owned())
+                    .or_default()
+                    .insert(style.number());
+            }
+            Some(style) => unknown.push(format!(
+                "ECMA publishes `{name}`; this crate parses it and writes it back as `{style}`"
+            )),
+            None => unknown.push(format!(
+                "ECMA publishes `{name}` and `builtin_table_style_name` does not know it"
+            )),
+        }
+    }
+    assert!(
+        unknown.is_empty(),
+        "{} preset table style name(s) in {} disagree with this crate:\n  {}",
+        unknown.len(),
+        path.display(),
+        unknown.join("\n  ")
+    );
+
+    // ---- Six families, each contiguous from 1, each bounded where the artefact bounds it --------
+    for family in EVERY_FAMILY {
+        let prefix = family.prefix();
+        let seen = numbers.get(prefix).unwrap_or_else(|| {
+            panic!(
+                "this crate declares the family `{prefix}` and {} publishes no style with that \
+                 prefix",
+                path.display()
+            )
+        });
+        let highest = seen.iter().copied().max().unwrap_or(0);
+        assert_eq!(
+            seen.len() as u32,
+            highest,
+            "`{prefix}` runs to {highest} in ECMA's markup but holds {} style(s), so the family is \
+             not contiguous from 1 and `highest()` is not the shape of the population",
+            seen.len()
+        );
+        assert_eq!(
+            family.highest(),
+            highest,
+            "this crate bounds `{prefix}` at {} and {} publishes {highest}",
+            family.highest(),
+            path.display()
+        );
+        // A bound that refuses nothing is not a bound.
+        let past = format!("{prefix}{}", highest + 1);
+        assert!(
+            !published.contains(&past),
+            "`{past}` is published after all, so {highest} is not the bound"
+        );
+        assert!(
+            builtin_table_style_name(&past).is_none(),
+            "`{past}` is past the bound ECMA publishes and this crate accepts it"
+        );
+    }
+
+    // ---- And the other direction, over families rather than names ------------------------------
+    let declared: BTreeSet<&str> = EVERY_FAMILY.iter().map(|f| f.prefix()).collect();
+    let observed: BTreeSet<&str> = numbers.keys().map(String::as_str).collect();
+    assert_eq!(
+        declared,
+        observed,
+        "the families this crate declares and the prefixes {} publishes are not the same set",
+        path.display()
+    );
+
+    println!(
+        "preset table styles: {} name(s) across {} famil(ies) in {}, every one parsed, spelled and \
+         bounded as this crate declares",
+        published.len(),
+        declared.len(),
+        path.display()
+    );
 }

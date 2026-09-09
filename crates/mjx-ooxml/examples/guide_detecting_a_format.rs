@@ -25,6 +25,7 @@
 
 use std::error::Error;
 
+// guide-example:packages none
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:prelude-start
     let bytes = mjx_fixtures::fixture("sample.docx");

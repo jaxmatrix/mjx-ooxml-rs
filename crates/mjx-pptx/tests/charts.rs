@@ -260,9 +260,12 @@ fn editing_a_chart_dirties_only_the_chart_xml_and_its_workbook() {
 /// Editing a series' values patches the producer's workbook and leaves the rest of it alone
 /// (MJXOFF-208).
 ///
-/// `charts.pptx` was written by PowerPoint, and its embedded workbook carries a theme, a stylesheet,
-/// a shared-string table, document properties and a `cols` block — none of which a regenerated
-/// workbook has. Until MJXOFF-208 all of it was discarded by a call that only said *set series 0 to
+/// `charts.pptx`'s embedded workbook carries a theme, a stylesheet, a shared-string table, document
+/// properties and a `cols` block — none of which a regenerated workbook has. (Its `docProps/app.xml`
+/// names PowerPoint; that element is **not** provenance and this comment used to read it as though
+/// it were. The deck is python-pptx's template — see MJXOFF-249 and
+/// `xtask/tests/fixture_provenance.rs`. What the sentence needs is only that the workbook was
+/// written by a producer richer than ours, which is a fact about its bytes.) Until MJXOFF-208 all of it was discarded by a call that only said *set series 0 to
 /// these three numbers*. Every part named below is one of the things that used to be lost.
 #[test]
 fn a_data_edit_patches_the_producers_workbook_and_keeps_the_rest_of_it() {

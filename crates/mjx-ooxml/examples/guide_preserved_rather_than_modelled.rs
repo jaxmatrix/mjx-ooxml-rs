@@ -21,6 +21,7 @@
 
 use std::error::Error;
 
+// guide-example:packages none
 fn main() -> Result<(), Box<dyn Error>> {
     // guide-example:prelude-start
     let original = mjx_fixtures::fixture("preserved_parts.xlsx");

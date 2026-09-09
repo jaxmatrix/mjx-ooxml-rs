@@ -6,10 +6,9 @@ literally, because `cargo run -p xtask -- guide-examples` copies it there and
 `xtask/tests/guide_examples.rs` proves the copy is current.
 
 Importing this module *is* running the example: the code below is top level, so `pytest` collecting
-`tests/test_guide_examples.py` executes every assertion in it. `saved` is the **workbook**, compared
-against `crates/mjx-ooxml/examples/guide_one_authoring_vocabulary.rs` part by part — the deck this
-example also authors is covered by `tests/test_build_a_deck.py`, and `set_chart_series_fill` is
-covered by no walkthrough at all.
+`tests/test_guide_examples.py` executes every assertion in it. It offers **both** packages it
+authors — `saved` is the workbook and `saved_deck` is the deck — and each is compared against
+`crates/mjx-ooxml/examples/guide_one_authoring_vocabulary.rs` part by part (MJXOFF-260).
 """
 
 # guide-example:start
@@ -35,4 +34,5 @@ workbook.set_chart_series_fill(0, anchor, 0, navy)
 assert workbook.chart_series_fill(0, anchor, 0) is not None
 
 saved = workbook.save()
+saved_deck = deck.save()
 # guide-example:end
