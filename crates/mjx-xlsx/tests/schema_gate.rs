@@ -351,6 +351,70 @@ fn invalid_worksheet_markup_is_caught_and_names_the_worksheet_part() {
     println!("the sml arm on the worksheet part, proved live:\n{report}");
 }
 
+/// Fixtures whose saved package [`mjx_schema_gate::assert_deck_is_in_schema_order`] cannot sweep
+/// whole yet, and the open defect that is why.
+///
+/// **A register, not an allowlist.** A row does not excuse a fixture: everything else in the case
+/// below — the category requirement, the ordering audit, the element count and the whole schema
+/// sweep — runs for a registered fixture exactly as for any other, and only the whole-package order
+/// assertion is held back. And a row cannot outlive the defect it names, because
+/// [`the_order_sweep_exclusion_is_still_necessary`] fails when the exclusion stops being needed.
+const ORDER_SWEEP_EXCLUSIONS: &[(&str, &str)] = &[(
+    "legacy_form_control.xlsx",
+    "MJXOFF-272 — its /xl/drawings/drawing1.xml is an `xdr:wsDr` whose *only* child is an \
+     `mc:AlternateContent`, and the ordering walk audits the raw tree while the schema arm audits \
+     the MCE-resolved view. So the walk recognises none of the root's children and its own vacuity \
+     guard fires. LibreOffice wrote the part and this library copies it verbatim; nothing it emits \
+     is out of order, and the schema arm validates the same part cleanly.",
+)];
+
+/// **The one registered exclusion is still an exclusion.**
+///
+/// A register whose rows can go stale is the escape hatch this workspace refuses — `doc_gate.rs`'s
+/// retired-path register is the shape being followed. So the exclusion is asserted to *still be
+/// necessary*: the whole-package order assertion must still turn red for the named fixture. Fixing
+/// MJXOFF-272 turns this case red, which is how the row gets deleted rather than forgotten.
+#[test]
+fn the_order_sweep_exclusion_is_still_necessary() {
+    for (name, why) in ORDER_SWEEP_EXCLUSIONS {
+        let mut workbook = mjx_xlsx::Workbook::open(&fixture(name)).expect("open");
+        workbook
+            .set_cell_value(
+                0,
+                mjx_sml::CellReference::parse("B2").expect("B2"),
+                mjx_sml::CellValue::Number(7.5),
+            )
+            .expect("B2 is inside the grid");
+        let saved = workbook.save().expect("save");
+        let label = format!("{name} with one cell edited");
+
+        // The default hook is silenced: this panic is the expected result, and letting it print
+        // would make a passing run look like a failing one. Same shape as
+        // `an_out_of_sequence_anchor_child_turns_the_order_audit_red` further down this file.
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let outcome = std::panic::catch_unwind(|| {
+            mjx_schema_gate::assert_deck_is_in_schema_order(&label, &saved);
+        });
+        std::panic::set_hook(previous);
+
+        let payload = outcome.err().unwrap_or_else(|| {
+            panic!(
+                "`{name}` is on `ORDER_SWEEP_EXCLUSIONS` and no longer needs to be: the whole-\
+                 package order assertion passes for it. Delete the row — and if the register is \
+                 now empty, delete it and this case with it. The row said:\n  {why}"
+            )
+        });
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or("<non-string panic>")
+            .to_owned();
+        println!("{name} is still excluded — {message}");
+    }
+}
+
 /// **MJXOFF-102's ordering gate, reached rather than assumed.**
 ///
 /// The extracted harness (`mjx_schema_gate::audit_deck_order`) is run over a workbook this crate has
@@ -365,9 +429,31 @@ fn invalid_worksheet_markup_is_caught_and_names_the_worksheet_part() {
 ///    below would prove nothing.
 ///
 /// The count is printed, because MJXOFF-102's report has to quote it.
+///
+/// **The corpus is the directory, never a list** (MJXOFF-252). This case used to edit two named
+/// fixtures; `xtask/tests/derived_rosters.rs` found that pair once the committed corpus became one
+/// of its populations, and there is no derivable population that is exactly those two. So it edits
+/// every committed `.xlsx` instead — strictly more than it asked for, and the same shape
+/// `every_pptx_fixture_is_schema_valid` already uses next door. All of them open, take the edit and
+/// save; a fixture that stops doing so is a finding, not a reason to name the ones that do.
+///
+/// Widening it turned one up straight away, and it is [`ORDER_SWEEP_EXCLUSIONS`] below.
 #[test]
 fn the_edited_worksheet_is_reached_by_the_order_audit_and_the_count_is_quoted() {
-    for name in ["sample.xlsx", "worksheet_spine.xlsx"] {
+    let corpus = mjx_fixtures::package_fixtures_with_extension("xlsx");
+    assert!(
+        corpus.len() >= 2,
+        "the .xlsx corpus walk has stopped matching: it found {} fixture(s), so this case audits \
+         nothing and passes exactly as a working one does",
+        corpus.len()
+    );
+    println!(
+        "the order audit runs over {} edited .xlsx fixture(s)",
+        corpus.len()
+    );
+
+    for name in &corpus {
+        let name = name.as_str();
         let mut workbook = mjx_xlsx::Workbook::open(&fixture(name)).expect("open");
         workbook
             .set_cell_value(
@@ -407,8 +493,14 @@ fn the_edited_worksheet_is_reached_by_the_order_audit_and_the_count_is_quoted() 
         );
 
         // …and the edited workbook is still schema-valid, so the ordering walk is not the only thing
-        // watching this part.
-        mjx_schema_gate::assert_deck_is_in_schema_order(&label, &saved);
+        // watching this part. The whole-package order assertion is the one step a registered
+        // fixture is held back from; everything above and below it runs for every fixture.
+        if !ORDER_SWEEP_EXCLUSIONS
+            .iter()
+            .any(|(excluded, _)| *excluded == name)
+        {
+            mjx_schema_gate::assert_deck_is_in_schema_order(&label, &saved);
+        }
         let Some(harness) = harness() else { continue };
         let tolerances = mjx_schema_gate::tolerances_for(name);
         let rows = inspect_deck(&harness, &label, &saved, &tolerances);
