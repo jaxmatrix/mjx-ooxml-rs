@@ -63,6 +63,14 @@ pub struct SheetGrid {
     drawing: Option<SheetDrawing>,
     print_area: Option<String>,
     print_titles: Option<String>,
+    /// The charts anchored on the sheet, by the **anchor index** their drawing gives them, read
+    /// through `mjx-layout-chart` (MJXOFF-178).
+    ///
+    /// Read here, eagerly, for the same reason the drawing part is: it is `O(charts)`, it answers a
+    /// question every band asks, and a chart part is not reachable from a `SheetFormatting`.
+    charts: Vec<(usize, mjx_layout_chart::ChartModel)>,
+    /// The workbook theme's six accents, or the Office defaults when it states none.
+    palette: mjx_layout_chart::ChartPalette,
 }
 
 impl SheetGrid {
@@ -100,7 +108,12 @@ impl SheetGrid {
         Ok(Self::from_parts(index, name, formatting, shared_strings)
             .with_date_system(dates)
             .with_drawing(drawing)
-            .with_print_names(print_area, print_titles))
+            .with_print_names(print_area, print_titles)
+            .with_charts(read_charts(workbook, index)?)
+            .with_palette(workbook.theme_accent_colors()?.map_or(
+                mjx_layout_chart::ChartPalette::OFFICE,
+                mjx_layout_chart::ChartPalette::from_accents,
+            )))
     }
 
     /// The snapshot over parts a caller already holds — the path a suite that authored a worksheet
@@ -136,6 +149,8 @@ impl SheetGrid {
             drawing: None,
             print_area: None,
             print_titles: None,
+            charts: Vec::new(),
+            palette: mjx_layout_chart::ChartPalette::OFFICE,
         }
     }
 
@@ -159,6 +174,43 @@ impl SheetGrid {
     pub fn with_drawing(mut self, drawing: Option<SheetDrawing>) -> Self {
         self.drawing = drawing;
         self
+    }
+
+    /// The same snapshot holding the charts anchored on the sheet, by anchor index.
+    ///
+    /// [`SheetGrid::read`] fills this in; a suite that authored a worksheet in memory has no package
+    /// to reach a chart part through and gets none, which lays a chart frame out as an empty box
+    /// exactly as it did before MJXOFF-178.
+    #[must_use]
+    pub fn with_charts(mut self, charts: Vec<(usize, mjx_layout_chart::ChartModel)>) -> Self {
+        self.charts = charts;
+        self
+    }
+
+    /// The same snapshot handing charts the six accents `palette` names.
+    ///
+    /// **The workbook's own theme.** A chart whose series state no `c:spPr` — which is what Excel
+    /// writes — takes `accent1 … accent6` from here, so a palette invented by this crate would paint
+    /// a customer's chart off their own brand.
+    #[must_use]
+    pub fn with_palette(mut self, palette: mjx_layout_chart::ChartPalette) -> Self {
+        self.palette = palette;
+        self
+    }
+
+    /// The chart anchored at `anchor_index`, or `None` when that anchor frames none.
+    #[must_use]
+    pub fn chart(&self, anchor_index: usize) -> Option<&mjx_layout_chart::ChartModel> {
+        self.charts
+            .iter()
+            .find(|(index, _)| *index == anchor_index)
+            .map(|(_, chart)| chart)
+    }
+
+    /// The palette a chart on this sheet draws its unstated series colours from.
+    #[must_use]
+    pub fn palette(&self) -> &mjx_layout_chart::ChartPalette {
+        &self.palette
     }
 
     /// The same snapshot holding the two print names, as the workbook's `definedNames` spell them.
@@ -455,4 +507,29 @@ fn today_serial(system: DateSystem) -> f64 {
         DateSystem::Windows1900 => 25_569.0,
         DateSystem::Macintosh1904 => 24_107.0,
     }
+}
+
+/// Reads every chart anchored on the tab at `index`, by anchor index.
+///
+/// **Bytes in, model out.** `Workbook::chart_part_bytes` is already public, and `mjx-layout-chart`
+/// owns everything from the XML inwards — which is what lets PowerPoint's and Word's box models read
+/// the same chart through the same code rather than through three closures.
+///
+/// A chart part that will not parse is *skipped* rather than failing the sheet: a malformed chart is
+/// one anchor drawn empty, and refusing the whole worksheet over it would lose every cell on it.
+fn read_charts(
+    workbook: &Workbook,
+    index: usize,
+) -> Result<Vec<(usize, mjx_layout_chart::ChartModel)>, SheetLayoutError> {
+    let anchors = workbook.chart_anchor_indices(index)?;
+    let mut charts = Vec::with_capacity(anchors.len());
+    for anchor in anchors {
+        let Some(bytes) = workbook.chart_part_bytes(index, anchor)? else {
+            continue;
+        };
+        if let Ok(model) = mjx_layout_chart::ChartModel::read(bytes) {
+            charts.push((anchor, model));
+        }
+    }
+    Ok(charts)
 }

@@ -43,6 +43,7 @@ use mjx_dml::{
     ParagraphPropertiesSpec, TextAnchoring, TextBodyPropertiesSpec,
 };
 use mjx_layout::{LayoutRect, LayoutSize};
+use mjx_layout_chart::{ChartModel, ChartPalette};
 use mjx_ooxml_core::measure::Emu;
 use mjx_pptx::{PptxError, Presentation, ShapeKind, Surface};
 
@@ -58,6 +59,19 @@ pub struct SlideDeck {
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Slide {
     shapes: Vec<Shape>,
+    palette: ChartPalette,
+}
+
+impl Slide {
+    /// The six accent colours a chart on this slide hands out to series that state no fill of their
+    /// own — **the deck's own theme**, read once per surface.
+    ///
+    /// It is a property of the slide rather than of each chart because it is the same answer for
+    /// every chart on it, and reading a theme part per chart would re-parse it per chart.
+    #[must_use]
+    pub fn palette(&self) -> &ChartPalette {
+        &self.palette
+    }
 }
 
 /// One shape, with everything laying it out needs and nothing else.
@@ -88,8 +102,8 @@ pub struct Shape {
     /// A `p:sp` is its text body and nothing else, so it is [`ShapeContent::Nothing`]; a
     /// `p:graphicFrame` framing an `a:tbl` is a grid; a `p:pic` is a picture. Keeping this apart
     /// from [`kind`](Self::kind) is deliberate: `kind` is what the *element* is, and a graphic frame
-    /// holding a chart is the same kind as one holding a table while containing something this
-    /// crate does not lay out.
+    /// holding a chart is the same kind as one holding a table while containing something entirely
+    /// different.
     pub content: ShapeContent,
 }
 
@@ -97,13 +111,25 @@ pub struct Shape {
 #[derive(Clone, PartialEq, Debug, Default)]
 pub enum ShapeContent {
     /// Nothing — an autoshape, a connector, a group, or a graphic frame holding something this
-    /// crate does not lay out (a chart or a diagram, which are R23).
+    /// crate does not lay out. Since MJXOFF-178 that is a **diagram** or an embedded object; a chart
+    /// is [`ShapeContent::Chart`].
     #[default]
     Nothing,
     /// A table (`a:tbl` inside a `p:graphicFrame`).
     Table(TableContent),
     /// A picture (`p:pic`).
     Picture(PictureContent),
+    /// A chart (`c:chart` inside a `p:graphicFrame`'s `a:graphicData`), read into
+    /// `mjx-layout-chart`'s own model.
+    ///
+    /// **Boxed, because a `ChartModel` is two orders of magnitude larger than a picture's
+    /// relationship id** and a slide of forty autoshapes would otherwise pay a chart's size forty
+    /// times over — the same argument `mjx-docx`'s `BlockFormatting::Table` makes.
+    ///
+    /// The model was built from the chart part's *bytes*, which is the seam MJXOFF-178 is organised
+    /// around: `mjx-layout-chart` sits at rank 3.55 and this crate at 3.6, so all three box models
+    /// reach one engine, and none of them parses a `c:chartSpace` itself.
+    Chart(Box<ChartModel>),
 }
 
 /// A table, in the vocabulary laying it out needs.
@@ -407,7 +433,12 @@ fn read_slide(deck: &mut Presentation, surface: Surface) -> Result<Slide, PptxEr
     for index in 0..count {
         read_shape(deck, surface, &mut vec![index], &mut shapes)?;
     }
-    Ok(Slide { shapes })
+    // The deck's own accents, or the Office defaults when it states none. Reading the theme once per
+    // surface rather than once per chart is the difference between one parse and one per frame.
+    let palette = deck
+        .theme_accent_colors(surface)?
+        .map_or(ChartPalette::OFFICE, ChartPalette::from_accents);
+    Ok(Slide { shapes, palette })
 }
 
 /// Reads the shape at `path` and, when it is a group, every member under it.
@@ -455,7 +486,13 @@ fn read_shape(
         // holds something else rather than the read failing.
         ShapeKind::GraphicFrame => match read_table(deck, surface, path) {
             Ok(table) => ShapeContent::Table(table),
-            Err(PptxError::ShapeIsNotATable) => ShapeContent::Nothing,
+            // A graphic frame that is not a table may still be a chart, and a chart is what
+            // MJXOFF-178 taught this crate to lay out. A frame that is neither — a diagram, an
+            // embedded object — is `Nothing` and takes up the room it occupies, as before.
+            Err(PptxError::ShapeIsNotATable) => match read_chart(deck, surface, path)? {
+                Some(chart) => ShapeContent::Chart(Box::new(chart)),
+                None => ShapeContent::Nothing,
+            },
             Err(error) => return Err(error),
         },
         ShapeKind::Picture => ShapeContent::Picture(PictureContent {
@@ -494,6 +531,26 @@ fn read_shape(
         }
     }
     Ok(())
+}
+
+/// Reads the chart a graphic frame holds, or `None` when it holds none.
+///
+/// **Bytes in, model out.** `chart_part_bytes` is already public on `Presentation`, and
+/// `mjx-layout-chart` owns everything from the XML inwards — which is what lets Word's and Excel's
+/// box models read the same chart through the same code rather than through three closures.
+///
+/// A chart part this crate cannot parse is reported as *no chart* rather than as a failed slide: a
+/// malformed chart is one frame drawn empty, and refusing the whole slide over it would lose every
+/// other shape on it.
+fn read_chart(
+    deck: &mut Presentation,
+    surface: Surface,
+    path: &[usize],
+) -> Result<Option<ChartModel>, PptxError> {
+    let Some(bytes) = deck.chart_part_bytes(surface, path.to_vec())? else {
+        return Ok(None);
+    };
+    Ok(ChartModel::read(bytes).ok())
 }
 
 /// Reads a shape's text body, or `None` when it has none.

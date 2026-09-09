@@ -2,6 +2,55 @@
 # covers: the second page of a deck, reached through the first page's checkpoint
 # approver: generator
 # approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
-fragment-tree nodes=2 roots=1
+fragment-tree nodes=51 roots=1
 #0 box rect=[0,0,9144000,6858000] transform=TransformId(0) clip=none part=0 path=/1 chars=0..0 decoration=-1
   #1 box rect=[914400,914400,8229600,5486400] transform=TransformId(0) clip=none part=0 path=/1/0 chars=0..0 decoration=-1
+    #2 box rect=[1145540,977900,8166100,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/0 chars=0..0 decoration=-1
+      #3 shape rect=[1145540,5232400,8166100,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/1/0 chars=0..0 geometry=4294967296 decoration=4294967296
+      #4 shape rect=[1145540,4845627,8166100,4845627] transform=TransformId(0) clip=none part=0 path=/1/0/1/1 chars=0..0 geometry=4294967297 decoration=4294967296
+      #5 shape rect=[1145540,4458855,8166100,4458855] transform=TransformId(0) clip=none part=0 path=/1/0/1/2 chars=0..0 geometry=4294967298 decoration=4294967296
+      #6 shape rect=[1145540,4072082,8166100,4072082] transform=TransformId(0) clip=none part=0 path=/1/0/1/3 chars=0..0 geometry=4294967299 decoration=4294967296
+      #7 shape rect=[1145540,3685309,8166100,3685309] transform=TransformId(0) clip=none part=0 path=/1/0/1/4 chars=0..0 geometry=4294967300 decoration=4294967296
+      #8 shape rect=[1145540,3298536,8166100,3298536] transform=TransformId(0) clip=none part=0 path=/1/0/1/5 chars=0..0 geometry=4294967301 decoration=4294967296
+      #9 shape rect=[1145540,2911764,8166100,2911764] transform=TransformId(0) clip=none part=0 path=/1/0/1/6 chars=0..0 geometry=4294967302 decoration=4294967296
+      #10 shape rect=[1145540,2524991,8166100,2524991] transform=TransformId(0) clip=none part=0 path=/1/0/1/7 chars=0..0 geometry=4294967303 decoration=4294967296
+      #11 shape rect=[1145540,2138218,8166100,2138218] transform=TransformId(0) clip=none part=0 path=/1/0/1/8 chars=0..0 geometry=4294967304 decoration=4294967296
+      #12 shape rect=[1145540,1751445,8166100,1751445] transform=TransformId(0) clip=none part=0 path=/1/0/1/9 chars=0..0 geometry=4294967305 decoration=4294967296
+      #13 shape rect=[1145540,1364673,8166100,1364673] transform=TransformId(0) clip=none part=0 path=/1/0/1/10 chars=0..0 geometry=4294967306 decoration=4294967296
+      #14 shape rect=[1145540,977900,8166100,977900] transform=TransformId(0) clip=none part=0 path=/1/0/1/11 chars=0..0 geometry=4294967307 decoration=4294967296
+      #15 box rect=[1847596,1093932,7464044,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/3/0 chars=0..0 decoration=-1
+        #16 box rect=[1847596,1519382,2783671,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/3/0 chars=0..0 decoration=4294967297
+        #17 box rect=[4187783,1093932,5123857,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/3/0 chars=0..0 decoration=4294967297
+        #18 box rect=[6527969,2002848,7464044,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/3/0 chars=0..0 decoration=4294967297
+    #19 shape rect=[1145540,977900,1145540,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967308 decoration=-1
+    #20 shape rect=[1094740,5232400,1145540,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967309 decoration=-1
+    #21 box rect=[1029970,5156200,1094740,5308600] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #22 shape rect=[1094740,4845627,1145540,4845627] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967310 decoration=-1
+    #23 box rect=[1029970,4769427,1094740,4921827] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #24 shape rect=[1094740,4458855,1145540,4458855] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967311 decoration=-1
+    #25 box rect=[1029970,4382655,1094740,4535055] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #26 shape rect=[1094740,4072082,1145540,4072082] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967312 decoration=-1
+    #27 box rect=[1029970,3995882,1094740,4148282] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #28 shape rect=[1094740,3685309,1145540,3685309] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967313 decoration=-1
+    #29 box rect=[1029970,3609109,1094740,3761509] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #30 shape rect=[1094740,3298536,1145540,3298536] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967314 decoration=-1
+    #31 box rect=[965200,3222336,1094740,3374736] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #32 shape rect=[1094740,2911764,1145540,2911764] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967315 decoration=-1
+    #33 box rect=[965200,2835564,1094740,2987964] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #34 shape rect=[1094740,2524991,1145540,2524991] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967316 decoration=-1
+    #35 box rect=[965200,2448791,1094740,2601191] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #36 shape rect=[1094740,2138218,1145540,2138218] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967317 decoration=-1
+    #37 box rect=[965200,2062018,1094740,2214418] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #38 shape rect=[1094740,1751445,1145540,1751445] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967318 decoration=-1
+    #39 box rect=[965200,1675245,1094740,1827645] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #40 shape rect=[1094740,1364673,1145540,1364673] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967319 decoration=-1
+    #41 box rect=[965200,1288473,1094740,1440873] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #42 shape rect=[1094740,977900,1145540,977900] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 geometry=4294967320 decoration=-1
+    #43 box rect=[965200,901700,1094740,1054100] transform=TransformId(0) clip=none part=0 path=/1/0/2/0 chars=0..0 decoration=-1
+    #44 shape rect=[1145540,5232400,8166100,5232400] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 geometry=4294967321 decoration=-1
+    #45 shape rect=[2315633,5232400,2315633,5283200] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 geometry=4294967322 decoration=-1
+    #46 box rect=[2155613,5283200,2475653,5435600] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 decoration=-1
+    #47 shape rect=[4655820,5232400,4655820,5283200] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 geometry=4294967323 decoration=-1
+    #48 box rect=[4495800,5283200,4815840,5435600] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 decoration=-1
+    #49 shape rect=[6996007,5232400,6996007,5283200] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 geometry=4294967324 decoration=-1
+    #50 box rect=[6851862,5283200,7140152,5435600] transform=TransformId(0) clip=none part=0 path=/1/0/2/1 chars=0..0 decoration=-1

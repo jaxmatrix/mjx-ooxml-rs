@@ -173,6 +173,49 @@ enum Tier {
     /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
     /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
     Session,
+    /// `mjx-layout-chart` — rank 3.55 (MJXOFF-178). The chart engine, and the SmartArt one: axis
+    /// scaling and tick selection, the plot-area negotiation, the geometry of every chart family,
+    /// data labels, legends, gridlines, trendlines and error bars, and the fragments all of that
+    /// becomes.
+    ///
+    /// **This rank is the whole ticket.** A chart in a `.pptx`, a `.docx` and an `.xlsx` is the same
+    /// chart — the same `c:chartSpace` part, reached three ways — so laying it out three times would
+    /// be building the largest shared subsystem in the programme three times. The three box models
+    /// sit at 3.6 and an edge between any two of them is *sideways*, which this file refuses by name;
+    /// a chart engine at 3.6 would therefore be reachable from **none** of them. At 3.55 it is
+    /// reachable from **all three**, each edge pointing strictly down, and "built once" is a fact of
+    /// the graph rather than a promise in prose.
+    ///
+    /// **What the rank buys**, in the order the argument runs:
+    ///
+    /// * **The three box models may reach it and it may reach none of them** (3.6 -> 3.55 down,
+    ///   3.55 -> 3.6 up). MJXOFF-176 hit the other half of this and reported it: it was told to
+    ///   consume MJXOFF-170's DrawingML shape layout, which lives in `mjx-layout-pptx` at 3.6, and
+    ///   the edge was sideways. A chart engine that could name one box model would be a chart engine
+    ///   the other two could not have.
+    /// * **The format tier (3.0) cannot reach it**, so `mjx-pptx` cannot grow a chart engine any
+    ///   more than it can grow a slide one. Charts are the one subsystem where that temptation is
+    ///   real, because all three format crates already own a chart *surface*.
+    /// * **`mjx-chart` (2.2) cannot reach it**, so the markup model stays a markup model: a
+    ///   `c:chartSpace` says what the file says and never says where a bar goes.
+    /// * **`mjx-session` (3.5) cannot reach it**, for the reason [`Tier::Session`] gives about the
+    ///   box models: an editing path that could ask a layout engine what it drew would be a batch
+    ///   library with a renderer inside it.
+    /// * **`mjx-layout` (1.6) cannot reach it**, so the box-model *contract* does not acquire a
+    ///   chart-shaped bulge. Everything this crate produces is said in `mjx-layout`'s vocabulary and
+    ///   nothing about charts is added to it.
+    ///
+    /// **What it deliberately does not buy.** At 3.55 every format crate, every markup crate and
+    /// `mjx-geometry` (2.5) are legal *downward* edges and always will be, so *a chart engine reads
+    /// no package and resolves no outline* is held by
+    /// `crates/mjx-layout-chart/tests/the_seam_holds.rs` and by nothing here. That gate refuses
+    /// `mjx-pptx`, `mjx-docx`, `mjx-xlsx`, `mjx-geometry`, `mjx-scene` and all three box models in
+    /// **both** dependency sections — the format crates included, because a suite that opened a
+    /// `.pptx` to get at a chart part would be a suite proving the engine can do the one thing its
+    /// position exists to stop it doing. The engine is handed the chart part's **bytes**, which is
+    /// what makes the refusal affordable: `chart_part_bytes` is already public on all three format
+    /// surfaces, so no host needs a new accessor and no host parses a chart itself.
+    LayoutChart,
     /// `mjx-layout-pptx` — rank 3.6 (MJXOFF-169). PowerPoint's box model: the first implementation
     /// of `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into
     /// a `FragmentTree`.
@@ -441,13 +484,36 @@ enum Tier {
     Tooling,
 }
 
-/// A tier's position in the ladder, as `major.minor`. Ordered, and compared strictly.
+/// A tier's position in the ladder, as a major number and a **fraction in hundredths**. Ordered, and
+/// compared strictly.
+///
+/// # Why the fraction is hundredths and not tenths, which is a defect this file used to have
+///
+/// It held `major` and a bare `minor`, written `Rank(3, 6)` for 3.6, with a derived `Ord` comparing
+/// the pair. That is correct for exactly as long as every fraction has one digit, and MJXOFF-178 is
+/// the first rank with two: `mjx-layout-chart` sits at **3.55**, below the three box models at 3.6,
+/// and `Rank(3, 55)` compares **greater** than `Rank(3, 6)` because 55 is greater than 6. The gate
+/// went red naming `mjx-layout-pptx -> mjx-layout-chart` as *upward*, which is this file working —
+/// but a two-digit fraction was always going to arrive eventually, and the next one would have
+/// arrived the same way.
+///
+/// So the fraction is stated in hundredths at every call site: `Rank(3, 50)` is 3.5, `Rank(3, 55)`
+/// is 3.55 and `Rank(3, 60)` is 3.6, and the three now order the way a reader reads them.
+/// [`Display`](fmt::Display) trims the trailing zero, so a failure message still says `3.6` rather
+/// than `3.60` — the numbers in `CLAUDE.md`'s table are unchanged, and this is a change to how they
+/// are stored rather than to what they are.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Rank(u8, u8);
 
 impl fmt::Display for Rank {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.0, self.1)
+        // 50 -> "5", 55 -> "55", 0 -> "0". A hundredths fraction whose second digit is zero is a
+        // tenths fraction, and that is how every rank but one is written.
+        match self.1 {
+            0 => write!(f, "{}.0", self.0),
+            hundredths if hundredths % 10 == 0 => write!(f, "{}.{}", self.0, hundredths / 10),
+            hundredths => write!(f, "{}.{hundredths}", self.0),
+        }
     }
 }
 
@@ -457,27 +523,28 @@ impl Tier {
     fn rank(self) -> Option<Rank> {
         Some(match self {
             Self::FoundationsCore => Rank(0, 0),
-            Self::FoundationsXml => Rank(0, 1),
-            Self::FoundationsTokens => Rank(0, 2),
+            Self::FoundationsXml => Rank(0, 10),
+            Self::FoundationsTokens => Rank(0, 20),
             Self::Packaging => Rank(1, 0),
-            Self::Typography => Rank(1, 5),
-            Self::BoxModel => Rank(1, 6),
-            Self::DisplayList => Rank(1, 7),
+            Self::Typography => Rank(1, 50),
+            Self::BoxModel => Rank(1, 60),
+            Self::DisplayList => Rank(1, 70),
             Self::SharedMarkupBase => Rank(2, 0),
-            Self::SharedMarkupSpreadsheet => Rank(2, 1),
-            Self::SharedMarkupUpper => Rank(2, 2),
-            Self::PresetGeometry => Rank(2, 5),
+            Self::SharedMarkupSpreadsheet => Rank(2, 10),
+            Self::SharedMarkupUpper => Rank(2, 20),
+            Self::PresetGeometry => Rank(2, 50),
             Self::Formats => Rank(3, 0),
-            Self::Session => Rank(3, 5),
-            Self::LayoutPresentation => Rank(3, 6),
-            Self::LayoutSpreadsheet => Rank(3, 6),
-            Self::LayoutDocument => Rank(3, 6),
-            Self::ScenePresentation => Rank(3, 7),
-            Self::SceneSpreadsheet => Rank(3, 7),
-            Self::Viewport => Rank(3, 8),
+            Self::Session => Rank(3, 50),
+            Self::LayoutChart => Rank(3, 55),
+            Self::LayoutPresentation => Rank(3, 60),
+            Self::LayoutSpreadsheet => Rank(3, 60),
+            Self::LayoutDocument => Rank(3, 60),
+            Self::ScenePresentation => Rank(3, 70),
+            Self::SceneSpreadsheet => Rank(3, 70),
+            Self::Viewport => Rank(3, 80),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
-            Self::PlatformBoundary => Rank(5, 5),
+            Self::PlatformBoundary => Rank(5, 50),
             Self::TestCorpus
             | Self::TestGate
             | Self::TestInstrument
@@ -504,6 +571,7 @@ impl Tier {
             Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
             Self::Session => "the resident document",
+            Self::LayoutChart => "the chart engine",
             Self::LayoutPresentation => "PowerPoint's box model",
             Self::LayoutSpreadsheet => "Excel's box model",
             Self::LayoutDocument => "Word's box model",
@@ -556,6 +624,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
     ("mjx-session", Tier::Session),
+    ("mjx-layout-chart", Tier::LayoutChart),
     ("mjx-layout-pptx", Tier::LayoutPresentation),
     ("mjx-layout-xlsx", Tier::LayoutSpreadsheet),
     ("mjx-layout-docx", Tier::LayoutDocument),
@@ -854,6 +923,61 @@ fn nothing_depends_on_a_binding_or_on_the_tooling() {
                 target_tier.describe(),
             );
         }
+    }
+}
+
+/// The rank arithmetic itself, because a rank that sorts wrongly makes every other test in this
+/// file assert the wrong thing (MJXOFF-178).
+///
+/// This is the assertion the old `Rank` would have failed: it compared its fraction as an integer,
+/// so 3.55 sorted *above* 3.6 and the chart engine's edge from a box model read as upward. The
+/// failure was loud, but it was loud only because a crate happened to be added at a two-digit rank —
+/// the arithmetic had been wrong for as long as the type had existed and nothing checked it.
+#[test]
+fn a_two_digit_fraction_sorts_and_prints_the_way_a_reader_reads_it() {
+    assert!(
+        Rank(3, 55) < Rank(3, 60),
+        "3.55 is below 3.6, which is the whole reason `mjx-layout-chart` can be reached by all \
+         three box models"
+    );
+    assert!(Rank(3, 50) < Rank(3, 55));
+    assert!(Rank(3, 60) < Rank(3, 70));
+    assert!(Rank(2, 50) < Rank(3, 0));
+
+    // And a message says the number the table says.
+    assert_eq!(Rank(3, 55).to_string(), "3.55");
+    assert_eq!(Rank(3, 60).to_string(), "3.6");
+    assert_eq!(Rank(3, 50).to_string(), "3.5");
+    assert_eq!(Rank(0, 10).to_string(), "0.1");
+    assert_eq!(Rank(3, 0).to_string(), "3.0");
+}
+
+/// **All three box models really do reach the chart engine** (MJXOFF-178).
+///
+/// Every other assertion in this file is a *refusal*: it says which edges may not exist. This one
+/// says which edges must, and it is here because R23's premise cannot be checked any other way from
+/// the graph.
+///
+/// The engine's rank at 3.55 makes it *possible* for all three box models to reach it and impossible
+/// for it to reach them, which is what makes "a chart is laid out once" structurally available. It
+/// does not make it *true*: a box model that quietly stopped declaring the edge and grew a chart
+/// implementation of its own would satisfy every rank rule in this file and every refusal in
+/// `crates/mjx-layout-chart/tests/the_seam_holds.rs`. The behavioural half is
+/// `xtask/tests/one_engine_three_formats.rs`, which compares what the three actually draw; this is
+/// the structural half, and it fails first and with a shorter message.
+#[test]
+fn all_three_box_models_reach_the_one_chart_engine() {
+    let members = workspace();
+    for consumer in ["mjx-layout-pptx", "mjx-layout-docx", "mjx-layout-xlsx"] {
+        let member = members
+            .iter()
+            .find(|member| member.name == consumer)
+            .unwrap_or_else(|| panic!("`{consumer}` is a workspace member"));
+        assert!(
+            member.edges.iter().any(|(target, kind)| target == "mjx-layout-chart"
+                && *kind == Kind::Normal),
+            "`{consumer}` does not declare `mjx-layout-chart` in `[dependencies]`. A chart in a              `.pptx`, a chart in a `.docx` and a chart on an `.xlsx` sheet are the same chart, and              a box model that stopped reaching the one engine would be a box model that had grown              a second one."
+        );
     }
 }
 

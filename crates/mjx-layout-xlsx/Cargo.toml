@@ -22,6 +22,10 @@ mjx-text.workspace = true
 # Rank 1.6. The contract this crate implements: `BoxModel`, `FragmentTree`, `Checkpoint`,
 # `SourceRef`. The seam above which nothing has heard of OOXML.
 mjx-layout.workspace = true
+# The chart engine — rank 3.55, one step below this crate (MJXOFF-178). A chart on a worksheet, a
+# chart in a slide and a chart in a Word document are the same chart, so it is laid out once; this
+# edge points down and the reverse one is refused by rank.
+mjx-layout-chart.workspace = true
 # Rank 1.0. `HorizontalAlignment`, `VerticalAlignment`, `TextRotation`, `BorderStyle`, `PatternType`,
 # `Pane`, `PaneState`, `CellType` — SpreadsheetML's own vocabulary for how a cell sits in its box.
 mjx-ooxml-types.workspace = true

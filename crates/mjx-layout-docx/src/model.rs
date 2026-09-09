@@ -139,6 +139,15 @@ pub struct DocumentFlow {
     sequences: SequenceValues,
     fields: FieldEnvironment,
     view: RevisionView,
+    /// The charts the body's drawings frame, by the `wp:docPr@id` each drawing carries
+    /// (MJXOFF-178).
+    ///
+    /// Read once with the rest of the document, for the reason every other eager read here has: a
+    /// chart part is not reachable from a `DocumentFormatting`, and reading it per page would parse
+    /// it per page.
+    charts: Vec<(u32, mjx_layout_chart::ChartModel)>,
+    /// The document theme's six accents, or the Office defaults when it states none.
+    palette: mjx_layout_chart::ChartPalette,
 }
 
 impl DocumentFlow {
@@ -148,7 +157,50 @@ impl DocumentFlow {
     /// [`DocumentLayoutError::Document`] when a part cannot be read or a style chain does not
     /// terminate.
     pub fn read(document: &mut Document) -> Result<Self, DocumentLayoutError> {
-        Ok(Self::from_formatting(document.formatting()?))
+        let palette = document.theme_accent_colors()?.map_or(
+            mjx_layout_chart::ChartPalette::OFFICE,
+            mjx_layout_chart::ChartPalette::from_accents,
+        );
+        let charts = read_charts(document)?;
+        Ok(Self::from_formatting(document.formatting()?)
+            .with_charts(charts)
+            .with_palette(palette))
+    }
+
+    /// The same flow holding the charts its drawings frame, by `wp:docPr@id`.
+    ///
+    /// [`DocumentFlow::read`] fills this in; a suite that built a `DocumentFormatting` in memory has
+    /// no package to reach a chart part through and gets none, which lays a chart's drawing out as
+    /// an empty box exactly as it did before MJXOFF-178.
+    #[must_use]
+    pub fn with_charts(mut self, charts: Vec<(u32, mjx_layout_chart::ChartModel)>) -> Self {
+        self.charts = charts;
+        self
+    }
+
+    /// The same flow handing charts the six accents `palette` names.
+    ///
+    /// **The document's own theme.** A chart whose series state no `c:spPr` — which is what Word
+    /// writes — takes `accent1 … accent6` from here.
+    #[must_use]
+    pub fn with_palette(mut self, palette: mjx_layout_chart::ChartPalette) -> Self {
+        self.palette = palette;
+        self
+    }
+
+    /// The chart the drawing whose `wp:docPr@id` is `id` frames, or `None` when it frames none.
+    #[must_use]
+    pub fn chart(&self, id: u32) -> Option<&mjx_layout_chart::ChartModel> {
+        self.charts
+            .iter()
+            .find(|(known, _)| *known == id)
+            .map(|(_, chart)| chart)
+    }
+
+    /// The palette a chart in this document draws its unstated series colours from.
+    #[must_use]
+    pub fn palette(&self) -> &mjx_layout_chart::ChartPalette {
+        &self.palette
     }
 
     /// The same from a [`DocumentFormatting`] a caller already holds.
@@ -171,6 +223,8 @@ impl DocumentFlow {
             sequences,
             fields: FieldEnvironment::cached_results(),
             view: RevisionView::default(),
+            charts: Vec::new(),
+            palette: mjx_layout_chart::ChartPalette::OFFICE,
         }
     }
 
@@ -2336,19 +2390,84 @@ impl DocumentBoxModel {
                         band.left + float.left + float.width,
                         column_top + float.top + float.height,
                     );
-                    builder.push_simple(
+                    let address = address::paragraph(float.paragraph);
+                    let node = builder.push_simple(
                         page,
-                        address::paragraph(float.paragraph),
+                        address.clone(),
                         rect,
                         Fragment::Box(BoxFragment {
                             decoration: catalogue.intern(ParagraphDecoration::default()),
                             cell: None,
                         }),
                     );
+                    // A chart's interior. The float's frame is this crate's; everything inside it is
+                    // `mjx-layout-chart`'s, reached through one call that PowerPoint's and Excel's
+                    // box models make identically — which is what MJXOFF-178's rank 3.55 buys.
+                    //
+                    // The frame is resolved before this, by `float::place`, against the page's own
+                    // body height — so a chart cannot change a float's rectangle and MJXOFF-175's
+                    // two-assembly bound is untouched. A chart is laid out *inside* a frame it is
+                    // given and never returns a height.
+                    if let Some(node) = node {
+                        self.emit_chart_interior(
+                            builder,
+                            catalogue,
+                            content,
+                            node,
+                            &address,
+                            rect,
+                            float.paragraph,
+                            float.drawing,
+                        );
+                    }
                 }
             }
         }
         Ok(())
+    }
+
+    /// Lays a chart out inside a drawing's frame, when that drawing frames one.
+    ///
+    /// `None` for every drawing that is not a chart, which is most of them: a picture is an image
+    /// and a shape is a shape, and neither is this engine's.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_chart_interior(
+        &mut self,
+        builder: &mut FragmentTreeBuilder,
+        catalogue: &mut DecorationCatalogue,
+        content: &DocumentFlow,
+        node: mjx_layout::FragmentId,
+        address: &mjx_layout::SourceRef,
+        rect: LayoutRect,
+        paragraph: usize,
+        drawing: usize,
+    ) {
+        let Some(formatting) = content
+            .paragraphs()
+            .get(paragraph)
+            .and_then(|paragraph| paragraph.drawings().get(drawing))
+        else {
+            return;
+        };
+        if !formatting.frames_a_chart {
+            return;
+        }
+        let Some(chart) = formatting.id.and_then(|id| content.chart(id)) else {
+            return;
+        };
+        let geometry = mjx_layout_chart::lay_out(
+            chart,
+            rect,
+            content.palette(),
+            &mut mjx_layout_chart::NominalMetrics,
+        );
+        mjx_layout_chart::emit_into(
+            &geometry,
+            builder,
+            node,
+            &mjx_layout_chart::ChartAddress::new(address.clone()),
+            catalogue.chart_resources(),
+        );
     }
 
     /// One table, or the slices of it that landed on this page.
@@ -3222,3 +3341,27 @@ const SEPARATOR_CONTAINER: usize = usize::MAX;
 /// furniture nobody reads. The bound is what stops a document from turning one tab into a page of
 /// glyphs; it is generous enough that no ordinary table of contents reaches it.
 pub const MAXIMUM_LEADER_GLYPHS: usize = 4096;
+
+/// Reads every chart the body's drawings frame, by `wp:docPr@id`.
+///
+/// **Bytes in, model out.** `Document::chart_part_bytes` is already public, and `mjx-layout-chart`
+/// owns everything from the XML inwards — which is what lets PowerPoint's and Excel's box models
+/// read the same chart through the same code rather than through three closures.
+///
+/// A chart part that will not parse is *skipped* rather than failing the document: a malformed chart
+/// is one drawing drawn empty, and refusing the whole document over it would lose every paragraph.
+fn read_charts(
+    document: &mut Document,
+) -> Result<Vec<(u32, mjx_layout_chart::ChartModel)>, DocumentLayoutError> {
+    let ids = document.chart_drawing_ids()?;
+    let mut charts = Vec::with_capacity(ids.len());
+    for id in ids {
+        let Some(bytes) = document.chart_part_bytes(id)? else {
+            continue;
+        };
+        if let Ok(model) = mjx_layout_chart::ChartModel::read(bytes) {
+            charts.push((id, model));
+        }
+    }
+    Ok(charts)
+}

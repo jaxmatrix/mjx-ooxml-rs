@@ -66,6 +66,12 @@ const SOURCE_FILE_COUNT: usize = 26;
 const PERMITTED_DEPENDENCIES: &[&str] = &[
     "mjx-docx",
     "mjx-layout",
+    // The chart engine at rank 3.55 (MJXOFF-178), which is *below* this crate and therefore a legal
+    // downward edge. It is not a hole in the seam this file holds — including the `mjx-dml` refusal
+    // below: `mjx-layout-chart` reaches DrawingML for the paint vocabulary, and this crate names
+    // neither the crate nor the identifier. What it buys is that a chart in a Word document, a chart
+    // in a slide and a chart on a worksheet are one implementation reached three ways.
+    "mjx-layout-chart",
     "mjx-ooxml-core",
     "mjx-ooxml-types",
     "mjx-text",

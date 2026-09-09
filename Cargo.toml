@@ -60,6 +60,13 @@ members = [
     # it. Everything in it outside `src/ooxml/` is generic over `ResidentDocument` and names no
     # format crate at all, so the box-model seam survives editing.
     "crates/mjx-session",
+    # The chart engine — rank 3.55 (MJXOFF-178), one step **below** the three box models. A chart in
+    # a `.pptx`, a `.docx` and an `.xlsx` is the same chart, so it is laid out once; the rank is what
+    # makes that structural rather than intended. The three box models sit at 3.6, so an edge from
+    # any of them to this crate points down and an edge from this crate to any of them is refused.
+    # It is above the format tier so `mjx-pptx` cannot grow a chart engine, and above `mjx-session`
+    # so nothing in the editing path can reach one.
+    "crates/mjx-layout-chart",
     # PowerPoint's box model — rank 3.6 (MJXOFF-169). The first implementation of
     # `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into a
     # `FragmentTree`: slide geometry, the shape tree in z-order, text-body layout, bullets and
@@ -177,7 +184,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.153"
+version = "0.0.154"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -312,6 +319,7 @@ mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
 mjx-session = { path = "crates/mjx-session" }
+mjx-layout-chart = { path = "crates/mjx-layout-chart" }
 mjx-layout-pptx = { path = "crates/mjx-layout-pptx" }
 mjx-layout-xlsx = { path = "crates/mjx-layout-xlsx" }
 mjx-layout-docx = { path = "crates/mjx-layout-docx" }
