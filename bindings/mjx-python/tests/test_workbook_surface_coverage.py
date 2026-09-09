@@ -725,10 +725,24 @@ def test_each_apply_flag_is_three_valued_and_independent(
 def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None:
     """The two theme-following constructors, and what makes them worth having.
 
-    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot; they
-    must agree, so this asserts the pair rather than the number, and it asserts a slot whose position
-    is *not* its ordinal in the enumeration (`Accent1` is `4`, not `0`) — a mapping that had drifted
-    by one would pass on `Dark1` alone.
+    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot. What
+    this asserts is the *property* the projection has to have, never the table itself. SpreadsheetML's
+    `@theme` mapping is decided in exactly one place — `mjx_sml::styles::theme_color_position` — and a
+    literal position here would be a second copy of that decision sitting where nothing checks it.
+    MJXOFF-246 is what taught that: a writer and a resolver each stating the mapping in their own
+    words drifted apart, and the library read the default font colour of every workbook it authored
+    as white.
+
+    Two properties, and between them they catch every way this can go wrong:
+
+    * the twelve slots occupy the twelve positions **exactly once each** — a bijection, so a drift, a
+      collision or an out-of-range position all fail;
+    * `Dark1`'s position is **not** its ordinal in the enumeration. That is the sharp one. The two
+      dark/light pairs are swapped against the sequence order §20.1.6.2 prints for `clrScheme`'s
+      children (MJXOFF-246, derived from ECMA's own preset styles in
+      `crates/mjx-sml/tests/theme_index.rs`), so a binding that projected the *ordinal* instead of
+      calling `theme_color_position` — much the likeliest way to get this wrong — would satisfy the
+      bijection and every slot from `Accent1` on, and fail only here.
 
     The comparison is field by field rather than `==`: `Color` is a frozen value class with no
     `__eq__`, so `==` on two of them is identity and would be false for two colours that say exactly
@@ -741,19 +755,47 @@ def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None
     def stated(color: Color) -> tuple[int | None, float | None, str | None]:
         return (color.theme, color.tint, color.rgb)
 
-    assert stated(Color.from_theme_slot(ColorSchemeSlot.Accent1)) == stated(Color.from_theme(4))
-    assert stated(Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25)) == stated(
-        Color.from_theme(0, -0.25)
+    slots = [
+        ColorSchemeSlot.Dark1,
+        ColorSchemeSlot.Light1,
+        ColorSchemeSlot.Dark2,
+        ColorSchemeSlot.Light2,
+        ColorSchemeSlot.Accent1,
+        ColorSchemeSlot.Accent2,
+        ColorSchemeSlot.Accent3,
+        ColorSchemeSlot.Accent4,
+        ColorSchemeSlot.Accent5,
+        ColorSchemeSlot.Accent6,
+        ColorSchemeSlot.Hyperlink,
+        ColorSchemeSlot.FollowedHyperlink,
+    ]
+    # `Color.theme` is `int | None`, and narrowing it here rather than at the point of use is itself
+    # a claim worth making: a theme-following colour that stated *no* position would be a colour
+    # pinning nothing at all, which is the one thing these constructors exist to avoid.
+    position: dict[int, int] = {}
+    for slot in slots:
+        stated_position = Color.from_theme_slot(slot).theme
+        assert stated_position is not None, "a theme-following colour states a position"
+        position[int(slot)] = stated_position
+
+    assert sorted(position.values()) == list(range(12)), (
+        "the twelve slots must occupy the twelve positions exactly once each"
     )
-    assert stated(Color.from_theme_slot(ColorSchemeSlot.FollowedHyperlink)) == stated(
-        Color.from_theme(11)
+    assert position[int(ColorSchemeSlot.Dark1)] != int(ColorSchemeSlot.Dark1), (
+        "`Dark1`'s position is not its ordinal — see MJXOFF-246"
+    )
+
+    # `from_theme_slot` and `from_theme` are the same colour said two ways, and a tint moves neither
+    # of them off the position.
+    assert stated(Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25)) == stated(
+        Color.from_theme(position[int(ColorSchemeSlot.Dark1)], -0.25)
     )
     assert Color.from_theme_slot(ColorSchemeSlot.Accent1).tint is None
 
     fill = PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent2, 0.4)
     foreground = fill.foreground
     assert foreground is not None
-    assert foreground.theme == 5
+    assert foreground.theme == position[int(ColorSchemeSlot.Accent2)]
     assert foreground.tint == pytest.approx(0.4)
     assert foreground.rgb is None, "a theme-following fill pins no literal"
     # …and nothing but the colour differs from the hex-taking sibling.

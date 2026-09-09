@@ -40,6 +40,7 @@
 //! each of the six explicitly and every later append maintains it.
 
 use mjx_ooxml_core::{Interner, RawDocument, ToXml};
+use mjx_ooxml_types::drawingml::ColorSchemeSlot;
 use mjx_ooxml_types::namespaces::SML;
 use mjx_ooxml_types::spreadsheetml::{FontScheme, PatternType};
 
@@ -253,17 +254,25 @@ impl AuthoredStylesheet {
     fn install_skeleton(&mut self) -> Result<(), SmlError> {
         // Font 0 is what every cell that names no font of its own draws with, so it is the one
         // font in the file that must *follow* the document's theme rather than pin a typeface on
-        // top of it. `<color theme="1"/>` is the theme's first text colour and
-        // `<scheme val="minor"/>` says "the theme's body font", which is what makes re-theming a
-        // workbook in Excel change the default text — exactly what Excel's own font 0 says. The
-        // literal `Calibri`/`family` stay beside them as the fallback a consumer with no theme
-        // support uses, which is also what Excel writes. `mjx_sml::write::package` puts the theme
-        // these two resolve against in every package this crate authors (MJXOFF-200).
+        // top of it. The colour is the theme's first **text** slot and `<scheme val="minor"/>` says
+        // "the theme's body font", which is what makes re-theming a workbook in Excel change the
+        // default text — exactly what Excel's own font 0 says. The literal `Calibri`/`family` stay
+        // beside them as the fallback a consumer with no theme support uses, which is also what
+        // Excel writes. `mjx_sml::write::package` puts the theme these two resolve against in every
+        // package this crate authors (MJXOFF-200).
+        //
+        // The slot is *named*, not numbered. Until MJXOFF-246 this said `Color::from_theme(1, None)`
+        // with a comment asserting that `1` meant the first text colour, while `theme_color_slot`
+        // read that same `1` as the theme's background — so every workbook this crate authored had a
+        // default font colour it then resolved as white, and nothing could see the contradiction
+        // because both slots exist in every theme. Going through `theme_color_position` is what
+        // makes a repeat impossible rather than merely unlikely: there is one table now, and this
+        // call reads out of it.
         self.append_font(&FontProperties {
             font_name: Some("Calibri".to_owned()),
             family: Some(2),
             size_in_points: Some(11.0),
-            color: Some(Color::from_theme(1, None)),
+            color: Some(Color::from_theme_slot(ColorSchemeSlot::Dark1, None)),
             scheme: Some(FontScheme::Minor),
             ..FontProperties::default()
         })?;

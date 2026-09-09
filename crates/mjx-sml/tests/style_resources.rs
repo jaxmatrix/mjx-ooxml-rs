@@ -850,7 +850,13 @@ fn the_declared_count_moves_with_an_append_and_is_not_invented() {
 /// against `resolve_color`, never against a hard-coded hex.
 ///
 /// SpreadsheetML addresses a theme colour by *position*; DrawingML addresses it by *token*. The two
-/// must land on one colour, and ECMA-376 Part 1 §20.1.6.2's index table is what maps between them.
+/// must land on one colour, and `mjx_sml::styles::theme_color_slot` is what maps between them.
+///
+/// The table below is a **second statement** of that mapping, and deliberately a literal one: it
+/// holds on every machine, where `crates/mjx-sml/tests/theme_index.rs` — which re-derives the same
+/// table from ECMA's own preset styles, and is what establishes it — skips without `References/`.
+/// The two dark/light pairs are swapped against §20.1.6.2's *Sequence Index* table; MJXOFF-246 and
+/// the module documentation of `mjx_sml::styles::palette` say why.
 #[test]
 fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
     let (theme_document, scheme) = scheme_of("style_resources.xlsx");
@@ -860,10 +866,10 @@ fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
     let palette = IndexedColorPalette::default_palette();
 
     for (position, slot) in [
-        (0, ColorSchemeSlot::Dark1),
-        (1, ColorSchemeSlot::Light1),
-        (2, ColorSchemeSlot::Dark2),
-        (3, ColorSchemeSlot::Light2),
+        (0, ColorSchemeSlot::Light1),
+        (1, ColorSchemeSlot::Dark1),
+        (2, ColorSchemeSlot::Light2),
+        (3, ColorSchemeSlot::Dark2),
         (4, ColorSchemeSlot::Accent1),
         (9, ColorSchemeSlot::Accent6),
         (10, ColorSchemeSlot::Hyperlink),
@@ -883,7 +889,7 @@ fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
         assert_eq!(
             through_spreadsheetml.to_hex(),
             through_drawingml.to_hex(),
-            "theme=\"{position}\" is {slot:?} per Part 1 §20.1.6.2, and the two must agree"
+            "theme=\"{position}\" is {slot:?} (MJXOFF-246), and the two must agree"
         );
     }
 
