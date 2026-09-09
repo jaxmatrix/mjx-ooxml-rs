@@ -26,6 +26,7 @@
 //! two cost.
 
 use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read, Write};
 use std::mem;
 use std::sync::Arc;
@@ -184,6 +185,9 @@ pub struct Package {
     entries: Vec<ZipEntry>,
     content_types: ContentTypes,
     relationships: Vec<RelationshipsPart>,
+    /// The relationship ids this library has removed from a part's `.rels`, per source part
+    /// (MJXOFF-238). See [`unwired_relationships`](Self::unwired_relationships).
+    unwired: BTreeMap<PartName, BTreeSet<String>>,
 }
 
 impl Package {
@@ -234,6 +238,7 @@ impl Package {
             entries,
             content_types,
             relationships,
+            unwired: BTreeMap::new(),
         })
     }
 
@@ -278,6 +283,7 @@ impl Package {
                 source: None,
                 relationships: Relationships::default(),
             }],
+            unwired: BTreeMap::new(),
         }
     }
 
@@ -415,16 +421,29 @@ impl Package {
     /// Yields each part's name alongside its entry, in container order.
     pub fn authored_xml_parts(&self) -> impl Iterator<Item = (PartName, &ZipEntry)> + '_ {
         self.entries.iter().filter_map(move |entry| {
-            if entry.provenance() != PartProvenance::Authored || is_control_part(&entry.name) {
+            if entry.provenance() != PartProvenance::Authored {
                 return None;
             }
             let part = PartName::from_zip_name(&entry.name).ok()?;
-            let content_type = self.content_types.content_type_of(&part)?;
-            if !is_xml_content_type(content_type) {
-                return None;
-            }
-            Some((part, entry))
+            self.is_checkable_xml_part(&entry.name, &part)
+                .then_some((part, entry))
         })
+    }
+
+    /// The two filters [`authored_xml_parts`](Self::authored_xml_parts) applies besides provenance:
+    /// the entry is not a control part, and its content type names XML.
+    ///
+    /// Factored out rather than repeated because `validate`'s markup-reference check has a **second**
+    /// scope since MJXOFF-238 — a part whose `.rels` this library edited — which is defined by the
+    /// same two filters and a different provenance rule. Two spellings of "a part whose markup can be
+    /// walked" would be two things to keep in step, and `XML_CONTENT_TYPES_WITHOUT_SUFFIX` has
+    /// already cost this project one silently-empty scope.
+    pub(crate) fn is_checkable_xml_part(&self, entry_name: &str, part: &PartName) -> bool {
+        !is_control_part(entry_name)
+            && self
+                .content_types
+                .content_type_of(part)
+                .is_some_and(is_xml_content_type)
     }
 
     /// The names of all addressable parts — every ZIP entry except the special
@@ -777,7 +796,46 @@ impl Package {
         {
             part.relationships.remove_by_id(id);
         }
+        // Remembered so that `validate` can see the one fault this call can create in markup it did
+        // not write: a part whose body names the relationship that has just gone. Editing a `.rels`
+        // does not make its owning part `Authored`, so nothing else would look (MJXOFF-238). The
+        // package root is skipped because it has no markup — `_rels/.rels` names its targets in the
+        // `.rels` itself, and `check_relationships` already covers those.
+        if let Some(source) = source {
+            self.unwired
+                .entry(source.clone())
+                .or_default()
+                .insert(id.to_owned());
+        }
         Ok(true)
+    }
+
+    /// The relationship ids this library has removed from each part's `.rels` since the package was
+    /// opened — the extra reach [`validate`](Self::validate)'s markup-reference check has beyond the
+    /// parts this library authored (MJXOFF-238).
+    ///
+    /// # Why this is recorded rather than derived
+    ///
+    /// `validate` checks relationship references over
+    /// [`authored_xml_parts`](Self::authored_xml_parts), and that scope is right: a part still
+    /// holding its container bytes is re-emitted verbatim, so faulting it for markup it arrived with
+    /// would mean refusing to write back a file we were given. But the scope answers *"was this
+    /// markup ours?"* and not *"did our edit break this markup?"*, and the two come apart for one
+    /// shape — [`remove_relationship`](Self::remove_relationship) on a part whose body is never
+    /// touched. `check_relationships` sees nothing (there is no relationship left, so no missing
+    /// target) and the markup check skips the part, so the body goes on naming a relationship
+    /// nothing declares and [`save`](Self::save) writes it out.
+    ///
+    /// Widening the scope to *the whole part* would close that hole and open a worse one: a part
+    /// that arrived with a dangling reference of its own would start failing the save, so removing
+    /// a relationship a slide never names would stop a deck saving over a fault somewhere else in
+    /// it. This is the smallest record that closes the hole and only the hole — **only the ids this
+    /// library removed are looked for**, so what the file arrived with stays out of our checks.
+    ///
+    /// The `.rels` of a part that is itself removed is removed with it, and its record goes too.
+    #[must_use]
+    pub fn unwired_relationships(&self) -> &BTreeMap<PartName, BTreeSet<String>> {
+        &self.unwired
     }
 
     /// Every relationship in the package that points outside it (`TargetMode::External`), with the
@@ -963,6 +1021,8 @@ impl Package {
         }
         self.relationships
             .retain(|r| r.source.as_ref() != Some(part));
+        // The part's `.rels` went with it, so there is no markup left to have broken.
+        self.unwired.remove(part);
         Ok(())
     }
 

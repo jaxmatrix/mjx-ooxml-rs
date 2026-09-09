@@ -184,6 +184,27 @@ pub enum XlsxError {
     #[error("the bytes match no image format this build recognises")]
     UnrecognizedImageFormat,
 
+    /// A caller aimed an edit only a worksheet can carry at a tab that is not one (MJXOFF-241).
+    ///
+    /// **The tab's part is present.** This is not [`MissingWorkbookPart`](Self::MissingWorkbookPart),
+    /// which it was reported as until MJXOFF-241 — a message that sent the reader looking for a
+    /// broken package when the package is fine. A chartsheet (ECMA-376 Part 1 §12.3.2) is one chart
+    /// occupying a whole tab and a dialogsheet (§12.3.7) is a legacy Excel 5.0 dialog; neither has a
+    /// cell to address, so a cell value, a merge, a hyperlink, a table, a drawing or a comment has
+    /// nowhere to go on one.
+    ///
+    /// `kind` is what the tab is instead, read from the content type of the part its `r:id` reaches.
+    /// [`Some(SheetKind::Worksheet)`](crate::SheetKind::Worksheet) is not a contradiction: it says
+    /// the content type claims a worksheet while the part's root element is not `x:worksheet`, which
+    /// is a file this library will not guess at either.
+    #[error("sheet {index} {}, and only a worksheet can carry this edit", not_a_worksheet_phrase(*.kind))]
+    SheetIsNotAWorksheet {
+        /// The tab that was asked for.
+        index: usize,
+        /// What the tab is instead, or `None` when its part is of no sheet content type at all.
+        kind: Option<crate::SheetKind>,
+    },
+
     /// A part reached as a legacy VML drawing whose content type says it is not one (MJXOFF-114).
     ///
     /// Refused rather than parsed: a `v:shape` model over a worksheet would answer plausible
@@ -191,6 +212,23 @@ pub enum XlsxError {
     /// same type that reads a `w:pict` inside a Word body.
     #[error("{0} is not a legacy VML drawing part")]
     PartIsNotVmlDrawing(String),
+}
+
+/// How [`XlsxError::SheetIsNotAWorksheet`] says what a tab is instead.
+///
+/// A predicate rather than a noun, so that the three shapes read as one English sentence: the two
+/// sheet kinds that simply are not worksheets, and the two ways a tab can fail to reach worksheet
+/// markup at all. Every phrase is true of the tab it describes — none of them says a part is
+/// missing, which is the whole point of MJXOFF-241.
+fn not_a_worksheet_phrase(kind: Option<crate::SheetKind>) -> &'static str {
+    match kind {
+        Some(crate::SheetKind::Chartsheet) => "is a chartsheet",
+        Some(crate::SheetKind::Dialogsheet) => "is a dialogsheet",
+        Some(crate::SheetKind::Worksheet) => {
+            "is typed as a worksheet, but its part's root element is not x:worksheet"
+        }
+        None => "reaches a part of no sheet content type",
+    }
 }
 
 impl From<mjx_ooxml_core::AttributeError> for XlsxError {

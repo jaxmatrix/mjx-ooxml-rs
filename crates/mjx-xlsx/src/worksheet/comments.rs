@@ -531,8 +531,9 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
-    /// reaches no worksheet part — which is also what a tab that is not a worksheet is reported as
-    /// — or [`XlsxError`] if a part is malformed or the package refuses an edit.
+    /// reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if it is a chartsheet or a dialogsheet
+    /// — the tab's part is there and it simply cannot carry a comment (MJXOFF-241) — or
+    /// [`XlsxError`] if a part is malformed or the package refuses an edit.
     pub fn add_comment(
         &mut self,
         index: usize,
@@ -552,11 +553,13 @@ impl Workbook {
         // `tests/fixtures/print_and_sheet_kinds.xlsx` was turned away, so a caller who handled the
         // error and saved anyway shipped a comments part for a comment that does not exist
         // (MJXOFF-213).
-        if matches!(
-            self.sheets().get(index).and_then(|sheet| sheet.kind),
-            Some(SheetKind::Chartsheet | SheetKind::Dialogsheet)
-        ) {
-            return Err(XlsxError::MissingWorkbookPart(format!("sheet {index}")));
+        if let Some(kind @ (SheetKind::Chartsheet | SheetKind::Dialogsheet)) =
+            self.sheets().get(index).and_then(|sheet| sheet.kind)
+        {
+            return Err(XlsxError::SheetIsNotAWorksheet {
+                index,
+                kind: Some(kind),
+            });
         }
         // The drawing before the comments part, because it is the half that reads the sheet's
         // markup — the last thing here that can refuse a tab whose part is not an `x:worksheet` at
@@ -744,9 +747,7 @@ impl Workbook {
         let sheet_part = self
             .sheet_part_of(index)?
             .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         // An `x:legacyDrawing` is nothing but an `r:id`, so the part has to be able to spell one.
         let prefix = markup.bind_relationship_prefix();
 
