@@ -60,6 +60,65 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.160] - 2026-09-10
+
+### Two gaps that were classes rather than instances (MJXOFF-265, MJXOFF-266, H16)
+
+#### The four serialization ledgers ask what a pair loses; none asked what it moves (MJXOFF-265)
+
+`crates/mjx-dml`, `crates/mjx-sml`, `crates/mjx-docx` and `xtask/tests/upper_markup_ledger.rs` hold
+every hand-written `FromXml`/`ToXml` pair in the workspace to an idiom, and every idiom is a
+*conservation* claim. Child order is outside all four by construction, which is how MJXOFF-251
+shipped: six `mjx-docx` types re-ordered a child they never dropped, and all four stayed green.
+H13 fixed the six and said in as many words that its search for a second instance was *"a spot check,
+not a census"*.
+
+`xtask/tests/child_order_census.rs` is the census. It scans **every function in every workspace
+member's `src/`** rather than impl bodies — MJXOFF-251's defect lived in two free functions both
+halves called, which is exactly what a ledger of impls cannot see — and looks for the two shapes a
+child sequence loses its order by: a `Vec` both pushed into and extended from (MJXOFF-251's writer),
+and an `Option` set from inside a loop over a child sequence (MJXOFF-251's reader). Both detectors
+are deliberately over-inclusive; every site either finds is on a ledger with a written reason, and a
+site that really moves a child also names the markup that proves the position travels.
+
+**The answer to the ticket's question: besides MJXOFF-251's six, nothing.** Two further sites move a
+child for reasons of their own — `mjx-sml`'s packed cell store, which remembers the payload's
+position as two byte spans, and `mjx-mce`'s alternate-content resolution, which is a read-only
+projection nothing is written back from — one builds fresh markup from owned arguments, and two are
+the over-inclusion. The counts are printed by the test rather than written down anywhere.
+
+The derive reads the bulk of the workspace and is the census's one deferral, so
+`crates/mjx-derive/tests/derive.rs` gained the cases that make it a claim: two typed children
+presented in the reverse of the order the type declares, a foreign child *between* two typed ones,
+and a pretty-printed container — **indentation is made of text nodes and a text node is a child**,
+which is the half MJXOFF-251's own report did not reach.
+
+#### The two bindings' doc comments were written independently (MJXOFF-266)
+
+Since MJXOFF-234 the `.pyi`'s docstrings are generated from the PyO3 crate's `///` comments and the
+`.d.ts`'s from the wasm crate's, so neither can drift from its own source — and nothing held the two
+sources to each other. `xtask/tests/binding_doc_parity.rs` now does.
+
+Equality could never have been the gate: a sentence naming a sibling spells it `chart_series` in
+Python and `chartSeries` in TypeScript, `str` against `string`, `None` against `undefined`. So the
+comparison normalises first — identifiers inside backtick spans written `snake_case`, a closed table
+of language words, articles dropped — and two members are a pair only when they take the **same
+number of arguments**, which is what disposes of the trap the ticket warned about (`BorderEdgeSpec.new`
+takes a style and a colour in Python and nothing at all in JavaScript, and pairing them by name
+would compare two different constructors).
+
+**Building it found twenty-three members where a TypeScript reader was told strictly less than a
+Python one**, and they were fixed rather than recorded: six `CellFormatSpec.applies*` getters that
+never said `undefined` writes no attribute, `Document.open` with no error paragraph at all where
+`Workbook.open` beside it had one, `FontProperties.scheme` documented as the single word `scheme`,
+and the schema attributes (`w:vanish`, `w:jc`, `w:outlineLvl`, `w:val="auto"`, `ST_HpsMeasure`) the
+Word effective-properties getters name in Python and named nowhere in TypeScript. What remains is a
+ledger with a reason per row, held to the measurement in both directions.
+
+One row on it is not a prose difference at all: `ChartWrap.kind` returns `"top_and_bottom"` in Python
+and `"topAndBottom"` in JavaScript, which contradicts the wasm binding's own written rule that data
+tokens stay `snake_case`. MJXOFF-268 owns it.
+
 ## [0.0.159] - 2026-09-09
 
 ### Three places the API was not truthful about itself (MJXOFF-241, MJXOFF-248, MJXOFF-238, H15)

@@ -1755,7 +1755,7 @@ impl ShapeGeometry {
         record
     }
 
-    /// What a preset's adjustments are called — the keys `of` expects, in the order the
+    /// What a preset's adjustments are called — the keys `ShapeGeometry.of` expects, in the order the
     /// specification lists them.
     #[wasm_bindgen(js_name = "adjustmentNames")]
     pub fn adjustment_names(preset: PresetShapeType) -> Vec<String> {

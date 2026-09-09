@@ -47,6 +47,14 @@
 //! because the idioms are the finding and they differ: eight bespoke pairs here, one delegation and
 //! the rebuilders behind it there, and a hundred and forty-six copies of a single body in the third.
 //! The `mjx-docx` file states the shared-crate decision and what the duplication costs.
+//!
+//! # This file asks what a pair **loses**, never what it **moves**
+//!
+//! Child order is outside every idiom here by construction, and MJXOFF-251 is what that cost: six
+//! `mjx-docx` pairs re-ordered a child they never dropped, and all four ledgers stayed green.
+//! `xtask/tests/child_order_census.rs` (MJXOFF-265) is where that question is answered, over every
+//! function in every workspace member's `src/` rather than over impl bodies — the defect lived in a
+//! free function both halves called, which is exactly what a ledger of impls cannot see.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

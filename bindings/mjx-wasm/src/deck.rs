@@ -201,7 +201,8 @@ impl Deck {
         map_error(ooxml::Deck::open(data)).map(|inner| Self { inner })
     }
 
-    /// What this deck's main part says it is. A deck authored by `blank` reports
+    /// What this deck's main part says it is — `Format.Presentation`, `Format.PresentationTemplate`
+    /// and so on. A deck authored by `blank` reports
     /// `Format.Presentation`.
     #[wasm_bindgen(js_name = "format")]
     pub fn format(&self) -> Result<Format, JsValue> {
@@ -224,7 +225,8 @@ impl Deck {
     /// The deck as bytes, **without** the validation pass.
     ///
     /// For the one case that needs it: writing a deck whose defect you already know about and
-    /// intend to inspect.
+    /// intend to inspect. Anything this writes and `save` refuses is a file PowerPoint may decline
+    /// to open.
     #[wasm_bindgen(js_name = "saveUnchecked")]
     pub fn save_unchecked(&self) -> Result<Vec<u8>, JsValue> {
         map_error(self.inner.save_unchecked())

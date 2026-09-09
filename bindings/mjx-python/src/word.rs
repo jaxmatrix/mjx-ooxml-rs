@@ -244,7 +244,7 @@ impl EffectiveFonts {
 
 #[pymethods]
 impl EffectiveCharacterProperties {
-    /// Bold, resolved (XOR-combined across the style chain — see the guide).
+    /// Bold, resolved (XOR-combined across the style chain, per ECMA-376 Part 1 §17.7.3).
     #[getter]
     fn bold(&self) -> Option<bool> {
         self.0.bold

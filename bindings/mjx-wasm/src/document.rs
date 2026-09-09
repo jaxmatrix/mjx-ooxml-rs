@@ -120,7 +120,7 @@ impl RunPath {
         Self(ooxml::RunPath::from(index))
     }
 
-    /// The run at this address: `[0]` top-level, `[2, 0]` inside a run container.
+    /// The run at this address: `[0]` top-level, `[2, 0]` inside a run container (e.g. a hyperlink).
     #[wasm_bindgen(js_name = "of")]
     pub fn of(indices: Vec<u32>) -> Result<RunPath, JsValue> {
         if indices.is_empty() {
@@ -337,6 +337,10 @@ impl Document {
     }
 
     /// Opens a document from the bytes of a `.docx`, `.docm`, `.dotx` or `.dotm`.
+    ///
+    /// Throws an `OoxmlError` whose `code` is `"Io"` for bytes that are not a readable container,
+    /// `"MalformedDocument"` for a package whose markup is not WordprocessingML, and
+    /// `"UnsupportedFormat"` — naming the format — for a PowerPoint or Excel document.
     #[wasm_bindgen(js_name = "open")]
     pub fn open(data: &[u8]) -> Result<Document, JsValue> {
         map_error(ooxml::Document::open(data)).map(|inner| Self { inner })
@@ -396,7 +400,7 @@ impl Document {
         map_error(self.inner.run_count(block_path_of(paragraph)?))
     }
 
-    /// The whole text of a paragraph.
+    /// The whole text of a paragraph, every run concatenated in document order.
     #[wasm_bindgen(js_name = "paragraphText")]
     pub fn paragraph_text(&mut self, paragraph: &BlockPathArg) -> Result<String, JsValue> {
         map_error(self.inner.paragraph_text(block_path_of(paragraph)?))
