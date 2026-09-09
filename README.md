@@ -268,7 +268,7 @@ a written reason beside every asymmetry and a test that fails when the table and
 
 ### Examples
 
-Thirty-seven runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
+Forty-seven runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
 measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
 it**, because an example that only produced a file would prove nothing. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
@@ -313,14 +313,24 @@ cargo run -p mjx-ooxml --example build_a_workbook
 # The facade guide's tri-language examples. Each is also a pytest module and a node --test module,
 # and the code blocks the guide shows are copies of these three files rather than transcriptions.
 cargo run -p mjx-ooxml --example guide_addressing_a_deck
+cargo run -p mjx-ooxml --example guide_an_error_says_where
+cargo run -p mjx-ooxml --example guide_an_index_out_of_range
 cargo run -p mjx-ooxml --example guide_addressing_a_document
+cargo run -p mjx-ooxml --example guide_addressing_a_workbook
 cargo run -p mjx-ooxml --example guide_authoring_from_nothing
+cargo run -p mjx-ooxml --example guide_branching_on_an_error_code
+cargo run -p mjx-ooxml --example guide_detecting_a_format
+cargo run -p mjx-ooxml --example guide_downcasting_to_the_typed_cause
 cargo run -p mjx-ooxml --example guide_one_authoring_vocabulary
+cargo run -p mjx-ooxml --example guide_open_edit_and_save_any_format
+cargo run -p mjx-ooxml --example guide_opening_the_wrong_surface
 cargo run -p mjx-ooxml --example guide_preserved_rather_than_modelled
 cargo run -p mjx-ooxml --example guide_saving_validates
 cargo run -p mjx-ooxml --example guide_the_calls_that_take_the_column_first
+cargo run -p mjx-ooxml --example guide_the_escape_hatches
 cargo run -p mjx-ooxml --example guide_the_same_chart_on_all_three
 cargo run -p mjx-ooxml --example guide_the_round_trip
+cargo run -p mjx-ooxml --example guide_the_round_trip_contract
 
 # The serialization measurement docs/BENCHMARKS.md reproduces
 cargo run -p mjx-xml --example mjx248_measure

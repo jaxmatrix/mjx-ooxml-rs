@@ -29,10 +29,17 @@ mapping is by *what the caller should do*, not by which crate raised it.
 [`ErrorCode::as_str`] gives each one a stable spelling, which is what the two bindings key their own
 exception classes on.
 
-```
+**The three differ in shape here**, in two ways at once: an [`ErrorCode`] is an enumeration, eleven
+exception classes and eleven strings; and a [`CellInput`] passed to [`CellWrite::new`] becomes a
+static [`CellWrite`] constructor per kind in both bindings. Neither difference changes what is
+being asked — three refusals, and a workbook still untouched. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
+
+<!-- guide-example: branching_on_an_error_code rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{CellInput, CellWrite, ErrorCode, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut workbook = Workbook::blank()?;
 
 // An address that does not parse: refused before the worksheet is even opened.
@@ -48,15 +55,96 @@ let unrepresentable = workbook
 assert_eq!(unrepresentable.code(), ErrorCode::InvalidArgument);
 
 // A tab that is not there.
-let missing = workbook.read_range(9, "A1").expect_err("there is one sheet");
+let missing = workbook.read_range(9, "A1").expect_err("one sheet");
 assert_eq!(missing.code(), ErrorCode::IndexOutOfRange);
 assert_eq!(missing.detail().index, Some(9));
 
-// Nothing was written by any of the three.
+// And the contract worth knowing: a batch that would fail halfway is refused before the
+// package is touched at all, so nothing above wrote anything.
 assert!(workbook.read_sheet(0)?.is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: branching_on_an_error_code python -->
+```python
+from mjx_ooxml import CellWrite, IndexOutOfRangeError, InvalidArgumentError, Workbook
+
+workbook = Workbook.blank()
+
+# An address that does not parse: refused before the worksheet is even opened.
+try:
+    workbook.write_cells(0, [CellWrite.number("not-a-cell", 1.0)])
+    raise AssertionError("`not-a-cell` is not an A1 reference")
+except InvalidArgumentError as failure:
+    assert failure.code == "InvalidArgument"
+
+# A value SpreadsheetML has no spelling for.
+try:
+    workbook.write_cells(0, [CellWrite.number("A1", float("nan"))])
+    raise AssertionError("SpreadsheetML cannot spell NaN")
+except InvalidArgumentError as failure:
+    assert failure.code == "InvalidArgument"
+
+# A tab that is not there.
+try:
+    workbook.read_range(9, "A1")
+    raise AssertionError("there is one sheet")
+except IndexOutOfRangeError as failure:
+    assert failure.index == 9
+
+# And the contract worth knowing: a batch that would fail halfway is refused before the
+# package is touched at all, so nothing above wrote anything.
+assert workbook.read_sheet(0).is_empty
+```
+<!-- guide-example end -->
+
+<!-- guide-example: branching_on_an_error_code js -->
+```js
+import { CellWrite, Workbook } from "@mjx/ooxml";
+
+/** The code a call raised, or `undefined` if it did not raise. */
+function codeOf(call) {
+  try {
+    call();
+  } catch (raised) {
+    return raised.code;
+  }
+  return undefined;
+}
+
+const workbook = Workbook.blank();
+
+// An address that does not parse: refused before the worksheet is even opened.
+const badAddress = codeOf(() => workbook.writeCells(0, [CellWrite.number("not-a-cell", 1.0)]));
+if (badAddress !== "InvalidArgument") {
+  throw new Error("`not-a-cell` is not an A1 reference");
+}
+
+// A value SpreadsheetML has no spelling for.
+const unrepresentable = codeOf(() => workbook.writeCells(0, [CellWrite.number("A1", NaN)]));
+if (unrepresentable !== "InvalidArgument") {
+  throw new Error("SpreadsheetML cannot spell NaN");
+}
+
+// A tab that is not there.
+if (codeOf(() => workbook.readRange(9, "A1")) !== "IndexOutOfRange") {
+  throw new Error("there is one sheet");
+}
+
+// And the contract worth knowing: a batch that would fail halfway is refused before the
+// package is touched at all, so nothing above wrote anything.
+const sheet = workbook.readSheet(0);
+if (!sheet.isEmpty) {
+  throw new Error("three refusals wrote nothing");
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+sheet.free();
+workbook.free();
+```
+<!-- guide-example end -->
 
 That last assertion is the contract worth knowing: **a batch that would fail halfway is refused
 before the package is touched at all.** Every reference in a [`Workbook::write_cells`] call is parsed
@@ -70,21 +158,92 @@ before the worksheet is opened, so a failed write leaves the workbook exactly as
 caller point at the thing that failed rather than re-deriving it from a message string, which is the
 one thing a message must never be parsed for.
 
-```
-use mjx_ooxml::{Deck, ErrorCode, SlideSize, Surface};
+**The three differ in shape here.** The detail is a value behind `detail()` in Rust, **five
+attributes on the exception itself** in Python — always present, `None` where the failure knew no
+such coordinate — and a **plain `detail` object** in JavaScript carrying only the coordinates it
+did have, so a caller there reads `detail.row ?? null` rather than expecting a key. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
+<!-- guide-example: an_error_says_where rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{Deck, ErrorCode, ShapePath, SlideSize, Surface};
+
 let mut deck = Deck::blank(SlideSize::widescreen())?;
 let slide = Surface::Slide(deck.add_slide_from_layout(0)?);
 
-let failure = deck.shape_bounds(slide, 4.into()).expect_err("the slide has no shapes");
+// The slide carries the layout's placeholders and nothing at index 4.
+let failure = deck.shape_bounds(slide, 4.into()).expect_err("no shape 4");
 assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
+
+// The failure says *where*, in the same addressing the call used to get there.
 assert_eq!(failure.detail().surface, Some(slide));
-assert_eq!(failure.detail().shape.as_ref().map(mjx_ooxml::ShapePath::indices), Some(&[4][..]));
+let shape = failure.detail().shape.as_ref().map(ShapePath::indices);
+assert_eq!(shape, Some(&[4][..]));
 assert!(!failure.detail().is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: an_error_says_where python -->
+```python
+from mjx_ooxml import Deck, IndexOutOfRangeError, SlideSize, Surface
+
+deck = Deck.blank(SlideSize.widescreen())
+slide = Surface.slide(deck.add_slide_from_layout(0))
+
+# The slide carries the layout's placeholders and nothing at index 4.
+try:
+    deck.shape_bounds(slide, 4)
+    raise AssertionError("no shape 4")
+except IndexOutOfRangeError as failure:
+    assert failure.code == "IndexOutOfRange"
+
+    # The failure says *where*, in the same addressing the call used to get there.
+    assert failure.surface == slide
+    shape = failure.shape
+    assert shape is not None and shape.indices == [4]
+    assert failure.row is None and failure.column is None
+```
+<!-- guide-example end -->
+
+<!-- guide-example: an_error_says_where js -->
+```js
+import { Deck, SlideSize, Surface } from "@mjx/ooxml";
+
+const deck = Deck.blank(SlideSize.widescreen());
+const slide = Surface.slide(deck.addSlideFromLayout(0));
+
+// The slide carries the layout's placeholders and nothing at index 4.
+let failure;
+try {
+  deck.shapeBounds(slide, 4);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "IndexOutOfRange") {
+  throw new Error("no shape 4");
+}
+
+// The failure says *where*, in the same addressing the call used to get there.
+if (failure.detail.surface.kind !== "slide" || failure.detail.surface.index !== slide.index) {
+  throw new Error("the failure names the surface the call named");
+}
+if (failure.detail.shape.indices.join() !== "4") {
+  throw new Error("and the shape address it was asked for");
+}
+if (failure.detail.row !== undefined || failure.detail.column !== undefined) {
+  throw new Error("a coordinate the failure did not have is simply not a key");
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+failure.detail.surface.free();
+failure.detail.shape.free();
+slide.free();
+deck.free();
+```
+<!-- guide-example end -->
 
 ## The typed cause is still there
 
@@ -93,20 +252,36 @@ Collapsing to eleven codes loses nothing for a Rust caller. [`Error`] implements
 `mjx_pptx::PptxError`, `mjx_docx::DocxError` or `mjx_xlsx::XlsxError` — downcast it when you want the
 variant rather than the code.
 
-```
-use mjx_ooxml::{Deck, PptxError, SlideSize};
+**There is one block below, not three, and that is this section's whole subject.** Every other
+example in this guide is shown in Rust, Python and JavaScript. This one cannot be: `PptxError` is
+declared by neither binding and neither language has `downcast_ref`, so the marker beside it
+declares the block **Rust-only, naming those two** — and `xtask/tests/guide_examples.rs` reads both
+binding surfaces on every run to check the claim is still true. The move a binding caller makes
+instead is the one [§ Eleven codes](#eleven-codes-and-what-each-one-means-you-should-do) already
+shows in all three languages: branch on the code. Repeating it here would make this section about
+the thing a binding caller *can* do, which is the opposite of what it is for.
+
+<!-- guide-example: downcasting_to_the_typed_cause rust-only PptxError downcast_ref -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_ooxml::{Deck, ErrorCode, PptxError, SlideSize};
 use std::error::Error as _;
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let failure = deck.shape_count(7.into()).expect_err("slide 7 does not exist");
 
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure = deck.shape_count(7.into()).expect_err("no slide 7");
+assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
+
+// Collapsing to eleven codes loses nothing here: the variant the crate below raised is still
+// underneath, reachable by downcasting the source.
 let cause = failure.source().expect("a typed cause");
-let pptx = cause.downcast_ref::<PptxError>().expect("the cause is a PptxError");
-assert!(matches!(pptx, PptxError::SlideIndexOutOfRange { .. }), "{pptx:?}");
+let pptx = cause.downcast_ref::<PptxError>().expect("a PptxError");
+assert!(matches!(pptx, PptxError::SlideIndexOutOfRange { .. }));
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
 
 Only [`mjx_pptx::PptxError`] is re-exported here by name, because it is the one a `Deck` caller is
 most likely to want; a Word or Excel caller who wants the same reaches for `mjx_docx` or `mjx_xlsx`

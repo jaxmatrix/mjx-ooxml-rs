@@ -9,7 +9,8 @@
 //! held together by whoever last remembered to update all three. Phase G's whole lesson is that
 //! prose is not checked, and a code block in a `.md` is prose that looks like code.
 //!
-//! So the guide holds **markers, not code**. Each example is three real files:
+//! So the guide holds **markers, not code**. Each example is three real files — with one exception
+//! that says so out loud, [below](#the-fourth-marker-form-and-why-it-is-a-claim-rather-than-a-suppression-mjxoff-261):
 //!
 //! | Language | File | Runner |
 //! |---|---|---|
@@ -28,6 +29,7 @@
 //! * **Both directions of the population**, four ways: every example named by a marker has all
 //!   three halves, and every half has its markers. A half with no marker is a file nothing shows; a
 //!   marker with no half is a block nothing runs.
+//! * **A Rust-only declaration is held to the names it makes the claim with** — see below.
 //! * **Content equality** — every committed block byte-equals the region of its source today.
 //! * **Sentinels** — every half really has a region, and the region is not empty.
 //! * **The three halves agree about producing a package**, so the output comparison is present in
@@ -75,6 +77,41 @@
 //!
 //! [`Deck::blank`]: https://docs.rs/mjx-ooxml
 //!
+//! # The fourth marker form, and why it is a claim rather than a suppression (MJXOFF-261)
+//!
+//! A little of this facade is **Rust-only by decision** — the three `*_mut` escape hatches, the
+//! typed cause under an [`Error`] — and a guide block about it can never have a Python or a
+//! JavaScript half. Until MJXOFF-261 the only way to say so was to write no marker at all, which is
+//! indistinguishable from having forgotten. MJXOFF-257 filed the same hole a second time, from the
+//! other end of the backlog.
+//!
+//! The spelling is a marker that names the Rust symbols making the claim true:
+//!
+//! ```text
+//! <!-- guide-example: the_escape_hatches rust-only presentation_mut document_mut workbook_mut -->
+//! ```
+//!
+//! [`a_rust_only_declaration_is_held_to_the_names_it_makes_the_claim_with`] then asks the
+//! repository whether the claim is still true, on every run:
+//!
+//! * **every declared name occurs in the region the block shows** — so the reason is about *this*
+//!   block. A declaration listing names the example never calls would be true of the language and
+//!   vacuous about the example;
+//! * **every declared name is reachable from neither binding**, read out of the committed `.pyi`
+//!   and the committed `#[wasm_bindgen]` declarations by [`xtask::binding_surface`] — the module
+//!   `xtask/tests/binding_projection.rs` and this file now share, because two parsers of the same
+//!   two surfaces would disagree with no way to say which was wrong.
+//!
+//! And the population test above inverts, rather than drops, its expectation: a Rust-only example
+//! must have a Rust half and **no** Python or JavaScript half, and must be shown by no marker in
+//! either. So the declaration cannot become the place a binding half goes to be forgotten — which
+//! is the property that separates this from an exemption list. `xtask/tests/facade_curation.rs`'s
+//! ledger is the same shape one layer down.
+//!
+//! **What is deliberately not attempted**: a check that the *prose* beside such a block says so in
+//! words. That is a sentence, and a gate that grepped for one would be satisfied by any sentence.
+//! The marker carries the part a test can check; the page carries the part a reader needs.
+//!
 //! # The hidden prelude, and why only Rust has one
 //!
 //! An example that starts from a file needs bytes, and reading a file is the caller's job — every
@@ -99,6 +136,9 @@
 //! | stop the JavaScript half exporting its package | [`the_three_halves_of_an_example_agree_about_whether_it_produces_a_package`] |
 //! | have a harness return a hand-written list of examples | [`each_binding_harness_runs_the_rust_example_and_reads_both_packages_through_the_shared_reader`] |
 //! | `SlideSize::widescreen` → `SlideSize::standard` in one half | the binding's own comparison, naming `ppt/presentation.xml` and `ppt/slideMasters/slideMaster1.xml` — **not** anything in this file, which is the limit stated above |
+//! | declare a projected example Rust-only (`addressing_a_workbook rust-only write_cells`) | [`a_rust_only_declaration_is_held_to_the_names_it_makes_the_claim_with`], naming both surfaces that still have it |
+//! | give a Rust-only example a Python half | the population test, on the half a Rust-only block may not have |
+//! | write `rust-only` with no names after it | the parse itself, before any test runs |
 //! | one `rename_sheet` inserted into `the_round_trip`'s Python half | **the example's own assertion**, `AssertionError: /xl/workbook.xml changed`, before the harness comparison is even reached — which is what makes preservation a property of the block rather than of the three languages agreeing |
 //!
 //! # Anti-vacuity
@@ -112,6 +152,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use xtask::binding_surface;
 use xtask::guide_examples::{self, Language};
 
 /// The workspace root — `xtask/`'s parent.
@@ -185,30 +226,53 @@ fn every_guide_example_exists_in_all_three_languages_and_is_shown_in_all_three()
     let root = repository_root();
     let marked = marked_examples(&root);
     let markers = guide_examples::all_markers(&root).expect("the pages parse");
+    let rust_only = guide_examples::rust_only_examples(&root).expect("the pages parse");
     let mut failures: Vec<String> = Vec::new();
 
     for language in Language::ALL {
         let present =
             guide_examples::halves_present(&root, language).expect("the directory is readable");
 
+        // An example declared Rust-only is expected in Rust and expected *nowhere else*. The
+        // expectation is still two-directional — it has simply been inverted for two of the three
+        // languages, which is what stops the declaration being a place a half goes to be forgotten.
+        let expected: BTreeSet<String> = match language {
+            Language::Rust => marked.clone(),
+            Language::Python | Language::JavaScript => marked
+                .iter()
+                .filter(|name| !rust_only.contains_key(*name))
+                .cloned()
+                .collect(),
+        };
+
         // ---- Both directions of the population -------------------------------------------------
         // A marker with no file is a block nothing runs; a file with no marker is an example no
         // reader ever sees. Stating only the first is how a language quietly falls behind.
-        for missing in marked.difference(&present) {
+        for missing in expected.difference(&present) {
             failures.push(format!(
                 "{language}: a marker names `{missing}`, but {} does not exist",
                 language.source_path(missing)
             ));
         }
-        for stray in present.difference(&marked) {
-            failures.push(format!(
-                "{language}: {} exists, but no page marks `{stray}` in any language",
-                language.source_path(stray)
-            ));
+        for stray in present.difference(&expected) {
+            if rust_only.contains_key(stray) {
+                failures.push(format!(
+                    "{language}: {} exists, but `{stray}` is marked `{}` — a block declared \
+                     Rust-only has no half here, and if this one now can, delete the declaration \
+                     and mark all three",
+                    language.source_path(stray),
+                    guide_examples::RUST_ONLY_TOKEN
+                ));
+            } else {
+                failures.push(format!(
+                    "{language}: {} exists, but no page marks `{stray}` in any language",
+                    language.source_path(stray)
+                ));
+            }
         }
 
         // ---- Every example is shown in this language --------------------------------------------
-        for name in marked.intersection(&present) {
+        for name in expected.intersection(&present) {
             let shown = markers
                 .iter()
                 .filter(|(_, marker)| marker.name == *name && marker.language == language)
@@ -221,11 +285,28 @@ fn every_guide_example_exists_in_all_three_languages_and_is_shown_in_all_three()
                 ));
             }
         }
+
+        // ---- And a Rust-only example is shown in *no* other language ----------------------------
+        if language != Language::Rust {
+            for name in rust_only.keys() {
+                let shown = markers
+                    .iter()
+                    .filter(|(_, marker)| marker.name == *name && marker.language == language)
+                    .count();
+                if shown != 0 {
+                    failures.push(format!(
+                        "`{name}` is declared Rust-only and yet is shown by {shown} {language} \
+                         marker(s); a page cannot both claim a binding has no half and show one"
+                    ));
+                }
+            }
+        }
     }
 
     println!(
-        "{} example(s), {} marker(s) across {} language(s)",
+        "{} example(s), {} of them Rust-only, {} marker(s) across {} language(s)",
         marked.len(),
+        rust_only.len(),
         markers.len(),
         Language::ALL.len()
     );
@@ -234,6 +315,70 @@ fn every_guide_example_exists_in_all_three_languages_and_is_shown_in_all_three()
         "the guide examples are not whole:\n  {}\n\nEvery example is three files and three \
          blocks. See this file's module comment.",
         failures.join("\n  ")
+    );
+}
+
+#[test]
+fn a_rust_only_declaration_is_held_to_the_names_it_makes_the_claim_with() {
+    // The whole difference between this form and a suppression. A marker that merely turned the
+    // three-language rule off would be the nominal gate this repository keeps deleting; this one
+    // states *why*, in names, and the repository is asked to confirm it on every run.
+    //
+    // Two things are confirmed, and they fail in opposite directions:
+    //
+    //   * every declared name occurs in the region the block shows — so the reason is about *this*
+    //     block. A declaration listing names the example never calls would be true of the language
+    //     and vacuous about the example.
+    //   * every declared name is reachable from **neither** binding. The day one is projected, the
+    //     claim has stopped being true and the block owes a Python and a JavaScript half.
+    let root = repository_root();
+    let declared = guide_examples::rust_only_examples(&root).expect("the pages parse");
+    let python = binding_surface::python_names(&root);
+    let wasm = binding_surface::wasm_names(&root);
+    let mut failures: Vec<String> = Vec::new();
+    let mut names = 0usize;
+
+    for (name, symbols) in &declared {
+        let relative = Language::Rust.source_path(name);
+        let source = read(&relative);
+        let region =
+            guide_examples::region(&source, &relative).expect("the Rust half has a region");
+        for symbol in symbols {
+            names += 1;
+            if !region.contains(symbol.as_str()) {
+                failures.push(format!(
+                    "`{name}` is declared Rust-only because of `{symbol}`, but the block a reader \
+                     sees never names it — see {relative}"
+                ));
+            }
+            if python.contains(symbol.as_str()) {
+                failures.push(format!(
+                    "`{name}` claims `{symbol}` is Rust-only, but the committed Python stub \
+                     declares it; the claim has stopped being true and the block owes a Python half"
+                ));
+            }
+            if wasm.contains(symbol.as_str()) {
+                failures.push(format!(
+                    "`{name}` claims `{symbol}` is Rust-only, but `bindings/mjx-wasm/src/` exports \
+                     it; the claim has stopped being true and the block owes a JavaScript half"
+                ));
+            }
+        }
+    }
+
+    println!(
+        "{} Rust-only example(s) declaring {names} name(s), checked against {} Python and {} \
+         JavaScript declaration(s)",
+        declared.len(),
+        python.len(),
+        wasm.len()
+    );
+    assert!(
+        failures.is_empty(),
+        "these Rust-only declarations are no longer true:\n  {}\n\nA `{}` marker is a claim about \
+         the two binding surfaces, not a way to skip writing two halves.",
+        failures.join("\n  "),
+        guide_examples::RUST_ONLY_TOKEN
     );
 }
 
@@ -343,10 +488,16 @@ fn the_three_halves_of_an_example_agree_about_whether_it_produces_a_package() {
     // stopped producing one, the comparison would go missing from that binding *and from nowhere
     // else*, which is precisely the shape MJXOFF-239 found in the Word walkthrough.
     let root = repository_root();
+    let rust_only = guide_examples::rust_only_examples(&root).expect("the pages parse");
     let mut failures: Vec<String> = Vec::new();
     let mut producing = 0usize;
 
     for name in marked_examples(&root) {
+        if rust_only.contains_key(&name) {
+            // One half cannot disagree with itself, and there is no harness to compare against.
+            // Counting it as an agreement would inflate the figure this test prints.
+            continue;
+        }
         let mut produces: Vec<(Language, bool)> = Vec::new();
         for language in Language::ALL {
             let relative = language.source_path(&name);
@@ -565,5 +716,36 @@ fn the_region_extractor_still_matches_the_sentinels_it_is_written_against() {
         guide_examples::markers_in("<!-- guide-example: some_name python -->\n", "sample.md")
             .is_err(),
         "an unclosed marker is an error: everything after it would otherwise be swallowed"
+    );
+
+    // ---- The Rust-only form, over pages held here ----------------------------------------------
+    // It renders as Rust and carries the names that make the claim; a claim with no names is
+    // refused where it is parsed, because that spelling would be a plain suppression.
+    let rust_only = concat!(
+        "<!-- guide-example: some_name rust-only presentation_mut workbook_mut -->\n",
+        "<!-- guide-example end -->\n"
+    );
+    let markers = guide_examples::markers_in(rust_only, "sample.md").expect("the page parses");
+    assert_eq!(markers.len(), 1);
+    assert_eq!(markers[0].language, Language::Rust, "it renders as Rust");
+    assert!(markers[0].is_rust_only());
+    assert_eq!(markers[0].rust_only, ["presentation_mut", "workbook_mut"]);
+    assert!(
+        guide_examples::markers_in(
+            "<!-- guide-example: some_name rust-only -->\n<!-- guide-example end -->\n",
+            "sample.md"
+        )
+        .is_err(),
+        "`rust-only` with no names is a suppression wearing a marker's clothes, and is refused \
+         where it is parsed rather than passed on to the gate"
+    );
+    assert!(
+        !guide_examples::markers_in(
+            "<!-- guide-example: some_name rust -->\n<!-- guide-example end -->\n",
+            "sample.md"
+        )
+        .expect("the page parses")[0]
+            .is_rust_only(),
+        "an ordinary `rust` marker declares nothing, and must not be read as a Rust-only one"
     );
 }

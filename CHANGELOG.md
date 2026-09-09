@@ -60,6 +60,64 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.156] - 2026-09-09
+
+### The guide is finished: every block in three languages, or Rust-only with a reason a test checks (MJXOFF-254, MJXOFF-261, MJXOFF-257, H12)
+
+Nine of the facade guide's code blocks were three real files a runner executes; ten were still prose
+that looks like code. All ten are done, and the page set is now closed: **every fenced code block
+under `crates/mjx-ooxml/docs/guide/` is either shown in Rust, Python and JavaScript or marked
+Rust-only with a stated reason**, and the only unmarked fence left in the set is the `sh` one
+listing three walkthrough commands.
+
+#### A block with a Rust half and no binding half has a spelling, and it is a claim rather than a suppression
+
+MJXOFF-261 and MJXOFF-257 filed the same hole twice: a little of this facade is Rust-only by
+decision, and the only way to say so was to write no marker at all — indistinguishable from having
+forgotten, which is exactly what the gate exists to catch. The spelling is a fourth marker form that
+names the Rust symbols making the claim true — `<!-- guide-example: the_escape_hatches rust-only
+workbook_mut -->` — and it renders as one Rust block. What it changes is what `xtask/tests/guide_examples.rs` then demands,
+and the demand is **stronger** rather than weaker: the example must have a Rust half and **no**
+binding half and be shown by no marker in either language; every declared name must occur in the
+region the block shows, so the reason is about *this block* rather than about the language; and
+every declared name must be reachable from **neither** binding, read out of the committed `.pyi` and
+the committed `#[wasm_bindgen]` declarations. The day a binding projects one of them, the claim
+reddens. `rust-only` with no names is refused where it is parsed.
+
+Reading the two binding surfaces moves out of `xtask/tests/binding_projection.rs` into
+`xtask/src/binding_surface.rs`, so both gates reach one implementation: two parsers of the same two
+surfaces would disagree with no way to say which was wrong. Its wasm type scan derives from
+`#[wasm_bindgen] impl` targets rather than from `pub struct` lines, because most of that crate's
+classes are declared by a macro and a `pub struct` walk sees sixteen of a hundred and eighty-seven.
+
+#### Two blocks are Rust-only. The third was not, and that was checked rather than assumed
+
+The backlog named three. `the_escape_hatches` and `downcasting_to_the_typed_cause` are genuinely
+Rust-only — `presentation_mut`/`document_mut`/`workbook_mut`, `PptxError` and `downcast_ref` are
+declared by neither binding.
+
+**`the_round_trip_contract` was not.** What made it look Rust-only was its own choice of surface: it
+edited a chart on a deck and compared the two packages through `mjx_opc::Package` — one layer below
+the facade the page is about, and the layer the guide seals deliberately. `Workbook::part_names` and
+`part_bytes` are the only general part door on this facade and the only one present in all three
+languages, so the project's central claim is now stated in all three rather than exempted from two,
+and a facade guide no longer opens the sealed package in one of its blocks.
+
+#### Where the three differ in shape, the page says so — once, in one form
+
+Six of the ten are expressible everywhere but do not *read* the same, because an `ErrorCode`, an
+`ErrorDetail`, a `CellInput` and a `Format` accessor each project differently. Three blocks that
+differ structurally with no sentence explaining why read as a typo, so the guide now has one device:
+a line beginning **"The three differ in shape here"**, always *above* the blocks — a note underneath
+arrives after the reader has already concluded one of them is wrong — and a table on the guide index
+collecting the differences in one place.
+
+#### The last block that never ran
+
+`README.md` § *Bytes in, bytes out* was the guide's only `no_run` doctest: it read `in.pptx`, a file
+that does not exist. The hidden prelude fixes it, and every code block a reader sees in this guide
+is now executed by something.
+
 ## [0.0.155] - 2026-09-09
 
 ### Eight more guide examples in three languages each, and the one that finally exercises preservation (MJXOFF-254, H11)

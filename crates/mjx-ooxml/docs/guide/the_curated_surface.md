@@ -85,23 +85,40 @@ MJXOFF-198 §4's *every count is a fact that expires* in its purest form (MJXOFF
 above is reachable through them, in full, with no loss of fidelity — the facade holds the real value
 and never a copy.
 
-```
+**There is one block below, not three, and that is the difference this section is about.** Every
+other example in this guide is shown in Rust, Python and JavaScript, and a gate holds the three to
+each other. This one has no other half to show: all three hatches are declared by neither binding,
+so the marker beside the block declares it **Rust-only, naming `workbook_mut`** — the hatch this
+block actually calls — and `xtask/tests/guide_examples.rs` reads both binding surfaces on every run
+to check that the claim is still true. It names one method rather than three because a declared
+reason must be about *this block*: a reason naming a method the example never calls would be true
+of the language and vacuous about the example. The day a binding projects `workbook_mut`, that gate
+reddens and this block owes two more halves.
+
+<!-- guide-example: the_escape_hatches rust-only workbook_mut -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let original = mjx_fixtures::fixture("sample.xlsx");
 use mjx_ooxml::Workbook;
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-let mut workbook = Workbook::open(&mjx_fixtures::fixture("sample.xlsx"))?;
+let mut workbook = Workbook::open(&original)?;
 
 // The per-sheet editing loop the facade deliberately does not offer: hold the parsed worksheet
 // yourself between one read and one write, and pay for the parse once.
 let inner = workbook.workbook_mut();
 let mut markup = inner.worksheet_markup(0)?.expect("a worksheet part");
-markup.set_cell_value(mjx_sml::CellReference::parse("A1")?, mjx_sml::CellValue::Number(1.0))?;
+let cell = mjx_sml::CellReference::parse("A1")?;
+markup.set_cell_value(cell, mjx_sml::CellValue::Number(1.0))?;
 inner.write_worksheet_markup(0, &markup)?;
 
-assert_eq!(workbook.read_range(0, "A1")?.value(0, 0)?.number(), Some(1.0));
+// The hatch handed back the real value rather than a copy, so the facade sees the edit with
+// nothing re-opened in between. That is the whole of what a hatch promises.
+let block = workbook.read_range(0, "A1")?;
+assert_eq!(block.value(0, 0)?.number(), Some(1.0));
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
 
 **They are Rust-only, and that is the point of the whole page.** Neither binding exposes one, so
 anything reachable only through an escape hatch is reachable only from Rust. Two consequences are

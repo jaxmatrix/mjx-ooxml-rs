@@ -106,6 +106,14 @@ one of its three languages, and when a half stops producing the package the othe
 against. **Adding an example means adding three files and three markers**, and then running the
 command — never typing a block into a page.
 
+A block about behaviour that is **Rust-only by decision** is the one exception, and it is stated
+rather than silent: its marker reads `rust-only` followed by the Rust symbols that make the claim
+true, and the gate then requires the example to have a Rust half and no binding half, requires every
+named symbol to appear in the block, and requires every named symbol to be absent from both binding
+surfaces. A `rust-only` marker is therefore a claim the repository re-checks on every run, not a way
+to skip writing two halves — and the page says so in prose beside the block, because that is where a
+reader meets it.
+
 ### The fuzz campaign
 
 `cargo test` proves the parsers do the right thing with the files we have. It says nothing about the

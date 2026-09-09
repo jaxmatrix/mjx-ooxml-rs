@@ -214,17 +214,31 @@ forms, and both are re-exported here — but nothing on the [`Workbook`] surface
 address argument is the A1 string a spreadsheet user already spells, because an eight-byte address
 value would have to become a class in Python and a class in TypeScript for no gain.
 
-```
+**The three differ in shape here.** A cell's value is a [`CellInput`] passed to [`CellWrite::new`]
+in Rust; in both bindings it is a **static constructor on [`CellWrite`], one per kind** —
+`CellWrite.number("B1", 12.5)` — because an enumeration carrying a payload has no projection in
+either language. The same information, with the variant folded into the function name, and the same
+set of kinds on all three surfaces. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
+
+<!-- guide-example: addressing_a_workbook rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{CellInput, CellWrite, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut workbook = Workbook::blank()?;
-workbook.write_cells(0, &[
-    CellWrite::new("A1", CellInput::SharedText("Region".into())),
-    CellWrite::new("B1", CellInput::Number(12.5)),
-    CellWrite::new("$B$2", CellInput::Number(18.0)),   // the anchoring is data; both spell one cell
-])?;
+workbook.write_cells(
+    0,
+    &[
+        CellWrite::new("A1", CellInput::SharedText("Region".into())),
+        CellWrite::new("B1", CellInput::Number(12.5)),
+        // The anchoring is data, not address: `$B$2` and `B2` spell one cell.
+        CellWrite::new("$B$2", CellInput::Number(18.0)),
+    ],
+)?;
 
+// A block is row-major over the whole requested rectangle, blanks included, and its two
+// arguments are offsets *into the block* rather than sheet coordinates.
 let block = workbook.read_range(0, "A1:B2")?;
 assert_eq!(block.first_row(), 0, "A1 is row 0, column 0");
 assert_eq!(block.first_column(), 0);
@@ -232,9 +246,74 @@ assert_eq!(block.value(0, 0)?.text(), Some("Region"));
 assert_eq!(block.value(1, 1)?.number(), Some(18.0));
 assert_eq!(block.range().as_deref(), Some("A1:B2"));
 assert_eq!(workbook.used_range(0)?.as_deref(), Some("A1:B2"));
+
+let saved = workbook.save()?;
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_workbook python -->
+```python
+from mjx_ooxml import CellWrite, Workbook
+
+workbook = Workbook.blank()
+workbook.write_cells(
+    0,
+    [
+        CellWrite.shared_text("A1", "Region"),
+        CellWrite.number("B1", 12.5),
+        # The anchoring is data, not address: `$B$2` and `B2` spell one cell.
+        CellWrite.number("$B$2", 18.0),
+    ],
+)
+
+# A block is row-major over the whole requested rectangle, blanks included, and its two
+# arguments are offsets *into the block* rather than sheet coordinates.
+block = workbook.read_range(0, "A1:B2")
+assert block.first_row == 0, "A1 is row 0, column 0"
+assert block.first_column == 0
+assert block.value(0, 0).text == "Region"
+assert block.value(1, 1).number == 18.0
+assert block.range == "A1:B2"
+assert workbook.used_range(0) == "A1:B2"
+
+saved = workbook.save()
+```
+<!-- guide-example end -->
+
+<!-- guide-example: addressing_a_workbook js -->
+```js
+import { CellWrite, Workbook } from "@mjx/ooxml";
+
+const workbook = Workbook.blank();
+workbook.writeCells(0, [
+  CellWrite.sharedText("A1", "Region"),
+  CellWrite.number("B1", 12.5),
+  // The anchoring is data, not address: `$B$2` and `B2` spell one cell.
+  CellWrite.number("$B$2", 18.0),
+]);
+
+// A block is row-major over the whole requested rectangle, blanks included, and its two
+// arguments are offsets *into the block* rather than sheet coordinates.
+const block = workbook.readRange(0, "A1:B2");
+if (block.firstRow !== 0 || block.firstColumn !== 0) {
+  throw new Error("A1 is row 0, column 0");
+}
+if (block.value(0, 0).text !== "Region" || block.value(1, 1).number !== 18.0) {
+  throw new Error("the block holds what was written into it");
+}
+if (block.range !== "A1:B2" || workbook.usedRange(0) !== "A1:B2") {
+  throw new Error("and it covers exactly the range that was asked for");
+}
+
+const saved = workbook.save();
+
+// a wasm handle owns memory the garbage collector cannot see
+block.free();
+workbook.free();
+```
+<!-- guide-example end -->
 
 A [`CellBlock`] is **row-major over the whole requested rectangle, blanks included**, and its
 `row`/`column` arguments are offsets *into the block* rather than sheet coordinates —
