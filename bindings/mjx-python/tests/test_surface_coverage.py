@@ -10,9 +10,6 @@ the value comes back only from the method that should see it.
 
 from __future__ import annotations
 
-import io
-import zipfile
-
 import pytest
 
 import mjx_ooxml
@@ -61,6 +58,8 @@ from mjx_ooxml import (
     TrendlineKind,
     TrendlineSpec,
 )
+
+from opc import part_payloads
 
 
 @pytest.fixture
@@ -668,8 +667,7 @@ def test_a_colour_transform_reaches_the_file_and_comes_back(deck: Deck) -> None:
         shape,
         FillSpec.solid(ColorSpec.scheme(SchemeColor.Accent1).with_tint(Fraction.of(0.5))),
     )
-    with zipfile.ZipFile(io.BytesIO(deck.save())) as saved:
-        slide = saved.read("ppt/slides/slide1.xml").decode("utf-8")
+    slide = part_payloads(deck.save())["ppt/slides/slide1.xml"].decode("utf-8")
     assert '<a:schemeClr val="accent1"><a:tint val="50000"/></a:schemeClr>' in slide
 
     fill = deck.shape_fill(0, shape)

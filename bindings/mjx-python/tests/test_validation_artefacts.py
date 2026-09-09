@@ -18,10 +18,8 @@ three languages agree about the bytes.
 
 from __future__ import annotations
 
-import io
 import pathlib
 import subprocess
-import zipfile
 from typing import Callable
 
 import pytest
@@ -106,6 +104,8 @@ from mjx_ooxml import (
     Workbook,
     DEFAULT_PLACEHOLDER_IMAGE,
 )
+
+from opc import part_payloads
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
@@ -974,12 +974,6 @@ GENERATORS: dict[str, Callable[[], bytes]] = {
 }
 
 
-def _part_payloads(package: bytes) -> dict[str, bytes]:
-    """Every part of an OPC package, by name, decompressed."""
-    with zipfile.ZipFile(io.BytesIO(package)) as archive:
-        return {name: archive.read(name) for name in archive.namelist()}
-
-
 @pytest.fixture(scope="session")
 def rust_artefacts(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """The Rust generator's output, produced once for the whole session."""
@@ -1026,8 +1020,8 @@ def test_every_artefact_matches_the_rust_one(
     name: str, rust_artefacts: pathlib.Path
 ) -> None:
     """Part for part, byte for byte, against the artefact the Rust generator wrote."""
-    from_python = _part_payloads(GENERATORS[name]())
-    from_rust = _part_payloads((rust_artefacts / name).read_bytes())
+    from_python = part_payloads(GENERATORS[name]())
+    from_rust = part_payloads((rust_artefacts / name).read_bytes())
     assert sorted(from_python) == sorted(from_rust), (
         f"{name}: the two generators author different parts"
     )
