@@ -749,3 +749,158 @@ fn the_region_extractor_still_matches_the_sentinels_it_is_written_against() {
         "an ordinary `rust` marker declares nothing, and must not be read as a Rust-only one"
     );
 }
+
+// ===============================================================================================
+// Every block the guide shows in one of the three languages is a marked copy (MJXOFF-256/263)
+// ===============================================================================================
+
+/// The facade guide — the pages MJXOFF-254's mechanism governs.
+///
+/// Scoped deliberately, and the scope is the interesting part. Three other guides and both binding
+/// READMEs also hold `python` and `js` blocks; those illustrate installation and the TypeScript
+/// surface rather than the facade, and requiring a tri-language runner behind each would be a rule
+/// about a different thing. What they are *not* any longer is unchecked: since MJXOFF-256
+/// `xtask/tests/doc_gate.rs` reads every fence rustdoc does not compile, so the paths and symbols
+/// in one are resolved like any other prose.
+const FACADE_GUIDE: &str = "crates/mjx-ooxml/docs/guide";
+
+/// Every page of the facade guide, derived from the directory rather than listed.
+fn facade_guide_pages() -> Vec<String> {
+    let directory = repository_root().join(FACADE_GUIDE);
+    let mut pages: Vec<String> = std::fs::read_dir(&directory)
+        .unwrap_or_else(|error| panic!("reading {FACADE_GUIDE}: {error}"))
+        .filter_map(|entry| {
+            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
+            name.ends_with(".md")
+                .then(|| format!("{FACADE_GUIDE}/{name}"))
+        })
+        .collect();
+    pages.sort();
+    assert!(
+        !pages.is_empty(),
+        "no page under {FACADE_GUIDE} — the directory walk has stopped matching"
+    );
+    pages
+}
+
+/// One fenced block found in a page.
+struct Fence {
+    /// The one-based line the opening fence sits on.
+    line: usize,
+    /// Its info string: `rust`, `python`, `js`, `sh`, or empty.
+    info: String,
+}
+
+/// Every fenced block a page opens, in order.
+///
+/// A fence closes only with at least as many backticks as opened it, which is CommonMark's rule and
+/// the reason this repository can document the marker syntax inside a ```` ```` ```` block that
+/// itself contains ``` ``` ``` ones.
+fn fences(text: &str) -> Vec<Fence> {
+    let mut found = Vec::new();
+    let mut open: Option<usize> = None;
+    for (index, line) in text.lines().enumerate() {
+        let trimmed = line.trim_start();
+        let ticks = trimmed.chars().take_while(|c| *c == '`').count();
+        if ticks < 3 {
+            continue;
+        }
+        let info = trimmed[ticks..].trim();
+        match open {
+            Some(opened) if ticks >= opened && info.is_empty() => open = None,
+            // A shorter fence, or one carrying an info string, inside a longer block: content.
+            Some(_) => {}
+            None => {
+                open = Some(ticks);
+                found.push(Fence {
+                    line: index + 1,
+                    info: info.to_owned(),
+                });
+            }
+        }
+    }
+    found
+}
+
+/// **A block the facade guide shows in Rust, Python or JavaScript is a copy of a file a runner
+/// executes** — never a snippet somebody typed into the page.
+///
+/// MJXOFF-254 made that true of nineteen examples. It did not make it a *rule*: a twentieth block
+/// could be written straight into a page in any of the three languages, and nothing would run it,
+/// compare it, or notice. MJXOFF-256 is that hole and MJXOFF-263 is the same hole restated at the
+/// size it reached — thirty-four `python` and `js` blocks, whose only defence was that every one of
+/// them happened to be marked.
+///
+/// The rule is stated over the three languages rather than over "not Rust", because `rust` blocks
+/// have exactly the same property and the guide's own README claims it in prose: *"Every snippet on
+/// every page here is a compiled doctest that `cargo test` runs."* A `sh` block listing three
+/// `cargo run` lines is not an example of the API and is left alone.
+#[test]
+fn every_block_the_facade_guide_shows_in_one_of_the_three_languages_is_a_marked_copy() {
+    let root = repository_root();
+    let markers = guide_examples::all_markers(&root).expect("the pages parse");
+    let marked: BTreeSet<(String, usize)> = markers
+        .iter()
+        .map(|(page, marker)| (page.clone(), marker.line))
+        .collect();
+
+    let mut considered = 0usize;
+    let mut by_language: BTreeSet<String> = BTreeSet::new();
+    let mut failures: Vec<String> = Vec::new();
+    for page in facade_guide_pages() {
+        for fence in fences(&read(&page)) {
+            let Some(language) = Language::from_token(&fence.info) else {
+                continue;
+            };
+            considered += 1;
+            by_language.insert(language.to_string());
+            // The block a marker owns opens on the line after it — that is how the renderer emits
+            // one, and holding the fence to it is what makes "this block is generated" checkable
+            // rather than "a marker appears somewhere on this page".
+            if !marked.contains(&(page.clone(), fence.line - 1)) {
+                failures.push(format!(
+                    "{page}:{} opens a `{language}` block that no `{}` marker owns. Every block \
+                     this guide shows in one of the three languages is copied out of a file a \
+                     runner executes; a block written straight into the page is run by nothing, \
+                     compared against nothing, and cannot go stale visibly. Add the three halves \
+                     under {}, {} and {}, then `cargo run -p xtask -- guide-examples`.",
+                    fence.line,
+                    guide_examples::MARKER_PREFIX.trim(),
+                    Language::Rust.directory(),
+                    Language::Python.directory(),
+                    Language::JavaScript.directory(),
+                ));
+            }
+        }
+    }
+
+    // A floor, never a total: it says the fence scanner is still matching. Pinning it to the real
+    // number would fire before the comparison above and hide the mutation meant to prove it.
+    assert!(
+        considered > 0,
+        "no `rust`, `python` or `js` block was found anywhere under {FACADE_GUIDE} — the fence \
+         scanner has stopped matching, and the comparison below would pass on nothing"
+    );
+    assert_eq!(
+        by_language.len(),
+        Language::ALL.len(),
+        "the facade guide shows blocks in {} of the three languages ({}); a language the scanner \
+         has stopped recognising would make every block in it unchecked while the total stayed \
+         plausible",
+        by_language.len(),
+        by_language.into_iter().collect::<Vec<_>>().join(", ")
+    );
+    assert!(
+        failures.is_empty(),
+        "{} block(s) in the facade guide are shown in one of the three languages and copied from \
+         nothing:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+
+    println!(
+        "facade guide: {considered} block(s) across {} page(s), every one a marked copy of a file \
+         a runner executes",
+        facade_guide_pages().len()
+    );
+}

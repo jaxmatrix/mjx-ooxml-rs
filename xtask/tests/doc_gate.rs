@@ -50,8 +50,9 @@
 //! # What is checked
 //!
 //! * [`every_path_a_document_names_exists`] — every repository path named in a code span or a
-//!   file-shaped markdown link, in **every tracked `.md` file and the comments of every tracked
-//!   `.rs` file**, resolves to something on disk.
+//!   file-shaped markdown link, in **every tracked `.md`, `.rs`, `.py` and `.mjs` file**, resolves
+//!   to something on disk. Markdown is read whole apart from the fences rustdoc compiles; the
+//!   three source languages are read through their comments. See [`Kind`].
 //! * [`every_retired_path_entry_is_still_needed`] — the escape hatch below cannot rot silently.
 //! * [`every_crate_qualified_symbol_a_document_names_resolves`] — a `mjx_foo::Bar::baz` written in
 //!   a code span still names something in `mjx-foo`.
@@ -150,12 +151,74 @@ fn tracked_files() -> Vec<String> {
 }
 
 /// Which kind of file a document's prose lives in.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+///
+/// The repository writes prose in four languages, and until MJXOFF-256/MJXOFF-263 this gate read
+/// two of them. `bindings/mjx-python/tests/guide_examples/*.py` and
+/// `bindings/mjx-wasm/tests/node/guide_examples/*.mjs` name their guide page, their Rust sibling
+/// and the harness that runs them **by path, in a docstring**, and every one of those paths was a
+/// claim nothing checked. A comment is a document whatever file it sits in.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
 enum Kind {
-    /// A markdown page: every line is prose.
+    /// A markdown page: every line outside a fence rustdoc compiles is prose.
     Markdown,
-    /// Rust source: only `//`-comment lines are prose.
+    /// Rust source: `//` line comments and `/* … */` blocks.
     Rust,
+    /// Python source: `#` line comments and `""" … """` docstrings.
+    Python,
+    /// JavaScript source: `//` line comments and `/* … */` blocks, JSDoc included.
+    JavaScript,
+}
+
+impl Kind {
+    /// Every kind, in the order a count is printed.
+    const ALL: [Kind; 4] = [Kind::Markdown, Kind::Rust, Kind::Python, Kind::JavaScript];
+
+    /// What a failure calls it.
+    fn label(self) -> &'static str {
+        match self {
+            Kind::Markdown => "markdown",
+            Kind::Rust => "Rust",
+            Kind::Python => "Python",
+            Kind::JavaScript => "JavaScript",
+        }
+    }
+
+    /// The kind a tracked file's extension makes it, or `None` when the file carries no prose this
+    /// gate can separate from its code.
+    ///
+    /// `.pyi` is deliberately absent, and it is the one exclusion here worth stating. Since
+    /// MJXOFF-234 the committed stub's docstrings are *generated*:
+    /// `bindings/mjx-python/tools/stub_docs.py` copies each member's `__doc__` out of the compiled
+    /// module, and that `__doc__` is the `///` comment on the `#[pyclass]` in
+    /// `bindings/mjx-python/src/`, which this gate already reads as [`Kind::Rust`]. Reading the
+    /// stub too would check the same sentences a second time and report a defect one file away
+    /// from where a person would fix it.
+    fn of(file: &str) -> Option<Kind> {
+        if file.ends_with(".md") {
+            Some(Kind::Markdown)
+        } else if file.ends_with(".rs") {
+            Some(Kind::Rust)
+        } else if file.ends_with(".py") {
+            Some(Kind::Python)
+        } else if file.ends_with(".mjs") || file.ends_with(".js") {
+            Some(Kind::JavaScript)
+        } else {
+            None
+        }
+    }
+
+    /// The smallest corpus this kind may shrink to before the walk is presumed broken.
+    ///
+    /// A floor, never a total: it says `git ls-files` is still reaching this language, and it is
+    /// far enough below every real count that it cannot fire in place of the comparison it guards.
+    fn floor(self) -> usize {
+        match self {
+            Kind::Markdown | Kind::Rust => 40,
+            // Two binding test trees and a stub. The whole population is a few dozen; ten says the
+            // extension match is still finding them.
+            Kind::Python | Kind::JavaScript => 10,
+        }
+    }
 }
 
 /// One document of the corpus, already reduced to its prose lines.
@@ -168,9 +231,10 @@ struct Document {
     /// first, because a crate's own docs write a roundtrip suite as a bare *tests/roundtrip.rs*
     /// where the repository path is `crates/mjx-docx/tests/roundtrip.rs`.
     crate_dir: Option<String>,
-    /// Every prose line, with its 1-based line number. Fenced code blocks are dropped: their
-    /// contents are compiled (a guide's ``` ```rust ``` block is a doctest) or are literal XML, and
-    /// in neither case is a backtick inside them a code span.
+    /// Every prose line, with its 1-based line number. A fenced code block is dropped **exactly
+    /// when rustdoc compiles it** — see [`fence_is_a_rust_doctest`]. Every other fence is prose:
+    /// a `python` or `js` block is run by its binding's harness, which exercises its calls and
+    /// says nothing whatever about the paths its comments name.
     lines: Vec<(usize, String)>,
 }
 
@@ -327,18 +391,15 @@ fn crate_directories(tracked: &[String]) -> Vec<String> {
     directories
 }
 
-/// Reads the corpus: every tracked `.md` page and the comments of every tracked `.rs` file.
+/// Reads the corpus: every tracked markdown page, and the comments of every tracked Rust, Python
+/// and JavaScript source file. See [`Kind`].
 fn corpus() -> Vec<Document> {
     let tracked = tracked_files();
     let crates = crate_directories(&tracked);
     let root = repository_root();
     let mut documents = Vec::new();
     for file in &tracked {
-        let kind = if file.ends_with(".md") {
-            Kind::Markdown
-        } else if file.ends_with(".rs") {
-            Kind::Rust
-        } else {
+        let Some(kind) = Kind::of(file) else {
             continue;
         };
         let text = std::fs::read_to_string(root.join(file))
@@ -357,32 +418,183 @@ fn corpus() -> Vec<Document> {
     documents
 }
 
-/// The prose lines of one file: markdown outside fenced blocks, or `//`-comment lines.
+/// The tokens rustdoc recognises in a fence's info string. A fence whose info string is empty, or
+/// whose every comma-separated token is one of these, is a Rust doctest: rustdoc compiles it, so
+/// this gate need not read it.
+///
+/// Anything else — `python`, `js`, `sh`, `text`, `xml`, `ts`, `toml` — rustdoc leaves alone, and
+/// until MJXOFF-256/MJXOFF-263 so did this gate. That is the hole: a `python` block written into
+/// any page is *run* by nothing unless it carries a `guide-example` marker, and even a marked one
+/// has its comments read by no test. A backtick inside such a block is a code span like any other.
+const RUSTDOC_FENCE_TOKENS: &[&str] = &[
+    "rust",
+    "ignore",
+    "no_run",
+    "should_panic",
+    "compile_fail",
+    "edition2015",
+    "edition2018",
+    "edition2021",
+    "edition2024",
+];
+
+/// Whether the fence opened by this info string is a block rustdoc compiles.
+fn fence_is_a_rust_doctest(info: &str) -> bool {
+    let info = info.trim();
+    if info.is_empty() {
+        return true;
+    }
+    info.split(',')
+        .map(str::trim)
+        .all(|token| RUSTDOC_FENCE_TOKENS.contains(&token))
+}
+
+/// A markdown fence that is currently open.
+struct OpenFence {
+    /// How many backticks opened it. CommonMark closes a fence only with at least as many, which
+    /// is what lets a ```` ```` ```` block hold a ``` ``` ``` one — a shape this repository's own
+    /// documentation of the marker syntax uses.
+    ticks: usize,
+    /// Whether rustdoc compiles it, and so whether its contents are dropped.
+    compiled: bool,
+}
+
+/// The corpus's size, broken out by language, for a count line.
+fn corpus_by_kind(documents: &[Document]) -> String {
+    Kind::ALL
+        .iter()
+        .map(|kind| {
+            format!(
+                "{} {}",
+                documents.iter().filter(|d| d.kind == *kind).count(),
+                kind.label()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The prose lines of one file: markdown outside a fence rustdoc compiles, or the comment lines of
+/// a source file in any of the three languages this repository ships.
 fn prose_lines(kind: Kind, text: &str) -> Vec<(usize, String)> {
     let mut lines = Vec::new();
-    let mut fenced = false;
+    let mut fence: Option<OpenFence> = None;
+    // Inside a `/* … */` (Rust, JavaScript) or a `""" … """` (Python). Holds the delimiter that
+    // will close it, because Python writes docstrings with either quote.
+    let mut open_block: Option<&'static str> = None;
     for (index, raw) in text.lines().enumerate() {
         let trimmed = raw.trim_start();
-        let body = match kind {
-            Kind::Markdown => raw,
-            Kind::Rust => {
-                let Some(rest) = trimmed.strip_prefix("//") else {
-                    continue;
-                };
-                rest.trim_start_matches(['/', '!'])
-            }
+        let body: String = match kind {
+            Kind::Markdown => raw.to_owned(),
+            Kind::Rust | Kind::JavaScript => match line_comment(trimmed, "//", &mut open_block) {
+                Some(body) => body,
+                None => continue,
+            },
+            Kind::Python => match python_comment(trimmed, &mut open_block) {
+                Some(body) => body,
+                None => continue,
+            },
         };
-        // A fence opens and closes a block in both kinds; the fence line itself is not prose.
-        if body.trim_start().starts_with("```") {
-            fenced = !fenced;
+        // A fence opens and closes a block in every kind — a doc comment holds fenced examples too.
+        // The line itself is never prose.
+        let ticks = body.trim_start().chars().take_while(|c| *c == '`').count();
+        if ticks >= 3 {
+            let rest = &body.trim_start()[ticks..];
+            match &fence {
+                Some(open) if ticks >= open.ticks && rest.trim().is_empty() => fence = None,
+                // A shorter fence, or one carrying an info string, inside a longer block: content.
+                Some(open) if open.compiled => continue,
+                Some(_) => lines.push((index + 1, body)),
+                None => {
+                    fence = Some(OpenFence {
+                        ticks,
+                        compiled: fence_is_a_rust_doctest(rest),
+                    })
+                }
+            }
             continue;
         }
-        if fenced {
+        if fence.as_ref().is_some_and(|open| open.compiled) {
             continue;
         }
-        lines.push((index + 1, body.to_owned()));
+        lines.push((index + 1, body));
     }
     lines
+}
+
+/// One comment line in a language that writes `//` and `/* … */`.
+///
+/// Answers `None` for a line that is code. The `open_block` flag is this function's memory of a
+/// `/* … */` that spans lines; a JSDoc block's leading `*` is stripped so its text reads as prose.
+fn line_comment(
+    trimmed: &str,
+    marker: &str,
+    open_block: &mut Option<&'static str>,
+) -> Option<String> {
+    if open_block.is_some() {
+        return Some(match trimmed.split_once("*/") {
+            Some((body, _)) => {
+                *open_block = None;
+                strip_jsdoc_margin(body).to_owned()
+            }
+            None => strip_jsdoc_margin(trimmed).to_owned(),
+        });
+    }
+    if let Some(rest) = trimmed.strip_prefix(marker) {
+        return Some(rest.trim_start_matches(['/', '!']).to_owned());
+    }
+    if let Some(rest) = trimmed.strip_prefix("/*") {
+        return Some(match rest.split_once("*/") {
+            Some((body, _)) => strip_jsdoc_margin(body).to_owned(),
+            None => {
+                *open_block = Some("*/");
+                strip_jsdoc_margin(rest).to_owned()
+            }
+        });
+    }
+    None
+}
+
+/// The `*` a JSDoc block puts down the left margin, which is decoration rather than text.
+fn strip_jsdoc_margin(body: &str) -> &str {
+    body.trim_start().strip_prefix('*').unwrap_or(body)
+}
+
+/// One comment line in Python: a `#` comment, or a line of a `"""` / `'''` docstring.
+///
+/// The docstring matters more than the `#` comment here. Every half of a guide example under
+/// `bindings/mjx-python/tests/guide_examples/` opens with one, and every one of them names its
+/// guide page, its Rust sibling and its harness by path.
+fn python_comment(trimmed: &str, open_block: &mut Option<&'static str>) -> Option<String> {
+    if let Some(quote) = *open_block {
+        return Some(match trimmed.split_once(quote) {
+            Some((body, _)) => {
+                *open_block = None;
+                body.to_owned()
+            }
+            None => trimmed.to_owned(),
+        });
+    }
+    if let Some(rest) = trimmed.strip_prefix('#') {
+        return Some(rest.to_owned());
+    }
+    for quote in ["\"\"\"", "'''"] {
+        // A docstring may carry a raw or formatted prefix; `r"""` opens one exactly as `"""` does.
+        let opened = trimmed
+            .strip_prefix(quote)
+            .or_else(|| trimmed.strip_prefix('r')?.strip_prefix(quote))
+            .or_else(|| trimmed.strip_prefix('f')?.strip_prefix(quote));
+        if let Some(rest) = opened {
+            return Some(match rest.split_once(quote) {
+                Some((body, _)) => body.to_owned(),
+                None => {
+                    *open_block = Some(quote);
+                    rest.to_owned()
+                }
+            });
+        }
+    }
+    None
 }
 
 /// A maximal run of consecutive prose lines — a markdown paragraph, or one comment block.
@@ -996,13 +1208,14 @@ fn every_path_a_document_names_exists() {
         mentions >= MINIMUM_PATH_MENTIONS,
         "only {mentions} path mention(s) were extracted; the extractor has stopped matching"
     );
-    // Both corpora have to be reached. A change that made the Rust half stop yielding prose would
-    // still clear a bare total, because the markdown half alone is most of the count.
-    for (label, kind) in [("markdown", Kind::Markdown), ("Rust", Kind::Rust)] {
+    // Every corpus has to be reached. A change that made one language stop yielding prose would
+    // still clear a bare total, because markdown alone is most of the count.
+    for kind in Kind::ALL {
+        let held = documents.iter().filter(|d| d.kind == kind).count();
         assert!(
-            documents.iter().filter(|d| d.kind == kind).count() >= 40,
-            "only {} {label} document(s) are in the corpus; `git ls-files` is not reaching them",
-            documents.iter().filter(|d| d.kind == kind).count()
+            held >= kind.floor(),
+            "only {held} {} document(s) are in the corpus; `git ls-files` is not reaching them",
+            kind.label()
         );
     }
 
@@ -1014,14 +1227,12 @@ fn every_path_a_document_names_exists() {
     );
 
     println!(
-        "paths: {} mention(s) of {} distinct path(s) across {} document(s) ({} markdown, {} Rust), \
-         all present; {} `file::symbol` citation(s) resolved; {} mention(s) skipped in {} excluded \
-         document(s)",
+        "paths: {} mention(s) of {} distinct path(s) across {} document(s) ({}), all present; {} \
+         `file::symbol` citation(s) resolved; {} mention(s) skipped in {} excluded document(s)",
         mentions,
         distinct.len(),
         documents_naming_a_path,
-        documents.iter().filter(|d| d.kind == Kind::Markdown).count(),
-        documents.iter().filter(|d| d.kind == Kind::Rust).count(),
+        corpus_by_kind(&documents),
         symbol_citations,
         skipped_by_exclusion,
         DOCUMENTS_EXCLUDED_FROM_THE_CLAIM_CHECKS.len()
