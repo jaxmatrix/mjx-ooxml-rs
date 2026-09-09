@@ -38,6 +38,35 @@ Every snippet on every page here is a compiled doctest that `cargo test` runs, a
 on a value it computed — the same rule the other three guides are held to, and what keeps a page
 from drifting away from the API it describes.
 
+## Where the three languages differ in shape
+
+Almost every code example on these pages is shown three times — Rust, Python, JavaScript — and none
+of the three is a transcription: each is a copy of a file a test runner executes, so they cannot
+drift apart. `xtask/tests/guide_examples.rs` is what makes that a test failure rather than a habit.
+
+What they can still do is **differ**, because a few things this API states in a Rust type have no
+Rust type to be stated in on the other side. Wherever one of those applies, the blocks are preceded
+by a line beginning **The three differ in shape here**, saying which and why. That line always comes
+*before* the blocks, never after: a reader who meets three structurally different blocks with no
+explanation has already concluded that one of them is a typo, and no note underneath will undo it.
+
+| What differs | Rust | Python | JavaScript |
+|---|---|---|---|
+| A [`Format`] accessor | `format.family()`, a method | `format.family`, an attribute | `formatFamily(format)`, a free function — a wasm enumeration is a number in JavaScript and cannot carry a getter |
+| An [`ErrorCode`] | `failure.code() == ErrorCode::IndexOutOfRange` | one exception class per code, and `failure.code` as its string spelling | `failure.code`, a string on a real `Error` |
+| An [`ErrorDetail`] | `failure.detail().index` | `failure.index`, an attribute on the exception itself | `failure.detail.index`, a key present only when the failure had that coordinate |
+| A [`CellInput`] | `CellWrite::new("A1", CellInput::Number(1.0))` | `CellWrite.number("A1", 1.0)` | `CellWrite.number("A1", 1.0)` |
+
+One more difference exists that no example here reaches: a Rust range argument becomes two numbers
+in JavaScript, because `wasm-bindgen` has no range — see `bindings/mjx-wasm/src/tables.rs`.
+
+And a **handful of blocks are shown once, in Rust alone**, because the behaviour they describe is
+Rust-only by decision: the three escape hatches on [The curated surface](the_curated_surface), and
+the typed cause on [Errors](errors). Each says so in the prose beside it, and each carries a marker
+naming the symbols that make the claim true — which the same gate checks against both binding
+surfaces on every run, so a claim that stops being true is a test failure rather than a stale
+sentence.
+
 ## The shape of the API, in one page
 
 Four facts explain most of it.
@@ -48,21 +77,81 @@ Nothing in this workspace touches a filesystem, a network, a clock, a thread or 
 generator — which is why the same calls run unchanged in a browser through
 `bindings/mjx-wasm`, and why the caller always owns the file handle.
 
-```no_run
+**The three differ in shape here.** The dispatch is a `match` in Rust, an `if` chain in Python and
+a `switch` in JavaScript, and the accessor that produces the [`FormatFamily`] is a method, an
+attribute and a free function — the first row of the table below. Reading the bytes and writing the
+result are the caller's job in all three, so neither is in the block.
+
+<!-- guide-example: open_edit_and_save_any_format rust -->
+```rust
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let bytes = mjx_fixtures::fixture("sample.pptx");
 use mjx_ooxml::{detect_format, Deck, Document, FormatFamily, Workbook};
 
-let bytes = std::fs::read("in.pptx")?;
-match detect_format(&bytes)?.family() {
-    FormatFamily::Presentation => { let deck = Deck::open(&bytes)?; std::fs::write("out.pptx", deck.save()?)?; }
-    FormatFamily::WordProcessing => { let doc = Document::open(&bytes)?; std::fs::write("out.docx", doc.save()?)?; }
-    FormatFamily::Spreadsheet => { let wb = Workbook::open(&bytes)?; std::fs::write("out.xlsx", wb.save()?)?; }
-    // `FormatFamily` is `#[non_exhaustive]`: a fourth family is an added arm, not a broken build.
-    _ => unreachable!("three families today"),
-}
+// `bytes` is whatever the caller read. Which of the three surfaces opens it is the package's
+// answer, not the filename's.
+let saved = match detect_format(&bytes)?.family() {
+    FormatFamily::Presentation => Deck::open(&bytes)?.save()?,
+    FormatFamily::WordProcessing => Document::open(&bytes)?.save()?,
+    FormatFamily::Spreadsheet => Workbook::open(&bytes)?.save()?,
+    // `FormatFamily` is `#[non_exhaustive]`: a fourth family is an added arm, not a broken
+    // build.
+    other => return Err(format!("unhandled family {other:?}").into()),
+};
+assert!(!saved.is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: open_edit_and_save_any_format python -->
+```python
+from mjx_ooxml import Deck, Document, FormatFamily, Workbook, detect_format
+
+# `data` is whatever the caller read. Which of the three surfaces opens it is the package's
+# answer, not the filename's.
+family = detect_format(data).family
+if family == FormatFamily.Presentation:
+    saved = Deck.open(data).save()
+elif family == FormatFamily.WordProcessing:
+    saved = Document.open(data).save()
+elif family == FormatFamily.Spreadsheet:
+    saved = Workbook.open(data).save()
+else:
+    # A fourth family would be another branch here, not a broken program.
+    raise ValueError(f"unhandled family {family}")
+assert saved
+```
+<!-- guide-example end -->
+
+<!-- guide-example: open_edit_and_save_any_format js -->
+```js
+import { Deck, Document, FormatFamily, Workbook, detectFormat, formatFamily } from "@mjx/ooxml";
+
+// `data` is whatever the caller read. Which of the three surfaces opens it is the package's
+// answer, not the filename's.
+let opened;
+switch (formatFamily(detectFormat(data))) {
+  case FormatFamily.Presentation:
+    opened = Deck.open(data);
+    break;
+  case FormatFamily.WordProcessing:
+    opened = Document.open(data);
+    break;
+  case FormatFamily.Spreadsheet:
+    opened = Workbook.open(data);
+    break;
+  default:
+    // A fourth family would be another case here, not a broken program.
+    throw new Error("unhandled format family");
+}
+const saved = opened.save();
+opened.free(); // a wasm handle owns memory the garbage collector cannot see
+if (saved.length === 0) {
+  throw new Error("a saved package is never empty");
+}
+```
+<!-- guide-example end -->
 
 **Everything is addressed, nothing is handed out.** There is no `Slide` object, no `Paragraph`
 object and no `Sheet` object to hold. You name what you want on each call — a surface and a shape, a
@@ -83,18 +172,71 @@ in any of the three languages, [`Error::detail`] says *where*, and the typed cau
 [`mjx_pptx::PptxError`], a `mjx_docx::DocxError`, a `mjx_xlsx::XlsxError` — is still reachable by
 downcasting [`source`](std::error::Error::source). See [Errors](errors).
 
-```
+**The three differ in shape here**, in both of the ways the table above names at once: the code is
+an enumeration, a class and a string; and the five [`ErrorDetail`] coordinates are a value behind
+`detail()`, five attributes on the exception itself, and the keys a plain `detail` object actually
+carries.
+
+<!-- guide-example: an_index_out_of_range rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Deck, ErrorCode, SlideSize};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let failure = deck.shape_count(7.into()).expect_err("slide 7 does not exist");
+
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure = deck.shape_count(7.into()).expect_err("no slide 7");
 assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
 assert_eq!(failure.detail().index, Some(7));
 assert_eq!(failure.message(), "slide index 7 out of range (0..0)");
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: an_index_out_of_range python -->
+```python
+from mjx_ooxml import Deck, IndexOutOfRangeError, SlideSize
+
+deck = Deck.blank(SlideSize.widescreen())
+
+# A blank deck has no slides at all, so slide 7 is past the end.
+try:
+    deck.shape_count(7)
+    raise AssertionError("no slide 7")
+except IndexOutOfRangeError as failure:
+    assert failure.code == "IndexOutOfRange"
+    assert failure.index == 7
+    assert str(failure) == "slide index 7 out of range (0..0)"
+```
+<!-- guide-example end -->
+
+<!-- guide-example: an_index_out_of_range js -->
+```js
+import { Deck, SlideSize } from "@mjx/ooxml";
+
+const size = SlideSize.widescreen();
+const deck = Deck.blank(size);
+
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure;
+try {
+  deck.shapeCount(7);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "IndexOutOfRange" || failure.detail.index !== 7) {
+  throw new Error("slide 7 is out of range, and the failure says which index");
+}
+if (failure.message !== "slide index 7 out of range (0..0)") {
+  throw new Error(failure.message);
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+size.free();
+deck.free();
+```
+<!-- guide-example end -->
 
 ## Nothing downstream names a crate below this one
 

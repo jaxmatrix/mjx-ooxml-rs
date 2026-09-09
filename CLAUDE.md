@@ -183,6 +183,18 @@ an example that starts from a file can bind its bytes without showing a reader h
 finds its fixtures; the other two languages need none, because whatever they do above their sentinel
 is already invisible.
 
+**A block that genuinely cannot exist in three languages says so, in names a test can check**
+(MJXOFF-261, MJXOFF-257). Its marker reads `rust-only` followed by the Rust symbols that make the
+claim true, and the gate then demands *more* rather than less: the example must have a Rust half and
+no binding half and be shown by no marker in either language; every declared name must occur in the
+region the block shows; and every declared name must be reachable from **neither** binding, read out
+of the committed `.pyi` and the committed `#[wasm_bindgen]` declarations by `xtask/src/binding_surface.rs`
+— the module `xtask/tests/binding_projection.rs` and the guide gate share, because two parsers of
+the same two surfaces would disagree with no way to say which was wrong. So the day a binding
+projects one of the named symbols, the claim reddens instead of quietly rotting. `rust-only` with no
+names is refused where it is parsed: a claim nothing can be compared against is the suppression the
+form exists not to be.
+
 **The examples carried end to end are exactly the files under the three directories** — no list
 anywhere states which, by design. What remains a backlog on MJXOFF-254 is every *other* fenced Rust
 block in `crates/mjx-ooxml/docs/guide/`, and the ones left are there because their projection is not

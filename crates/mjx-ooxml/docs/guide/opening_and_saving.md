@@ -10,19 +10,75 @@ checks, and what refusing looks like.
 presentations, a `.docx` renamed to `.pptx` is recognised as a Word document, and a ZIP that is not
 an OPC package at all is refused by name rather than by a parse failure three layers down.
 
-```
+**The three differ in shape here.** A [`Format`]'s accessors are methods in Rust, plain attributes
+in Python, and **free functions** in JavaScript — `formatFamily(format)` rather than
+`format.family()` — because a `#[wasm_bindgen]` enumeration is a number on that side and a number
+cannot carry a getter. Nothing about the value differs; only how each language spells reaching into
+it. See [Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
+
+<!-- guide-example: detecting_a_format rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let bytes = mjx_fixtures::fixture("sample.docx");
 use mjx_ooxml::{detect_format, Format, FormatFamily};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
-let bytes = mjx_fixtures::fixture("sample.docx");
-let format = detect_format(&bytes)?;
-assert_eq!(format, Format::Document);
-assert_eq!(format.family(), FormatFamily::WordProcessing);
-assert_eq!(format.conventional_extension(), "docx");
-assert!(format.is_editable() && !format.is_macro_enabled());
+// `bytes` is a Word document. Nothing here looks at a filename: detection opens the container,
+// follows the root `officeDocument` relationship and reads the content type it lands on.
+let detected = detect_format(&bytes)?;
+assert_eq!(detected, Format::Document);
+assert_eq!(detected.family(), FormatFamily::WordProcessing);
+assert_eq!(detected.conventional_extension(), "docx");
+assert!(detected.is_editable());
+assert!(!detected.is_macro_enabled());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: detecting_a_format python -->
+```python
+from mjx_ooxml import Format, FormatFamily, detect_format
+
+# `data` is a Word document. Nothing here looks at a filename: detection opens the container,
+# follows the root `officeDocument` relationship and reads the content type it lands on.
+detected = detect_format(data)
+assert detected == Format.Document
+assert detected.family == FormatFamily.WordProcessing
+assert detected.conventional_extension == "docx"
+assert detected.is_editable
+assert not detected.is_macro_enabled
+```
+<!-- guide-example end -->
+
+<!-- guide-example: detecting_a_format js -->
+```js
+import {
+  Format,
+  FormatFamily,
+  detectFormat,
+  formatConventionalExtension,
+  formatFamily,
+  formatIsEditable,
+  formatIsMacroEnabled,
+} from "@mjx/ooxml";
+
+// `data` is a Word document. Nothing here looks at a filename: detection opens the container,
+// follows the root `officeDocument` relationship and reads the content type it lands on.
+const detected = detectFormat(data);
+if (detected !== Format.Document) {
+  throw new Error("these bytes are a Word document");
+}
+if (formatFamily(detected) !== FormatFamily.WordProcessing) {
+  throw new Error("and its family is WordProcessing");
+}
+if (formatConventionalExtension(detected) !== "docx") {
+  throw new Error("whose conventional extension is docx");
+}
+if (!formatIsEditable(detected) || formatIsMacroEnabled(detected)) {
+  throw new Error("this build can edit it, and it carries no macros");
+}
+```
+<!-- guide-example end -->
 
 [`Format`] has **fifteen** members across three [`FormatFamily`] values — six PowerPoint spellings,
 four Word, five Excel — and `crates/mjx-ooxml/tests/format_detection.rs` is what holds the table to
@@ -40,17 +96,70 @@ You do not have to call [`detect_format`] yourself. Each of [`Deck::open`], [`Do
 that would have worked — rather than a `MalformedDocument` about a `presentation.xml` that was never
 there. The package is read exactly once either way.
 
-```
+**The three differ in shape here.** The eleven [`ErrorCode`] values are one enumeration in Rust,
+**eleven exception classes** in Python — so `except` can select one — and **eleven strings** on a
+JavaScript `Error`'s `code` property, because `catch` selects on nothing there. All three branch on
+the same classification; only catching is spelled differently. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape),
+and [Errors](errors) for the whole of both projections.
+
+<!-- guide-example: opening_the_wrong_surface rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let workbook_bytes = mjx_fixtures::fixture("sample.xlsx");
 use mjx_ooxml::{Deck, ErrorCode};
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-let workbook_bytes = mjx_fixtures::fixture("sample.xlsx");
+// `workbook_bytes` is a spreadsheet, and `Deck::open` detects that before it parses anything.
 let failure = Deck::open(&workbook_bytes).expect_err("a workbook is not a deck");
 assert_eq!(failure.code(), ErrorCode::UnsupportedFormat);
-assert!(failure.message().contains("Workbook"), "{}", failure.message());
+
+// The message names the constructor that would have worked, rather than complaining about a
+// `presentation.xml` that was never there.
+assert!(failure.message().contains("Workbook"));
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: opening_the_wrong_surface python -->
+```python
+from mjx_ooxml import Deck, UnsupportedFormatError
+
+# `workbook_bytes` is a spreadsheet, and `Deck.open` detects that before it parses anything.
+try:
+    Deck.open(workbook_bytes)
+    raise AssertionError("a workbook is not a deck")
+except UnsupportedFormatError as failure:
+    assert failure.code == "UnsupportedFormat"
+
+    # The message names the constructor that would have worked, rather than complaining about a
+    # `presentation.xml` that was never there.
+    assert "Workbook" in str(failure), failure
+```
+<!-- guide-example end -->
+
+<!-- guide-example: opening_the_wrong_surface js -->
+```js
+import { Deck } from "@mjx/ooxml";
+
+// `workbookBytes` is a spreadsheet, and `Deck.open` detects that before it parses anything.
+let failure;
+try {
+  Deck.open(workbookBytes);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "UnsupportedFormat") {
+  throw new Error("a workbook is not a deck");
+}
+
+// The message names the constructor that would have worked, rather than complaining about a
+// `presentation.xml` that was never there.
+if (!failure.message.includes("Workbook")) {
+  throw new Error(failure.message);
+}
+```
+<!-- guide-example end -->
 
 ## Authoring from nothing
 
