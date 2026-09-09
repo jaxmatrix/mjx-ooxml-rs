@@ -38,6 +38,35 @@ Every snippet on every page here is a compiled doctest that `cargo test` runs, a
 on a value it computed — the same rule the other three guides are held to, and what keeps a page
 from drifting away from the API it describes.
 
+## Where the three languages differ in shape
+
+Almost every code example on these pages is shown three times — Rust, Python, JavaScript — and none
+of the three is a transcription: each is a copy of a file a test runner executes, so they cannot
+drift apart. `xtask/tests/guide_examples.rs` is what makes that a test failure rather than a habit.
+
+What they can still do is **differ**, because a few things this API states in a Rust type have no
+Rust type to be stated in on the other side. Wherever one of those applies, the blocks are preceded
+by a line beginning **The three differ in shape here**, saying which and why. That line always comes
+*before* the blocks, never after: a reader who meets three structurally different blocks with no
+explanation has already concluded that one of them is a typo, and no note underneath will undo it.
+
+| What differs | Rust | Python | JavaScript |
+|---|---|---|---|
+| A [`Format`] accessor | `format.family()`, a method | `format.family`, an attribute | `formatFamily(format)`, a free function — a wasm enumeration is a number in JavaScript and cannot carry a getter |
+| An [`ErrorCode`] | `failure.code() == ErrorCode::IndexOutOfRange` | one exception class per code, and `failure.code` as its string spelling | `failure.code`, a string on a real `Error` |
+| An [`ErrorDetail`] | `failure.detail().index` | `failure.index`, an attribute on the exception itself | `failure.detail.index`, a key present only when the failure had that coordinate |
+| A [`CellInput`] | `CellWrite::new("A1", CellInput::Number(1.0))` | `CellWrite.number("A1", 1.0)` | `CellWrite.number("A1", 1.0)` |
+
+One more difference exists that no example here reaches: a Rust range argument becomes two numbers
+in JavaScript, because `wasm-bindgen` has no range — see `bindings/mjx-wasm/src/tables.rs`.
+
+And a **handful of blocks are shown once, in Rust alone**, because the behaviour they describe is
+Rust-only by decision: the three escape hatches on [The curated surface](the_curated_surface), and
+the typed cause on [Errors](errors). Each says so in the prose beside it, and each carries a marker
+naming the symbols that make the claim true — which the same gate checks against both binding
+surfaces on every run, so a claim that stops being true is a test failure rather than a stale
+sentence.
+
 ## The shape of the API, in one page
 
 Four facts explain most of it.

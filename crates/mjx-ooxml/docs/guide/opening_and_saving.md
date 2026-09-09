@@ -10,19 +10,75 @@ checks, and what refusing looks like.
 presentations, a `.docx` renamed to `.pptx` is recognised as a Word document, and a ZIP that is not
 an OPC package at all is refused by name rather than by a parse failure three layers down.
 
-```
+**The three differ in shape here.** A [`Format`]'s accessors are methods in Rust, plain attributes
+in Python, and **free functions** in JavaScript — `formatFamily(format)` rather than
+`format.family()` — because a `#[wasm_bindgen]` enumeration is a number on that side and a number
+cannot carry a getter. Nothing about the value differs; only how each language spells reaching into
+it. See [Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
+
+<!-- guide-example: detecting_a_format rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let bytes = mjx_fixtures::fixture("sample.docx");
 use mjx_ooxml::{detect_format, Format, FormatFamily};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
-let bytes = mjx_fixtures::fixture("sample.docx");
+// `bytes` is a Word document. Nothing here looks at a filename: detection opens the container,
+// follows the root `officeDocument` relationship and reads the content type it lands on.
 let format = detect_format(&bytes)?;
 assert_eq!(format, Format::Document);
 assert_eq!(format.family(), FormatFamily::WordProcessing);
 assert_eq!(format.conventional_extension(), "docx");
-assert!(format.is_editable() && !format.is_macro_enabled());
+assert!(format.is_editable());
+assert!(!format.is_macro_enabled());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: detecting_a_format python -->
+```python
+from mjx_ooxml import Format, FormatFamily, detect_format
+
+# `data` is a Word document. Nothing here looks at a filename: detection opens the container,
+# follows the root `officeDocument` relationship and reads the content type it lands on.
+format = detect_format(data)
+assert format == Format.Document
+assert format.family == FormatFamily.WordProcessing
+assert format.conventional_extension == "docx"
+assert format.is_editable
+assert not format.is_macro_enabled
+```
+<!-- guide-example end -->
+
+<!-- guide-example: detecting_a_format js -->
+```js
+import {
+  Format,
+  FormatFamily,
+  detectFormat,
+  formatConventionalExtension,
+  formatFamily,
+  formatIsEditable,
+  formatIsMacroEnabled,
+} from "@mjx/ooxml";
+
+// `data` is a Word document. Nothing here looks at a filename: detection opens the container,
+// follows the root `officeDocument` relationship and reads the content type it lands on.
+const format = detectFormat(data);
+if (format !== Format.Document) {
+  throw new Error("these bytes are a Word document");
+}
+if (formatFamily(format) !== FormatFamily.WordProcessing) {
+  throw new Error("and its family is WordProcessing");
+}
+if (formatConventionalExtension(format) !== "docx") {
+  throw new Error("whose conventional extension is docx");
+}
+if (!formatIsEditable(format) || formatIsMacroEnabled(format)) {
+  throw new Error("this build can edit it, and it carries no macros");
+}
+```
+<!-- guide-example end -->
 
 [`Format`] has **fifteen** members across three [`FormatFamily`] values — six PowerPoint spellings,
 four Word, five Excel — and `crates/mjx-ooxml/tests/format_detection.rs` is what holds the table to
