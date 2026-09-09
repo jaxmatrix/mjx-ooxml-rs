@@ -161,22 +161,98 @@ Opening a file and saving it without touching anything gives back **every part's
 payload byte for byte**, plus a structurally identical container. Not identical ZIP bytes: the
 compression level and the entry order are the container's business, not the document's.
 
-```
-# fn main() -> Result<(), mjx_ooxml::Error> {
+The three blocks below are copies of three files a test runner executes, exactly as *Saving
+validates* above is — and this is the example where that arrangement earns its keep. **Nothing here
+is authored.** Every part of the package these three save was written by whoever produced
+`tests/fixtures/sample.xlsx`, so what each block asserts is preservation itself: the same part names,
+and byte-identical payloads for every one of them. `original` is that file's bytes, read by each
+runner before the block starts, because reading a file is the caller's job in all three languages —
+this library is bytes in and bytes out and never touches a filesystem.
+
+<!-- guide-example: the_round_trip rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let original = mjx_fixtures::fixture("sample.xlsx");
 use mjx_ooxml::Workbook;
 
-let original = mjx_fixtures::fixture("sample.xlsx");
+// `original` is the file's bytes. Reading them is the caller's job in every one of the three
+// languages: this library is bytes in and bytes out and never touches a filesystem.
 let saved = Workbook::open(&original)?.save()?;
 
+// Nothing was edited, so every part comes back byte for byte. That is the contract, and it is
+// `mjx_opc`'s copy-on-write part graph that keeps it rather than anything this facade does.
 let before = Workbook::open(&original)?;
 let after = Workbook::open(&saved)?;
 assert_eq!(before.part_names(), after.part_names());
 for part in before.part_names() {
-    assert_eq!(before.part_bytes(&part)?, after.part_bytes(&part)?, "{part} changed");
+    let was = before.part_bytes(&part)?;
+    let now = after.part_bytes(&part)?;
+    assert_eq!(was, now, "{part} changed");
 }
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: the_round_trip python -->
+```python
+from mjx_ooxml import Workbook
+
+# `original` is the file's bytes. Reading them is the caller's job in every one of the three
+# languages: this library is bytes in and bytes out and never touches a filesystem.
+saved = Workbook.open(original).save()
+
+# Nothing was edited, so every part comes back byte for byte. That is the contract, and it is
+# `mjx_opc`'s copy-on-write part graph that keeps it rather than anything this facade does.
+before = Workbook.open(original)
+after = Workbook.open(saved)
+assert before.part_names() == after.part_names()
+for part in before.part_names():
+    was = before.part_bytes(part)
+    now = after.part_bytes(part)
+    assert was == now, f"{part} changed"
+```
+<!-- guide-example end -->
+
+<!-- guide-example: the_round_trip js -->
+```js
+import { Workbook } from "@mjx/ooxml";
+
+// `original` is the file's bytes. Reading them is the caller's job in every one of the three
+// languages: this library is bytes in and bytes out and never touches a filesystem.
+const opened = Workbook.open(original);
+const saved = opened.save();
+opened.free();
+
+// Nothing was edited, so every part comes back byte for byte. That is the contract, and it is
+// `mjx_opc`'s copy-on-write part graph that keeps it rather than anything this facade does.
+const before = Workbook.open(original);
+const after = Workbook.open(saved);
+const names = before.partNames();
+if (names.join("\n") !== after.partNames().join("\n")) {
+  throw new Error("a part appeared or vanished");
+}
+for (const part of names) {
+  const was = before.partBytes(part);
+  const now = after.partBytes(part);
+  if (was.length !== now.length || was.some((byte, at) => byte !== now[at])) {
+    throw new Error(`${part} changed`);
+  }
+}
+before.free(); // a wasm handle owns memory the garbage collector cannot see
+after.free();
+```
+<!-- guide-example end -->
+
+The JavaScript block is the longest, and both reasons are the language rather than this library: a
+wasm handle owns memory the garbage collector cannot see, so each of the three is freed by hand, and
+JavaScript has no structural equality, so two byte arrays are compared element by element where Rust
+and Python compare them with `==`. Every call in front of those differences is the same call with the
+same arguments.
+
+The two binding harnesses then compare all three saved packages against each other part by part,
+which is a **second** fact and not a restatement of the first: each block on its own proves that its
+language preserved the fixture, and the comparison proves the three preserved it *the same way*.
 
 That contract is not this crate's doing — it is `mjx_opc`'s copy-on-write part graph and
 `mjx_xml::fidelity`'s byte-preserving reader, inherited whole. What *is* this crate's doing is that

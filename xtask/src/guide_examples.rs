@@ -55,6 +55,29 @@ pub const REGION_START: &str = "guide-example:start";
 /// The sentinel that closes it.
 pub const REGION_END: &str = "guide-example:end";
 
+/// The sentinel that opens a Rust half's *hidden* region, if it has one.
+///
+/// An example that starts from a file needs bytes, and reading a file is the caller's job rather
+/// than this library's — every guide page says so, and `crates/mjx-ooxml/examples/build_a_deck.rs`
+/// keeps its own `std::fs::read` outside the code the guide shows for exactly that reason. The
+/// Python and JavaScript halves get that for free: anything above their sentinel is simply not in
+/// the block. The Rust half cannot, because its block is *also* a doctest, and a doctest that names
+/// `original` without binding it does not compile.
+///
+/// So a Rust half may carry a second, earlier region whose lines are emitted into the block as
+/// rustdoc's hidden `#` lines: compiled and run, never shown. It is the same device the guide's
+/// hand-written blocks already use for `fn main`, made available to a copied one.
+///
+/// Deliberately Rust-only. In the other two languages it would be a no-op — the lines are already
+/// invisible — and `xtask/tests/guide_examples.rs` reports one there rather than ignoring it.
+pub const PRELUDE_START: &str = "guide-example:prelude-start";
+
+/// The sentinel that closes it.
+///
+/// Neither prelude sentinel contains [`REGION_START`] or [`REGION_END`] as a substring, so the two
+/// pairs cannot be confused for one another by the scan below.
+pub const PRELUDE_END: &str = "guide-example:prelude-end";
+
 /// The hidden line a copied Rust region is wrapped in so the block is a runnable doctest.
 ///
 /// It is hidden (`#`) rather than shown because it is scaffolding, not API: the reader sees the
@@ -150,10 +173,30 @@ impl Language {
 
     /// The body of the fenced block, from the region copied out of the source file.
     ///
-    /// Only Rust adds anything, and what it adds is hidden from the rendered page.
-    pub fn block_body(self, region: &str) -> String {
+    /// Only Rust adds anything, and what it adds is hidden from the rendered page: the `fn main`
+    /// the doctest needs, and — for an example that starts from bytes it did not author — the
+    /// [`PRELUDE_START`] region that binds them. The other two languages hide their setup by
+    /// leaving it above the sentinel, which is why they take no prelude.
+    pub fn block_body(self, region: &str, prelude: Option<&str>) -> String {
         match self {
-            Language::Rust => format!("{RUST_DOCTEST_OPEN}\n{region}\n{RUST_DOCTEST_CLOSE}"),
+            Language::Rust => {
+                let mut body = String::from(RUST_DOCTEST_OPEN);
+                for line in prelude.into_iter().flat_map(str::lines) {
+                    body.push('\n');
+                    // `#` alone on a blank line, so a hidden line never leaves trailing space in
+                    // the committed page.
+                    body.push('#');
+                    if !line.is_empty() {
+                        body.push(' ');
+                        body.push_str(line);
+                    }
+                }
+                body.push('\n');
+                body.push_str(region);
+                body.push('\n');
+                body.push_str(RUST_DOCTEST_CLOSE);
+                body
+            }
             Language::Python | Language::JavaScript => region.to_owned(),
         }
     }
@@ -200,28 +243,47 @@ fn repository_root() -> PathBuf {
 /// Errors rather than returning an empty region, because an example whose region is empty renders
 /// an empty block and nothing else would notice.
 pub fn region(source: &str, path: &str) -> Result<String> {
+    between(source, path, REGION_START, REGION_END)?.ok_or_else(|| {
+        anyhow!("{path}: expected exactly one `{REGION_START}` and one `{REGION_END}`, found none")
+    })
+}
+
+/// The hidden region of a Rust half, when it has one.
+///
+/// `Ok(None)` is the ordinary answer — most examples need no setup. A file that opens the pair and
+/// never closes it, or encloses nothing, is an error rather than a prelude quietly dropped: the
+/// block would then compile against a binding that is not there and fail somewhere else entirely.
+pub fn prelude(source: &str, path: &str) -> Result<Option<String>> {
+    between(source, path, PRELUDE_START, PRELUDE_END)
+}
+
+/// The dedented lines between one pair of sentinels, or `None` when the file carries neither.
+fn between(source: &str, path: &str, start: &str, end: &str) -> Result<Option<String>> {
     let opens: Vec<usize> = source
         .lines()
         .enumerate()
-        .filter(|(_, line)| line.contains(REGION_START))
+        .filter(|(_, line)| line.contains(start))
         .map(|(index, _)| index)
         .collect();
     let closes: Vec<usize> = source
         .lines()
         .enumerate()
-        .filter(|(_, line)| line.contains(REGION_END))
+        .filter(|(_, line)| line.contains(end))
         .map(|(index, _)| index)
         .collect();
+    if opens.is_empty() && closes.is_empty() {
+        return Ok(None);
+    }
     if opens.len() != 1 || closes.len() != 1 {
         bail!(
-            "{path}: expected exactly one `{REGION_START}` and one `{REGION_END}`, found {} and {}",
+            "{path}: expected exactly one `{start}` and one `{end}`, found {} and {}",
             opens.len(),
             closes.len()
         );
     }
     let (open, close) = (opens[0], closes[0]);
     if close <= open + 1 {
-        bail!("{path}: `{REGION_START}` and `{REGION_END}` enclose no lines");
+        bail!("{path}: `{start}` and `{end}` enclose no lines");
     }
 
     let mut lines: Vec<&str> = source.lines().collect::<Vec<_>>()[open + 1..close].to_vec();
@@ -232,7 +294,7 @@ pub fn region(source: &str, path: &str) -> Result<String> {
         lines.pop();
     }
     if lines.is_empty() {
-        bail!("{path}: the region between the sentinels is blank");
+        bail!("{path}: the region between `{start}` and `{end}` is blank");
     }
 
     let indent = lines
@@ -241,17 +303,19 @@ pub fn region(source: &str, path: &str) -> Result<String> {
         .map(|line| line.len() - line.trim_start().len())
         .min()
         .unwrap_or(0);
-    Ok(lines
-        .iter()
-        .map(|line| {
-            if line.len() >= indent {
-                &line[indent..]
-            } else {
-                ""
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n"))
+    Ok(Some(
+        lines
+            .iter()
+            .map(|line| {
+                if line.len() >= indent {
+                    &line[indent..]
+                } else {
+                    ""
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    ))
 }
 
 /// The marker one line opens, if it opens one.
@@ -335,12 +399,11 @@ pub fn rewrite_page(root: &Path, page: &str, text: &str) -> Result<String> {
         let source_path = marker.language.source_path(&marker.name);
         let source = std::fs::read_to_string(root.join(&source_path))
             .with_context(|| format!("{page}:{}: reading {source_path}", marker.line))?;
-        let body =
-            marker
-                .language
-                .block_body(&region(&source, &source_path).with_context(|| {
-                    format!("{page}:{}: extracting {source_path}", marker.line)
-                })?);
+        let extracted = region(&source, &source_path)
+            .with_context(|| format!("{page}:{}: extracting {source_path}", marker.line))?;
+        let hidden = prelude(&source, &source_path)
+            .with_context(|| format!("{page}:{}: extracting {source_path}", marker.line))?;
+        let body = marker.language.block_body(&extracted, hidden.as_deref());
 
         output.push(line.to_owned());
         output.push(format!("```{}", marker.language.token()));
