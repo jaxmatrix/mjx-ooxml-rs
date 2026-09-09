@@ -123,6 +123,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use xtask::codegen::SIMPLE_TYPE_MODULES;
+use xtask::facade_surface;
 use xtask::validation::ArtefactFormat;
 
 // ===============================================================================================
@@ -379,20 +380,10 @@ impl BasePopulation {
                 .iter()
                 .map(|module| module.module.to_owned())
                 .collect(),
-            Self::FacadeHandleTypes => {
-                let facade = repository_root().join("crates/mjx-ooxml/src");
-                let mut handles = BTreeSet::new();
-                for entry in std::fs::read_dir(&facade).expect("crates/mjx-ooxml/src") {
-                    let path = entry.expect("a directory entry").path();
-                    let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-                        continue;
-                    };
-                    if path.extension().is_some_and(|e| e == "rs") && facade.join(stem).is_dir() {
-                        handles.insert(stem.to_owned());
-                    }
-                }
-                handles
-            }
+            // Shared with `xtask/tests/facade_curation.rs` since MJXOFF-252, which holds its own
+            // `SURFACES` roster against this population. Two walks over the same directory would
+            // disagree with no way to say which was wrong.
+            Self::FacadeHandleTypes => facade_surface::handle_types(&repository_root()),
             Self::ValidationCataloguePages => {
                 let mut pages = BTreeSet::new();
                 for entry in std::fs::read_dir(repository_root().join("docs/validation"))
