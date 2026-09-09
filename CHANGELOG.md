@@ -60,6 +60,79 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.149] - 2026-09-09
+
+Four API defects that were all the same shape: one half of a pair shipped and the other did not.
+
+### The adjustment writer reaches all three languages (MJXOFF-223, H5)
+
+`mjx_ooxml::Deck` had `shape_adjustments` — a reader that answers *what may this handle be set to* —
+and no writer for the same thing. That reader is asked in order to set, so the pair belongs on the
+facade: `Deck::set_shape_adjustments`, `Deck.set_shape_adjustments` and `Deck.setShapeAdjustments`.
+
+The ticket said the format-tier half already existed. It did not on this line —
+`epic/phase-g-geometry` has never been merged into `main` or `epic/phase-h` — so
+`Presentation::set_shape_adjustments` arrives **verbatim** from that branch, byte-identical to its
+state there, rather than as a second implementation that would conflict when the two lines meet.
+
+The WebAssembly argument shape was the substantive design question. A list of `(name, value)` pairs
+cannot cross wasm-bindgen without `serde`, which the shipped `mjx-dml` may not grow derives for, so
+the pairs arrive as **two parallel arrays** — the shape a range already takes when it becomes two
+numbers — and a length mismatch is refused with `InvalidArgument`.
+
+### A theme-following sibling for every colour convenience Excel authors with (MJXOFF-235, H5)
+
+`Color::from_theme` was the only theme-following constructor in the Excel authoring vocabulary, and
+every convenience beside it took a hex literal — so the shortest path pinned a colour into a document
+whose owner may have rebranded it, and the theme-following path cost four lines. That is the standing
+rule *let it inherit* inverted at the API level.
+
+Each of the four now has a sibling — `PatternFillSpec::solid_from_theme`,
+`ColorScaleSpec::two_color_from_theme`, `DataBarSpec::spanning_the_range_from_theme`,
+`DifferentialFormatSpec::highlight_from_theme` — over the primitive underneath them,
+`Color::from_theme_slot`. They take a **`ColorSchemeSlot`**, not a `@theme` position, because `4`
+means `accent1` only to a reader with §20.1.6.2 open. `theme_color_position` is the inverse of the
+existing `theme_color_slot`, and both directions of the pair are asserted rather than left to a
+second copy of the table.
+
+`crates/mjx-ooxml/examples/build_a_workbook.rs` and its two twins now state the heading **fill** as
+`accent1` and keep a literal for the text on it: contrast is a constraint between two colours and a
+slot states one. Following the theme is the default; it does not outrank being readable.
+
+### A new table names a style, and the deck's own theme colours it (MJXOFF-232, H5)
+
+`Presentation::add_table` wrote `firstRow="1" bandRow="1"` and no `a:tableStyleId`. Those flags name
+*parts of a table style to emphasise*, so a table born with them and no style asked for two parts of
+nothing and rendered unstyled. PowerPoint writes both halves.
+
+A style id is always written now, and whose style it is depends on the deck: one whose
+`tableStyles.xml` already names a default it really defines gets **that** id and is not touched at
+all; any other gets a default authored on first use with **not one literal colour in it** — the
+header row is `<a:schemeClr val="accent1"/>` under `lt1` text and the band is `accent1` at
+`lumMod="20000" lumOff="80000"`. A table in a deck branded green comes out green.
+
+**One of the twenty validation artefacts changes**: `v-pptx-03-authored.pptx`, 6478 → 6603 bytes, and
+inside it exactly one part — `ppt/tableStyles.xml` gains the themed style. Its slide is
+byte-identical, and the other nineteen artefacts are unchanged.
+
+`mjx-schema-gate`'s reference resolver grows the rule that sees the class rather than the instance:
+**an `a:tblPr` with an emphasis flag on and no style is an unresolvable deferral**, the twin of the
+chart-series rule and the shape MJXOFF-200 named as invisible.
+
+### A producer for every exported class (MJXOFF-228, H5)
+
+`ResolvedColor` and `TableStyleFlags` were exported by the facade and by both bindings and returned,
+taken and constructed by nothing, so a caller in three languages could name a type and never obtain a
+value. Each now has exactly one producer — `Deck::resolved_scheme_color`, `Deck::table_style_flags` —
+and so does `Backdrop`, via `Deck::shape_backdrop`.
+
+**`Backdrop` was not on the ticket.** `every_exported_class_is_obtainable_from_some_other_call` found
+it, which is the argument for a sweep over two assertions. It asks the type-level form of the
+reachability rule and answers `binding_projection.rs`'s objection — *a signature parser that is
+subtly wrong is worse than none* — by not writing one: the committed, parity-checked `.pyi` is a
+declaration of the whole projected surface, and the gate reads it rather than reconstructing one from
+two hand-written crates.
+
 ## [0.0.148] - 2026-09-09
 
 The gate stopped reporting a defect of its own as a defect of everybody's files.
