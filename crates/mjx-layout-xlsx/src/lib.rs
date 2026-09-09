@@ -91,13 +91,22 @@
 //!   exclusive.
 //! * **A display list.** This crate never paints and never resolves a resource handle;
 //!   `tests/the_seam_holds.rs` refuses `mjx-scene`, `mjx-paint` and `mjx-geometry` by name. Excel's
-//!   companion resolver — the analogue of `mjx-scene-pptx` at rank 3.7 — does not exist yet, and no
-//!   ticket in Phase R currently names it.
+//!   companion resolver is `mjx-scene-xlsx` at rank 3.7 (MJXOFF-244) — the analogue of
+//!   `mjx-scene-pptx`, and the crate that turns every handle here into a paint.
+//! * **Gridlines.** `x:sheetView@showGridLines` defaults to *on*, and a worksheet's grey grid is the
+//!   most recognisable thing on an Excel screen; it is nevertheless **not** in this fragment tree.
+//!   A gridline is a property of the *view* rather than of the document — it is not printed unless
+//!   `printOptions@gridLines` says so, it does not move with an edit, and drawing one per visible
+//!   row and column would multiply a band's fragment count by an order of magnitude for content no
+//!   hit test can ever land on. MJXOFF-244 reported it rather than adding it quietly; where it
+//!   belongs (a chrome layer above the box model, or a fragment kind that says *this is furniture*)
+//!   is a decision for the child that draws a sheet on a screen.
 
 #![forbid(unsafe_code)]
 
 pub mod address;
 pub mod autofit;
+pub mod border;
 pub mod cell;
 pub mod error;
 pub mod geometry;
@@ -110,6 +119,7 @@ pub mod text;
 
 pub use address::CellHit;
 pub use autofit::{AutoFit, AutoFitCache};
+pub use border::{band_width, bands, BorderBand};
 pub use cell::{CellStyle, PlacedLine, PlacedText};
 pub use error::SheetLayoutError;
 pub use geometry::{
@@ -117,7 +127,8 @@ pub use geometry::{
 };
 pub use merge::{MergeIndex, MergedRegion, RegionEdge};
 pub use model::{
-    BorderEdge, CellBorders, CellFill, CellReport, Decoration, PageCatalogue, SheetBoxModel,
+    BorderEdge, CellBorders, CellFill, CellGradient, CellGradientStop, CellReport, Decoration,
+    PageCatalogue, SheetBoxModel,
 };
 pub use overflow::{Overflow, OverflowDirection};
 pub use panes::{PaneRegion, PaneSplit, Window};

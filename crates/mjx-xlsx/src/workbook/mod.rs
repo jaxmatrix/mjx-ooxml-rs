@@ -49,7 +49,8 @@ pub(crate) mod properties;
 pub(crate) mod sheets;
 pub(crate) mod views;
 
-use mjx_ooxml_core::{Interner, RawDocument, ToXml};
+use mjx_dml::{SchemeColors, Theme};
+use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_ooxml_types::namespaces::SML;
 use mjx_opc::{Package, PartName, TargetMode};
 use mjx_sml::{CalculationChain, WorkbookPart};
@@ -307,6 +308,42 @@ impl Workbook {
             ));
         };
         Ok(Some(read(&chain, &document.interner)))
+    }
+
+    /// The workbook's own colour scheme, resolved slot by slot, or `None` when it relates no theme
+    /// part.
+    ///
+    /// # Why this lives here rather than in whoever needs it
+    ///
+    /// A SpreadsheetML colour addresses the theme **by position** — `<color theme="4" tint="-0.25"/>`
+    /// is *the fifth slot of `<clrScheme>`, lightened* — so `mjx_sml::styles::resolve_color` takes a
+    /// [`SchemeColors`], and that type's own documentation says where it comes from: *"getting the
+    /// theme part out of the package is `mjx-xlsx`'s; this crate has never heard of one."* Until
+    /// MJXOFF-244 nothing here answered it, so every consumer that wanted a theme colour would have
+    /// had to resolve the relationship, parse a DrawingML part and build the bridge for itself —
+    /// which is a second reader of the package beside this one, and the shape of exactly the bug
+    /// that reading a document twice produces.
+    ///
+    /// **This is not a mutation.** The theme part keeps its container bytes and [`save`](Self::save)
+    /// re-emits them verbatim.
+    ///
+    /// # The theme is the user's, and it is never invented
+    ///
+    /// A workbook with no theme part answers `None` and every `@theme` colour then resolves to
+    /// nothing, which is the honest answer: a colour scheme made up here would paint a customer's
+    /// cells in a palette their document does not state.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the theme part cannot be read or is not well-formed DrawingML.
+    pub fn theme_colors(&mut self) -> Result<Option<SchemeColors>, XlsxError> {
+        let Some(part) = self.parts.theme.clone() else {
+            return Ok(None);
+        };
+        let document = self.package.part_tree(&part)?;
+        let theme = Theme::from_xml(&document.root, &document.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| SchemeColors::from_scheme(scheme, &document.interner)))
     }
 
     /// Edits the modelled `xl/workbook.xml` and writes it back, keeping the verbatim bytes of every

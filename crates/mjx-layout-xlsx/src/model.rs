@@ -48,12 +48,13 @@ use mjx_layout::{
     PageFragments, PageIndex, TableCell, TableFragment, TransformId,
 };
 use mjx_ooxml_core::measure::Emu;
-use mjx_ooxml_types::spreadsheetml::{BorderStyle, HorizontalAlignment, PatternType};
+use mjx_ooxml_types::spreadsheetml::{BorderStyle, GradientType, HorizontalAlignment, PatternType};
 use mjx_sml::{Color, FontProperties};
 use mjx_text::{FeatureSet, FontResolver, GlyphRasteriser, Shaper};
 
 use crate::address;
 use crate::autofit::{AutoFit, AutoFitCache};
+use crate::border;
 use crate::cell::{self, CellContext, CellStyle, PlacedText};
 use crate::error::SheetLayoutError;
 use crate::geometry::{ColumnGeometry, GridGeometry, MaximumDigitWidth, COLUMN_COUNT};
@@ -128,11 +129,44 @@ pub struct CellFill {
     pub foreground: Option<Color>,
     /// `x:bgColor`.
     pub background: Option<Color>,
-    /// Whether the fill is a gradient rather than a pattern.
+    /// The gradient, when the fill is one rather than a pattern.
     ///
-    /// The stops themselves are not carried: `x:gradientFill` is a resource the scene companion
-    /// resolves, and a box model that flattened it into two colours would have decided something.
-    pub is_gradient: bool,
+    /// **R16 carried a bare `is_gradient: bool` here** on the reasoning that *"`x:gradientFill` is a
+    /// resource the scene companion resolves"*. MJXOFF-244 found that the companion cannot: it is
+    /// handed this catalogue and nothing else, and a boolean names no stops, so a gradient-filled
+    /// cell had no way to reach a pixel at all. Carrying the stops is **not** the flattening that
+    /// reasoning was guarding against — nothing here decides what the ramp looks like, it only
+    /// records what the file wrote.
+    pub gradient: Option<CellGradient>,
+}
+
+/// `x:gradientFill` — what a gradient-filled cell states, unresolved.
+///
+/// Every colour is still an [`mjx_sml::Color`]: a `@theme` position, an `@indexed` row and a
+/// `@tint` are all still exactly what the file wrote, because resolving one needs
+/// `xl/theme/theme1.xml` and the box model does not have it.
+#[derive(Clone, PartialEq, Debug)]
+pub struct CellGradient {
+    /// `@type` — whether the ramp runs at an angle or converges on a rectangle.
+    pub kind: GradientType,
+    /// `@degree` — the angle of a linear ramp, in degrees clockwise.
+    pub degrees: f64,
+    /// `@left`, `@right`, `@top`, `@bottom` — the rectangle a `path` ramp converges on, as
+    /// fractions of the cell. Unused for a linear ramp, and carried anyway, because the file wrote
+    /// them.
+    pub inset: [f64; 4],
+    /// The stops, in the order the file wrote them — never sorted, for the reason
+    /// [`mjx_sml::GradientFill::stops`] gives.
+    pub stops: Vec<CellGradientStop>,
+}
+
+/// One `x:stop` of a [`CellGradient`].
+#[derive(Clone, PartialEq, Debug)]
+pub struct CellGradientStop {
+    /// `@position`, in `0.0..=1.0`.
+    pub position: f64,
+    /// `x:color`, unresolved.
+    pub colour: Option<Color>,
 }
 
 /// What a [`DecorationRef`] this box model issued resolves to.
@@ -158,6 +192,16 @@ pub struct Decoration {
     /// **Reported, never applied.** R16 renders a cell's raw stored value; MJXOFF-172 is the
     /// evaluator. Carrying the code here is what lets that child be a change to one crate.
     pub number_format: Option<(u32, String)>,
+    /// The edge this decoration draws, when it belongs to a **border band** rather than to a cell.
+    ///
+    /// A band is a box the width of one border line, filled with that line's colour — see
+    /// [`crate::border`] for why an edge cannot be a stroke on the cell's own decoration. The two
+    /// states are exclusive: a decoration with a band draws nothing else, and a cell's decoration
+    /// never carries one.
+    ///
+    /// The whole [`BorderEdge`] is here rather than just its colour so that the layer above has the
+    /// style a filled band cannot draw. See [`crate::border`] for what that costs today.
+    pub border_band: Option<BorderEdge>,
 }
 
 /// What one laid-out cell did, beyond where its fragments went.
@@ -173,6 +217,17 @@ pub struct CellReport {
     pub shrink_scale: f64,
     /// The merged region it anchors, when it anchors one.
     pub merge: Option<MergedRegion>,
+    /// The handle its own box carries.
+    ///
+    /// **Added by MJXOFF-244, and the reason is a seam the fragment vocabulary leaves open.**
+    /// `mjx_scene::ResourceResolver::text_decoration` is addressed by a [`SourceRef`] rather than by
+    /// a handle, because a `GlyphRunFragment` carries no decoration of its own — so a companion that
+    /// wants a cell's *font colour* has to turn `(row, column)` back into a handle. Every cell that
+    /// produces a glyph run produces one of these reports, so this table is exactly the map that
+    /// question needs, and building it costs a `Copy` field rather than a second walk of the tree.
+    ///
+    /// [`SourceRef`]: mjx_layout::SourceRef
+    pub decoration: DecorationRef,
 }
 
 /// The tables the handles in one page's fragments resolve through.
@@ -190,6 +245,12 @@ pub struct PageCatalogue {
     /// natural key; a merged region is deliberately *not* shared, because its four borders are
     /// resolved from its own perimeter and two merges with the same anchor format can still differ.
     by_format: Vec<(mjx_sml::EffectiveCellFormat, DecorationRef)>,
+    /// Which handle each already-issued **border band** resolved to.
+    ///
+    /// A worksheet's borders repeat far harder than its formats do — a bordered block of a hundred
+    /// cells states the same `thin` black edge four hundred times — so a band is interned by the
+    /// [`BorderEdge`] it draws and a whole table costs a handful of handles.
+    by_band: Vec<(BorderEdge, DecorationRef)>,
     cells: Vec<CellReport>,
     regions: Vec<PaneRegion>,
     rows: Vec<u32>,
@@ -235,6 +296,26 @@ impl PageCatalogue {
         if let Some(format) = format {
             self.by_format.push((format, handle));
         }
+        handle
+    }
+
+    /// The handle a border band drawing `stated` resolves to, issuing one on first sight.
+    fn band_handle(&mut self, stated: &BorderEdge) -> DecorationRef {
+        if let Some((_, handle)) = self
+            .by_band
+            .iter()
+            .find(|(candidate, _)| candidate == stated)
+        {
+            return *handle;
+        }
+        let handle = self.intern(
+            Decoration {
+                border_band: Some(stated.clone()),
+                ..Decoration::default()
+            },
+            None,
+        );
+        self.by_band.push((stated.clone(), handle));
         handle
     }
 
@@ -287,6 +368,19 @@ impl PageCatalogue {
     pub fn auto_fits(&self) -> &[(u16, AutoFit)] {
         &self.fits
     }
+}
+
+/// One border band waiting to be emitted.
+///
+/// Bands are collected while the cells of a region are laid out and pushed **after all of them**,
+/// so that every fill is behind every border. Emitting a band as a child of its own cell would put
+/// the next cell's fill on top of it, which is how a bordered grid loses every internal line it
+/// shares with the cell to its right.
+struct PendingBand {
+    row: u32,
+    column: u16,
+    rect: LayoutRect,
+    decoration: DecorationRef,
 }
 
 /// Excel's box model.
@@ -756,6 +850,7 @@ impl SheetBoxModel {
         );
 
         let clip = builder.clip(region.view);
+        let mut bands: Vec<PendingBand> = Vec::new();
         let resolver = content.formatting().resolver()?;
         let interner = resolver.formats().interner();
         let mut drawn: HashSet<(u32, u16)> = HashSet::new();
@@ -797,8 +892,8 @@ impl SheetBoxModel {
                     }
                 }
                 self.lay_out_cell(
-                    builder, catalogue, content, geometry, &resolver, interner, region, table,
-                    clip, row, column, merge,
+                    builder, catalogue, &mut bands, content, geometry, &resolver, interner, region,
+                    table, clip, row, column, merge,
                 )?;
             }
         }
@@ -812,6 +907,7 @@ impl SheetBoxModel {
             self.lay_out_cell(
                 builder,
                 catalogue,
+                &mut bands,
                 content,
                 geometry,
                 &resolver,
@@ -823,6 +919,22 @@ impl SheetBoxModel {
                 merge.first_column,
                 Some(merge),
             )?;
+        }
+        // Every border of the region, after every fill of it. See [`PendingBand`].
+        for band in bands {
+            builder.push(
+                table,
+                address::node(content.part(), address::cell_path(band.row, band.column)),
+                band.rect,
+                TransformId::IDENTITY,
+                clip,
+                Fragment::Box(BoxFragment {
+                    decoration: Some(band.decoration),
+                    // A band is not a cell: a `TableCell` here would make a grid of bordered cells
+                    // report five times as many cells as it has.
+                    cell: None,
+                }),
+            );
         }
         Ok(())
     }
@@ -906,6 +1018,7 @@ impl SheetBoxModel {
         &mut self,
         builder: &mut FragmentTreeBuilder,
         catalogue: &mut PageCatalogue,
+        bands: &mut Vec<PendingBand>,
         content: &SheetGrid,
         geometry: &GridGeometry,
         resolver: &mjx_xlsx::SheetFormatResolver<'_>,
@@ -952,6 +1065,7 @@ impl SheetBoxModel {
                     borders: borders_of(resolver, &format, interner),
                     font: font.clone(),
                     number_format: number_format_of(resolver, &format, interner),
+                    border_band: None,
                 };
                 if let Some(merge) = merge {
                     resolve_merge_borders(&mut decoration, resolver, interner, merge, content);
@@ -959,6 +1073,24 @@ impl SheetBoxModel {
                 catalogue.intern(decoration, merge.is_none().then_some(format))
             }
         };
+
+        // The bands this cell's own edges draw, held back until every cell of the region has
+        // been laid out. The borders are read off the interned decoration rather than off the
+        // literal above, because a shared handle answers for a cell that never built one.
+        if let Some(borders) = catalogue
+            .decoration(handle)
+            .map(|decoration| decoration.borders.clone())
+        {
+            for band in border::bands(rect, &borders) {
+                let decoration = catalogue.band_handle(&band.stated);
+                bands.push(PendingBand {
+                    row,
+                    column,
+                    rect: band.rect,
+                    decoration,
+                });
+            }
+        }
 
         let cell_node = builder.push(
             parent,
@@ -1003,6 +1135,7 @@ impl SheetBoxModel {
             overflow: placed.overflow.clone(),
             shrink_scale: placed.scale,
             merge,
+            decoration: handle,
         });
         self.emit_text(
             builder, content, region, cell_node, clip, &placed, row, column,
@@ -1196,15 +1329,44 @@ fn fill_of(
             pattern: pattern.pattern_type(interner).ok().flatten(),
             foreground: pattern.foreground_colour(interner),
             background: pattern.background_colour(interner),
-            is_gradient: false,
+            gradient: None,
         });
     }
-    fill.gradient().map(|_| CellFill {
+    fill.gradient().map(|gradient| CellFill {
         pattern: None,
         foreground: None,
         background: None,
-        is_gradient: true,
+        gradient: Some(gradient_of(gradient, interner)),
     })
+}
+
+/// A `x:gradientFill` as the catalogue carries it: the file's own numbers, resolved not at all.
+fn gradient_of(
+    gradient: &mjx_sml::GradientFill,
+    interner: &mjx_ooxml_core::Interner,
+) -> CellGradient {
+    CellGradient {
+        kind: gradient
+            .gradient_type(interner)
+            .unwrap_or(GradientType::Linear),
+        degrees: gradient.degrees(interner).unwrap_or(0.0),
+        inset: [
+            gradient.left_inset(interner).unwrap_or(0.0),
+            gradient.right_inset(interner).unwrap_or(0.0),
+            gradient.top_inset(interner).unwrap_or(0.0),
+            gradient.bottom_inset(interner).unwrap_or(0.0),
+        ],
+        stops: gradient
+            .stops()
+            .map(|stop| CellGradientStop {
+                // `@position` is `use="required"`; a stop that omits it is read as the start of the
+                // ramp rather than dropped, which is what `mjx-sml` reading it as an `Option`
+                // leaves to whoever consumes it.
+                position: stop.position(interner).ok().flatten().unwrap_or(0.0),
+                colour: stop.colour(interner),
+            })
+            .collect(),
+    }
 }
 
 /// A cell's four borders, as the file states them.

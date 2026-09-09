@@ -58,6 +58,91 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.147] - 2026-09-09
+
+**`mjx-scene-xlsx` — Excel's scene companion, and the first worksheet to reach pixels (MJXOFF-244).**
+
+R16 built Excel's box model and named its own weakest part: *"nobody has looked at a picture, and
+here that is not a criticism of the gate — there is no path to one."* There was no path because a
+`FragmentTree` carries `DecorationRef`s — bare numbers — and something has to resolve them into
+paints. That something is `mjx_scene::ResourceResolver`, whose own documentation names the
+implementor as *the box model's companion*; and the box model cannot be it, because
+`crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene` there by name. So the resolver
+got a crate, exactly as PowerPoint's did.
+
+### Added
+
+- **`crates/mjx-scene-xlsx` at rank 3.7**, *beside* `mjx-scene-pptx` rather than above it — the same
+  arrangement, and for the same reason, as the two box models at 3.6. Two companions at equal rank
+  makes an edge between them **sideways**, which the layering gate refuses by name: the two formats
+  meet at `mjx-scene`, and a resolver that could read the other's would have made the display list a
+  place where two formats negotiate. Both rank tables grown (`CLAUDE.md` and
+  `xtask/tests/layering.rs`), each with what the rank does **not** buy written out.
+- **A worksheet's colours, resolved.** `SheetPalette` holds the two tables a SpreadsheetML colour
+  needs — the theme (addressed **by position**, not by a `SchemeColor` token) and the legacy indexed
+  palette — plus the pair of system colours `auto="1"` and `indexed="64"`/`"65"` fall back to. The
+  resolution algorithm is ECMA-376 §18.8.19's and already lived in `mjx-sml`; this calls it.
+- **`Workbook::theme_colors`** in `mjx-xlsx`. `mjx_sml::styles::resolve_color` takes a
+  `SchemeColors`, and that type's own documentation says *"getting the theme part out of the package
+  is `mjx-xlsx`'s"* — but nothing there answered it, so every consumer wanting a theme colour would
+  have become a second reader of the package. It is not a mutation: the part keeps its bytes.
+- **Fills in all four of their shapes**: `patternType="solid"` (which paints its **`fgColor`** — the
+  single most commonly got-wrong rule in SpreadsheetML), the seventeen hatches, a `dxf`'s
+  colour-with-no-pattern third state, and gradients in both `linear` and `path`.
+- **A worksheet travels the whole pipeline to pixels**, headlessly, in
+  `crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs` — the only crate that may name
+  a format crate (3.0) and `mjx-paint` (5.5) together. The gate asserts **content**: fragment counts
+  by kind, band counts, one `DrawGlyphs` per glyph run, ink coverage with a floor *and* a ceiling,
+  ink inside the tree's own rectangles, and `DrawReport::placeholders` against a count taken from the
+  geometry provider **before** the render.
+
+### Changed
+
+- **A cell's borders are fragments now, not a value on its decoration.** R16 carried the four edges
+  on `Decoration`, which a display list cannot consume: `mjx_scene::Decoration` has **one** stroke
+  and a cell has four edges that differ in weight, colour and style, so a resolver handed those four
+  can only pick one — and picking one draws it on all four sides. `mjx-layout-xlsx` now emits each
+  edge as its own filled `BoxFragment`, which is what `mjx-layout-pptx` already does for a table
+  cell, with the new `crates/mjx-layout-xlsx/src/border.rs` owning the weight table. Bands are
+  emitted **after** every cell of a pane region, so that every fill is behind every border; a band
+  drawn as a child of its own cell would be covered by the next cell's fill.
+- **A gradient fill carries its stops.** R16 carried `is_gradient: bool` on the reasoning that the
+  companion would resolve the gradient; the companion is handed a catalogue and nothing else, so a
+  boolean names no stops and a gradient-filled cell had no path to a pixel at all.
+- **`CellReport` carries its decoration handle**, which is what lets `text_decoration` turn a glyph
+  run's address back into the cell's font colour. This is the method PowerPoint's companion still
+  answers `None` from, and the difference is the document model rather than the effort: a cell's text
+  is one string in one cell, and a slide's run lives inside a paragraph inside a shape.
+
+### Fixed
+
+- **The legacy indexed palette's alpha is no longer read as an opacity.** ECMA-376 §18.8.27 prints
+  every row of the table with an ARGB alpha of `00` — black is `00000000` — and `mjx-sml` reports
+  what Part 1 prints, which is right for a model and catastrophic for a painter: read as an opacity
+  it makes every `indexed` colour in every workbook **fully transparent**, so
+  `<left style="medium"><color indexed="8"/></left>` is a border that is simply not there. A colour
+  reached through `@indexed` is now drawn opaque; one that states `@rgb` is left exactly as written.
+
+### Reported, not fixed
+
+- **The MJXOFF-243 opacity loss does not exist on this path**, and that was checked rather than
+  assumed. A SpreadsheetML colour's `@rgb` is `AARRGGBB` with the alpha first, and it survives to
+  `mjx_scene::Color::alpha` — `crates/mjx-scene-xlsx/tests/the_alpha_survives.rs` asserts it at the
+  **encoded display list** rather than at the resolver. One narrower loss on the same subject does
+  exist one crate below: `mjx_dml::SchemeColors::from_scheme` drops each theme slot's own alpha.
+- **A border band is solid**, so the eight dashed `ST_BorderStyle` values draw as solid lines of the
+  right weight. The style is still carried, so the fix is a change to two crates rather than a value
+  recovered from the document again; `tests/the_dash_is_lost_at_the_band.rs` asserts the loss.
+- **Gridlines are not in the fragment tree.** `showGridLines` defaults to on and a grey grid is the
+  most recognisable thing on an Excel screen, but a gridline is a property of the *view* rather than
+  of the document, and no hit test can ever land on one. Where it belongs is a decision for the child
+  that draws a sheet on a screen.
+- **`darkTrellis` and `lightTrellis` are drawn identically**, because DrawingML defines one trellis
+  and SpreadsheetML two.
+
+Nothing here is parity with Excel and nothing is described as such: every reading is marked `GUESS:`
+at its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
+
 ## [0.0.146] - 2026-09-09
 
 **Excel's box model — a worksheet becomes a fragment tree (MJXOFF-171, R16).**
