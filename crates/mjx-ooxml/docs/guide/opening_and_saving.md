@@ -96,17 +96,70 @@ You do not have to call [`detect_format`] yourself. Each of [`Deck::open`], [`Do
 that would have worked — rather than a `MalformedDocument` about a `presentation.xml` that was never
 there. The package is read exactly once either way.
 
-```
+**The three differ in shape here.** The eleven [`ErrorCode`] values are one enumeration in Rust,
+**eleven exception classes** in Python — so `except` can select one — and **eleven strings** on a
+JavaScript `Error`'s `code` property, because `catch` selects on nothing there. All three branch on
+the same classification; only catching is spelled differently. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape),
+and [Errors](errors) for the whole of both projections.
+
+<!-- guide-example: opening_the_wrong_surface rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let workbook_bytes = mjx_fixtures::fixture("sample.xlsx");
 use mjx_ooxml::{Deck, ErrorCode};
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-let workbook_bytes = mjx_fixtures::fixture("sample.xlsx");
+// `workbook_bytes` is a spreadsheet, and `Deck::open` detects that before it parses anything.
 let failure = Deck::open(&workbook_bytes).expect_err("a workbook is not a deck");
 assert_eq!(failure.code(), ErrorCode::UnsupportedFormat);
-assert!(failure.message().contains("Workbook"), "{}", failure.message());
+
+// The message names the constructor that would have worked, rather than complaining about a
+// `presentation.xml` that was never there.
+assert!(failure.message().contains("Workbook"));
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: opening_the_wrong_surface python -->
+```python
+from mjx_ooxml import Deck, UnsupportedFormatError
+
+# `workbook_bytes` is a spreadsheet, and `Deck.open` detects that before it parses anything.
+try:
+    Deck.open(workbook_bytes)
+    raise AssertionError("a workbook is not a deck")
+except UnsupportedFormatError as failure:
+    assert failure.code == "UnsupportedFormat"
+
+    # The message names the constructor that would have worked, rather than complaining about a
+    # `presentation.xml` that was never there.
+    assert "Workbook" in str(failure), failure
+```
+<!-- guide-example end -->
+
+<!-- guide-example: opening_the_wrong_surface js -->
+```js
+import { Deck } from "@mjx/ooxml";
+
+// `workbookBytes` is a spreadsheet, and `Deck.open` detects that before it parses anything.
+let failure;
+try {
+  Deck.open(workbookBytes);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "UnsupportedFormat") {
+  throw new Error("a workbook is not a deck");
+}
+
+// The message names the constructor that would have worked, rather than complaining about a
+// `presentation.xml` that was never there.
+if (!failure.message.includes("Workbook")) {
+  throw new Error(failure.message);
+}
+```
+<!-- guide-example end -->
 
 ## Authoring from nothing
 
