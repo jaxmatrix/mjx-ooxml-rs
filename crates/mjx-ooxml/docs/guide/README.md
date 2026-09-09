@@ -112,18 +112,71 @@ in any of the three languages, [`Error::detail`] says *where*, and the typed cau
 [`mjx_pptx::PptxError`], a `mjx_docx::DocxError`, a `mjx_xlsx::XlsxError` — is still reachable by
 downcasting [`source`](std::error::Error::source). See [Errors](errors).
 
-```
+**The three differ in shape here**, in both of the ways the table above names at once: the code is
+an enumeration, a class and a string; and the five [`ErrorDetail`] coordinates are a value behind
+`detail()`, five attributes on the exception itself, and the keys a plain `detail` object actually
+carries.
+
+<!-- guide-example: an_index_out_of_range rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{Deck, ErrorCode, SlideSize};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut deck = Deck::blank(SlideSize::widescreen())?;
-let failure = deck.shape_count(7.into()).expect_err("slide 7 does not exist");
+
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure = deck.shape_count(7.into()).expect_err("no slide 7");
 assert_eq!(failure.code(), ErrorCode::IndexOutOfRange);
 assert_eq!(failure.detail().index, Some(7));
 assert_eq!(failure.message(), "slide index 7 out of range (0..0)");
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: an_index_out_of_range python -->
+```python
+from mjx_ooxml import Deck, IndexOutOfRangeError, SlideSize
+
+deck = Deck.blank(SlideSize.widescreen())
+
+# A blank deck has no slides at all, so slide 7 is past the end.
+try:
+    deck.shape_count(7)
+    raise AssertionError("no slide 7")
+except IndexOutOfRangeError as failure:
+    assert failure.code == "IndexOutOfRange"
+    assert failure.index == 7
+    assert str(failure) == "slide index 7 out of range (0..0)"
+```
+<!-- guide-example end -->
+
+<!-- guide-example: an_index_out_of_range js -->
+```js
+import { Deck, SlideSize } from "@mjx/ooxml";
+
+const size = SlideSize.widescreen();
+const deck = Deck.blank(size);
+
+// A blank deck has no slides at all, so slide 7 is past the end.
+let failure;
+try {
+  deck.shapeCount(7);
+} catch (raised) {
+  failure = raised;
+}
+if (failure?.code !== "IndexOutOfRange" || failure.detail.index !== 7) {
+  throw new Error("slide 7 is out of range, and the failure says which index");
+}
+if (failure.message !== "slide index 7 out of range (0..0)") {
+  throw new Error(failure.message);
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+size.free();
+deck.free();
+```
+<!-- guide-example end -->
 
 ## Nothing downstream names a crate below this one
 
