@@ -1,0 +1,22 @@
+# specimen: three_section_document.docx page 0
+# covers: three sections, of which this child lays out the first's geometry and reports the other two — sections themselves are R20
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# paragraphs in the document: 5
+# pages reached: 1
+   0 box       [] [914400 914400 9777730 6645910]
+   1 box       [0] [914400 914400 9777730 1060450]
+   2 line      [0, 0] [914400 914400 9777730 1060450]
+   3 glyph run [0, 0, 0] [914400 914400 1569339 1060450]
+   4 box       [1] [914400 1060450 9777730 1206500]
+   5 line      [1, 0] [914400 1060450 9777730 1206500]
+   6 glyph run [1, 0, 0] [914400 1060450 1549654 1206500]
+   7 box       [2] [914400 1206500 9777730 1352550]
+   8 line      [2, 0] [914400 1206500 9777730 1352550]
+   9 glyph run [2, 0, 0] [914400 1206500 1563624 1352550]
+  10 box       [3] [914400 1352550 9777730 1498600]
+  11 line      [3, 0] [914400 1352550 9777730 1498600]
+  12 glyph run [3, 0, 0] [914400 1352550 1562227 1498600]
+  13 box       [4] [914400 1498600 9777730 1644650]
+  14 line      [4, 0] [914400 1498600 9777730 1644650]
+  15 glyph run [4, 0, 0] [914400 1498600 1566164 1644650]

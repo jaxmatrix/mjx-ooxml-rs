@@ -118,8 +118,8 @@ pub use hyphenation::{
 pub use index::{FaceIndex, FontRequest, ResolutionTier};
 pub use itemisation::{itemise, TextItem};
 pub use line_breaking::{
-    break_opportunities, BreakKind, BreakOpportunity, KinsokuRules, LineBreak, LineBreakKind,
-    LineBreakOptions, LineBreaker,
+    break_opportunities, break_opportunities_with_hyphenation, BreakKind, BreakOpportunity,
+    KinsokuRules, LineBreak, LineBreakKind, LineBreakOptions, LineBreaker,
 };
 pub use manifest::{SubstitutionManifest, SubstitutionRecord};
 pub use placement::{place_run, DeviceScale, PlacedGlyph, RunPlacement};

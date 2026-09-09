@@ -220,6 +220,37 @@ enum Tier {
     /// `mjx-layout-pptx` and `mjx-docx`, because the sideways refusal only covers the second of
     /// those and the first would be a legal downward edge nobody wants.
     LayoutSpreadsheet,
+    /// `mjx-layout-docx` — rank 3.6 (MJXOFF-174). Word's box model: a document's paragraphs, lines,
+    /// justification and pagination, turned into a `FragmentTree`. **The only one of the three that
+    /// reflows.**
+    ///
+    /// **The same rank as the other two, and for the third time that is the decision rather than an
+    /// accident.** An edge between any two box models is *sideways*, which this file refuses by
+    /// name, and it is exactly the edge that must never exist: a document's box model has no
+    /// business knowing what a slide is, a slide's none what a worksheet is, and a worksheet's none
+    /// what a document is. The prediction written on `LayoutSpreadsheet` above — *"Word's will join
+    /// them here"* — is what this variant makes true.
+    ///
+    /// It is above the format tier for the same reason the other two are: it **consumes**
+    /// `mjx-docx`'s `DocumentFormatting` — the whole effective-property ladder, resolved once for
+    /// the whole document — rather than re-deriving any rung of it. That residency was added by this
+    /// child and is the reason laying out a long document is affordable at all:
+    /// `Document::effective_paragraph_properties` re-parses `word/document.xml`, `word/styles.xml`
+    /// and the theme on **every call**, which is right for a caller asking one question and
+    /// quadratic for one asking per paragraph.
+    ///
+    /// **What the rank buys** is the same one thing: `mjx-layout` at 1.6 cannot depend on it, so the
+    /// contract — and above all its `Checkpoint`, of which this crate is the first real consumer —
+    /// stays a contract rather than becoming a document's shape; `mjx-docx` cannot grow a layout
+    /// engine and cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6 every markup crate is a
+    /// legal downward edge, so *a box model resolves no geometry and never paints* is held by
+    /// `crates/mjx-layout-docx/tests/the_seam_holds.rs` — which also refuses `mjx-pptx`, `mjx-xlsx`
+    /// and both sibling box models, and refuses `mjx-dml` besides: MJXOFF-174's own ticket lists
+    /// DrawingML as a dependency and the tree does not need it, because `mjx-docx` resolves every
+    /// theme reference before a value reaches the box model.
+    LayoutDocument,
     /// `mjx-scene-pptx` — rank 3.7 (MJXOFF-170). PowerPoint's companion to the box model: the
     /// `ResourceResolver` that turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints,
     /// strokes and effects, and the `GeometryProvider` that turns its outline handles into
@@ -440,6 +471,7 @@ impl Tier {
             Self::Session => Rank(3, 5),
             Self::LayoutPresentation => Rank(3, 6),
             Self::LayoutSpreadsheet => Rank(3, 6),
+            Self::LayoutDocument => Rank(3, 6),
             Self::ScenePresentation => Rank(3, 7),
             Self::SceneSpreadsheet => Rank(3, 7),
             Self::Viewport => Rank(3, 8),
@@ -474,6 +506,7 @@ impl Tier {
             Self::Session => "the resident document",
             Self::LayoutPresentation => "PowerPoint's box model",
             Self::LayoutSpreadsheet => "Excel's box model",
+            Self::LayoutDocument => "Word's box model",
             Self::ScenePresentation => "PowerPoint's scene companion",
             Self::SceneSpreadsheet => "Excel's scene companion",
             Self::Viewport => "the viewport",
@@ -525,6 +558,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-session", Tier::Session),
     ("mjx-layout-pptx", Tier::LayoutPresentation),
     ("mjx-layout-xlsx", Tier::LayoutSpreadsheet),
+    ("mjx-layout-docx", Tier::LayoutDocument),
     ("mjx-scene-pptx", Tier::ScenePresentation),
     ("mjx-scene-xlsx", Tier::SceneSpreadsheet),
     ("mjx-view", Tier::Viewport),

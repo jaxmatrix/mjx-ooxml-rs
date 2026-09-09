@@ -144,6 +144,11 @@ pub use document::{
     GlossaryDocumentContent, GuidValue, Lock, Placeholder, SmartTagProperties,
     SmartTagPropertyContent, SmartTagRun,
 };
+// MJXOFF-174 (R19): the read-once, resolve-many surface a flow layout engine lays out.
+pub use document::{
+    DocumentFormatting, DocumentLayoutSettings, HardBreak, ParagraphFormatting, RunFormatting,
+    SectionFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package
