@@ -22,6 +22,10 @@
 //! In each the rule is reported, its reason is reported, its text is reported, and **nothing is
 //! painted**. A rule that quietly did not fire and one that could not be evaluated look identical
 //! on a screen, so the only honest difference is the one recorded here.
+//!
+//! MJX-LEDGER-LIMITATION: a conditional-formatting rule whose condition is a formula — an
+//! `expression` rule, a `cellIs` with a reference operand, a `cfvo` of `type="formula"` — is
+//! reported unevaluated and painted as nothing, because evaluating it needs a calculation engine.
 
 mod support;
 

@@ -428,7 +428,7 @@ fn enumeration_values(module: &emit::EmittedModule, name: &str) -> Result<Vec<St
     }
 }
 
-fn workspace_root() -> PathBuf {
+pub(crate) fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is the xtask crate dir; the workspace root is its parent.
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -442,7 +442,7 @@ fn write_generated(path: &Path, src: &str) -> Result<()> {
     write_plain(path, &formatted)
 }
 
-fn write_plain(path: &Path, contents: &str) -> Result<()> {
+pub(crate) fn write_plain(path: &Path, contents: &str) -> Result<()> {
     std::fs::write(path, contents).with_context(|| format!("writing {}", path.display()))
 }
 

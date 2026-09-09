@@ -8,6 +8,15 @@
 //! `abort()` at this site fire in any test?* — so every branch this crate added has a test here that
 //! reaches it. The suite is arranged that way on purpose: one fixture carrying all of the furniture
 //! at once, and one assertion per piece, so a piece that stops being emitted fails by name.
+//!
+//! # What every rectangle in this file is measured with
+//!
+//! [`NominalMetrics`], which measures a string from a per-character advance table rather than from
+//! shaped glyphs. That is what lets a chart lay out with no font database at all, and it is why the
+//! numbers here are close rather than right.
+//!
+//! MJX-LEDGER-LIMITATION: chart text is *measured* and not shaped, so every rectangle a label or a
+//! title occupies is a few percent off and the furniture around it moves with the error.
 
 mod support;
 

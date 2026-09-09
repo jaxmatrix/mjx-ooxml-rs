@@ -526,6 +526,14 @@ cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from Reference
 cargo run -p xtask -- tokens         # regenerate the three design-token artefacts from
                                      #   docs/client-platform/data/tokens.json; `--check` refuses
                                      #   instead of writing, which is what the tests run
+cargo run -p xtask -- ledger         # regenerate docs/client-platform/PARITY_LEDGER.md from the
+                                     #   workspace's own suites (MJXOFF-179); `--check` refuses
+                                     #   instead of writing, which is what xtask/tests/ledger.rs
+                                     #   runs. It runs no renderer and judges nothing itself: a
+                                     #   row declares its evidence and the state is derived, so
+                                     #   anything nothing tests is `not-started`. Read the
+                                     #   document's header before its table — it is a ledger of
+                                     #   what was CHECKED, not of what is true.
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
 

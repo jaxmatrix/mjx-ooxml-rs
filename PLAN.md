@@ -147,6 +147,13 @@ verification, and there are no tags.
   a PDF produced that way carries no selectable text, which is the single requirement MJXOFF-164 was
   written around. See `crates/mjx-paint/src/export/`.
 
+  **What Phase R actually reached is not a claim in this file.** It is
+  [`docs/client-platform/PARITY_LEDGER.md`](docs/client-platform/PARITY_LEDGER.md), generated from
+  the test suites by `cargo run -p xtask -- ledger` (MJXOFF-179) and held to them by
+  `xtask/tests/ledger.rs`. It states, before its first number, that it is a ledger of what was
+  *checked* and not of what is *true*: **nobody has run Microsoft Office**, so a green row is
+  coverage and never parity.
+
 ### Recorded divergence: where the bindings live, and what they are built with
 
 Earlier revisions of this plan (and of `README.md`) said language bindings would live in a

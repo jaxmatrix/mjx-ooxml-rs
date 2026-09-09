@@ -311,6 +311,15 @@ Each format also carries a deep **effective-properties** reference, three pages 
 says what each of `Deck`, `Document` and `Workbook` can reach of the five shared-markup crates, with
 a written reason beside every asymmetry and a test that fails when the table and the code disagree.
 
+**What the renderer actually covers** is
+[the parity ledger](docs/client-platform/PARITY_LEDGER.md) — one row per capability of
+[the Office feature inventory](docs/client-platform/OFFICE_FEATURE_INVENTORY.md), in five states,
+**generated from the test suites** by `cargo run -p xtask -- ledger` and never written by hand. Read
+its header before its table: it is a ledger of what was *checked*, not of what is *true*. **Nobody
+has run Microsoft Office**, so a green row is coverage and never parity, and every expectation the
+evidence rests on says whether it came from the specification, from an external definition, or from
+this engine agreeing with itself.
+
 ### Examples
 
 Twenty-six runnable programs. Twenty-five of them **reopen what they wrote and assert something about

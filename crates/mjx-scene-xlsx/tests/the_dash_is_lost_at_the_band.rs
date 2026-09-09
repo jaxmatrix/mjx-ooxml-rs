@@ -19,6 +19,10 @@
 //! `mjx_layout_xlsx::border`: a `ShapeFragment` whose `GeometryProvider` answers with the edge's
 //! centre line and whose decoration carries a dashed stroke. This suite asserts the value is still
 //! there, which is the half of the loss that is a *choice* rather than a limitation.
+//!
+//! MJX-LEDGER-LIMITATION: a cell border reaches the display list as a filled band, so a dashed or
+//! dotted edge draws solid at the right weight and colour; the style survives in the catalogue and
+//! nothing consumes it.
 
 mod support;
 
