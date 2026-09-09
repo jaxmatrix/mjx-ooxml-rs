@@ -19,12 +19,29 @@
 //! looked at, so there is no smaller honest scope.
 //!
 //! **Markup invariants** — a relationship reference resolving to a declared relationship — are
-//! checked only over the parts whose bytes *this library produced*
+//! checked over the parts whose bytes *this library produced*
 //! ([`Package::authored_xml_parts`]). That scope is a correctness decision before it is a cost one:
 //! a part still holding its container bytes re-emits verbatim, so faulting it would mean refusing to
 //! write back a file we were given — the opposite of this project's promise. It also means a save
 //! never parses markup it was not going to re-serialize, and that *reading* a part can never change
 //! whether a package saves.
+//!
+//! # The one thing that scope missed (MJXOFF-238)
+//!
+//! The rule answers *"was this markup ours?"*. It does not answer *"did our edit break this
+//! markup?"*, and the two come apart for one shape: **an edit that changes a part's relationships
+//! without touching its body**. A `.rels` edit does not make its owning part `Authored`, so
+//! [`Package::remove_relationship`] on a part nothing else rewrites left that part's markup naming a
+//! relationship nothing declares — `check_relationships` finds no missing target, because there is
+//! no relationship left to have one; the markup check skips the part, because it is not ours; and
+//! [`Package::save`] succeeds on a file a consumer will offer to repair.
+//!
+//! So the scope is widened by **exactly one set, and only for one question**: a part whose `.rels`
+//! this library edited is checked too, and only for the relationship ids it *removed*
+//! ([`Package::unwired_relationships`]). Not for whatever else that part may carry — a part that
+//! arrived with a dangling reference of its own is still re-emitted verbatim and is still not ours
+//! to fault. That distinction is what keeps removing a relationship a slide never names from
+//! stopping a deck saving over a fault somewhere else in it.
 //!
 //! # Relationship to the orphan sweep
 //!
@@ -39,7 +56,10 @@
 //!
 //! One pass, with the indexes built once: `O(parts + content-type rules + relationships)` for the
 //! graph invariants, plus the markup of the authored parts for the reference check. Untouched
-//! container bytes are never tokenized.
+//! container bytes are never tokenized — with the one exception the section above names, a part
+//! this library unwired a relationship from and did not otherwise write. Even that one is usually
+//! already parsed, because an edit that removes a relationship generally had to read the part to
+//! find it, and it is skipped outright once something declares that id again.
 
 use std::collections::HashSet;
 
@@ -48,7 +68,7 @@ use mjx_xml::fidelity;
 
 use crate::content_types::CONTENT_TYPES_ZIP_NAME;
 use crate::name::PartName;
-use crate::package::{resolve_rel, Package};
+use crate::package::{resolve_rel, Package, PartProvenance};
 use crate::rels::{rels_zip_name_for, TargetMode};
 
 /// The Transitional namespace of the shared *relationship reference* attributes (`r:id`, `r:embed`,
@@ -148,6 +168,9 @@ pub enum PackageDefect {
     ///
     /// Only ever reported for markup this library wrote (see [`Package::authored_xml_parts`]) — a
     /// part still holding its container bytes is re-emitted verbatim and is never re-parsed here.
+    /// The second scope MJXOFF-238 added cannot raise this one: a part reached only because its
+    /// `.rels` was edited is parsed with `fidelity::parse` like any other, and a parse failure there
+    /// is a file we were given failing to parse, not bytes of ours that will not.
     #[error(
         "part {part} is typed as XML but this library's bytes for it are not well-formed: {error}"
     )]
@@ -164,10 +187,16 @@ impl Package {
     /// order (content types, then relationships, then markup references — parts in container order,
     /// relationships in document order).
     ///
-    /// This is a **read-only** pass: it parses nothing that is not already parsed except the markup
-    /// this library itself authored, it caches nothing, it reorders nothing, and it leaves every
-    /// part in exactly the copy-on-write state it found it in. [`save`](Self::save) runs it; see the
+    /// This is a **read-only** pass: it caches nothing, it reorders nothing, and it leaves every part
+    /// in exactly the copy-on-write state it found it in. [`save`](Self::save) runs it; see the
     /// module documentation for what is checked over what.
+    ///
+    /// It parses nothing that is not already parsed except two sets of markup, both of them the
+    /// consequence of an edit this library made: the parts it **authored**, and — since MJXOFF-238 —
+    /// a part it **unwired a relationship from** and did not otherwise write, which is checked for
+    /// those relationship ids alone and skipped entirely once something declares them again. A part
+    /// the caller merely opened and left alone is still never tokenized here, and reading a part
+    /// still cannot change whether a package saves.
     ///
     /// # Errors
     /// Returns the first [`PackageDefect`] found.
@@ -266,30 +295,86 @@ impl Package {
     }
 
     /// Every relationship-reference attribute in markup this library produced names a relationship
-    /// that part's `.rels` declares.
+    /// that part's `.rels` declares — and, in a part this library did **not** write, every reference
+    /// to a relationship this library removed from that part's `.rels` (MJXOFF-238).
+    ///
+    /// Two scopes, in one pass over the entries so the parts stay in container order:
+    ///
+    /// - a part whose provenance is [`Authored`](crate::PartProvenance::Authored) is checked whole.
+    ///   Its markup is ours, and every reference in it must resolve.
+    /// - a part that is not ours but whose `.rels` we edited is checked for the removed ids
+    ///   **alone**. That is the one fault a `.rels` edit can create in somebody else's markup, and
+    ///   nothing wider may be reported: a part that arrived carrying a dangling reference of its own
+    ///   is re-emitted verbatim and is not ours to fault. Widening this to the whole part would mean
+    ///   that removing a relationship a slide never names could stop a deck saving over a fault
+    ///   somewhere else in it.
+    ///
+    /// A removed id something declared again is not looked for at all, so nothing is parsed here
+    /// unless there is a live way for it to be broken.
     fn check_relationship_references(&self) -> Result<(), PackageDefect> {
-        for (part, entry) in self.authored_xml_parts() {
+        let unwired = self.unwired_relationships();
+
+        for entry in self.entries() {
+            let authored = entry.provenance() == PartProvenance::Authored;
+            let Ok(part) = PartName::from_zip_name(&entry.name) else {
+                continue;
+            };
+            let unwired_here = unwired.get(&part);
+            // Neither scope: the overwhelmingly common case, settled before anything is indexed.
+            if !authored && unwired_here.is_none() {
+                continue;
+            }
+            if !self.is_checkable_xml_part(&entry.name, &part) {
+                continue;
+            }
+
             let declared: HashSet<&str> = self
                 .relationships_for(Some(&part))
                 .map(|rels| rels.iter().map(|rel| rel.id.as_str()).collect())
                 .unwrap_or_default();
 
+            let restrict_to: Option<HashSet<&str>> = if authored {
+                None
+            } else {
+                let missing: HashSet<&str> = unwired_here
+                    .into_iter()
+                    .flatten()
+                    .map(String::as_str)
+                    .filter(|id| !declared.contains(id))
+                    .collect();
+                if missing.is_empty() {
+                    continue;
+                }
+                Some(missing)
+            };
+
             match entry.tree() {
                 // Already in memory (edited, or read earlier): walked as it stands, never re-parsed.
-                Some(tree) => check_part_references(&part, tree, &declared)?,
-                // Bytes this library wrote and has not parsed. Tokenizing them costs what we are
-                // about to write, never what the container gave us.
+                // In the second scope this is the usual case too — an edit that unwires a
+                // relationship almost always had to read the part to find it.
+                Some(tree) => check_part_references(&part, tree, &declared, restrict_to.as_ref())?,
+                // Bytes not yet parsed. Tokenizing them costs what we are about to write, or what
+                // we have just unwired — never what the container gave us and left alone.
                 None => {
                     let Some(bytes) = entry.bytes() else {
                         continue;
                     };
-                    let tree = fidelity::parse(bytes).map_err(|error| {
-                        PackageDefect::PartIsNotWellFormedXml {
-                            part: part.as_str().to_owned(),
-                            error: error.to_string(),
+                    let parsed = match fidelity::parse(bytes) {
+                        Ok(tree) => tree,
+                        // Bytes *we* wrote that will not parse are a defect of ours. Bytes the
+                        // container gave us that will not parse are not: this part is only being
+                        // looked at because its `.rels` was edited, and refusing the save would
+                        // fault a file for what it arrived with — exactly what the second scope is
+                        // narrowed to avoid. There is nothing to check, so there is nothing to say.
+                        Err(_) if restrict_to.is_some() => continue,
+                        Err(error) => {
+                            return Err(PackageDefect::PartIsNotWellFormedXml {
+                                part: part.as_str().to_owned(),
+                                error: error.to_string(),
+                            })
                         }
-                    })?;
-                    check_part_references(&part, &tree, &declared)?;
+                    };
+                    check_part_references(&part, &parsed, &declared, restrict_to.as_ref())?;
                 }
             }
         }
@@ -310,6 +395,11 @@ enum Step<'a> {
 /// Checks one part's markup: every attribute in the relationship-reference namespace must name a
 /// relationship in `declared`.
 ///
+/// `restrict_to`, when given, narrows what may be *reported* to those relationship ids — the second
+/// scope of [`Package::validate`]'s markup check, where the part's markup is not ours and the only
+/// fault we are entitled to report is one our own `.rels` edit created (MJXOFF-238). The walk itself
+/// is the same; only the verdict is narrowed.
+///
 /// The fidelity reader resolves *element* namespaces but leaves *attribute* namespaces unresolved
 /// (only the literal prefix is kept), so this resolves prefixes itself, with proper scoping: a
 /// binding introduced by an element covers that element and its descendants, an inner binding
@@ -319,6 +409,7 @@ fn check_part_references(
     part: &PartName,
     tree: &RawDocument,
     declared: &HashSet<&str>,
+    restrict_to: Option<&HashSet<&str>>,
 ) -> Result<(), PackageDefect> {
     let interner = &tree.interner;
     // (prefix symbol, whether it is bound to the relationship-reference namespace), innermost last.
@@ -376,7 +467,9 @@ fn check_part_references(
                 if value.is_empty() {
                     continue;
                 }
-                if !declared.contains(value.as_str()) {
+                if !declared.contains(value.as_str())
+                    && restrict_to.is_none_or(|ids| ids.contains(value.as_str()))
+                {
                     return Err(PackageDefect::UndeclaredRelationshipReference {
                         part: part.as_str().to_owned(),
                         element: qualified_name(&element.name, interner),
@@ -489,7 +582,8 @@ mod tests {
         let xml = br#"<p:x xmlns:p="urn:p" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:y xmlns:r="urn:not-relationships" r:id="nonsense"/></p:x>"#;
         let tree = fidelity::parse(xml).expect("well-formed");
         let declared = HashSet::new();
-        check_part_references(&part("/p.xml"), &tree, &declared).expect("no reference in scope");
+        check_part_references(&part("/p.xml"), &tree, &declared, None)
+            .expect("no reference in scope");
     }
 
     /// …and the binding must fall out of scope again when the subtree ends.
@@ -500,7 +594,7 @@ mod tests {
         let declared: HashSet<&str> = ["rId1"].into_iter().collect();
         // `p:z`'s `r:` prefix is unbound, so it is not a relationship reference and is not checked;
         // `p:y`'s is bound and resolves.
-        check_part_references(&part("/p.xml"), &tree, &declared).expect("bindings scoped");
+        check_part_references(&part("/p.xml"), &tree, &declared, None).expect("bindings scoped");
     }
 
     /// The empty value `ST_RelationshipId` defaults to means "no relationship", not a broken one.
@@ -509,7 +603,8 @@ mod tests {
         let xml = br#"<p:x xmlns:p="urn:p" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:dm="" r:lo=""/>"#;
         let tree = fidelity::parse(xml).expect("well-formed");
         let declared = HashSet::new();
-        check_part_references(&part("/p.xml"), &tree, &declared).expect("empty is not dangling");
+        check_part_references(&part("/p.xml"), &tree, &declared, None)
+            .expect("empty is not dangling");
     }
 
     /// Every attribute in the reference namespace is an `ST_RelationshipId`, not only `r:id`.
@@ -518,7 +613,7 @@ mod tests {
         let xml = br#"<p:x xmlns:p="urn:p" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><a:blip r:embed="rId9" xmlns:a="urn:a"/></p:x>"#;
         let tree = fidelity::parse(xml).expect("well-formed");
         let declared = HashSet::new();
-        let err = check_part_references(&part("/p.xml"), &tree, &declared)
+        let err = check_part_references(&part("/p.xml"), &tree, &declared, None)
             .expect_err("r:embed is a relationship id");
         match err {
             PackageDefect::UndeclaredRelationshipReference {

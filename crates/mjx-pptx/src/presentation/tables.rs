@@ -662,9 +662,28 @@ impl Presentation {
     }
 
     /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`), replacing
-    /// any inline or referenced style it had — the lean alternative to a shared `tableStyles.xml`
-    /// style: the whole look is spelled out in `definition` and travels with the table, so no shared
-    /// part, relationship or referenced GUID is involved. Marks only that part dirty.
+    /// any inline or referenced style it had: the whole look is spelled out in `definition` and
+    /// travels with the table. Marks only that part dirty.
+    ///
+    /// # What "no shared part" means, and when it is a fact about the package
+    ///
+    /// **This call** adds no shared part, no relationship and no referenced GUID — it writes one
+    /// element into the slide, and the `tableStyles.xml` a deck already has comes out of a save byte
+    /// for byte as it went in. Whether the *package* then holds a shared part at all is a separate
+    /// question, and the answer depends on where the table came from (MJXOFF-248):
+    ///
+    /// - a table from [`add_table`](Self::add_table) arrives with a `tableStyles.xml` beside it,
+    ///   because the `firstRow` / `bandRow` flags that call turns on need a style to emphasise
+    ///   (MJXOFF-232). Pointing that table at an inline style afterwards leaves the shared part in
+    ///   place, holding a style nothing points at. It is one small XML file, PowerPoint writes one
+    ///   into every deck that has a table, and this call does not delete it — a part a caller may be
+    ///   about to point another table at is not ours to garbage-collect;
+    /// - a table in a deck that **arrived** without a shared part keeps a package with none, which is
+    ///   the whole sentence above as a property of the file.
+    ///
+    /// `crates/mjx-pptx/tests/table_styles.rs` holds both halves apart:
+    /// `an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part` asserts the first,
+    /// `the_lean_shape_is_reachable_for_a_table_from_a_deck_that_has_no_shared_part` the second.
     ///
     /// A styled part renders only when the table declares it: pair this with
     /// [`set_table_part`](Self::set_table_part) to turn on the `firstRow` / `bandRow` / … flags a part

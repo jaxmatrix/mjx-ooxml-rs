@@ -747,7 +747,14 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         //
         // The same code `PptxError::PartIsNotVmlDrawing` gets, from the same refusal: a
         // `legacyDrawing` relationship pointing at something that is not a `.vml` is a part of the
-        // wrong kind, not a missing one.
+        // wrong kind, not a missing one. `SheetIsNotAWorksheet` is the same reading one tab up: the
+        // tab is there; it is a chartsheet or a dialogsheet, and neither has a cell to address
+        // (MJXOFF-241). `WrongKind` rather than `MalformedDocument`, which is what this answered
+        // while `mjx-xlsx` still reported it as a missing part: nothing about the file is wrong,
+        // and a caller who reads `MalformedDocument` goes looking for a broken package. It carries
+        // the tab index for the same reason `NoSuchSheet` does — the argument at fault is the one
+        // a caller can change.
+        XlsxError::SheetIsNotAWorksheet { index, .. } => (C::WrongKind, nth(*index)),
         XlsxError::PartIsNotVmlDrawing(_) => (C::WrongKind, none()),
     }
 }

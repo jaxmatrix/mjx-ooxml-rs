@@ -150,8 +150,9 @@ impl Workbook {
     /// [`append_differential_format`](Self::append_differential_format), which appends.
     ///
     /// # Errors
-    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, and
-    /// [`XlsxError::MissingWorkbookPart`] if it reaches no worksheet part.
+    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
+    /// reaches no part, and [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet.
     pub fn add_conditional_formatting(
         &mut self,
         index: usize,
@@ -252,8 +253,9 @@ impl Workbook {
     /// [`add_conditional_formatting`](Self::add_conditional_formatting) whose slot is unbounded.
     ///
     /// # Errors
-    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, and
-    /// [`XlsxError::MissingWorkbookPart`] if it reaches no worksheet part.
+    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
+    /// reaches no part, and [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet.
     pub fn set_auto_filter(
         &mut self,
         index: usize,

@@ -868,8 +868,21 @@ fn a_comment_aimed_at_a_dialogsheet_is_refused_before_anything_is_written() {
         panic!("a dialogsheet has no cells; a comment aimed at one must be refused");
     };
     assert!(
-        matches!(error, XlsxError::MissingWorkbookPart(_)),
-        "the refusal names the worksheet part the tab does not have, and got {error}"
+        matches!(
+            error,
+            XlsxError::SheetIsNotAWorksheet {
+                index: 1,
+                kind: Some(mjx_xlsx::SheetKind::Dialogsheet)
+            }
+        ),
+        "the refusal names the tab and the kind it is, and got {error:?}"
+    );
+    // MJXOFF-241: it used to say `MissingWorkbookPart("sheet 1")` — *"workbook part sheet 1 is
+    // missing from the package"* — about a dialogsheet part that is present and correct.
+    let text = error.to_string();
+    assert!(
+        text.contains("dialogsheet") && !text.contains("missing"),
+        "a present part must not be reported as missing; it said: {text}"
     );
 
     // …and nothing was written on the way to that refusal.

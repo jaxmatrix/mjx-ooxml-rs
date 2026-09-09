@@ -145,16 +145,15 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if the
-    /// tab reaches no worksheet part, or [`XlsxError::Sml`] if the store refuses the edit.
+    /// tab reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet, or [`XlsxError::Sml`] if the store refuses the edit.
     pub fn set_cell_style(
         &mut self,
         index: usize,
         reference: CellReference,
         style: Option<u32>,
     ) -> Result<(), XlsxError> {
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         markup
             .sheet_data_or_insert()
             .set_cell_style(reference, style)?;
