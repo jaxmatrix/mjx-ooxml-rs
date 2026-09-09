@@ -58,6 +58,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.151] - 2026-09-09
+
+**Sections, columns, headers, footers and footnotes — and the fixed point between a note and the
+body it takes space from (MJXOFF-175, R20).**
+
+R19 flowed text down one column of one page shape. Real documents change page shape half way
+through, run several columns, repeat furniture at the margins, and carry a **second flow that
+competes with the first for vertical space**. The last of those is the whole difficulty: a footnote's
+height decides how much body text fits on its page, and the body text decides which footnotes are on
+it. `crates/mjx-layout-docx/src/notes.rs` resolves that circularity with a monotone reservation and
+**proves it converges in at most two body assemblies**, with the argument written out in the module
+rather than left to be rediscovered — an undocumented fixed-point loop is where a hang lives.
+
+### Added
+
+- **Four modules in `mjx-layout-docx`, one per subsystem.** `section` — the sheet, the margins, the
+  columns, the break kinds and the blank page an `evenPage` break demands; `stream` — a header, a
+  footer or a note laid out through the *same* flow engine the body uses, with its lines flattened so
+  that a note can split across pages; `notes` — the body/footnote fixed point and the note area it
+  produces; `numbering` — page, line and note counters, and the numeral systems they are written in.
+- **Multi-column flow with balancing.** A page is a stack of *column groups*, one per section that
+  shares the sheet, which is what a `continuous` break means. Balancing at such a break is a
+  **bisection** for the shortest column height at which the remaining content still fits, not a
+  division of the total by the column count: content is placed in whole lines, so the division's
+  answer is routinely a hair short and a column a hair short spills a whole line — unbalancing the
+  thing being balanced.
+- **Headers and footers, with `w:titlePg` and `w:evenAndOddHeaders` resolved once in `mjx-docx`.**
+  A page selects a stream rather than resolving one, and a header's height comes off the body's.
+- **Footnotes with their own reflow**, Word's `separator` and `continuationSeparator` rules, and
+  continuation across pages for a note taller than the page it is referenced from.
+- **Endnotes as *flow*.** §17.11.3's `sectEnd`/`docEnd` are positions in the flow, not a second area,
+  so an endnote's paragraphs are spliced into the body's own stream at the end of their scope —
+  which is the whole difference between an endnote and a footnote, in one sentence.
+- **Line numbers, computed *and drawn*.** A page number is displayed by a `PAGE` field and a
+  footnote's mark by `w:footnoteRef`, both of which are R22's to render from the run stream; a line
+  number is in no run stream at all, so a child that computed it and drew nothing would leave a
+  feature no later renderer could complete.
+- **`DocumentBoxModel::last_page`** — the page number, the section, the column heights, the notes and
+  their numbers, the printed line numbers, and how many body assemblies the fixed point needed. None
+  of it belongs in a tree of positioned boxes, and all of it is what a gate has to assert on.
+- **`mjx-docx`'s residency grew the rest of a section** — the break kind, `w:cols` with §17.6.4's
+  precedence applied, `w:titlePg`, `w:pgNumType`, `w:lnNumType`, `w:vAlign` and the note rules — plus
+  the **header, footer, footnote and endnote content streams**, read once each and resolved through
+  the same ladder the body's paragraphs go through, and `ParagraphFormatting::note_references`.
+
+### Changed
+
+- **The document's own page geometry now outranks the caller's `Constraints`**, falling back to it
+  wherever a section states nothing. Not a preference: which section page 200 is in is not knowable
+  without laying out the 199 before it, so the caller cannot choose. `mjx_docx::SectionFormatting`
+  is no longer `Copy` (it carries a column list).
+- **The continuation state is version 2, forty-five bytes**, and old thirteen-byte checkpoints are
+  refused rather than misread. The four new fields are exactly the four things that cannot be
+  recomputed from the position — the displayed page number, the continuous line-number counter, and
+  the carried note with its number and resume line. A footnote's *number* is deliberately **not**
+  among them: the *n*th reference in document order is note *n*, which is a prefix sum taken once.
+- **Fragment addresses carry a part.** A header's third paragraph and the body's third paragraph are
+  not the same place; `mjx_layout_docx::address` numbers the five streams, and the baseline snapshots
+  print the part so that a header drawn twice cannot look like a header drawn once.
+
+### Notes
+
+- **Nothing here is parity with Word, and the evidence got weaker.** R19's strongest rows quoted
+  UAX #14, an external definition of exactly what a line breaker consumes. There is no equivalent for
+  *where a footnote area's gap goes* or *which number decides that a page is even*: ECMA-376 defines
+  the attributes and is nearly silent on the rendering. The provenance ledger now prints **31
+  `SpecCode` / 20 `DocumentedBehaviour` / 46 `EngineDerived`** on every run, and the `EngineDerived`
+  rows are change detectors rather than evidence.
+- **Word still has no scene companion** (MJXOFF-255), so a Word `FragmentTree` cannot reach pixels.
+- Tables and floating objects are R21; fields, numbering, revision marks and OMML are R22.
+
 ## [0.0.150] - 2026-09-09
 
 **Word's flow engine: lines, justification, and a pagination that is emergent (MJXOFF-174, R19).**

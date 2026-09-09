@@ -93,8 +93,23 @@ const CORPUS: &[Specimen] = &[
         file: "three_section_document.docx",
         page: 0,
         covers:
-            "three sections, of which this child lays out the first's geometry and reports the \
-             other two — sections themselves are R20",
+            "three sections, the first of them **landscape** — page one is laid out on the first \
+             section's own sheet, which an engine that read only the body-level `w:sectPr` cannot \
+             produce",
+    },
+    Specimen {
+        file: "three_section_document.docx",
+        page: 1,
+        covers: "and page two is the second section: a different sheet, two columns, and a page \
+             boundary the first section's end forced",
+    },
+    Specimen {
+        file: "header_footer_variants.docx",
+        page: 0,
+        covers:
+            "a document whose section references all three header and all three footer variants \
+             with neither `w:titlePg` nor `w:evenAndOddHeaders` set — so every one of the six \
+             resolves to the default, and the header and footer bands are on the page",
     },
     Specimen {
         file: "numbering_definitions.docx",

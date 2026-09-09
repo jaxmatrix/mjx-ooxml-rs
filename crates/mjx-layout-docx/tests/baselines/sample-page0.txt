@@ -4,10 +4,10 @@
 # approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
 # paragraphs in the document: 2
 # pages reached: 1
-   0 box       [] [720090 720090 6840220 9972040]
-   1 box       [0] [720090 720090 6840220 863957]
-   2 line      [0, 0] [720090 720090 6840220 863957]
-   3 glyph run [0, 0, 0] [720090 720090 3006462 863957]
-   4 box       [1] [720090 863957 6840220 1007824]
-   5 line      [1, 0] [720090 863957 6840220 1007824]
-   6 glyph run [1, 0, 0] [720090 863957 2854037 1007824]
+   0 box       part 0 [] [720090 720090 6840220 9972040]
+   1 box       part 0 [0] [720090 720090 6840220 863957]
+   2 line      part 0 [0, 0] [720090 720090 6840220 863957]
+   3 glyph run part 0 [0, 0, 0] [720090 720090 3006462 863957]
+   4 box       part 0 [1] [720090 863957 6840220 1007824]
+   5 line      part 0 [1, 0] [720090 863957 6840220 1007824]
+   6 glyph run part 0 [1, 0, 0] [720090 863957 2854037 1007824]

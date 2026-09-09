@@ -4,6 +4,6 @@
 # approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
 # paragraphs in the document: 1
 # pages reached: 1
-   0 box       [] [914400 914400 6645910 9777730]
-   1 box       [0] [914400 914400 6645910 1060450]
-   2 line      [0, 0] [914400 914400 6645910 1060450]
+   0 box       part 0 [] [914400 914400 6645910 9777730]
+   1 box       part 0 [0] [914400 914400 6645910 1060450]
+   2 line      part 0 [0, 0] [914400 914400 6645910 1060450]

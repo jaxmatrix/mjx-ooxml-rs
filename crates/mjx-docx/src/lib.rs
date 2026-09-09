@@ -149,6 +149,12 @@ pub use document::{
     DocumentFormatting, DocumentLayoutSettings, HardBreak, ParagraphFormatting, RunFormatting,
     SectionFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
 };
+// MJXOFF-175 (R20): sections resolved to numbers, the header/footer and note content streams, and
+// where a note is referenced from.
+pub use document::{
+    ColumnFormatting, HeaderFooterFormatting, HeaderFooterSlots, NoteFormatting, NoteReference,
+    SectionColumns, SectionLineNumbering, SectionNoteRules, SectionPageNumbering,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

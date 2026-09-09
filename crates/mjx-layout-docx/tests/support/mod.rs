@@ -110,21 +110,64 @@ fn escape(text: &str) -> String {
         .replace('>', "&gt;")
 }
 
-/// A `word/document.xml` whose body is `paragraphs`, with a US Letter section at the end.
+/// A `word/document.xml` whose body is `paragraphs`, ended by a section that states **no page
+/// geometry at all**.
+///
+/// # Why the section is empty, and why that is not laziness
+///
+/// MJXOFF-175 made the document's own `w:sectPr` outrank the caller's `Constraints` — which is the
+/// only honest answer once a document can change its page size half way through, because the caller
+/// cannot know which section page 200 is in. A fixture that stated US Letter would therefore be laid
+/// out on US Letter however small a page the test asked for, and every "how many lines fit"
+/// assertion in this crate would silently stop testing what it says.
+///
+/// So a fixture states its geometry **only when the geometry is the subject**: [`document_with`] is
+/// how a section test does that, and this is the one that leaves the page to the caller.
 pub(crate) fn document_markup(paragraphs: &[String]) -> Vec<u8> {
+    document_markup_with(paragraphs, "")
+}
+
+/// The same, with `section` as the body-level `w:sectPr`'s own content.
+pub(crate) fn document_markup_with(paragraphs: &[String], section: &str) -> Vec<u8> {
     let body = paragraphs.concat();
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:body>{body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body>{body}<w:sectPr>{section}</w:sectPr></w:body>
 </w:document>"#
     )
     .into_bytes()
 }
 
+/// A `w:pgSz`/`w:pgMar` pair for a page `width` by `height` inches with `margin`-inch margins.
+pub(crate) fn page_geometry(width: f64, height: f64, margin: f64) -> String {
+    #[allow(clippy::cast_possible_truncation)]
+    let twips = |inches: f64| (inches * 1440.0).round() as i64;
+    format!(
+        r#"<w:pgSz w:w="{}" w:h="{}"/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="720" w:footer="720" w:gutter="0"/>"#,
+        twips(width),
+        twips(height),
+        twips(margin),
+        twips(margin),
+        twips(margin),
+        twips(margin)
+    )
+}
+
 /// A document whose body is `paragraphs`.
 pub(crate) fn document(paragraphs: &[String]) -> Document {
     document_with_settings(paragraphs, |_, _| ())
+}
+
+/// A document whose body is `paragraphs` and whose body-level `w:sectPr` holds `section`.
+pub(crate) fn document_with(paragraphs: &[String], section: &str) -> Document {
+    document_from_markup(document_markup_with(paragraphs, section), |_, _| ())
+}
+
+/// A document built from whole `word/document.xml` bytes — how a multi-section fixture states two
+/// `w:sectPr`s, which `document_markup_with` cannot because it writes only the body-level one.
+pub(crate) fn document_from_bytes(markup: Vec<u8>) -> Document {
+    document_from_markup(markup, |_, _| ())
 }
 
 /// The same, with `word/settings.xml` written by `settings` first.
@@ -136,6 +179,14 @@ pub(crate) fn document_with_settings(
     paragraphs: &[String],
     settings: impl FnOnce(&mut mjx_docx::DocumentSettings, &mut mjx_ooxml_core::Interner),
 ) -> Document {
+    document_from_markup(document_markup(paragraphs), settings)
+}
+
+/// A document whose `word/document.xml` is `markup`, with `word/settings.xml` written by `settings`.
+pub(crate) fn document_from_markup(
+    markup: Vec<u8>,
+    settings: impl FnOnce(&mut mjx_docx::DocumentSettings, &mut mjx_ooxml_core::Interner),
+) -> Document {
     let mut blank = Document::blank(PageSize::us_letter()).expect("a blank document");
     blank
         .edit_document_settings(|part, interner| settings(part, interner))
@@ -145,7 +196,7 @@ pub(crate) fn document_with_settings(
     package
         .replace_part_bytes(
             &PartName::new(DOCUMENT_PART).expect("a valid part name"),
-            document_markup(paragraphs),
+            markup,
         )
         .expect("the main document part is replaceable");
     Document::from_package(package).expect("the authored document opens")
@@ -250,14 +301,22 @@ pub(crate) fn line_count(tree: &FragmentTree) -> usize {
 ///
 /// Every number is an EMU, so two trees that differ by one EMU differ here — which is what a
 /// resumption gate needs, because *almost* identical is the failure it is looking for.
+///
+/// # The part is printed, and MJXOFF-175 is why
+///
+/// MJXOFF-174 had one content stream and could leave the part implicit. A document has five, and a
+/// header's third paragraph and the body's third paragraph have **the same path** — so a snapshot
+/// that printed only the path would show a header's fragments as the body's, and a baseline could
+/// not tell a header that had gone missing from one that had been drawn twice.
 pub(crate) fn snapshot(tree: &FragmentTree) -> String {
     let mut out = String::new();
     for (id, node) in tree.nodes() {
         let rect = node.rect();
         out.push_str(&format!(
-            "{:>4} {:<9} {:?} [{} {} {} {}]\n",
+            "{:>4} {:<9} part {} {:?} [{} {} {} {}]\n",
             id.index(),
             node.fragment().kind_name(),
+            node.source().part().number(),
             node.source().path().segments(),
             rect.left.emu(),
             rect.top.emu(),
@@ -440,4 +499,155 @@ pub(crate) fn lay_out_one(properties: &str, text: &str, column_inches: f64) -> P
         },
     )
     .expect("the paragraph lays out")
+}
+
+/// Where the first line of `document`'s body sits, in EMU from the top of the page.
+///
+/// The shape a vertical-alignment assertion is written in: `w:vAlign` moves content that is already
+/// laid out, so the thing that changes is a *position* and not a page assignment.
+pub(crate) fn first_line_top(mut document: Document, constraints: &Constraints) -> Emu {
+    let flow = flow(&mut document);
+    let mut model = model();
+    let page = model
+        .layout_page(&flow, PageIndex::FIRST, constraints, None)
+        .expect("the page lays out");
+    let top = page
+        .fragments()
+        .nodes()
+        .find(|(_, node)| matches!(node.fragment(), Fragment::Line(_)))
+        .map_or(Emu::ZERO, |(_, node)| node.rect().top);
+    top
+}
+
+// -------------------------------------------------------------------------------------------
+// Footnotes and endnotes.
+//
+// One builder for both, because `wml.xsd` gives `w:footnote` and `w:endnote` the identical
+// `CT_FtnEdn` type and the two parts the identical shape — the discriminant is the *part*, not the
+// content model, which is the same reason `mjx-docx` keeps `Footnotes` and `Endnotes` apart as
+// types while sharing `FootnoteEndnote`. Three suites need these, and three copies of one XML
+// template is how two of them quietly stop agreeing about what a separator is.
+// -------------------------------------------------------------------------------------------
+
+/// `word/footnotes.xml`.
+pub(crate) const FOOTNOTES_PART: &str = "/word/footnotes.xml";
+
+/// `word/endnotes.xml`.
+pub(crate) const ENDNOTES_PART: &str = "/word/endnotes.xml";
+
+/// One `w:footnote` or `w:endnote` of `lines` paragraphs, at eleven point in [`FAMILY`].
+///
+/// `kind` is `w:type` — `None` for a user's own note, which is what an absent attribute means
+/// (§17.11.10), and `Some("separator")`/`Some("continuationSeparator")` for Word's own furniture.
+pub(crate) fn note_entry(local: &str, id: i64, kind: Option<&str>, lines: &[&str]) -> String {
+    let attributes = match kind {
+        Some(kind) => format!(r#" w:type="{kind}""#),
+        None => String::new(),
+    };
+    let body: String = lines
+        .iter()
+        .map(|line| {
+            format!(
+                r#"<w:p><w:r>{}<w:t xml:space="preserve">{}</w:t></w:r></w:p>"#,
+                run_properties(11.0),
+                escape(line)
+            )
+        })
+        .collect();
+    format!(r#"<w:{local}{attributes} w:id="{id}">{body}</w:{local}>"#)
+}
+
+/// A whole notes part: Word's two rules, then `notes`.
+///
+/// The reserved entries are **always** written, because a page's separator is drawn from them and a
+/// fixture without one would make the separator untestable while looking complete.
+pub(crate) fn notes_part(footnotes: bool, notes: &[String]) -> Vec<u8> {
+    let (root, local) = if footnotes {
+        ("footnotes", "footnote")
+    } else {
+        ("endnotes", "endnote")
+    };
+    let body = notes.concat();
+    format!(
+        concat!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+            r#"<w:{root} xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">"#,
+            "{separator}{continuation}{body}",
+            "</w:{root}>",
+        ),
+        root = root,
+        separator = note_entry(local, -1, Some("separator"), &["_"]),
+        continuation = note_entry(local, 0, Some("continuationSeparator"), &["_"]),
+        body = body
+    )
+    .into_bytes()
+}
+
+/// A document of `paragraphs` whose notes part holds `notes`.
+///
+/// The part is **created** through `Document::edit_footnotes`/`edit_endnotes` — which is what wires
+/// its relationship and its content type — and its content is then replaced wholesale, so that the
+/// separator's own height is a number the fixture chose rather than one `mjx-docx`'s seed decided.
+pub(crate) fn document_with_notes(
+    paragraphs: &[String],
+    section: &str,
+    footnotes: bool,
+    notes: &[String],
+) -> Document {
+    let markup = document_markup_with(paragraphs, section);
+    let mut document = document_from_markup(markup, |_, _| ());
+    if footnotes {
+        document
+            .edit_footnotes(|_, _| ())
+            .expect("a footnotes part is creatable");
+    } else {
+        document
+            .edit_endnotes(|_, _| ())
+            .expect("an endnotes part is creatable");
+    }
+    let bytes = document.save_unchecked().expect("the document saves");
+    let mut package = mjx_docx::Package::open(&bytes).expect("the package opens");
+    let name = if footnotes {
+        FOOTNOTES_PART
+    } else {
+        ENDNOTES_PART
+    };
+    package
+        .replace_part_bytes(
+            &PartName::new(name).expect("a valid part name"),
+            notes_part(footnotes, notes),
+        )
+        .expect("the notes part is replaceable");
+    Document::from_package(package).expect("the document reopens")
+}
+
+/// The same with exactly one user footnote, of `lines`.
+pub(crate) fn document_with_footnote(
+    paragraphs: &[String],
+    section: &str,
+    id: i64,
+    lines: &[&str],
+) -> Document {
+    document_with_notes(
+        paragraphs,
+        section,
+        true,
+        &[note_entry("footnote", id, None, lines)],
+    )
+}
+
+/// A paragraph whose single run carries a footnote (or endnote) reference after its text.
+pub(crate) fn referencing_note(footnotes: bool, id: i64, text: &str) -> String {
+    let local = if footnotes {
+        "footnoteReference"
+    } else {
+        "endnoteReference"
+    };
+    paragraph_with_run(
+        "",
+        &format!(
+            r#"<w:t xml:space="preserve">{}</w:t><w:{local} w:id="{id}"/>"#,
+            escape(text)
+        ),
+    )
 }

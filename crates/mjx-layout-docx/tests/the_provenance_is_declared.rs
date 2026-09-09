@@ -16,9 +16,18 @@
 //! * **`EngineDerived`** — the expectation was read off this engine. It is a **change detector and
 //!   not evidence about Word**, and every one of them is a candidate for the Windows sitting.
 //!
-//! MJXOFF-172 (R17) split 31 / 110 / 52 and MJXOFF-173 (R18) repeated it. This is the third run of
-//! the same instrument on a third format, and the split is printed rather than described so that a
-//! reader of a green run sees the shape of the evidence rather than the fact of a pass.
+//! MJXOFF-172 (R17) split 31 / 110 / 52, MJXOFF-173 (R18) repeated it, and MJXOFF-174 (R19) opened
+//! this crate at 13 / 15 / 19. MJXOFF-175 (R20) adds sections, columns, headers and notes, and the
+//! split is printed rather than described so that a reader of a green run sees the shape of the
+//! evidence rather than the fact of a pass.
+//!
+//! **The evidence got weaker, and that is the honest report.** R19's `DocumentedBehaviour` rows were
+//! unusually strong for a layout engine, because UAX #14 is an external, checkable definition of
+//! exactly what a line breaker consumes. There is no equivalent for *where a footnote area's gap
+//! goes*, *what an absent `w:type` means*, or *which number decides that a page is even*: ECMA-376
+//! defines the attributes and is silent on the rendering. So this child's rows are mostly
+//! `EngineDerived`, and the ratio moving in that direction is a fact about the subject rather than
+//! about the care taken.
 
 use std::collections::BTreeMap;
 
@@ -373,6 +382,403 @@ const LEDGER: &[Row] = &[
                   fallback from one request; a mixed Japanese paragraph will fall back rather than \
                   use its stated East Asian face",
     },
+
+    // =======================================================================================
+    // MJXOFF-175 (R20) — sections, columns, headers and footers, footnotes and endnotes.
+    //
+    // The same instrument on the same crate, one child later. **Nobody ran Word for these either**,
+    // and the shape of the evidence is worse here than it was for R19's line breaking: UAX #14 gave
+    // that child an external definition of exactly what it consumed, and there is no equivalent
+    // external definition of *where a footnote area's gap goes* or *what an absent `w:type` means*.
+    // Those are the rows the Windows sitting is for.
+    // =======================================================================================
+
+    // ---------------------------------------------------------------------------------------
+    // SpecCode — the specification says the value.
+    // ---------------------------------------------------------------------------------------
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "a `w:sectPr` inside a paragraph ENDS the section that paragraph belongs to",
+        provenance: Provenance::SpecCode,
+        because: "§17.6.17 and `mjx-docx`'s own `sections.rs`, which quotes it; the body-level one \
+                  governs whatever is left",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "the five members of `ST_SectionMark`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`, through `mjx_ooxml_types::wordprocessingml::SectionBreakType`",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`w:type/@val` carries no schema default at all",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`; `mjx-docx` therefore reports `None` rather than asserting one, which \
+                  is why the reading is a layout decision and appears below as a guess",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`w:pgNumType@fmt` defaults to `decimal`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s own default on `CT_PageNumber`",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`w:mirrorMargins` swaps the left and right margins on an even page",
+        provenance: Provenance::SpecCode,
+        because: "§17.15.1.71 — the binding margin is always on the inside edge",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "`w:equalWidth=\"true\"` outranks an explicit `w:col` list",
+        provenance: Provenance::SpecCode,
+        because: "§17.6.4's own prose and worked example, quoted in `mjx-docx`'s `sections.rs`: \
+                  the `w:col` children are described as ignored",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "`w:cols@space` defaults to 720 twips and `w:cols@num` to one",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s own defaults on `CT_Columns`",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "a `w:col`'s own `w:space` is the gap to the column after it",
+        provenance: Provenance::SpecCode,
+        because: "§17.6.3 — which is why an explicit list's gaps are not the `w:cols@space`",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "`w:titlePg` off makes a first-page reference be ignored",
+        provenance: Provenance::SpecCode,
+        because: "§17.10.6, quoted in `mjx-docx`'s `headers.rs`: \"it shall be ignored and only the \
+                  odd page header/footer shall be displayed\"",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "`w:evenAndOddHeaders` off makes an even-page reference be ignored",
+        provenance: Provenance::SpecCode,
+        because: "§17.10.1, the same sentence for the even variant",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "a variant a section does not state is inherited from the nearest preceding one",
+        provenance: Provenance::SpecCode,
+        because: "§17.10.5 and §17.10.2, identical prose, and stated per variant independently",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "`w:pgMar@header` is measured from the page's own top edge",
+        provenance: Provenance::SpecCode,
+        because: "§17.6.11 — not from the text margin, which is what makes the body's top a \
+                  comparison rather than an addition",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "`ST_FtnEdn`'s four members, and that an absent `w:type` is `normal`",
+        provenance: Provenance::SpecCode,
+        because: "§17.11.10's own attribute table: \"it shall be considered to be of style normal\"",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a footnote that is not `normal` is never referenced from the main story",
+        provenance: Provenance::SpecCode,
+        because: "§17.11.10 states it directly, which is why the separators are excluded from the \
+                  demand by `w:type` and not by an id range",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "`w:numRestart`'s three values, and `continuous` when it is absent",
+        provenance: Provenance::SpecCode,
+        because: "`ST_RestartNumber`, through `mjx_ooxml_types::wordprocessingml`",
+    },
+    Row {
+        suite: "endnotes_flow_at_the_end_of_their_scope",
+        subject: "`w:endnotePr/w:pos`'s two values, `sectEnd` and `docEnd`",
+        provenance: Provenance::SpecCode,
+        because: "§17.11.3 — and they are positions in the flow, which is what makes an endnote not \
+                  a second area",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "`w:lnNumType@start` defaults to one and `@restart` to `newPage`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`'s own defaults on `CT_LineNumber`",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "the three members of `ST_LineNumberRestart`",
+        provenance: Provenance::SpecCode,
+        because: "`wml.xsd`, through `mjx_ooxml_types::wordprocessingml::LineNumberRestart`",
+    },
+
+    // ---------------------------------------------------------------------------------------
+    // DocumentedBehaviour — checkable somewhere other than this repository.
+    // ---------------------------------------------------------------------------------------
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "bisection finds the least point at which a monotone predicate holds",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "an arithmetic identity, and the reason column balancing is a search rather than a \
+                  division; the predicate's monotonicity is argued in `crate::paginate`",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a non-increasing map reaches its fixed point in one step from below",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "arithmetic: if N is non-increasing and R₁ = N(R₀) > R₀ then N(R₁) ≤ N(R₀) = R₁, \
+                  which is the whole two-assembly bound in `crate::notes`",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "Roman numerals are additive with subtractive pairs, up to 3999",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the numeral system itself, which is an external definition; above 3999 there is \
+                  no notation without the overline and this writes decimal instead",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`upperLetter` repeats a letter rather than counting in base twenty-six",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "Microsoft's own documented numbering for `ST_NumberFormat`: the twenty-seventh is \
+                  `AA` and the fifty-third `AAA`, which base twenty-six would write `AB` and `BA`",
+    },
+    Row {
+        suite: "termination",
+        subject: "a loop whose variant strictly decreases and is bounded below terminates",
+        provenance: Provenance::DocumentedBehaviour,
+        because: "the standard loop-variant argument, applied to two flows at once: every page \
+                  consumes at least one line of the body and at least one of any carried note",
+    },
+
+    // ---------------------------------------------------------------------------------------
+    // EngineDerived — read off this engine. Change detectors, and the Windows sitting's list.
+    // ---------------------------------------------------------------------------------------
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "an absent `w:type` starts a page",
+        provenance: Provenance::EngineDerived,
+        because: "`wml.xsd` gives `w:type/@val` no default and the prose does not say; the other \
+                  reading — treating it as `continuous` — runs two sections' page geometry together \
+                  on one sheet, which is a visibly different document",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`evenPage`/`oddPage` parity is tested against the ASSIGNED page number",
+        provenance: Provenance::EngineDerived,
+        because: "the alternative is the physical sheet index, and the two differ in exactly the \
+                  documents that use the feature: one whose sections restart their numbering. Which \
+                  one Word uses decides whether the blank page is there at all",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "an `evenPage`/`oddPage` break inserts at most one blank page",
+        provenance: Provenance::EngineDerived,
+        because: "one flip is enough to reach the wanted parity, so a second would be a defect; \
+                  Word's own behaviour when the parity is already right is not stated anywhere",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "a blank page still shows its section's header and footer",
+        provenance: Provenance::EngineDerived,
+        because: "the page is printed, so something must be on it, but nothing says whether Word \
+                  treats an inserted blank as a page of the old section or of the new one",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`w:vAlign=\"both\"` falls back to `top`",
+        provenance: Provenance::EngineDerived,
+        because: "§17.6.23 says the text is justified vertically without saying between what, and \
+                  distributing the slack between paragraphs moves every baseline on the page",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "`w:rtlGutter` is not honoured and the gutter is always on the left of an odd page",
+        provenance: Provenance::EngineDerived,
+        because: "a document that sets it has its binding space on the wrong edge here, which is a \
+                  visible half-inch on every page; reported rather than hidden",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "a section that governs no paragraph is skipped rather than filled",
+        provenance: Provenance::EngineDerived,
+        because: "two `w:sectPr`s with nothing between them; the alternative — letting the empty \
+                  section take the next one's content — is what a naive walk does, and nothing says \
+                  which page geometry Word uses for a section with no content of its own",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "a section that states no page size inherits the caller's constraints",
+        provenance: Provenance::EngineDerived,
+        because: "there is no document to defer to, so the fallback is ours; Word would use its own \
+                  template's default, which is a different number on a different machine",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "balancing happens at a `continuous` break and NOT at the end of a document",
+        provenance: Provenance::EngineDerived,
+        because: "adding a trailing continuous break is the well-known trick for balancing the last \
+                  columns, which only makes sense if the document's own end does not balance them — \
+                  an inference from a habit rather than from a specification",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "a `continuous` break whose section changes the sheet starts a page anyway",
+        provenance: Provenance::EngineDerived,
+        because: "two page sizes cannot share one sheet, so something must give; whether Word \
+                  breaks the page or ignores the new geometry is not stated",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "a `w:col` with no `w:w` states a width of zero rather than an equal share",
+        provenance: Provenance::EngineDerived,
+        because: "the attribute is optional and the schema names no default; sharing the remainder \
+                  out would be indistinguishable from a stated width, and this way the file's own \
+                  silence stays visible",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "\"an even page\" is a page whose DISPLAYED number is even",
+        provenance: Provenance::EngineDerived,
+        because: "§17.10.1 does not say which number decides, and a section that restarts its \
+                  numbering has its even and odd headers swapped under the other reading — a \
+                  visible difference on every page of that section",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "a header taller than the top margin pushes the body down",
+        provenance: Provenance::EngineDerived,
+        because: "the alternative is text printed on top of text, so this is the only sane reading \
+                  — but by how much, and whether Word clips instead, is not stated anywhere",
+    },
+    Row {
+        suite: "the_headers_differ_by_page",
+        subject: "a section with NO header does not have its top margin grown at all",
+        provenance: Provenance::EngineDerived,
+        because: "`w:pgMar@header` is where a header would start, not a second top margin; reading \
+                  it the other way puts half an inch of white space at the top of every page of \
+                  every document that has no header, which is most of them",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "the note area's reservation is capped at the body's first line",
+        provenance: Provenance::EngineDerived,
+        because: "it is what makes a footnote taller than the page terminate, and Word's own \
+                  division of a page between an enormous note and the body is not documented; the \
+                  cap decides how much body text a reader sees on such a page",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "the body is not re-expanded when the settled note area is shorter than reserved",
+        provenance: Provenance::EngineDerived,
+        because: "expanding it could only re-admit the line that was just excluded, which re-adds \
+                  the note; the cost is a few EMU of white space above the rule, and whether Word \
+                  leaves the same gap is exactly the sort of thing only Word can settle",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "the area sits flush with the foot of the text area, with no gap above it",
+        provenance: Provenance::EngineDerived,
+        because: "§17.11.16 names `pageBottom` and `beneathText` and says nothing about the space \
+                  either leaves, which is the number a reader would notice first",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a carried note's continuation is placed before any new note on the page",
+        provenance: Provenance::EngineDerived,
+        because: "it is the only order that terminates — a new note that pushed the carry off would \
+                  carry it for ever — but nothing states that Word orders them this way",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a `continuationSeparator` is drawn when a note is carried in and `separator` \
+                  otherwise",
+        provenance: Provenance::EngineDerived,
+        because: "the two reserved entries exist for exactly this and the longer rule is the \
+                  continuation one, but which page each belongs on is a convention rather than a \
+                  stated rule",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a `continuationNotice` is placed in the room left over and dropped when there \
+                  is none",
+        provenance: Provenance::EngineDerived,
+        because: "including its height in the demand would reserve space on every page for a notice \
+                  most pages do not need, and reserving it conditionally would make the demand \
+                  depend on whether a carry happens — which the demand decides; whether Word makes \
+                  room for it instead is exactly the sort of thing only Word can settle",
+    },
+    Row {
+        suite: "columns_balance_at_a_continuous_break",
+        subject: "`w:cols@sep` is reported and NOT drawn",
+        provenance: Provenance::EngineDerived,
+        because: "a rule is a paint and this crate never paints; `w:pBdr/w:between` and a `bar` tab \
+                  stop already carry the same decision, and `mjx-scene-docx` (MJXOFF-255) is what \
+                  draws all three. Until it exists a reader sees no separator at all",
+    },
+    Row {
+        suite: "a_footnote_moves_the_body",
+        subject: "a footnote's reference mark contributes no character and no advance",
+        provenance: Provenance::EngineDerived,
+        because: "the mark is generated from the note's numbering rather than held in the run \
+                  stream, so a line containing one is measured a superscript numeral too narrow \
+                  here — R22's field rendering is where that is fixed",
+    },
+    Row {
+        suite: "endnotes_flow_at_the_end_of_their_scope",
+        subject: "document-end endnotes are laid out on the LAST section's sheet",
+        provenance: Provenance::EngineDerived,
+        because: "they come after the last section's content, so they inherit its paper, and a \
+                  reader expects the endnote page of a landscape document to be landscape — but \
+                  §17.11.3 says only where in the flow they go, not on what",
+    },
+    Row {
+        suite: "endnotes_flow_at_the_end_of_their_scope",
+        subject: "an endnote appears once however many times it is referenced",
+        provenance: Provenance::EngineDerived,
+        because: "a second copy would be absurd, but which reference decides its position when two \
+                  sections both name it is not stated; the first one wins here",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "`w:countBy` prints the lines whose own number is a multiple of the interval",
+        provenance: Provenance::EngineDerived,
+        because: "§17.6.10 calls it the increment and does not say what it is measured from; a \
+                  section starting at 3 and counting by 5 prints 5 and 10 here and 3, 8, 13 under \
+                  the other reading, which is a different set of numbers in the margin",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "a line number sits 360 twips from the text when `w:distance` is absent",
+        provenance: Provenance::EngineDerived,
+        because: "§17.6.10 says an absent value means the numbers are placed automatically, without \
+                  saying where automatic is; a quarter of an inch is a guess at Word's own",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "`w:suppressLineNumbers` skips a paragraph WITHOUT advancing the count",
+        provenance: Provenance::EngineDerived,
+        because: "§17.3.1.34 says the lines are not numbered and does not say whether they are \
+                  counted; the two readings differ by one on every line after the suppressed \
+                  paragraph, which is every number on the rest of the page",
+    },
+    Row {
+        suite: "line_numbers_restart_per_mode",
+        subject: "a line number is drawn in the body's own face at the body's own size",
+        provenance: Provenance::EngineDerived,
+        because: "Word draws it in a style of its own (`LineNumber`), which this crate does not \
+                  resolve; the number is therefore the right number in the wrong face until a \
+                  style tier for generated marks exists",
+    },
+    Row {
+        suite: "a_section_changes_the_page",
+        subject: "every `ST_NumberFormat` outside the five implemented falls back to decimal",
+        provenance: Provenance::EngineDerived,
+        because: "sixty-three members and no committed face for the East Asian, Hebrew, Thai or \
+                  Vietnamese digits; a document asking for `ideographDigital` gets `3` rather than \
+                  三, which is wrong and at least legible",
+    },
+
 ];
 
 fn split() -> BTreeMap<Provenance, usize> {
@@ -407,15 +813,15 @@ fn the_split_is_printed_and_asserted_in_both_directions() {
     // had stopped asserting anything at all.
     assert_eq!(spec + documented + engine, LEDGER.len());
     assert!(
-        spec >= 10,
+        spec >= 28,
         "the specification really does state this many of them: {spec}"
     );
     assert!(
-        documented >= 12,
+        documented >= 18,
         "these are the rows that are evidence, and there must be some: {documented}"
     );
     assert!(
-        engine >= 12,
+        engine >= 40,
         "and this many are only this engine agreeing with itself — a count that *fell* would mean \
          somebody had relabelled a guess: {engine}"
     );

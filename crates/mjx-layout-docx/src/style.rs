@@ -169,6 +169,10 @@ pub struct ParagraphStyle {
     pub page_break_before: bool,
     /// `w:widowControl` — on unless the document turns it off (§17.3.1.44's own default).
     pub widow_control: bool,
+    /// `w:suppressLineNumbers` — this paragraph's lines are skipped by the section's line numbering
+    /// **and do not advance the count**, which is what "suppress" means: a numbered line after a
+    /// suppressed one carries the number it would have carried had the suppressed one not existed.
+    pub suppress_line_numbers: bool,
     /// `w:suppressAutoHyphens` — this paragraph opts out of the document's hyphenation.
     pub suppress_auto_hyphens: bool,
     /// `w:kinsoku` — apply the East Asian line-breaking prohibitions.
@@ -244,6 +248,7 @@ impl ParagraphStyle {
             // would turn widow and orphan control off for every document that does not write it,
             // which is most of them — and the difference is a page assignment, not a pixel.
             widow_control: properties.widow_control.unwrap_or(true),
+            suppress_line_numbers: properties.suppress_line_numbers.unwrap_or(false),
             suppress_auto_hyphens: properties.suppress_auto_hyphens.unwrap_or(false),
             east_asian_line_breaking: properties.east_asian_line_breaking_rules.unwrap_or(false),
             overflow_punctuation: properties.overflow_punctuation.unwrap_or(false),

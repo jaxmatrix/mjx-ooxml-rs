@@ -61,8 +61,13 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use mjx_ooxml_core::{FromXml, Interner};
-use mjx_ooxml_types::wordprocessingml::BreakType;
+use mjx_ooxml_types::wordprocessingml::{
+    BreakType, EndnotePosition, FootnoteEndnoteType, FootnotePosition, HeaderFooterType,
+    LineNumberRestart, NumberFormat, NumberingRestartLocation, SectionBreakType,
+    VerticalJustification,
+};
 
+use super::annotations::{Endnotes, Footnotes};
 use super::body::{Paragraph, ParagraphContent, Run, RunInnerContent};
 use super::effective::{
     attr, combine_paragraph_tiers, combine_run_tiers, extract_numbering_reference,
@@ -71,10 +76,11 @@ use super::effective::{
     EffectiveCharacterProperties, EffectiveNumberingReference, EffectiveParagraphProperties,
     ThemeContext,
 };
+use super::headers::HdrFtr;
 use super::numbering::NumberingLookup;
 use super::paragraph_properties::ParagraphProperties;
 use super::run_properties::RunProperties;
-use super::sections::SectionProperties;
+use super::sections::{SectionProperties, SectionSpan};
 use super::styles::{
     DefaultParagraphProperties, DefaultRunProperties, DocumentDefaults, StyleSheet,
 };
@@ -114,12 +120,35 @@ pub struct HardBreak {
     pub kind: BreakType,
 }
 
+/// A `w:footnoteReference` or `w:endnoteReference` in a paragraph's run stream.
+///
+/// # The mark itself contributes no character, and that is reported rather than guessed at
+///
+/// A footnote's *reference mark* is a generated number — Word draws it from the note's own
+/// numbering scheme, not from anything the run stream holds — so there is no character in
+/// [`ParagraphFormatting::text`] for it and its own advance is therefore not measured when a line is
+/// broken. That is the same decision `w:sym` gets in this module (a symbol is a code point in a
+/// *named font*, and dropping the font would draw a different glyph while looking plausible) and the
+/// same one MJXOFF-174 made for a list's number: **a generated mark is drawn by whatever renders
+/// fields, not by the residency**. What travels here is *where* the mark is, so a layout engine can
+/// say which line — and therefore which page — a note is referenced from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoteReference {
+    /// The byte of [`ParagraphFormatting::text`] the mark sits at.
+    pub at: usize,
+    /// `w:id` — which [`NoteFormatting`] in the matching part it names.
+    pub id: i64,
+    /// Whether it is an endnote reference rather than a footnote one.
+    pub endnote: bool,
+}
+
 /// One paragraph, with everything a box model needs and nothing it would have to re-derive.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParagraphFormatting {
     text: String,
     runs: Vec<RunFormatting>,
     hard_breaks: Vec<HardBreak>,
+    note_references: Vec<NoteReference>,
     properties: EffectiveParagraphProperties,
     style_id: Option<String>,
 }
@@ -144,6 +173,12 @@ impl ParagraphFormatting {
         &self.hard_breaks
     }
 
+    /// Every footnote and endnote reference inside it, in order.
+    #[must_use]
+    pub fn note_references(&self) -> &[NoteReference] {
+        &self.note_references
+    }
+
     /// Every `CT_PPrBase` member, resolved across the whole ladder.
     #[must_use]
     pub fn properties(&self) -> &EffectiveParagraphProperties {
@@ -163,12 +198,191 @@ impl ParagraphFormatting {
     }
 }
 
+/// One column of a section, in twips.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ColumnFormatting {
+    /// `w:col@w` — how wide it is.
+    pub width_twips: i64,
+    /// `w:col@space` — the gap to the **next** column. Meaningless on the last one.
+    pub space_after_twips: i64,
+}
+
+/// `w:cols`, resolved to a list of columns.
+///
+/// # `w:equalWidth` wins, and the resolution is done here rather than left to a caller
+///
+/// `sections.rs`'s own doc comment quotes ECMA-376 Part 1 §17.6.4: when `w:equalWidth` is true the
+/// columns come from `w:num`/`w:space` and an explicit `w:col` list is *ignored*, even when the file
+/// states both. That crate-level type deliberately exposes the two independently, because it has no
+/// page-margin knowledge to compute a width from `w:num` and hiding the file's own contradiction
+/// from a caller who might want to see it would be wrong. **A layout engine is not that caller** —
+/// it needs one answer — so the precedence is applied once, here, and the widths that come out are
+/// the widths content flows through.
+///
+/// An equal-width section reports [`SectionColumns::count`] and [`SectionColumns::space_twips`] with
+/// an **empty** [`SectionColumns::columns`], because the width of an equal column is the text area
+/// less the gaps divided by the count, and the text area is not known until the page size and
+/// margins are chosen. An explicit list reports its own widths and needs no such arithmetic.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SectionColumns {
+    /// How many columns there are, from `w:num` or from the explicit list's length. Never zero.
+    pub count: usize,
+    /// `w:cols@space` — the gap between two equal columns, in twips.
+    pub space_twips: i64,
+    /// `w:cols@sep` — whether a vertical rule is drawn between them.
+    pub separator: bool,
+    /// The explicit `w:col` list, empty when the columns are equal-width.
+    pub columns: Vec<ColumnFormatting>,
+}
+
+impl SectionColumns {
+    /// `w:cols@space`'s schema default, in twips — half an inch.
+    pub const DEFAULT_SPACE_TWIPS: i64 = 720;
+
+    /// One column, no gap: what a section that states no `w:cols` at all has.
+    #[must_use]
+    pub fn single() -> Self {
+        Self {
+            count: 1,
+            space_twips: Self::DEFAULT_SPACE_TWIPS,
+            separator: false,
+            columns: Vec::new(),
+        }
+    }
+}
+
+/// `w:pgNumType`, resolved: what this section's page numbers look like and where they restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionPageNumbering {
+    /// `w:fmt` — the numeral system. `Decimal` is the schema default.
+    pub format: NumberFormat,
+    /// `w:start` — the number this section's **first** page carries. `None` continues the previous
+    /// section's count, which is what an absent attribute means.
+    pub start: Option<i64>,
+}
+
+impl Default for SectionPageNumbering {
+    fn default() -> Self {
+        Self {
+            format: NumberFormat::Decimal,
+            start: None,
+        }
+    }
+}
+
+/// `w:lnNumType`, resolved: this section's line numbering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionLineNumbering {
+    /// `w:countBy` — number every *n*th line. `1` when absent, which numbers every line.
+    pub count_by: i64,
+    /// `w:start` — the first number. The schema default is `1`.
+    pub start: i64,
+    /// `w:distance` — how far from the text the numbers sit, in twips. `None` when unstated.
+    pub distance_twips: Option<i64>,
+    /// `w:restart` — where the count starts over. The schema default is `newPage`.
+    pub restart: LineNumberRestart,
+}
+
+/// `w:footnotePr`/`w:endnotePr`, resolved: where a section's notes go and how they are numbered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionNoteRules {
+    /// `w:footnotePr/w:numFmt` — the numeral system a footnote mark is drawn in.
+    pub footnote_format: NumberFormat,
+    /// `w:footnotePr/w:numStart` — the first number, `1` when unstated.
+    pub footnote_start: i64,
+    /// `w:footnotePr/w:numRestart` — where footnote numbering starts over. `Continuous` when
+    /// unstated.
+    pub footnote_restart: NumberingRestartLocation,
+    /// `w:footnotePr/w:pos` — the bottom of the page, or directly beneath the text. `None` when
+    /// unstated.
+    pub footnote_position: Option<FootnotePosition>,
+    /// `w:endnotePr/w:numFmt`.
+    pub endnote_format: NumberFormat,
+    /// `w:endnotePr/w:numStart`.
+    pub endnote_start: i64,
+    /// `w:endnotePr/w:numRestart`.
+    pub endnote_restart: NumberingRestartLocation,
+    /// `w:endnotePr/w:pos` — the end of the section, or the end of the document. `None` when
+    /// unstated.
+    pub endnote_position: Option<EndnotePosition>,
+}
+
+impl Default for SectionNoteRules {
+    fn default() -> Self {
+        Self {
+            footnote_format: NumberFormat::Decimal,
+            footnote_start: 1,
+            footnote_restart: NumberingRestartLocation::Continuous,
+            footnote_position: None,
+            endnote_format: NumberFormat::LowercaseRomanNumerals,
+            endnote_start: 1,
+            endnote_restart: NumberingRestartLocation::Continuous,
+            endnote_position: None,
+        }
+    }
+}
+
+/// Which header or footer part a section shows for each of the three page kinds, **already
+/// resolved**.
+///
+/// # This is `resolve_reference`'s answer and not a copy of the `w:sectPr`'s own list
+///
+/// A section's `w:headerReference` list is not what a page shows. `w:titlePg` and
+/// `w:evenAndOddHeaders` can each *downgrade* a query to the default variant, and a variant a
+/// section does not state is **inherited from the nearest preceding section that does** — all three
+/// rules quoted from ECMA-376 Part 1 §17.10.1/.2/.5/.6 in `crate::document::headers`'s own doc
+/// comment, and implemented there once. These slots are that implementation's output, so a consumer
+/// of a [`DocumentFormatting`] resolves nothing: `first` on a section with `w:titlePg` off is
+/// literally the same index as `default`.
+///
+/// Each is an index into [`DocumentFormatting::header_footer_streams`], or `None` where no section
+/// back to the document's first states one — which is where Word would create a blank header and
+/// this crate does not fabricate one on a read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HeaderFooterSlots {
+    /// What the first page of the section shows.
+    pub first: Option<usize>,
+    /// What an even page shows.
+    pub even: Option<usize>,
+    /// What every other page shows.
+    pub default: Option<usize>,
+}
+
+impl HeaderFooterSlots {
+    /// The stream this page kind shows, given whether the page is the section's first and whether
+    /// it is an even one.
+    ///
+    /// The two flags have **already been applied** to which slot holds what — a section with
+    /// `w:titlePg` off has the same index in `first` as in `default` — so this is a selection and
+    /// not a resolution, which is the whole point of resolving the variants once in `mjx-docx`.
+    #[must_use]
+    pub fn for_page(self, is_first_of_section: bool, is_even: bool) -> Option<usize> {
+        if is_first_of_section {
+            self.first
+        } else if is_even {
+            self.even
+        } else {
+            self.default
+        }
+    }
+
+    /// The same slots, with each relationship index replaced by the stream index `table` gives it.
+    fn remapped(self, table: &[Option<usize>]) -> Self {
+        let map = |slot: Option<usize>| slot.and_then(|at| table.get(at).copied().flatten());
+        Self {
+            first: map(self.first),
+            even: map(self.even),
+            default: map(self.default),
+        }
+    }
+}
+
 /// One section's page geometry, in plain numbers.
 ///
 /// The `w:sectPr` itself is [`SectionProperties`] and needs an [`Interner`] to read; this is what it
 /// resolves to, so a caller holding a [`DocumentFormatting`] does not have to hold an interner
 /// beside it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionFormatting {
     /// The first paragraph index this section governs.
     pub first_paragraph: usize,
@@ -178,6 +392,31 @@ pub struct SectionFormatting {
     pub page_size: Option<PageSize>,
     /// `w:pgMar`, or `None` when the section states none.
     pub page_margins: Option<PageMargins>,
+    /// `w:type` — which kind of break **starts** this section.
+    ///
+    /// `None` when the section states none. ECMA-376 gives `w:type/@val` no schema default and
+    /// `sections.rs` therefore refuses to assert one; Word's own behaviour for an absent `w:type` is
+    /// `nextPage`, and reading that convention is a layout decision rather than a parsing one, so it
+    /// is made above this crate and not here.
+    pub break_kind: Option<SectionBreakType>,
+    /// `w:cols`, with §17.6.4's precedence already applied.
+    pub columns: SectionColumns,
+    /// `w:titlePg` — whether the first page of this section has its own header and footer.
+    pub title_page: bool,
+    /// `w:pgNumType`.
+    pub page_numbering: SectionPageNumbering,
+    /// `w:lnNumType`, or `None` when this section numbers no lines.
+    pub line_numbering: Option<SectionLineNumbering>,
+    /// `w:vAlign` — how the section's text sits vertically on a page it does not fill.
+    pub vertical_alignment: Option<VerticalJustification>,
+    /// `w:footnotePr` and `w:endnotePr`, merged into one set of rules.
+    pub notes: SectionNoteRules,
+    /// `w:noEndnote` — whether this section suppresses endnotes at its own end.
+    pub suppress_endnotes: bool,
+    /// Which header part each page kind shows, resolved.
+    pub headers: HeaderFooterSlots,
+    /// The same for footers.
+    pub footers: HeaderFooterSlots,
 }
 
 /// The document settings a layout engine reads: hyphenation, and the default tab interval.
@@ -199,6 +438,16 @@ pub struct DocumentLayoutSettings {
     /// `w:defaultTabStop` in twips — the interval of the implicit tab grid past the last stated
     /// stop.
     pub default_tab_stop_twips: i64,
+    /// `w:evenAndOddHeaders` (§17.10.1) — whether an even page shows its own header and footer.
+    ///
+    /// Document-wide rather than per section, which is why it lives here and not on
+    /// [`SectionFormatting`]. It has **already been applied** to every section's
+    /// [`HeaderFooterSlots`]; it travels for a consumer that wants to say *why* an even page shows
+    /// the odd header.
+    pub even_and_odd_headers: bool,
+    /// `w:mirrorMargins` (§17.15.1.71) — whether the left and right margins swap on an even page,
+    /// so that the wider one is always on the binding side.
+    pub mirror_margins: bool,
 }
 
 impl DocumentLayoutSettings {
@@ -219,7 +468,76 @@ impl Default for DocumentLayoutSettings {
             consecutive_hyphen_limit: None,
             hyphenation_zone_twips: None,
             default_tab_stop_twips: Self::DEFAULT_TAB_STOP_TWIPS,
+            even_and_odd_headers: false,
+            mirror_margins: false,
         }
+    }
+}
+
+/// One header or footer part, read and resolved.
+///
+/// A header is a **content stream of its own**: block-level content that lays out in its own band at
+/// the top of a page, in the same paragraphs and runs the body is made of, resolved against the same
+/// style ladder. It is not a property of a section — several sections share one — which is why these
+/// are held once on the [`DocumentFormatting`] and referenced by index from
+/// [`SectionFormatting::headers`]/`footers`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HeaderFooterFormatting {
+    part: mjx_opc::PartName,
+    paragraphs: Vec<ParagraphFormatting>,
+}
+
+impl HeaderFooterFormatting {
+    /// Which part it was read from.
+    #[must_use]
+    pub fn part(&self) -> &mjx_opc::PartName {
+        &self.part
+    }
+
+    /// Its paragraphs, in document order, resolved exactly as a body paragraph is.
+    #[must_use]
+    pub fn paragraphs(&self) -> &[ParagraphFormatting] {
+        &self.paragraphs
+    }
+}
+
+/// One footnote or endnote, read and resolved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NoteFormatting {
+    id: i64,
+    kind: FootnoteEndnoteType,
+    paragraphs: Vec<ParagraphFormatting>,
+}
+
+impl NoteFormatting {
+    /// `w:id` — what a [`NoteReference`] names.
+    #[must_use]
+    pub fn id(&self) -> i64 {
+        self.id
+    }
+
+    /// `w:type`, with the schema's own default applied: an entry that states none is
+    /// [`FootnoteEndnoteType::Normal`], which is a user's own note.
+    ///
+    /// The other three are Word's furniture: the rule drawn above a page's notes
+    /// ([`FootnoteEndnoteType::Separator`]), the one drawn above a note carried over from the page
+    /// before ([`FootnoteEndnoteType::ContinuationSeparator`]) and the notice that says a note
+    /// continues ([`FootnoteEndnoteType::ContinuationNotice`]).
+    #[must_use]
+    pub fn kind(&self) -> FootnoteEndnoteType {
+        self.kind
+    }
+
+    /// Whether it is one of the document's own notes rather than one of Word's separators.
+    #[must_use]
+    pub fn is_user_visible(&self) -> bool {
+        self.kind == FootnoteEndnoteType::Normal
+    }
+
+    /// Its paragraphs, in document order, resolved exactly as a body paragraph is.
+    #[must_use]
+    pub fn paragraphs(&self) -> &[ParagraphFormatting] {
+        &self.paragraphs
     }
 }
 
@@ -234,6 +552,9 @@ pub struct DocumentFormatting {
     paragraphs: Vec<ParagraphFormatting>,
     sections: Vec<SectionFormatting>,
     settings: DocumentLayoutSettings,
+    header_footer_streams: Vec<HeaderFooterFormatting>,
+    footnotes: Vec<NoteFormatting>,
+    endnotes: Vec<NoteFormatting>,
 }
 
 impl DocumentFormatting {
@@ -268,6 +589,61 @@ impl DocumentFormatting {
                 .is_some_and(|last| paragraph >= section.first_paragraph && paragraph <= last)
         })
     }
+
+    /// Every header and footer part this document's sections reach, read once each.
+    ///
+    /// One list for both, because a slot on [`SectionFormatting::headers`] and one on
+    /// [`SectionFormatting::footers`] are indices into the same table — and because two sections
+    /// that reference the same part share one entry, which is what makes an inherited header cost
+    /// nothing.
+    #[must_use]
+    pub fn header_footer_streams(&self) -> &[HeaderFooterFormatting] {
+        &self.header_footer_streams
+    }
+
+    /// The stream at `index`, for a [`HeaderFooterSlots`] member.
+    #[must_use]
+    pub fn header_footer_stream(&self, index: usize) -> Option<&HeaderFooterFormatting> {
+        self.header_footer_streams.get(index)
+    }
+
+    /// `word/footnotes.xml`'s entries, in document order — the reserved separators included, because
+    /// a renderer draws them.
+    #[must_use]
+    pub fn footnotes(&self) -> &[NoteFormatting] {
+        &self.footnotes
+    }
+
+    /// `word/endnotes.xml`'s entries, likewise.
+    #[must_use]
+    pub fn endnotes(&self) -> &[NoteFormatting] {
+        &self.endnotes
+    }
+
+    /// The footnote `id` names, or `None` when the part does not define one.
+    #[must_use]
+    pub fn footnote(&self, id: i64) -> Option<&NoteFormatting> {
+        self.footnotes.iter().find(|note| note.id == id)
+    }
+
+    /// The endnote `id` names.
+    #[must_use]
+    pub fn endnote(&self, id: i64) -> Option<&NoteFormatting> {
+        self.endnotes.iter().find(|note| note.id == id)
+    }
+
+    /// The first entry of `kind` in `word/footnotes.xml` — how a renderer finds the separator to
+    /// draw above a page's notes.
+    #[must_use]
+    pub fn footnote_of_kind(&self, kind: FootnoteEndnoteType) -> Option<&NoteFormatting> {
+        self.footnotes.iter().find(|note| note.kind == kind)
+    }
+
+    /// The same in `word/endnotes.xml`.
+    #[must_use]
+    pub fn endnote_of_kind(&self, kind: FootnoteEndnoteType) -> Option<&NoteFormatting> {
+        self.endnotes.iter().find(|note| note.kind == kind)
+    }
 }
 
 /// What `word/document.xml` alone states about one paragraph, before any style is consulted.
@@ -275,9 +651,61 @@ struct DirectParagraph {
     text: String,
     runs: Vec<DirectRun>,
     hard_breaks: Vec<HardBreak>,
+    note_references: Vec<NoteReference>,
     direct: EffectiveParagraphProperties,
     style_id: Option<String>,
     own_numbering: Option<EffectiveNumberingReference>,
+}
+
+/// Where one stream's paragraphs sit in the one flat list `Document::formatting` resolves.
+#[derive(Clone, Copy)]
+struct StreamSpan {
+    start: usize,
+    length: usize,
+}
+
+impl StreamSpan {
+    /// This stream's paragraphs, cloned out of the resolved list.
+    fn slice(self, all: &[ParagraphFormatting]) -> Vec<ParagraphFormatting> {
+        all.get(self.start..self.start + self.length)
+            .unwrap_or_default()
+            .to_vec()
+    }
+}
+
+/// What one parse of `word/document.xml` yields.
+struct DirectRead {
+    paragraphs: Vec<DirectParagraph>,
+    sections: Vec<SectionFormatting>,
+    /// Every `r:id` a section's resolved header/footer slots name, in first-seen order; the slots
+    /// hold indices into this until `Document::formatting` turns each into a stream index.
+    header_footer_relationships: Vec<String>,
+}
+
+/// One note's identity and where its paragraphs sit in the flat list.
+struct NoteStream {
+    id: i64,
+    kind: FootnoteEndnoteType,
+    span: StreamSpan,
+}
+
+/// Every note of one part.
+#[derive(Default)]
+struct NoteStreams {
+    entries: Vec<NoteStream>,
+}
+
+impl NoteStreams {
+    fn resolved(self, all: &[ParagraphFormatting]) -> Vec<NoteFormatting> {
+        self.entries
+            .into_iter()
+            .map(|note| NoteFormatting {
+                id: note.id,
+                kind: note.kind,
+                paragraphs: note.span.slice(all),
+            })
+            .collect()
+    }
 }
 
 /// The same for one run.
@@ -304,8 +732,58 @@ impl Document {
     /// [`DocxError`] if a related part cannot be read.
     pub fn formatting(&mut self) -> Result<DocumentFormatting, DocxError> {
         let theme = self.load_theme_context()?;
-        let (direct_paragraphs, sections) = self.read_direct(&theme)?;
         let settings = self.read_layout_settings()?;
+        let DirectRead {
+            paragraphs: body,
+            mut sections,
+            header_footer_relationships,
+        } = self.read_direct(&theme, settings.even_and_odd_headers)?;
+
+        // Every header and footer part the sections reach, once each: two sections that reference
+        // the same part share one stream, which is what makes an *inherited* header cost nothing. A
+        // reference whose relationship does not resolve loses its slot rather than refusing to lay
+        // the document out — the same leniency a `w:numPr` naming an undefined list already gets.
+        let mut header_footer_parts: Vec<mjx_opc::PartName> = Vec::new();
+        let mut slot_of_relationship: Vec<Option<usize>> =
+            Vec::with_capacity(header_footer_relationships.len());
+        for relationship in &header_footer_relationships {
+            match self.part_for_document_rel(relationship) {
+                Ok(part) => {
+                    let at = match header_footer_parts.iter().position(|held| held == &part) {
+                        Some(at) => at,
+                        None => {
+                            header_footer_parts.push(part);
+                            header_footer_parts.len() - 1
+                        }
+                    };
+                    slot_of_relationship.push(Some(at));
+                }
+                Err(_) => slot_of_relationship.push(None),
+            }
+        }
+        for section in &mut sections {
+            section.headers = section.headers.remapped(&slot_of_relationship);
+            section.footers = section.footers.remapped(&slot_of_relationship);
+        }
+
+        // **One flat list of every paragraph in the document, whichever stream it came from.** The
+        // style index, the chain cache, the `w:docDefaults` tier and every numbering resolution
+        // below are therefore built once for all of them. Resolving a header through a second pass
+        // would be a second orchestration of the ladder, which is the one thing this module exists
+        // to prevent — and a header's paragraphs are `w:p`s of exactly the same shape as the body's.
+        let mut direct_paragraphs = body;
+        let body_count = direct_paragraphs.len();
+        let mut stream_spans: Vec<StreamSpan> = Vec::with_capacity(header_footer_parts.len());
+        for part in &header_footer_parts {
+            let stream = self.read_header_footer_direct(part, &theme)?;
+            stream_spans.push(StreamSpan {
+                start: direct_paragraphs.len(),
+                length: stream.len(),
+            });
+            direct_paragraphs.extend(stream);
+        }
+        let footnotes = self.read_notes_direct(&theme, true, &mut direct_paragraphs)?;
+        let endnotes = self.read_notes_direct(&theme, false, &mut direct_paragraphs)?;
 
         let resolved = self.style_sheet(|sheet, interner| -> Result<_, DocxError> {
             let index = StyleIndex::build(sheet, interner)?;
@@ -382,24 +860,45 @@ impl Document {
                 text: paragraph.text,
                 runs,
                 hard_breaks: paragraph.hard_breaks,
+                note_references: paragraph.note_references,
                 properties,
                 style_id: paragraph.style_id,
             });
         }
 
+        // The flat list, cut back into the streams it came from. Cutting from the end forward would
+        // need every length again; cutting by recorded span needs none of them.
+        let header_footer_streams = header_footer_parts
+            .into_iter()
+            .zip(&stream_spans)
+            .map(|(part, span)| HeaderFooterFormatting {
+                part,
+                paragraphs: span.slice(&paragraphs),
+            })
+            .collect();
+        let footnotes = footnotes.resolved(&paragraphs);
+        let endnotes = endnotes.resolved(&paragraphs);
+        paragraphs.truncate(body_count);
+
         Ok(DocumentFormatting {
             paragraphs,
             sections,
             settings,
+            header_footer_streams,
+            footnotes,
+            endnotes,
         })
     }
 
     /// One parse of `word/document.xml`: every paragraph's text, runs, direct formatting and style
-    /// references, and the section spans, resolved to plain numbers.
+    /// references, and every section resolved to plain numbers — **including which header and footer
+    /// each of its three page kinds actually shows**, which is `headers::resolve_reference`'s answer
+    /// and not a copy of the `w:sectPr`'s own reference list.
     fn read_direct(
         &mut self,
         theme: &ThemeContext,
-    ) -> Result<(Vec<DirectParagraph>, Vec<SectionFormatting>), DocxError> {
+        even_and_odd_headers: bool,
+    ) -> Result<DirectRead, DocxError> {
         let doc = self.package.part_tree(&self.document_part)?;
         let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
         let body = main.body().ok_or(DocxError::NoBody)?;
@@ -410,23 +909,110 @@ impl Document {
             paragraphs.push(read_direct_paragraph(paragraph, theme, interner)?);
         }
 
-        let mut sections = Vec::new();
-        for span in super::sections::sections_in(body) {
-            let (page_size, page_margins) = match span.properties.as_ref() {
-                Some(properties) => (
-                    read_page_size(properties, interner)?,
-                    read_page_margins(properties, interner)?,
-                ),
-                None => (None, None),
-            };
-            sections.push(SectionFormatting {
-                first_paragraph: span.first_paragraph,
-                last_paragraph: span.last_paragraph,
-                page_size,
-                page_margins,
-            });
+        let spans = super::sections::sections_in(body);
+        let mut relationships: Vec<String> = Vec::new();
+        let mut sections = Vec::with_capacity(spans.len());
+        for (index, span) in spans.iter().enumerate() {
+            let mut section = read_section(span, interner)?;
+            section.headers = resolve_slots(
+                &spans,
+                index,
+                even_and_odd_headers,
+                interner,
+                true,
+                &mut relationships,
+            )?;
+            section.footers = resolve_slots(
+                &spans,
+                index,
+                even_and_odd_headers,
+                interner,
+                false,
+                &mut relationships,
+            )?;
+            sections.push(section);
         }
-        Ok((paragraphs, sections))
+        Ok(DirectRead {
+            paragraphs,
+            sections,
+            header_footer_relationships: relationships,
+        })
+    }
+
+    /// One header or footer part's paragraphs, read but not yet resolved.
+    ///
+    /// A part that will not parse contributes **no** paragraphs rather than refusing the whole
+    /// document: a header is furniture, and a document whose header part is damaged is still a
+    /// document a reader should be able to open. The same reasoning `numbering_tier` states for a
+    /// `w:numPr` naming a list that is not defined.
+    fn read_header_footer_direct(
+        &mut self,
+        part: &mjx_opc::PartName,
+        theme: &ThemeContext,
+    ) -> Result<Vec<DirectParagraph>, DocxError> {
+        let Ok(doc) = self.package.part_tree(part) else {
+            return Ok(Vec::new());
+        };
+        let Ok(content) = HdrFtr::from_xml(&doc.root, &doc.interner) else {
+            return Ok(Vec::new());
+        };
+        let mut paragraphs = Vec::new();
+        for paragraph in content.paragraphs() {
+            paragraphs.push(read_direct_paragraph(paragraph, theme, &doc.interner)?);
+        }
+        Ok(paragraphs)
+    }
+
+    /// `word/footnotes.xml` (or `word/endnotes.xml`), read: one entry per note, its paragraphs
+    /// appended to `into` and their positions recorded.
+    fn read_notes_direct(
+        &mut self,
+        theme: &ThemeContext,
+        footnotes: bool,
+        into: &mut Vec<DirectParagraph>,
+    ) -> Result<NoteStreams, DocxError> {
+        let part = if footnotes {
+            self.parts.footnotes.clone()
+        } else {
+            self.parts.endnotes.clone()
+        };
+        let Some(part) = part else {
+            return Ok(NoteStreams::default());
+        };
+        let doc = self.package.part_tree(&part)?;
+        let interner = &doc.interner;
+        // Both parts have the identical `CT_Footnotes`/`CT_Endnotes` shape, and the discriminant is
+        // the root's own name rather than anything inside it — which is exactly why `mjx-docx` keeps
+        // the two Rust types apart. Reading each through its own type keeps that distinction here.
+        let entries: Vec<(i64, FootnoteEndnoteType, Vec<DirectParagraph>)> = if footnotes {
+            let read = Footnotes::from_xml(&doc.root, interner)?;
+            let mut collected = Vec::new();
+            for note in read.footnotes() {
+                collected.push(read_note(note, theme, interner)?);
+            }
+            collected
+        } else {
+            let read = Endnotes::from_xml(&doc.root, interner)?;
+            let mut collected = Vec::new();
+            for note in read.endnotes() {
+                collected.push(read_note(note, theme, interner)?);
+            }
+            collected
+        };
+
+        let mut streams = NoteStreams::default();
+        for (id, kind, paragraphs) in entries {
+            streams.entries.push(NoteStream {
+                id,
+                kind,
+                span: StreamSpan {
+                    start: into.len(),
+                    length: paragraphs.len(),
+                },
+            });
+            into.extend(paragraphs);
+        }
+        Ok(streams)
     }
 
     /// `word/settings.xml`'s layout-relevant half, with every schema default applied.
@@ -449,6 +1035,9 @@ impl Document {
                             measure.to_wire(),
                         )
                     }),
+                even_and_odd_headers: attr(settings.even_and_odd_headers(interner))?
+                    .unwrap_or(false),
+                mirror_margins: attr(settings.mirror_margins(interner))?.unwrap_or(false),
                 default_tab_stop_twips: attr(settings.default_tab_stop_twips(interner))?
                     .and_then(|measure| {
                         mjx_ooxml_types::support::universal_measure::twips_from_wire(
@@ -628,6 +1217,7 @@ fn read_direct_paragraph(
         text: collected.text,
         runs: collected.runs,
         hard_breaks: collected.hard_breaks,
+        note_references: collected.note_references,
         direct,
         style_id,
         own_numbering,
@@ -640,6 +1230,7 @@ struct Collected {
     text: String,
     runs: Vec<DirectRun>,
     hard_breaks: Vec<HardBreak>,
+    note_references: Vec<NoteReference>,
 }
 
 /// Walks a paragraph's content the way `paragraph_content_text` does — descending into every
@@ -739,6 +1330,20 @@ fn read_run(
             RunInnerContent::CarriageReturn(_) => collected.text.push('\n'),
             RunInnerContent::OptionalHyphen(_) => collected.text.push(SOFT_HYPHEN),
             RunInnerContent::NonBreakingHyphen(_) => collected.text.push(NON_BREAKING_HYPHEN),
+            RunInnerContent::FootnoteReference(reference) => {
+                collected.note_references.push(NoteReference {
+                    at: collected.text.len(),
+                    id: attr(reference.id(interner))?,
+                    endnote: false,
+                });
+            }
+            RunInnerContent::EndnoteReference(reference) => {
+                collected.note_references.push(NoteReference {
+                    at: collected.text.len(),
+                    id: attr(reference.id(interner))?,
+                    endnote: true,
+                });
+            }
             RunInnerContent::Break(value) => {
                 if let Some(kind @ (BreakType::Page | BreakType::Column)) =
                     attr(value.kind(interner))?
@@ -770,6 +1375,196 @@ fn read_run(
         character_style_id,
     });
     Ok(())
+}
+
+/// One `w:sectPr`, resolved to plain numbers — everything except the header and footer slots, which
+/// need the whole span list to walk the inheritance chain.
+fn read_section(span: &SectionSpan, interner: &Interner) -> Result<SectionFormatting, DocxError> {
+    let mut section = SectionFormatting {
+        first_paragraph: span.first_paragraph,
+        last_paragraph: span.last_paragraph,
+        page_size: None,
+        page_margins: None,
+        break_kind: None,
+        columns: SectionColumns::single(),
+        title_page: false,
+        page_numbering: SectionPageNumbering::default(),
+        line_numbering: None,
+        vertical_alignment: None,
+        notes: SectionNoteRules::default(),
+        suppress_endnotes: false,
+        headers: HeaderFooterSlots::default(),
+        footers: HeaderFooterSlots::default(),
+    };
+    let Some(properties) = span.properties.as_ref() else {
+        return Ok(section);
+    };
+
+    section.page_size = read_page_size(properties, interner)?;
+    section.page_margins = read_page_margins(properties, interner)?;
+    section.break_kind = match properties.break_kind() {
+        Some(kind) => attr(kind.kind(interner))?,
+        None => None,
+    };
+    section.title_page = attr(properties.title_page(interner))?.unwrap_or(false);
+    section.suppress_endnotes = attr(properties.no_endnote(interner))?.unwrap_or(false);
+    section.vertical_alignment = match properties.vertical_alignment() {
+        Some(alignment) => Some(attr(alignment.value(interner))?),
+        None => None,
+    };
+    if let Some(columns) = properties.columns() {
+        section.columns = read_columns(columns, interner)?;
+    }
+    if let Some(numbering) = properties.page_numbering() {
+        section.page_numbering = SectionPageNumbering {
+            format: attr(numbering.format(interner))?,
+            start: attr(numbering.start(interner))?,
+        };
+    }
+    if let Some(numbering) = properties.line_numbering() {
+        section.line_numbering = Some(SectionLineNumbering {
+            // `w:countBy` carries no schema default, and *every* line numbered is what Word does
+            // with an absent one — a `w:lnNumType` that stated a distance and no interval would
+            // otherwise number nothing at all, which is not what writing the element means.
+            count_by: attr(numbering.count_by(interner))?.unwrap_or(1).max(1),
+            start: attr(numbering.start(interner))?,
+            distance_twips: attr(numbering.distance_twips(interner))?.map(i64::from),
+            restart: attr(numbering.restart(interner))?,
+        });
+    }
+    if let Some(footnotes) = properties.footnote_properties() {
+        section.notes.footnote_position = attr_or_none(footnotes.position(interner));
+        if let Some(format) = footnotes.number_format() {
+            section.notes.footnote_format = attr(format.value(interner))?;
+        }
+        if let Some(start) = footnotes.number_start(interner) {
+            section.notes.footnote_start = start;
+        }
+        if let Some(restart) = footnotes.number_restart(interner) {
+            section.notes.footnote_restart = restart;
+        }
+    }
+    if let Some(endnotes) = properties.endnote_properties() {
+        section.notes.endnote_position = attr_or_none(endnotes.position(interner));
+        if let Some(format) = endnotes.number_format() {
+            section.notes.endnote_format = attr(format.value(interner))?;
+        }
+        if let Some(start) = endnotes.number_start(interner) {
+            section.notes.endnote_start = start;
+        }
+        if let Some(restart) = endnotes.number_restart(interner) {
+            section.notes.endnote_restart = restart;
+        }
+    }
+    Ok(section)
+}
+
+/// `Option<T>` in, `Option<T>` out — for the annotation accessors that already swallow a malformed
+/// attribute rather than returning a [`Result`].
+fn attr_or_none<T>(value: Option<T>) -> Option<T> {
+    value
+}
+
+/// `w:cols`, with §17.6.4's precedence applied: `w:equalWidth` wins over an explicit list.
+fn read_columns(
+    columns: &super::sections::Columns,
+    interner: &Interner,
+) -> Result<SectionColumns, DocxError> {
+    let space = i64::from(attr(columns.space_between_twips(interner))?);
+    let separator = attr(columns.separator_line(interner))?.unwrap_or(false);
+    let equal = attr(columns.is_equal_width(interner))?;
+    let stated: Vec<ColumnFormatting> = if equal {
+        Vec::new()
+    } else {
+        let mut list = Vec::new();
+        for column in columns.columns() {
+            list.push(ColumnFormatting {
+                // A `w:col` with no `w:w` states no width. Zero rather than a guess: the caller that
+                // divides a text area between columns can see that the file said nothing, and a
+                // fabricated width would be indistinguishable from a stated one.
+                width_twips: i64::from(attr(column.width_twips(interner))?.unwrap_or(0)),
+                space_after_twips: i64::from(attr(column.space_after_twips(interner))?),
+            });
+        }
+        list
+    };
+    let count = if stated.is_empty() {
+        usize::try_from(attr(columns.num(interner))?.max(1)).unwrap_or(1)
+    } else {
+        stated.len()
+    };
+    Ok(SectionColumns {
+        count: count.max(1),
+        space_twips: space,
+        separator,
+        columns: stated,
+    })
+}
+
+/// Which header (or footer) stream each of a section's three page kinds shows.
+///
+/// Every answer comes from [`super::headers::resolve_reference`] — `w:titlePg`,
+/// `w:evenAndOddHeaders` and the per-variant inheritance walk, quoted from ECMA-376 Part 1 in that
+/// module's own doc comment and implemented there **once**. Nothing about the rules is restated
+/// here; what this adds is the interning of the winning `r:id` into `relationships`, so that two
+/// sections inheriting one header end up naming one stream.
+fn resolve_slots(
+    spans: &[SectionSpan],
+    index: usize,
+    even_and_odd_headers: bool,
+    interner: &Interner,
+    is_header: bool,
+    relationships: &mut Vec<String>,
+) -> Result<HeaderFooterSlots, DocxError> {
+    let mut slot = |kind: HeaderFooterType| -> Result<Option<usize>, DocxError> {
+        let resolved = super::headers::resolve_reference(
+            spans,
+            index,
+            kind,
+            even_and_odd_headers,
+            interner,
+            is_header,
+        )?;
+        let Some(id) = resolved else {
+            return Ok(None);
+        };
+        Ok(Some(
+            match relationships.iter().position(|held| held == &id) {
+                Some(at) => at,
+                None => {
+                    relationships.push(id);
+                    relationships.len() - 1
+                }
+            },
+        ))
+    };
+    Ok(HeaderFooterSlots {
+        first: slot(HeaderFooterType::First)?,
+        even: slot(HeaderFooterType::Even)?,
+        default: slot(HeaderFooterType::Default)?,
+    })
+}
+
+/// One `w:footnote`/`w:endnote`: its id, its kind and its paragraphs.
+fn read_note(
+    note: &super::annotations::FootnoteEndnote,
+    theme: &ThemeContext,
+    interner: &Interner,
+) -> Result<(i64, FootnoteEndnoteType, Vec<DirectParagraph>), DocxError> {
+    let id = attr(note.id(interner))?;
+    // A `w:type` that is present but not one of `ST_FtnEdn`'s four values is read as `normal`, which
+    // is `FootnoteEndnote::is_user_visible`'s own leniency: an untrusted file's violation of its own
+    // schema is never silently reclassified as "not a footnote".
+    let kind = note
+        .kind(interner)
+        .ok()
+        .flatten()
+        .unwrap_or(FootnoteEndnoteType::Normal);
+    let mut paragraphs = Vec::new();
+    for paragraph in note.paragraphs() {
+        paragraphs.push(read_direct_paragraph(paragraph, theme, interner)?);
+    }
+    Ok((id, kind, paragraphs))
 }
 
 fn read_page_size(

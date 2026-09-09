@@ -25,8 +25,17 @@ use mjx_ooxml_core::measure::Emu;
 
 #[test]
 fn the_constants_are_reachable_and_say_what_they_say() {
-    assert_eq!(VERSION, 1);
-    assert_eq!(STATE_BYTES, 13);
+    assert_eq!(
+        VERSION, 2,
+        "MJXOFF-175 changed the continuation's shape, so MJXOFF-174's thirteen bytes must be \
+         refused rather than decoded as a page-zero document with no notes"
+    );
+    assert_eq!(STATE_BYTES, 45);
+    assert_eq!(
+        mjx_layout_docx::DEFAULT_LINE_NUMBER_DISTANCE,
+        Emu::from_twips(360)
+    );
+    assert_eq!(mjx_layout_docx::LARGEST_ROMAN, 3_999);
     assert_eq!(
         HYPHEN, '\u{2010}',
         "the typographic hyphen, not the ASCII one"
@@ -111,6 +120,13 @@ fn the_continuation_round_trips() {
             line: 3,
         },
         paragraphs: 400,
+        page_number: 12,
+        line_number: 41,
+        carry: Some(mjx_layout_docx::NoteCarry {
+            note: 3,
+            number: 9,
+            line: 2,
+        }),
     };
     let bytes = continuation.encode();
     assert_eq!(bytes.len(), STATE_BYTES);
@@ -199,7 +215,10 @@ fn the_flow_is_reachable() {
 /// are twentieths of a point.
 #[test]
 fn a_section_becomes_constraints() {
-    let mut document = support::document(&[support::paragraph("", "One.")]);
+    let mut document = support::document_with(
+        &[support::paragraph("", "One.")],
+        &support::page_geometry(8.5, 11.0, 1.0),
+    );
     let flow = support::flow(&mut document);
     let section = flow.formatting().sections().first().expect("a section");
     let constraints = constraints_for(section);
@@ -211,8 +230,16 @@ fn a_section_becomes_constraints() {
 #[test]
 fn the_pagination_types_are_reachable() {
     assert_eq!(FlowPosition::START.paragraph, 0);
+    let widths = [Emu::from_inches(3.0), Emu::from_inches(3.0)];
     let shape = PageShape {
         height: Emu::from_inches(11.0),
+        columns: 2,
+        widths: &widths,
+        width: Emu::from_inches(3.0),
+        section_last: Some(9),
+        balance: true,
     };
     assert_eq!(shape.height, Emu::from_inches(11.0));
+    assert_eq!(shape.columns, 2);
+    assert_eq!(shape.section_last, Some(9));
 }
