@@ -137,16 +137,37 @@ export function forcedState(host: HTMLElement): ForcibleState | undefined {
  */
 export function applyAvailability(
   host: HTMLElement,
-  button: HTMLButtonElement,
+  button: HTMLElement,
   explanationElement: HTMLElement,
 ): void {
   const disabled = isHardDisabled(host);
   const unavailable = !disabled && isUnavailable(host);
   const explanation = host.getAttribute('explanation') ?? '';
 
-  button.disabled = disabled;
+  /*
+   * ⚠ **Widened from `HTMLButtonElement` by MJXOFF-186, and the widening changes nothing for a
+   * button.**
+   *
+   * MJXOFF-182's four archetypes all wrap a `<button>`, so this took one. The inputs do not: a
+   * combo box's field is an `<input>`, a slider's track is a focusable `<div role="slider">`, and
+   * neither has the platform's `disabled`. The answer to a second consumer is one implementation
+   * both can reach rather than a second copy of this doctrine, so the native property is set when
+   * the element has one and `aria-disabled` carries the fact when it does not.
+   *
+   * For every element that *does* have it — which is every caller that existed before this change
+   * — `natively` is true and `announced` is exactly `unavailable`, so the behaviour is
+   * byte-identical. `tests/inputs.test.ts` asserts that equivalence over a real `<button>` rather
+   * than leaving it as a claim, because a "harmless widening" is precisely the kind of change that
+   * turns out not to be.
+   *
+   * A control with no native `disabled` is still this component's own to take out of the tab
+   * order: `aria-disabled` announces, it does not remove.
+   */
+  const natively = 'disabled' in button;
+  if (natively) (button as HTMLButtonElement).disabled = disabled;
 
-  if (unavailable) button.setAttribute('aria-disabled', 'true');
+  const announced = unavailable || (disabled && !natively);
+  if (announced) button.setAttribute('aria-disabled', 'true');
   else button.removeAttribute('aria-disabled');
 
   if (unavailable && explanation.trim() !== '') {

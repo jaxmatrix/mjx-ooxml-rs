@@ -17,6 +17,7 @@ import { defineControls } from '../src/controls/index.ts';
 import { defineRibbonElements } from '../src/ribbon/index.ts';
 import { defineMenus } from '../src/menus/index.ts';
 import { defineGalleryElements } from '../src/gallery/index.ts';
+import { defineInputs, inputDocumentCss } from '../src/inputs/index.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
@@ -39,6 +40,11 @@ defineMenus();
 // until it upgrades, so an undefined gallery would paint a wall of unstyled miniatures rather than
 // nothing — a failure that reads as a styling bug in whichever story happens to be open.
 defineGalleryElements();
+// MJXOFF-186's inputs. Registered here for the reason above and one more of their own: an
+// <mjx-option> is a *descriptor*, so an unregistered one is an unknown inline element whose
+// attributes have nowhere to go — a dropdown that never defined them would render an empty field
+// beside a row of nothing, which reads as a data problem rather than as a missing registration.
+defineInputs();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -51,6 +57,12 @@ installFoundations(document);
 const galleryItemRule = document.createElement('style');
 galleryItemRule.textContent = galleryDocumentCss;
 document.head.append(galleryItemRule);
+
+// The same arrangement for MJXOFF-186's two descriptor elements: data written as markup must not
+// flash into the layout in the moment between parsing and upgrading.
+const inputDescriptorRule = document.createElement('style');
+inputDescriptorRule.textContent = inputDocumentCss;
+document.head.append(inputDescriptorRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.

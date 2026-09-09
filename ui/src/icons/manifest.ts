@@ -197,6 +197,12 @@ export const iconRequests: readonly IconRequest[] = [
     why: 'Confirmation, and the on state of a menuitemcheckbox.',
   },
   {
+    name: 'subtract',
+    sizes: [16],
+    variants: ['regular'],
+    why: "The indeterminate position of a tri-state checkbox (MJXOFF-186). A dash rather than a faint or half-drawn tick, and that is the whole reason it is a separate drawing: `mixed` must not read as a weaker `checked`, which is the same argument `controlStateSpecs.mixed` makes about the fill. 16 alone: it is a mark inside a square, never a command's icon.",
+  },
+  {
     name: 'radio-button',
     sizes: [16],
     variants: ['filled'],

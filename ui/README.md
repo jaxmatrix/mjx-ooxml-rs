@@ -735,6 +735,174 @@ the **flyout's seven-column target**, which is a shape rather than a measurement
 ribbon's tab picker, the menu's sheet and the gallery's sheet are all aliases of it, and
 `tests/gallery.test.ts` asserts they still are.
 
+## The inputs (MJXOFF-186)
+
+Seven controls — `<mjx-label>`, `<mjx-checkbox>`, `<mjx-dropdown>`, `<mjx-combo-box>`,
+`<mjx-measure-input>`, `<mjx-slider>` and `<mjx-segmented-control>` — plus two descriptor elements,
+`<mjx-option>` and `<mjx-segment>`. A ribbon is commands; a task pane, a dialog and an inspector are
+**fields**, and this is what they are made of.
+
+### A field is a surface you type into, not a button you press
+
+The field state table does **not** borrow the control table's paint, and that is the one decision
+the whole of `input-model.ts` is arranged around. It is a measurement rather than a taste:
+**`--theme-text-secondary` is 4.32 : 1 on `--theme-border-subtle`**, and `controlStateSpecs.hover`
+fills with exactly that. A combo box's placeholder, a measure input's unit suffix and a slider's
+tick labels are all secondary text, so a field wearing the button's hover would have illegible
+secondary text *precisely while a person was pointing at it* — legible in every screenshot,
+illegible in use.
+
+So a field's **fill never changes**: hover, editing and invalid move the *edge*, and every piece of
+secondary text sits on `--theme-surface` (5.23 : 1 light, 6.61 : 1 dark) in all seven states.
+`tests/inputs.test.ts` asserts the construction rather than the outcome — one assertion that the
+seven fills are one fill, and one that the borrowed hover fill would have failed.
+
+The *machinery* is still shared: `controlStateDeclarations`, `paintValue` and `disabledOpacity` all
+come from `control-states.ts`, and `composeStatePaint`/`resolvePaintFingerprint` are asserted
+**equal** to `effectiveStatePaint`/`resolvedStateFingerprint` over all ten control states. A
+near-duplicate that is checked against the thing it nearly duplicates is not a duplicate.
+
+The checkbox's box and the listbox's option **do** borrow, wholesale, exactly as a menu row does —
+and each says why for the one or two paints it had to declare itself. A segmented control borrows
+*everything*: it is painted by `controlStatesCss('.segment')` through the same `data-pressed`
+attribute `<mjx-toggle-button>` writes, and the fingerprints are asserted identical rather than
+similar.
+
+### The indicator rule: what says a state is on, without reading its text
+
+WCAG 2.2 §1.4.11 wants a state indicator at 3 : 1, and the mistake to avoid is assuming the
+indicator is always a colour. `tests/inputs.test.ts` attributes every state in every table to the
+strongest of five mechanisms — `ring`, `border`, `fill`, `weight` (a font weight or border-style
+change, which is not a colour at all) or `declared` — and **writes the whole map out**. A state
+sliding from `ring` to `declared` is then a diff somebody has to write down, rather than a threshold
+that quietly still passes. Beside it sits the anti-vacuity assertion the map exists for: at least
+one state per table must be carried by a *measured* colour, so a table that declared its way out of
+everything fails.
+
+Two measurements came out of writing it and both are asserted so they cannot rot:
+
+* **`--theme-accent` on `--theme-border-subtle` is 2.81 : 1 in light**, so the slider's filled track
+  is `--theme-accent-pressed` (4.41 : 1). The boundary between the filled and unfilled halves is the
+  entire visual output of a slider.
+* **`--theme-secondary-accent` on `--theme-surface` is 2.07 : 1 in light**, so the invalid field's
+  honey edge cannot carry that state on its own. `fieldStates.invalid` declares a `nonColourCue` —
+  `aria-invalid`, a warning glyph and the parse failure written out beneath — and the browser gate
+  asserts all three are *drawn*. A declared cue that is not rendered fails louder than no
+  declaration.
+
+⚠ **A finding, in passing, about a table this child did not own.** `controlStateSpecs.on` borders
+with `--theme-accent-border` on an `--theme-accent-surface` fill — **1.20 : 1 in light** — and fills
+1.14 : 1 against white; `onHover`'s inset ring is `--theme-accent` on the same fill, **2.98 : 1**.
+None of those is an indicator. What actually distinguishes a pressed toggle, a checked box and a
+chosen option is the **bold label** the same row declares, which is legitimate — but a reader of
+that table would assume the edge was doing it. U03's pairwise gate is green and cannot see any of
+it. This child measured it, asserted it (`the borrowed 'on' paint is carried by its weight and not
+by its edge`) and did **not** change `control-states.ts`: a two-value edit to another child's
+committed model, without its gates in front of me, is the monkey-patch this project refuses by name.
+
+### One tab stop each, by two different mechanisms
+
+U05's rule — *the number of tab stops decides trap-versus-disclosure* — holds for all seven, and
+`inputFocusPattern` records which mechanism produces the one stop:
+
+| Pattern | Controls | How |
+|---|---|---|
+| `activeDescendant` | dropdown, combo box | focus never leaves the field; `aria-activedescendant` names the option |
+| `roving` | segmented control | exactly one segment holds `tabindex="0"`; the arrows move it |
+| `single` | label, checkbox, measure input, slider | one focusable element and nothing to move between |
+
+The browser gate counts the stops with real `Tab` presses rather than believing the table.
+
+### A dropdown is a `listbox`, and the keyboard follows from saying so
+
+Not a menu. A menu is a set of *commands* whose items take focus (`role="menuitem"`, roving); a
+listbox is a set of *values* one of which is chosen (`role="option"`, `aria-activedescendant`). A
+dropdown built out of `<mjx-menu>` would announce *"menu, Cambria, menu item"* where a person needs
+*"combo box, Cambria, 4 of 18"*.
+
+**`Home` and `End` are the row that matters**, and it is the one the two list controls invert: in a
+select-only dropdown they are first and last; in an editable combo box they are **caret keys** and
+the list must not steal them. One flag in `ListboxKeyContext` decides both, and both directions are
+asserted.
+
+Type-ahead **opens the list rather than changing the value**, which is a deliberate divergence from
+the platform `<select>`: a native one fires a change per letter, and each of those would be an undo
+entry in an editor.
+
+### The combo box's invariant, asserted after nine paths
+
+> **The value the field shows must be the value the control reports.**
+
+`value` is the only state, the text is `displayTextFor(options, value, allowCustom)` and nothing
+else, and the only moment they may differ is while a person is *actively typing* — which is what
+`typing` marks. The browser gate runs nine ways of finishing and asserts, per path, either that the
+two agree and `typing` is false, or that the path is the one that deliberately ends mid-edit. **The
+count of each is asserted too**, because a `finishes` field allowed to drift would turn every
+assertion into "the text is whatever it is".
+
+Escape has two meanings and the first needs a recording: with the list open it restores **the text
+as it was when the list opened** (a half-typed `Cam`, not the font that was there before); with the
+list closed it goes back to the value.
+
+A string the list does not carry has exactly three answers and no fourth: a case-insensitive label
+match, the string itself under `allow-custom`, or a **revert that says so** — an `mjx-input-invalid`
+event carrying what was refused. Reverting is unavoidable there; reverting *silently* is not.
+
+### The measure input never silently reverts
+
+Points are canonical and every other unit is a factor, so switching the display unit and switching
+it back is an identity rather than a rounding. **Both decimal separators are accepted, always** —
+the grammar has no thousands separator, so a comma can only mean one thing, and refusing it would
+punish a numeric keypad for nothing; the `decimal` attribute governs how a value is *written*.
+
+What it does with a string it cannot read is the whole component: the text stays, nothing is
+committed, the field says so three ways at once, an event carries the failure and the fragment that
+defeated it, **it stays invalid on blur**, and Escape is the only way out.
+
+### The slider is the identity-value trap in geometry
+
+A slider at its minimum has its thumb at the start of the track whether the arithmetic is right, is
+zero, or was never done. So the gate measures the thumb at **five values including both ends**,
+compares each against `sliderFraction()` computed in Node — never against the custom property the
+component itself wrote — and then asserts the five positions are *distinct*.
+
+`snapToStep`'s stops are the step boundaries **plus the maximum**: a range of 0…10 in threes has
+boundaries at 0, 3, 6 and 9, and `End` must still mean ten. Both directions are asserted (9.4 snaps
+down, 9.6 snaps up), because "the maximum is reachable" is satisfied by a function that snaps
+*everything* to the maximum.
+
+### Four defects the gates found, that review would not have
+
+1. **The measure input silently reverted.** `#finish()` clears `#typing` before it renders, so the
+   render overwrote `banana` with `12 pt` — the exact behaviour the component exists not to have,
+   with the state set, the event fired and the glyph showing. A field displaying the old value and a
+   field that committed the old value are the same picture.
+2. **Every option row flex-shrank to 21.25px.** The list is a flex column with a `max-block-size`,
+   so rows left at the default `flex-shrink: 1` ignored their `block-size` — and the virtualiser's
+   divide-by-row-height was arithmetic over a number nothing on screen had. Found by *a heading is
+   exactly one row tall*, not by looking at it.
+3. **`aria-activedescendant` named a row that was not in the DOM** after `PageDown`. The window is a
+   function of a measured scroll offset and a measurement can be a frame behind. The fix is not a
+   better measurement: `#render` now expands the window to include the cursor's row unconditionally.
+4. **`aria-setsize` was on the listbox as well as on the options.** It is a *position within a set*
+   attribute, which a container cannot be; axe caught it on four stories at once.
+
+### `GUESS:` where this diverges from Office
+
+Three, marked at their sites: **type-ahead opens the list instead of changing the value** (stated
+above, and deliberate); the **unit precisions** a value is written back with; and the tri-state
+`mixed → true` transition, which is `nextPressed`'s existing `GUESS:` inherited rather than a new
+one.
+
+### One widening of a shared helper
+
+`applyAvailability` took an `HTMLButtonElement`, because MJXOFF-182's four archetypes all wrap one.
+The inputs do not: a combo box's field is an `<input>` and a slider's track is a focusable
+`<div role="slider">`, and neither has the platform's `disabled`. It now takes an `HTMLElement`,
+sets the native property where there is one and announces with `aria-disabled` where there is not.
+For every caller that existed before, the behaviour is byte-identical — asserted, over a real
+`<button>`, rather than left as a claim.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -775,3 +943,11 @@ ribbon's tab picker, the menu's sheet and the gallery's sheet are all aliases of
   unchanged.
 * **The visual baselines were generated by the code under test** and no person has approved them.
   They lock the current appearance against accidental change; they do not assert it is right.
+* **A `<style>` string is a template literal, so a backtick inside a CSS comment ends it.** Two of
+  MJXOFF-186's edits did exactly that and produced a wall of parse errors a hundred lines from the
+  actual mistake. Write CSS-comment prose without backticks.
+* **A flex column with a `max-block-size` shrinks its children.** Anything inside a scrolling popup
+  whose height is part of an arithmetic contract needs `flex: 0 0 auto` as well as a `block-size`.
+* **A tab-stop helper whose failure mode is "found nothing" makes every ceiling assertion pass.**
+  MJXOFF-186's first version broke its walk on a landing at `<body>` and reported *zero* stops for a
+  pane that has two, which read as a passing filter rather than as a broken helper.

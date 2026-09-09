@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 73 glyphs, 15183 bytes of path data, subset from the
+ * 74 glyphs, 15239 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -271,6 +271,10 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 20 20',
     paths: ['M3.37 10.17a.5.5 0 0 0-.74.66l4 4.5c.19.22.52.23.72.02l10.5-10.5a.5.5 0 0 0-.7-.7L7.02 14.27z'],
   },
+  'mjx-fluent:subtract-16-regular': {
+    viewBox: '0 0 16 16',
+    paths: ['M3 8c0-.28.22-.5.5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 8'],
+  },
   'mjx-fluent:radio-button-16-filled': {
     viewBox: '0 0 16 16',
     paths: ['M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6m0-9a6 6 0 1 0 0 12A6 6 0 0 0 8 2M3 8a5 5 0 1 1 10 0A5 5 0 0 1 3 8'],
@@ -314,7 +318,7 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 73;
+export const subsetGlyphCount = 74;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -323,7 +327,7 @@ export const subsetGlyphCount = 73;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 15183;
+export const subsetPathBytes = 15239;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';
