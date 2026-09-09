@@ -7,6 +7,7 @@ import {
   disabledAxeRules,
   expectationAttribute,
   openStory,
+  waitForAxeIdle,
 } from './support.ts';
 import { bodyTextMinimum, contrastExemplars, formatRatio } from '../../dev/contrast.ts';
 
@@ -53,6 +54,11 @@ test.describe('the accessibility sweep', () => {
 
       const declared = await root.getAttribute(expectationAttribute);
       const expectedRules = declared === null ? [] : declared.split(' ').filter((rule) => rule !== '');
+
+      // Once more, immediately before the run. `openStory` already waited, and the two assertions
+      // above take a round trip each — which is time enough for the addon to have started a run
+      // that `openStory` could not have seen.
+      await waitForAxeIdle(page);
 
       let builder = new AxeBuilder({ page }).include('#storybook-root');
       for (const rule of Object.keys(disabledAxeRules)) builder = builder.disableRules(rule);

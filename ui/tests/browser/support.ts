@@ -87,18 +87,39 @@ export async function openStory(page: Page, id: string, options: OpenOptions = {
  * it. Waiting for the addon to finish removes the race rather than retrying past it.
  */
 export async function waitForAxeIdle(page: Page): Promise<void> {
-  try {
-    await page.waitForFunction(
-      () => {
+  // ⚠ **Idle *twice*, a frame apart.** A single check answers *"is a run in flight right now"*, and
+  // the race has two sides: the addon's run may not have **started** yet, in which case one poll
+  // sees an idle axe, `AxeBuilder` starts its own, and the addon's begins underneath it. MJXOFF-185
+  // hit exactly that on a story heavy enough to delay the addon — seven galleries, fourteen
+  // listboxes and fourteen shadow roots — and it passed on its own and failed inside the full
+  // suite, which is the signature of a race rather than of a defect.
+  //
+  // Requiring the idle state to survive a frame closes that side of it without retrying past
+  // anything: what is being waited for is still *the addon has finished*, and the second look is
+  // what makes the first one mean it.
+  const deadline = Date.now() + 20_000;
+  let confirmations = 0;
+  while (Date.now() < deadline) {
+    let idle: boolean;
+    try {
+      idle = await page.evaluate(() => {
         const axe = (globalThis as { axe?: { _running?: boolean } }).axe;
         return axe === undefined || axe._running !== true;
-      },
-      undefined,
-      { timeout: 15_000 },
-    );
-  } catch {
-    // A story whose addon run never finishes is a finding in its own right, but it is not this
-    // helper's to report: the sweep below will still run axe and will still say what it found.
+      });
+    } catch {
+      // A navigation mid-poll is not a finding this helper can report; the sweep will still run
+      // axe and will still say what it found.
+      return;
+    }
+    if (!idle) {
+      confirmations = 0;
+    } else {
+      confirmations += 1;
+      if (confirmations >= 2) return;
+    }
+    await page.evaluate(async () => {
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    });
   }
 }
 

@@ -664,3 +664,27 @@ export function pointInTriangle(
   const positive = first > 0 || second > 0 || third > 0;
   return !(negative && positive);
 }
+
+/**
+ * Adopt `floatingCss` onto a document, once.
+ *
+ * The `@property` registrations are what make `resolveLength` return **pixels** rather than the
+ * un-substituted token text, and `@property` is document-scoped wherever the sheet carrying it is
+ * applied — so every component that floats needs it on its own shadow root *and* on the document.
+ *
+ * ⚠ **It lives here since MJXOFF-185, and that is the doctrine rather than tidiness.** It was
+ * eight private lines inside `<mjx-menu>`; `<mjx-gallery>` needed exactly the same eight, and this
+ * project's standing rule is that the answer to a second consumer is one implementation both can
+ * reach, not a second copy. A component that registered the properties slightly differently would
+ * resolve a slightly different gap, and nothing would ever say so.
+ */
+export function installFloatingProperties(target: Document): void {
+  if (floatingDocuments.has(target)) return;
+  floatingDocuments.add(target);
+  if (typeof CSSStyleSheet === 'undefined' || !Array.isArray(target.adoptedStyleSheets)) return;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(floatingCss);
+  target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
+}
+
+const floatingDocuments = new WeakSet<Document>();

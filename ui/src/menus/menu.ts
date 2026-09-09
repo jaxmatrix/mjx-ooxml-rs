@@ -63,6 +63,7 @@ import {
   clippingBoundary,
   floatingCss,
   floatingProperties,
+  installFloatingProperties,
   physicalSide,
   pinFloating,
   placeFloating,
@@ -1051,18 +1052,6 @@ function deepActiveElement(document_: Document): Element | null {
   while (element?.shadowRoot?.activeElement != null) element = element.shadowRoot.activeElement;
   if (element === document_.body || element === document_.documentElement) return null;
   return element;
-}
-
-/** One sheet, adopted by the document so the `@property` registrations are in scope everywhere. */
-const documentSheets = new WeakSet<Document>();
-
-function installFloatingProperties(target: Document): void {
-  if (documentSheets.has(target)) return;
-  documentSheets.add(target);
-  if (typeof CSSStyleSheet === 'undefined' || !Array.isArray(target.adoptedStyleSheets)) return;
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(floatingCss);
-  target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
 }
 
 /** Register the element. Idempotent. */

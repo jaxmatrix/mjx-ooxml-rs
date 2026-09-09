@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 71 glyphs, 14833 bytes of path data, subset from the
+ * 73 glyphs, 15183 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -247,6 +247,14 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 20 20',
     paths: ['M7.65 4.15c.2-.2.5-.2.7 0l5.49 5.46c.21.22.21.57 0 .78l-5.49 5.47a.5.5 0 0 1-.7-.71L12.8 10 7.65 4.85a.5.5 0 0 1 0-.7'],
   },
+  'mjx-fluent:chevron-up-16-regular': {
+    viewBox: '0 0 16 16',
+    paths: ['M3.15 10.35c.2.2.5.2.7 0L8 6.21l4.15 4.14a.5.5 0 0 0 .7-.7l-4.5-4.5a.5.5 0 0 0-.7 0l-4.5 4.5a.5.5 0 0 0 0 .7'],
+  },
+  'mjx-fluent:chevron-double-down-16-regular': {
+    viewBox: '0 0 16 16',
+    paths: ['M3.15 7.65c.2-.2.5-.2.7 0L8 11.79l4.15-4.14a.5.5 0 0 1 .7.7l-4.5 4.5-.07.07a.5.5 0 0 1-.63-.07l-4.5-4.5a.5.5 0 0 1 0-.7m0-4c.2-.2.5-.2.7 0L8 7.79l4.15-4.14a.5.5 0 0 1 .7.7l-4.5 4.5-.07.07a.5.5 0 0 1-.63-.07l-4.5-4.5-.07-.07a.5.5 0 0 1 .07-.63'],
+  },
   'mjx-fluent:dismiss-16-regular': {
     viewBox: '0 0 16 16',
     paths: ['m2.59 2.72.06-.07a.5.5 0 0 1 .63-.06l.07.06L8 7.29l4.65-4.64a.5.5 0 0 1 .7.7L8.71 8l4.64 4.65c.18.17.2.44.06.63l-.06.07a.5.5 0 0 1-.63.06l-.07-.06L8 8.71l-4.65 4.64a.5.5 0 0 1-.7-.7L7.29 8 2.65 3.35a.5.5 0 0 1-.06-.63l.06-.07z'],
@@ -306,7 +314,7 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 71;
+export const subsetGlyphCount = 73;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -315,7 +323,7 @@ export const subsetGlyphCount = 71;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 14833;
+export const subsetPathBytes = 15183;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

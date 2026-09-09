@@ -66,6 +66,7 @@ import {
 } from '../foundations/density.ts';
 import { radiusVariable, surfaceLevels } from '../foundations/surfaces.ts';
 import { controlLevers } from '../controls/control-states.ts';
+import { phoneShellAtOrBelow } from '../harness/presets.ts';
 
 /** `accentSurface` → `var(--theme-accent-surface)`. Re-stated from the control table's spelling. */
 export function themeVariable(member: ThemeMember): string {
@@ -303,8 +304,16 @@ export const tabStripPresentations: Readonly<
   },
 };
 
-/** At or below this container width the strip becomes a picker. */
-export const tabStripPickerAtOrBelow = 560;
+/**
+ * At or below this container width the strip becomes a picker.
+ *
+ * **The number itself lives in `src/harness/presets.ts`** (`phoneShellAtOrBelow`) since
+ * MJXOFF-185, because three surfaces now turn on it — this one, a floating menu becoming a sheet,
+ * and a gallery's expanded flyout becoming a sheet — and MJXOFF-184's note said what to do when a
+ * third arrived. This name stays, because *"the strip becomes a picker"* is what this file is
+ * talking about; what it no longer does is write the number down a second time.
+ */
+export const tabStripPickerAtOrBelow = phoneShellAtOrBelow;
 
 /** The model the gate reads. */
 export function tabStripPresentationAt(containerWidth: number): TabStripPresentation {

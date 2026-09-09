@@ -173,6 +173,18 @@ export const iconRequests: readonly IconRequest[] = [
     why: 'Disclosure, in a tree and a submenu.',
   },
   {
+    name: 'chevron-up',
+    sizes: [16],
+    variants: ['regular'],
+    why: "A gallery strip's scroll-back affordance (MJXOFF-185). 16 alone, and the pair with chevron-down: the two are one control drawn twice, and a strip that could only scroll forward would be a strip that loses the item a person just passed.",
+  },
+  {
+    name: 'chevron-double-down',
+    sizes: [16],
+    variants: ['regular'],
+    why: "A gallery strip's *expand* affordance (MJXOFF-185), and deliberately not a second chevron-down. Office draws the More button as a chevron with a bar over it precisely because scroll-one-row and show-everything sit next to each other and must not be the same picture; two identical glyphs stacked in one rail is a control nobody can aim at.",
+  },
+  {
     name: 'dismiss',
     sizes: [16, 20],
     variants: ['regular'],

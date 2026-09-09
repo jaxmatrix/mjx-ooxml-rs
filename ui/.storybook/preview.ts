@@ -16,6 +16,8 @@ import { defineSurface } from '../src/foundations/surface.ts';
 import { defineControls } from '../src/controls/index.ts';
 import { defineRibbonElements } from '../src/ribbon/index.ts';
 import { defineMenus } from '../src/menus/index.ts';
+import { defineGalleryElements } from '../src/gallery/index.ts';
+import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
 
@@ -33,11 +35,22 @@ defineRibbonElements();
 // MJXOFF-184's menus. An unregistered <mjx-menu-item> is an inert element with no role, so a menu
 // that was only defined by the story importing it would announce nothing in every other story.
 defineMenus();
+// MJXOFF-185's gallery. `<mjx-gallery-item>` is a *descriptor* whose art is still in the light DOM
+// until it upgrades, so an undefined gallery would paint a wall of unstyled miniatures rather than
+// nothing — a failure that reads as a styling bug in whichever story happens to be open.
+defineGalleryElements();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
 // one `CSSStyleSheet` is constructed once and adopted by both.
 installFoundations(document);
+
+// One rule, on the document: a gallery item is data and must not flash its art into the page in the
+// moment between parsing and upgrading. The component's own sheet says the same thing for the items
+// slotted into it; this is the half that applies before there is a component.
+const galleryItemRule = document.createElement('style');
+galleryItemRule.textContent = galleryDocumentCss;
+document.head.append(galleryItemRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
