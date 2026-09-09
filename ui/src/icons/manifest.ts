@@ -193,6 +193,14 @@ export const iconRequests: readonly IconRequest[] = [
     why: 'Status. Filled is the drawing a warning actually wants.',
   },
   { name: 'info', sizes: [16, 20], variants: ['regular', 'filled'], why: 'Status.' },
+
+  // ── the ribbon's own marks (MJXOFF-182) ───────────────────────────
+  {
+    name: 'arrow-down-right',
+    sizes: [16],
+    variants: ['regular'],
+    why: "The dialog launcher's corner mark — Office's own glyph for *this group has a full dialog*. 16 alone: it is a mark rather than a command's icon, and is drawn one rung below one.",
+  },
 ];
 
 /**
