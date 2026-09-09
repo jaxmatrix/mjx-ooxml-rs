@@ -229,6 +229,43 @@ impl SheetPalette {
         }
     }
 
+    /// The colour at row `index` of the legacy indexed palette.
+    ///
+    /// **What a number format's `[Red]` resolves through.** A colour code in a `numFmt` is not a
+    /// `CT_Color`: it is a bare row of `indexedColors`, with no `@rgb`, no `@theme` and no `@tint`
+    /// anywhere near it — `[Red]` and `[Color3]` are the same row, and `mjx-layout-xlsx` reports the
+    /// row rather than a colour precisely so that the resolution happens here, once, beside every
+    /// other colour a worksheet states.
+    ///
+    /// Drawn **opaque**, for the reason [`resolve`](Self::resolve) gives at length: §18.8.27 prints
+    /// every row of that table with an alpha of `00`, which is a BIFF artefact and not an opacity,
+    /// and reading it as one would make every `[Red]` in every workbook invisible.
+    ///
+    /// `None` for a row this palette does not hold — a workbook that replaced `indexedColors` with a
+    /// shorter table, or the two system rows, which are not colours.
+    #[must_use]
+    pub fn resolve_indexed(&self, index: u32) -> Option<Color> {
+        match self.indexed.lookup(index)? {
+            mjx_sml::IndexedColor::Rgb(hex) => {
+                let bytes = hex.as_bytes();
+                let pair = |at: usize| {
+                    let text = hex.get(at..at + 2)?;
+                    u8::from_str_radix(text, 16).ok()
+                };
+                // `AARRGGBB` or `RRGGBB`; the alpha is discarded either way.
+                let at = if bytes.len() >= 8 { 2 } else { 0 };
+                Some(Color {
+                    red: pair(at)?,
+                    green: pair(at + 2)?,
+                    blue: pair(at + 4)?,
+                    alpha: 0xff,
+                })
+            }
+            mjx_sml::IndexedColor::SystemForeground => Some(self.system(SystemRole::Foreground)),
+            mjx_sml::IndexedColor::SystemBackground => Some(self.system(SystemRole::Background)),
+        }
+    }
+
     /// [`resolve`](Self::resolve), falling back to the role's system colour rather than to nothing.
     ///
     /// What a border band and a pattern's marks use: an edge the file drew but gave no colour is

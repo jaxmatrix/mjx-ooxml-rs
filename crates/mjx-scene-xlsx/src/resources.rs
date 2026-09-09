@@ -130,10 +130,20 @@ impl ResourceResolver for SheetResources {
         // the `xf` ladder already resolved is one lookup away.
         let hit = CellHit::from_source(source)?;
         let handle = self.cell_decoration(hit.row, hit.column)?;
-        let font = self.catalogue.decoration(handle)?.font.as_ref()?;
-        let colour = self
-            .palette
-            .resolve(font.color.as_ref()?, SystemRole::Foreground)?;
+        let entry = self.catalogue.decoration(handle)?;
+        // ⚠ A number format's own colour wins over the font's, and it has to: `[Red]` is a statement
+        // about *this value* — the negative section of `#,##0;[Red]#,##0` colours the negative cells
+        // and nothing else — where `x:font/color` is a statement about the cell's style. A painter
+        // that preferred the font would draw a red negative in the sheet's own black and lose the
+        // one thing the format code was written for.
+        let colour = match entry.text_colour {
+            Some(index) => self.palette.resolve_indexed(index)?,
+            None => {
+                let font = entry.font.as_ref()?;
+                self.palette
+                    .resolve(font.color.as_ref()?, SystemRole::Foreground)?
+            }
+        };
         Some(Decoration {
             fill: FillStyle::Solid(colour),
             stroke: None,

@@ -365,3 +365,142 @@ fn the_documented_viewport_helper_produces_a_usable_page() {
     assert!(constraints.content.width() > Emu::ZERO);
     assert_eq!(constraints.content.left, Emu::ZERO, "no margins");
 }
+
+/// Every name `numfmt` exports is reachable and answers.
+///
+/// The evaluator is a sub-project with a public surface of its own — a parser, a renderer, two
+/// caches and the date arithmetic — and the same argument applies to it as to the rest of the crate:
+/// a `pub` item nobody outside can construct or read back is a surface in name only.
+#[test]
+fn every_exported_name_of_the_number_format_engine_is_reachable_and_answers() {
+    use mjx_layout_xlsx::numfmt::{
+        cache, datetime, evaluate, general, number, parse, CellValue, CivilDateTime, Comparison,
+        CompiledFormat, Condition, DateToken, Denominator, Element, FormatCache, FormattedValue,
+        MeridiemStyle, Placeholder, Section, SectionKind,
+    };
+    use mjx_xlsx::DateSystem;
+
+    // The parser's own vocabulary.
+    assert_eq!(Placeholder::Zero.padding(), "0");
+    assert_eq!(Placeholder::Hash.padding(), "");
+    assert_eq!(Placeholder::Space.padding(), " ");
+    let condition = Condition {
+        comparison: Comparison::GreaterOrEqual,
+        threshold: 10.0,
+    };
+    assert!(condition.holds(10.0));
+    assert!(!condition.holds(9.0));
+    assert_eq!(Denominator::Fixed(8), Denominator::Fixed(8));
+    assert_ne!(Denominator::Placeholders(1), Denominator::Placeholders(2));
+
+    // A compiled format, its sections, and what each holds.
+    let compiled = CompiledFormat::compile("[>=10]#,##0.00;[Red]0.0;\"zero\";@");
+    assert_eq!(compiled.sections().len(), 4);
+    assert!(compiled.is_conditional());
+    let first: &Section = &compiled.sections()[0];
+    assert_eq!(first.kind, SectionKind::Number);
+    assert!(first.grouped);
+    assert_eq!(first.decimal_places, 2);
+    assert!(!first.is_empty());
+    assert!(first
+        .elements
+        .iter()
+        .any(|element| matches!(element, Element::IntegerDigit(_))));
+    assert!(matches!(
+        compiled.sections()[3].elements.first(),
+        Some(Element::TextValue)
+    ));
+    assert_eq!(compiled.sections()[1].colour, Some(2));
+    assert_eq!(CompiledFormat::general().sections().len(), 1);
+    assert_eq!(Section::general().kind, SectionKind::Literal);
+    assert_eq!(
+        parse::CompiledFormat::compile("0"),
+        CompiledFormat::compile("0")
+    );
+
+    // Section selection, which is the half of the contract a caller most often wants alone.
+    let (chosen, unsigned) =
+        mjx_layout_xlsx::numfmt::select(&compiled, 50.0).expect("a section matches 50");
+    assert_eq!(chosen.kind, SectionKind::Number);
+    assert!(!unsigned);
+    let (chosen, unsigned) =
+        mjx_layout_xlsx::numfmt::select(&compiled, 1.0).expect("a section matches 1");
+    assert_eq!(chosen.colour, Some(2));
+    assert!(unsigned, "the second positional section renders unsigned");
+
+    // The evaluator, uncached and cached.
+    let rendered: FormattedValue =
+        evaluate(&compiled, CellValue::Number(-4.0), DateSystem::Windows1900);
+    assert_eq!(rendered.text, "4.0");
+    assert_eq!(rendered.colour, Some(2));
+    assert_eq!(rendered.repeat, None);
+    assert_eq!(FormattedValue::plain("x").text, "x");
+    assert!(CellValue::read(mjx_ooxml_types::spreadsheetml::CellType::Number, "12").is_number());
+    assert!(
+        !CellValue::read(mjx_ooxml_types::spreadsheetml::CellType::SharedString, "12").is_number()
+    );
+
+    let mut formats: FormatCache = cache::FormatCache::new();
+    assert_eq!(
+        formats
+            .format(
+                Some("0.00"),
+                CellValue::Number(1.5),
+                DateSystem::Windows1900
+            )
+            .text,
+        "1.50"
+    );
+    let _ = formats.format(
+        Some("0.00"),
+        CellValue::Number(1.5),
+        DateSystem::Windows1900,
+    );
+    assert_eq!(formats.requests(), 2);
+    assert_eq!(formats.compilations(), 1);
+    assert_eq!(formats.evaluations(), 1);
+    assert_eq!(formats.compiled_count(), 1);
+    assert_eq!(formats.result_count(), 1);
+    formats.clear();
+    assert_eq!(formats.requests(), 0);
+
+    // The renderer, called directly.
+    assert_eq!(
+        number::render(
+            &CompiledFormat::compile("0.00").sections()[0],
+            5.0,
+            false,
+            DateSystem::Windows1900
+        ),
+        "5.00"
+    );
+
+    // `General`, and the fifteen-digit clamp.
+    assert_eq!(general::render(1.5), "1.5");
+    assert_eq!(general::render_signed(-1.5), "-1.5");
+    assert_eq!(general::decimal_string(1.5, 11), "1.5");
+    assert!((general::to_display_precision(0.1 + 0.2) - 0.3).abs() < f64::EPSILON);
+    assert_eq!(general::DISPLAY_SIGNIFICANT_DIGITS, 15);
+    assert_eq!(general::GENERAL_SIGNIFICANT_DIGITS, 11);
+    const {
+        assert!(general::GENERAL_SCIENTIFIC_CEILING > general::GENERAL_SCIENTIFIC_FLOOR);
+    }
+
+    // The date arithmetic.
+    let at: CivilDateTime = datetime::civil_from_serial(60.0, DateSystem::Windows1900, 0)
+        .expect("serial 60 is Excel's phantom day and it has civil fields");
+    assert_eq!((at.year, at.month, at.day), (1900, 2, 29));
+    assert_eq!(at.hour12(), 12);
+    assert!(!at.is_afternoon());
+    assert_eq!(datetime::civil_from_days(0), (1970, 1, 1));
+    assert_eq!(datetime::days_from_civil(1970, 1, 1), 0);
+    assert_eq!(datetime::EPOCH_DIFFERENCE_DAYS, 1462);
+    const {
+        assert!(datetime::MAX_DATE_SERIAL > 2_958_464.0);
+    }
+    assert_eq!(MeridiemStyle::UpperLong.marker(true), "PM");
+    assert_eq!(MeridiemStyle::LowerShort.marker(false), "a");
+    let mut written = String::new();
+    datetime::render_token(&mut written, DateToken::Year4, at, false);
+    assert_eq!(written, "1900");
+}

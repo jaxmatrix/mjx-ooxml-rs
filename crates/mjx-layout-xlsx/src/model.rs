@@ -59,6 +59,7 @@ use crate::cell::{self, CellContext, CellStyle, PlacedText};
 use crate::error::SheetLayoutError;
 use crate::geometry::{ColumnGeometry, GridGeometry, MaximumDigitWidth, COLUMN_COUNT};
 use crate::merge::{MergedRegion, RegionEdge};
+use crate::numfmt;
 use crate::overflow::Overflow;
 use crate::panes::{self, PaneRegion, Window};
 use crate::sheet::SheetGrid;
@@ -189,9 +190,23 @@ pub struct Decoration {
     pub font: Option<FontProperties>,
     /// The number-format code in force, and the id it came from.
     ///
-    /// **Reported, never applied.** R16 renders a cell's raw stored value; MJXOFF-172 is the
-    /// evaluator. Carrying the code here is what lets that child be a change to one crate.
+    /// **Applied since MJXOFF-172**, by [`crate::numfmt`], which is what turns `45719` into
+    /// `04/03/2025`. It is still carried here because a caller that wants to know *why* a cell reads
+    /// the way it does has no other way to ask, and because a re-layout at a different zoom must not
+    /// have to resolve the `xf` ladder a second time to find it.
     pub number_format: Option<(u32, String)>,
+    /// `[Red]`, `[Color12]` — the **zero-based** row of the legacy indexed palette this cell's text
+    /// is drawn in, or `None` when its format names no colour.
+    ///
+    /// **This is why a coloured cell does not share its neighbour's decoration.** A number format
+    /// states its colour per *section*, and which section runs depends on the value — so the
+    /// negative cells of a `#,##0;[Red]#,##0` column are red and the positive ones are not, with one
+    /// effective format between them. [`PageCatalogue`]'s sharing table keys on the pair for that
+    /// reason.
+    ///
+    /// A painter draws the text in this row of `indexedColors` **instead of** in
+    /// [`Decoration::font`]'s own colour; `mjx-scene-xlsx` is where that happens.
+    pub text_colour: Option<u32>,
     /// The edge this decoration draws, when it belongs to a **border band** rather than to a cell.
     ///
     /// A band is a box the width of one border line, filled with that line's colour — see
@@ -228,6 +243,18 @@ pub struct CellReport {
     ///
     /// [`SourceRef`]: mjx_layout::SourceRef
     pub decoration: DecorationRef,
+    /// The characters the cell displayed — **after** its number format ran.
+    ///
+    /// Added by MJXOFF-172, and the reason is the same seam [`CellReport::decoration`] names one
+    /// paragraph up. A `GlyphRunFragment` carries a shaped run and a byte range; it does not carry
+    /// the string those bytes index, and nothing else in the tree does either. So a layer that wants
+    /// to know *what a cell says* — a hit test reporting a selection, an accessibility tree, an
+    /// exporter, or a suite asserting that a date rendered as a date rather than as `45719` — has
+    /// nowhere to ask.
+    ///
+    /// It costs nothing to carry: the box model built this string to lay the cell out, and this
+    /// moves it rather than copying it. Empty for a cell that produced no glyphs.
+    pub text: String,
 }
 
 /// The tables the handles in one page's fragments resolve through.
@@ -244,7 +271,7 @@ pub struct PageCatalogue {
     /// position. `EffectiveCellFormat` is `Copy`, `Eq` and built without allocating, so it is the
     /// natural key; a merged region is deliberately *not* shared, because its four borders are
     /// resolved from its own perimeter and two merges with the same anchor format can still differ.
-    by_format: Vec<(mjx_sml::EffectiveCellFormat, DecorationRef)>,
+    by_format: Vec<((mjx_sml::EffectiveCellFormat, Option<u32>), DecorationRef)>,
     /// Which handle each already-issued **border band** resolved to.
     ///
     /// A worksheet's borders repeat far harder than its formats do — a bordered block of a hundred
@@ -278,10 +305,17 @@ impl PageCatalogue {
     }
 
     /// The handle an effective format already resolved to on this page, if it has.
-    fn handle_for(&self, format: &mjx_sml::EffectiveCellFormat) -> Option<DecorationRef> {
+    ///
+    /// Keyed on the format **and** the number format's own colour, because the second is a function
+    /// of the cell's value rather than of its style: see [`Decoration::text_colour`].
+    fn handle_for(
+        &self,
+        format: &mjx_sml::EffectiveCellFormat,
+        colour: Option<u32>,
+    ) -> Option<DecorationRef> {
         self.by_format
             .iter()
-            .find(|(candidate, _)| candidate == format)
+            .find(|((candidate, tinted), _)| candidate == format && *tinted == colour)
             .map(|(_, handle)| *handle)
     }
 
@@ -289,7 +323,7 @@ impl PageCatalogue {
     fn intern(
         &mut self,
         decoration: Decoration,
-        format: Option<mjx_sml::EffectiveCellFormat>,
+        format: Option<(mjx_sml::EffectiveCellFormat, Option<u32>)>,
     ) -> DecorationRef {
         let handle = DecorationRef::new(u64::try_from(self.decorations.len()).unwrap_or(0));
         self.decorations.push(decoration);
@@ -393,6 +427,7 @@ pub struct SheetBoxModel {
     catalogue: PageCatalogue,
     geometry: Option<(usize, GridGeometry)>,
     fits: AutoFitCache,
+    formats: numfmt::FormatCache,
     first_column: u16,
     last_page: PageIndex,
 }
@@ -416,6 +451,7 @@ impl SheetBoxModel {
             catalogue: PageCatalogue::default(),
             geometry: None,
             fits: AutoFitCache::new(),
+            formats: numfmt::FormatCache::new(),
             first_column: 0,
             last_page: PageIndex::FIRST,
         }
@@ -445,6 +481,24 @@ impl SheetBoxModel {
     #[must_use]
     pub fn first_column(&self) -> u16 {
         self.first_column
+    }
+
+    /// The number-format caches, and the counters that say whether they hit.
+    ///
+    /// Held across pages on purpose: a band of a sheet shares its format codes with every other
+    /// band of the same sheet, so a scroll that rebuilt the table would pay for the parse again on
+    /// every frame. See [`numfmt::FormatCache`] for what is cached and what deliberately is not.
+    #[must_use]
+    pub fn formats(&self) -> &numfmt::FormatCache {
+        &self.formats
+    }
+
+    /// Empties the number-format caches.
+    ///
+    /// What a caller that has swapped documents wants; a caller that is scrolling one document
+    /// wants the opposite, which is why nothing does this on its own.
+    pub fn clear_format_cache(&mut self) {
+        self.formats.clear();
     }
 
     /// The font resolver, for the substitution manifest a workbook reports.
@@ -1053,9 +1107,34 @@ impl SheetBoxModel {
             .formats()
             .font(&format)
             .map(|font| font.properties(interner));
+        // ⚠ The formatted text is resolved **before** the decoration, and that order is the whole
+        // reason MJXOFF-172 touched this function. A number format states its colour per *section*
+        // — `#,##0;[Red]#,##0` colours the negative cells and not the positive ones — so which
+        // colour a cell's text takes depends on its **value**, and a decoration shared by an
+        // effective format cannot carry it unless the value has already been read.
+        let code = match content.number_format_language() {
+            // §18.8.30's locale-dependent ids need a UI language and nothing in the file states one;
+            // see `SheetGrid::with_number_format_language`.
+            Some(language) => resolver
+                .formats()
+                .format_code_in(&format, language)
+                .ok()
+                .flatten(),
+            None => resolver.formats().format_code(&format).ok().flatten(),
+        };
+        let display = cell.as_ref().and_then(|cell| {
+            let raw = content.cell_text(cell)?;
+            Some(self.formats.format(
+                code.as_deref(),
+                numfmt::CellValue::read(cell.cell_type(), &raw),
+                content.date_system(),
+            ))
+        });
+        let text_colour = display.as_ref().and_then(|value| value.colour);
+
         let shared = merge
             .is_none()
-            .then(|| catalogue.handle_for(&format))
+            .then(|| catalogue.handle_for(&format, text_colour))
             .flatten();
         let handle = match shared {
             Some(handle) => handle,
@@ -1064,13 +1143,14 @@ impl SheetBoxModel {
                     fill: fill_of(resolver, &format, interner),
                     borders: borders_of(resolver, &format, interner),
                     font: font.clone(),
-                    number_format: number_format_of(resolver, &format, interner),
+                    number_format: number_format_of(&format, code.as_deref()),
+                    text_colour,
                     border_band: None,
                 };
                 if let Some(merge) = merge {
                     resolve_merge_borders(&mut decoration, resolver, interner, merge, content);
                 }
-                catalogue.intern(decoration, merge.is_none().then_some(format))
+                catalogue.intern(decoration, merge.is_none().then_some((format, text_colour)))
             }
         };
 
@@ -1112,12 +1192,15 @@ impl SheetBoxModel {
         let Some(cell) = cell else {
             return Ok(());
         };
-        let Some(text) = content.cell_text(&cell) else {
+        let Some(display) = display else {
             return Ok(());
         };
-        if text.is_empty() {
+        // A format may render a value as nothing at all — `;;;` is how a person hides a column
+        // without hiding it — and a cell with no glyphs produces no fragments.
+        if display.text.is_empty() {
             return Ok(());
         }
+        let text = display.text;
 
         let style = CellStyle::resolve(
             resolver.formats().alignment(&format),
@@ -1136,6 +1219,7 @@ impl SheetBoxModel {
             shrink_scale: placed.scale,
             merge,
             decoration: handle,
+            text,
         });
         self.emit_text(
             builder, content, region, cell_node, clip, &placed, row, column,
@@ -1402,16 +1486,16 @@ fn edge_of(
     })
 }
 
-/// The number-format code in force, for MJXOFF-172 to evaluate.
+/// The number-format code in force, recorded on the decoration.
+///
+/// The code itself was already resolved by the caller — it has to be, because the text is formatted
+/// before the decoration is chosen — so this only pairs it with the id it came from.
 fn number_format_of(
-    resolver: &mjx_xlsx::SheetFormatResolver<'_>,
     format: &mjx_sml::EffectiveCellFormat,
-    interner: &mjx_ooxml_core::Interner,
+    code: Option<&str>,
 ) -> Option<(u32, String)> {
     let id = format.number_format().resource_index?;
-    let _ = interner;
-    let code = resolver.formats().format_code(format).ok()??;
-    Some((id, code.into_owned()))
+    Some((id, code?.to_owned()))
 }
 
 /// Resolves the four edges of a merged region's union.

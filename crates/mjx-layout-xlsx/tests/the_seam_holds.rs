@@ -34,7 +34,12 @@ use std::path::{Path, PathBuf};
 
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
-const SOURCE_FILE_COUNT: usize = 13;
+///
+/// Thirteen at MJXOFF-171. Nineteen at MJXOFF-172, which added `numfmt/` — the `numFmt` evaluator,
+/// six files of its own: the parser, the numeric renderer, the date arithmetic, `General` and the
+/// fifteen-digit clamp, the two caches, and the module that joins them. It is a **sub-project**
+/// rather than a feature, which is why it is a directory and why the count moves by six at once.
+const SOURCE_FILE_COUNT: usize = 19;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

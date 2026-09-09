@@ -7,8 +7,8 @@ fragment-tree nodes=22 roots=1
 #0 box rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 decoration=-1
   #1 table rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 columns=13 rows=0..1 headers=0 continued=false continues=false
     #2 box rect=[0,0,581025,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/0 chars=0..0 decoration=0 cell=r0c0 span=1x1
-      #3 line rect=[396697,0,561975,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..2 baseline=154305 ascent=154305 descent=42863 direction=LeftToRight
-        #4 glyph run rect=[396697,0,561975,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..2 face=1 origin=[396697,154305] direction=LeftToRight level=BidiLevel(0) glyphs=2
+      #3 line rect=[19050,0,624954,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..7 baseline=154305 ascent=154305 descent=42863 direction=LeftToRight
+        #4 glyph run rect=[19050,0,624954,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..7 face=1 origin=[19050,154305] direction=LeftToRight level=BidiLevel(0) glyphs=7
     #5 box rect=[581025,0,1162050,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/1 chars=0..0 decoration=5 cell=r0c1 span=1x1
     #6 box rect=[1162050,0,1743075,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/2 chars=0..0 decoration=5 cell=r0c2 span=1x1
     #7 box rect=[1743075,0,2324100,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/3 chars=0..0 decoration=5 cell=r0c3 span=1x1

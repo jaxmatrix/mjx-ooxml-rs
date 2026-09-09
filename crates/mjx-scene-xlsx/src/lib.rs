@@ -103,6 +103,19 @@
 //! (`docs/validation/07-the-reference-pack.md`); LibreOffice is a change detector and not a
 //! reference, and the user has said its export of shades and gradients is not to be trusted at all.
 //! Every reading this crate makes is marked `GUESS:` at the site that makes it.
+//!
+//! # A number format's colour, which is not a style's
+//!
+//! MJXOFF-172 added one more colour to this crate's job, and it arrives by a different road from
+//! every other one. `#,##0.00;[Red]#,##0.00` names **one** `xf`, and whether a cell is red depends on
+//! the *number in it* — so `mjx_layout_xlsx::Decoration::text_colour` carries a bare **row of
+//! `indexedColors`** rather than a `mjx_sml::Color`, resolved here through
+//! [`SheetPalette::resolve_indexed`], and it wins over the font's own colour in
+//! [`ResourceResolver::text_decoration`](mjx_scene::ResourceResolver::text_decoration).
+//!
+//! `tests/a_red_negative_reaches_the_paint_table.rs` holds both halves: the negative cell resolves to
+//! row two of the palette, and a workbook that *replaces* `indexedColors` moves what `[Red]` paints —
+//! which is what says the row, and not a literal red, is what travelled.
 
 #![forbid(unsafe_code)]
 
