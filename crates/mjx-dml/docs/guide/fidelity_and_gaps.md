@@ -32,8 +32,15 @@ never emit, so each fails against 0.0.137.
 What stops a seventh is the ledger: every hand-written impl must be on it with an idiom and a reason,
 **and the idiom is checked against the impl's own body** — a row claiming to preserve everything
 while handing `RawElement::rebuilt` a fresh `Vec::new()` fails, which is exactly the shape
-`Picture::to_xml` had. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside that
-gate; extending it to them is MJXOFF-218.
+`Picture::to_xml` had.
+
+**Each of the other two crates that writes serialization by hand now has a gate of its own**, and
+neither is a copy of this one, because the idioms are the finding and they differ:
+`crates/mjx-sml/tests/serialization_ledger.rs` (MJXOFF-220) follows a one-line delegation into the
+`as_raw_element` behind it, and `crates/mjx-docx/tests/serialization_ledger.rs` (MJXOFF-218) compares
+146 copies of one body against a canonical text character for character. The three files share a
+source scanner and nothing else; the `mjx-docx` file records why that is three files rather than one
+shared crate, and what the duplication costs.
 
 ## What is actually asserted
 
