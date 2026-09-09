@@ -76,9 +76,11 @@ It was category 2 — *markup this project preserves verbatim and never validate
 on a reason that also claimed `vml-main.xsd` could not compile without an `xml.xsd` the Transitional
 set does not ship. MJXOFF-134's driver schema had removed that obstacle two phases earlier.
 
-What VML still has no gate for is **child order**: no `vml-*` schema is in the generator's
-`CHILD_ORDER_SCHEMAS` (MJXOFF-264). `mjx_vml::guide` states what that does and does not buy a caller,
-and it is worth reading before trusting anything this library does to a VML part.
+No `vml-*` schema is in the generator's `CHILD_ORDER_SCHEMAS`, and MJXOFF-264 measured what that
+leaves open: only the order of the `<xml>` wrapper's own children, which no schema in either pinned
+tree declares a content model for. The order *inside* each child is applied by the same `xmllint`
+call that validates it. `mjx_vml::guide` states what that does and does not buy a caller, and it is
+worth reading before trusting anything this library does to a VML part.
 
 ## What none of these crates does
 

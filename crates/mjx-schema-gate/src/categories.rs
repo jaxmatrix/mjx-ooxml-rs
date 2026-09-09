@@ -359,9 +359,13 @@ pub const WRAPPER_ROOTS: &[WrapperRoot] = &[WrapperRoot {
              a global element for — but `v:shape`, `v:shapetype`, `o:shapelayout`, `x:ClientData` \
              and the rest are all global elements of the VML family, so every child of the wrapper \
              is validated separately against a driver over `vml-main.xsd`. That reaches every \
-             element a producer or `mjx-vml` writes; what it does not assert is anything about the \
-             wrapper itself, nor the order of its children — no VML schema is in `xtask`'s own \
-             `CHILD_ORDER_SCHEMAS`, so the child-order half stays silent here (MJXOFF-264)",
+             element a producer or `mjx-vml` writes, **and the order of that element's own \
+             children**: handing a child to `xmllint` on its own applies its content model rather \
+             than removing it, so a `v:shapetype` that writes `o:complex` before its shape elements \
+             fails here — `crates/mjx-schema-gate/tests/wrapper_child_order.rs` proves it against \
+             real markup. What is left unasserted is the order of the *wrapper's* own children, and \
+             there is nothing there to assert: `<xml>` is a Microsoft convention that no schema in \
+             either pinned tree declares, so it has no content model and no sequence (MJXOFF-264)",
 }];
 
 /// Category 2: markup this project preserves verbatim and never writes, with the reason per entry.
