@@ -5,7 +5,7 @@
 // each module imports the crate's public vocabulary: so that the guide's intra-doc links resolve.
 //
 // This set is unlike the other eight in one way, and the difference is the reason MJXOFF-224 wrote
-// it: almost nothing here was written by a person. 84,128 of the crate's 85,399 lines are emitted by
+// it: almost nothing here was written by a person. 84,128 of the crate's 85,400 lines are emitted by
 // `xtask/src/codegen/`, and until MJXOFF-224 nothing re-derived them. `what_to_distrust` is the page
 // that says so, and it is the one to read first.
 #![doc = include_str!("../docs/guide/README.md")]

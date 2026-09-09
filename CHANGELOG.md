@@ -60,6 +60,60 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.152] - 2026-09-09
+
+### Blind sweeps: no test enumerates by hand what the repository enumerates itself (MJXOFF-225, H8)
+
+MJXOFF-224 found `crates/mjx-ooxml-types/src/child_order.rs`'s four safety suites sweeping three of
+nine generated tables — a literal that was the whole population when it was written and had been a
+fraction of it for six schemas since, while every count it printed stayed plausible. That
+instance is fixed. This closes the **class**.
+
+`xtask/tests/derived_rosters.rs` sweeps every tracked `.rs` file for a *roster*: a literal `[…]`
+list, in test code, whose elements all name members of a population this repository derives — the
+workspace crates, the generated child-order tables, the generated simple-type modules, the facade
+handle types, the validation catalogue pages, the validation artefact formats. Matching is on the
+first string of each element, so it sees a roster written as bare strings, as tuples or as struct
+literals, which is why a grep for `for … in [` finds barely any of them. Every roster it finds must
+be registered as the **whole of a named derived population**, and the gate re-derives that
+population and compares both ways. Its own scanner is calibrated against a sample held in the file,
+so a scanner that has stopped matching fails before it can report a clean bill.
+
+What the sweep found, beyond the instance MJXOFF-224 had already closed:
+
+- **`crates/mjx-sml/tests/package_writer.rs` was wrong, not merely blind.** Its forbidden-dependency
+  list named five crates and read as though it named all of them; `mjx-omml` and `mjx-vml` sit at
+  rank 2.2 beside `mjx-chart` and were missing, as were both bindings. With the old list in place,
+  `mjx-sml` could declare `mjx-omml` and that test passed.
+- **`xtask/tests/codegen_drift.rs`'s curated re-export sweep** iterated the two `pub(crate)` modules
+  by name. It now filters `SIMPLE_TYPE_MODULES` on `visibility`, so a third joins it the day one
+  exists.
+- **`CLAUDE.md`'s rank table was mirrored by convention and checked by nothing.** It is now the
+  source the crate populations above are derived from, so `xtask/tests/layering.rs` compares it
+  against `TIERS` crate by crate — rank and label, both directions — and `derived_rosters.rs` holds
+  it against `Cargo.toml`'s `members`.
+- **`layering.rs`'s own tier-exercise check** listed eight tier labels; it now derives them from
+  `TIERS` as *every ranked tier except the floor*.
+- Three further rosters — the catalogue pages in `validation_calls.rs`, the format tokens in
+  `validation_index.rs`, the artefact extensions in `validation_calls.rs` — are now read off
+  `ArtefactFormat`, which grew a `page()` accessor so that "which three of the seven pages" is
+  answered beside `extension()` rather than retyped.
+
+Every other roster the sweep found was already complete. Those are **registered rather than
+rewritten**: the gate re-derives what each one claims and fails by name the moment the repository
+moves under it, which is a stronger guarantee than copying a derivation into each of seven files
+would have been.
+
+**A partial sweep is expressible only by naming the subset as a population of its own.** There is no
+register variant for a subset chosen by hand and justified in prose: every roster in this workspace
+turned out to be the whole of some derivable population once the population was named precisely
+enough, including the two that looked most arbitrary.
+
+The gate states what it cannot see, and MJXOFF-252 owns it: a roster whose elements are not string
+literals — `facade_curation.rs`'s `&[&DECK, &DOCUMENT, &WORKBOOK]`, complete today and blind by
+construction — and a population nobody has named, `BasePopulation` being hand-written and therefore
+this file's own instance of the defect it closes.
+
 ## [0.0.151] - 2026-09-09
 
 ### `mjx-docx`'s 158 hand-written serialization pairs, and the three that were losing content (MJXOFF-218, H7)
