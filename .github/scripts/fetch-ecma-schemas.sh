@@ -35,6 +35,11 @@ readonly BASE_URL="https://ecma-international.org/wp-content/uploads"
 readonly ARCHIVES=(
     "ECMA-376-4_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Transitional.zip|pml.xsd"
     "ECMA-376-2_5th_edition_december_2021.zip|OpenPackagingConventions-XMLSchema.zip|opc-relationships.xsd"
+    # Not a schema: ECMA's own built-in cell and table styles, which are the only SpreadsheetML
+    # markup the standard publishes. `crates/mjx-sml/tests/theme_index.rs` derives the `@theme`
+    # position table from them rather than restating it (MJXOFF-246). The outer archive is 43 MB
+    # because of the Part 1 PDF; only the 84 KB member below is ever extracted.
+    "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-SpreadsheetMLStyles.zip|presetCellStyles.xml"
 )
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

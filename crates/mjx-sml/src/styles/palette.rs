@@ -27,15 +27,65 @@
 //! written out, but instead are implied. When the color palette has been modified from default, then
 //! the entire color palette is written out."*
 //!
-//! # `theme`: a position, not a token
+//! # `theme`: a position, not a token — and the two readings of it
 //!
-//! `CT_Color`'s `@theme` is *"a zero-based index into the `<clrScheme>` collection (§20.1.6.2)"*
-//! (Part 1 §18.8.19), and §20.1.6.2 prints the index table itself: `0` `dk1`, `1` `lt1`, `2` `dk2`,
-//! `3` `lt2`, `4`–`9` `accent1`–`accent6`, `10` `hlink`, `11` `folHlink`. That table is
-//! [`theme_color_slot`], and it is the spec's, not a guess — which matters, because the mapping
-//! Excel's *user interface* presents swaps the first two pairs, and this project has never read a
-//! file Microsoft Office wrote (MJXOFF-130 is the unit that closes that). Where the two disagree the
-//! written specification is the only authority available, and this crate follows it and says so.
+//! `CT_Color`'s `@theme` is *"a zero-based index into the `<clrScheme>` collection (§20.1.6.2)"* —
+//! the wording is identical on all four SpreadsheetML colour elements (§18.3.1.15 `color`,
+//! §18.3.1.93 `tabColor`, §18.8.3 `bgColor`, §18.8.19 `fgColor`) and it is the *only* thing Part 1's
+//! prose says about the numbering. §20.1.6.2 is a **DrawingML** clause about `clrScheme` itself, and
+//! the table it prints is headed *"Sequence Index"*: `0` `dk1`, `1` `lt1`, `2` `dk2`, `3` `lt2`,
+//! `4`–`9` `accent1`–`accent6`, `10` `hlink`, `11` `folHlink`. That is a statement about the
+//! **document order of `CT_ColorScheme`'s children**, which is what the clause is describing; that
+//! it is also the SpreadsheetML lookup table is an *inference* from the cross-reference, not
+//! something either clause states.
+//!
+//! The inference is wrong on the first two pairs, and this crate used to make it. What actually
+//! holds is
+//!
+//! ```text
+//! 0 lt1   1 dk1   2 lt2   3 dk2   4..9 accent1..accent6   10 hlink   11 folHlink
+//! ```
+//!
+//! — the sequence table with each dark/light pair swapped, accents and hyperlinks untouched. That is
+//! [`theme_color_slot`], and [`theme_color_position`] is its inverse.
+//!
+//! ## Why, and how it is checked rather than asserted
+//!
+//! **The evidence is ECMA's own, and it is markup rather than prose.** The Part 1 5th-edition
+//! package ships `OfficeOpenXML-SpreadsheetMLStyles/`, two of whose files are SpreadsheetML styles
+//! written by the standard: `presetCellStyles.xml` (the built-in cell styles) and
+//! `presetTableStyles.xml` (the built-in table styles). Both spell their colours as `@theme`
+//! positions, and both were authored to be **legible**. Three things they say cannot be reconciled
+//! with the sequence reading:
+//!
+//! * every one of the sixty-three `Normal` fonts is `<color theme="1"/>`, drawn on the sheet's white
+//!   background — white on white under the sequence reading;
+//! * `Accent1`…`Accent6` and `Check Cell` are `<color theme="0"/>` over a mid-tone fill, and a table
+//!   style paints `theme="0"` text onto a `theme="0"` fill darkened 35% — under the sequence reading
+//!   those are the *same* colour;
+//! * `Title` and `Heading 1`…`4` are `<color theme="3"/>` with no fill. Under the sequence reading
+//!   that is `lt2`, a pale cream, on a white sheet; under this one it is `dk2`.
+//!
+//! **The extent of that evidence, stated exactly.** Those three cover positions `1`, `0` and `3`.
+//! ECMA's preset styles never name position `2` at all, so `lt2` is reached by the symmetry of the
+//! swap rather than by a measurement — the one step here that rests on an argument. The gate in
+//! `theme_index.rs` asserts the covered set exactly, so that limit stays visible instead of being
+//! rounded off to "the evidence covers the table".
+//!
+//! So this is not *Office over the specification*: it is the standard's own normative sample data
+//! over an inference from a cross-reference in the same edition of the same standard. It happens to
+//! agree with what Excel writes and with what every third-party producer in `tests/fixtures/` writes
+//! — LibreOffice, Apache POI and XlsxWriter all emit `<color theme="1"/>` for a default dark font —
+//! which is the outcome the fidelity rule wants, but the argument does not rest on any of them.
+//!
+//! `crates/mjx-sml/tests/theme_index.rs` re-derives the mapping from those two files rather than
+//! restating it: it resolves every font colour against the ground beside it and requires the two to
+//! be tellable apart. ECMA's worst pair separates by 39.7 of 255, so nothing falls under the gate's
+//! floor; the sequence reading puts 144 pairs under it, the worst of them exactly 0.0. The same
+//! suite holds the *writer* to the same table, by resolving the colour `mjx_sml::write` authors for
+//! font 0 back out of the package it wrote. Before MJXOFF-246 the two halves of this crate disagreed
+//! and nothing could see it, because both candidate slots are defined in every theme, so the
+//! reference gate resolved either way and both the schema gate and the round trip passed.
 //!
 //! There is no colour *map* in the way DrawingML has one: a workbook has no `clrMapOvr`, so a
 //! position goes straight to a scheme slot.
@@ -197,17 +247,23 @@ impl IndexedColorPalette {
     }
 }
 
-/// The scheme slot a SpreadsheetML `@theme` position names, from ECMA-376 Part 1 §20.1.6.2's index
-/// table.
+/// The scheme slot a SpreadsheetML `@theme` position names.
+///
+/// The two dark/light pairs are **swapped** relative to the *Sequence Index* table ECMA-376 Part 1
+/// §20.1.6.2 prints for `CT_ColorScheme`'s children: `0` is `lt1` and `1` is `dk1`, `2` is `lt2` and
+/// `3` is `dk2`. Accents and hyperlinks are the same in both readings. See the
+/// [module documentation](self) for the evidence — it is ECMA's own `presetCellStyles.xml` and
+/// `presetTableStyles.xml` — and `crates/mjx-sml/tests/theme_index.rs` for the gate that re-derives
+/// this from them rather than restating it.
 ///
 /// `None` past `11`: the colour scheme is twelve slots and the spec defines no thirteenth.
 #[must_use]
 pub fn theme_color_slot(position: u32) -> Option<ColorSchemeSlot> {
     Some(match position {
-        0 => ColorSchemeSlot::Dark1,
-        1 => ColorSchemeSlot::Light1,
-        2 => ColorSchemeSlot::Dark2,
-        3 => ColorSchemeSlot::Light2,
+        0 => ColorSchemeSlot::Light1,
+        1 => ColorSchemeSlot::Dark1,
+        2 => ColorSchemeSlot::Light2,
+        3 => ColorSchemeSlot::Dark2,
         4 => ColorSchemeSlot::Accent1,
         5 => ColorSchemeSlot::Accent2,
         6 => ColorSchemeSlot::Accent3,
@@ -224,15 +280,17 @@ pub fn theme_color_slot(position: u32) -> Option<ColorSchemeSlot> {
 ///
 /// It is total where its inverse is partial, because every one of the twelve slots has a position
 /// and only a position can be out of range. It exists so an *authoring* caller never has to write
-/// the number: `4` is `accent1` only if you have §20.1.6.2 open, and this project's rule is that a
-/// reader should not need the spec to understand a name.
+/// the number — and MJXOFF-246 is why that matters more than convenience: for as long as the writer
+/// spelled font 0's colour as the literal `1`, nothing tied the number it wrote to the slot it meant,
+/// and the two halves of this crate could and did drift apart. Every authoring path in this crate
+/// now names a [`ColorSchemeSlot`] and lets this function supply the number.
 #[must_use]
 pub fn theme_color_position(slot: ColorSchemeSlot) -> u32 {
     match slot {
-        ColorSchemeSlot::Dark1 => 0,
-        ColorSchemeSlot::Light1 => 1,
-        ColorSchemeSlot::Dark2 => 2,
-        ColorSchemeSlot::Light2 => 3,
+        ColorSchemeSlot::Light1 => 0,
+        ColorSchemeSlot::Dark1 => 1,
+        ColorSchemeSlot::Light2 => 2,
+        ColorSchemeSlot::Dark2 => 3,
         ColorSchemeSlot::Accent1 => 4,
         ColorSchemeSlot::Accent2 => 5,
         ColorSchemeSlot::Accent3 => 6,
@@ -499,12 +557,21 @@ mod tests {
         assert_eq!(palette.lookup(66), None);
     }
 
+    /// The table itself, stated once.
+    ///
+    /// This restates the mapping and is therefore *not* what establishes it — that is
+    /// `crates/mjx-sml/tests/theme_index.rs`, which re-derives the same table from ECMA's own preset
+    /// styles and would redden if this one were edited to agree with §20.1.6.2's sequence. What this
+    /// is for is the two ends and the four positions the two readings differ about, in one place a
+    /// reader can see them.
     #[test]
-    fn the_theme_positions_are_the_index_table_of_section_20_1_6_2() {
-        assert_eq!(theme_color_slot(0), Some(ColorSchemeSlot::Dark1));
-        assert_eq!(theme_color_slot(1), Some(ColorSchemeSlot::Light1));
-        assert_eq!(theme_color_slot(2), Some(ColorSchemeSlot::Dark2));
-        assert_eq!(theme_color_slot(3), Some(ColorSchemeSlot::Light2));
+    fn the_two_dark_light_pairs_are_swapped_against_the_sequence_table() {
+        // The four the two readings disagree about. See the module documentation.
+        assert_eq!(theme_color_slot(0), Some(ColorSchemeSlot::Light1));
+        assert_eq!(theme_color_slot(1), Some(ColorSchemeSlot::Dark1));
+        assert_eq!(theme_color_slot(2), Some(ColorSchemeSlot::Light2));
+        assert_eq!(theme_color_slot(3), Some(ColorSchemeSlot::Dark2));
+        // And the eight they agree about, which a swap of the wrong pair would disturb.
         assert_eq!(theme_color_slot(4), Some(ColorSchemeSlot::Accent1));
         assert_eq!(theme_color_slot(9), Some(ColorSchemeSlot::Accent6));
         assert_eq!(theme_color_slot(10), Some(ColorSchemeSlot::Hyperlink));

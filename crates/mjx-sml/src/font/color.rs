@@ -166,10 +166,17 @@ impl Color {
     /// A theme colour by **slot**, optionally tinted — [`from_theme`](Self::from_theme) with the
     /// position spelled out.
     ///
-    /// `4` is `accent1` only to a reader with §20.1.6.2 open, and this project's rule is that a
-    /// public identifier should not need the spec. So this is the constructor an *author* reaches
-    /// for, and [`from_theme`](Self::from_theme) is the one a *reader* of a file needs, where the
-    /// position is what the file states and may be one the twelve-slot table does not name.
+    /// A position is a number a reader cannot check — `4` is `accent1` and `1` is `dk1`, and neither
+    /// is inferable — and this project's rule is that a public identifier should not need the spec.
+    /// So this is the constructor an *author* reaches for, and [`from_theme`](Self::from_theme) is
+    /// the one a *reader* of a file needs, where the position is what the file states and may be one
+    /// the twelve-slot table does not name.
+    ///
+    /// It is also what keeps the two ends of this crate from drifting: MJXOFF-246 found the
+    /// stylesheet writer spelling font 0's colour as a literal `1` and
+    /// [`theme_color_slot`](crate::styles::theme_color_slot) reading that same `1` as the theme's
+    /// *background*, so the library resolved the default font of every workbook it authored to white.
+    /// Every authoring path in this crate goes through this constructor now.
     ///
     /// The slot is DrawingML's [`ColorSchemeSlot`], deliberately: a workbook colour and a shape
     /// colour naming the same slot resolve to the same RGB, which is what

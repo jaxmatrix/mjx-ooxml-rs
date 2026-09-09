@@ -491,6 +491,7 @@ impl DifferentialFormatSpec {
     ///
     /// ```
     /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::styles::theme_color_slot;
     /// use mjx_sml::DifferentialFormatSpec;
     ///
     /// let rule = DifferentialFormatSpec::highlight_from_theme(
@@ -499,7 +500,12 @@ impl DifferentialFormatSpec {
     ///     ColorSchemeSlot::Accent1,
     ///     Some(0.8),
     /// );
-    /// assert_eq!(rule.font.expect("a font").color.expect("a colour").theme, Some(0));
+    /// // What went into the file is a *position*, and the slot it names is read back with the one
+    /// // table that decides that — never with a literal, which would be a second copy of a decision
+    /// // made in `mjx_sml::styles::palette`. `Dark1` is not position 0: SpreadsheetML's `@theme`
+    /// // swaps the two dark/light pairs against §20.1.6.2's sequence order (MJXOFF-246).
+    /// let position = rule.font.expect("a font").color.expect("a colour").theme;
+    /// assert_eq!(theme_color_slot(position.expect("a theme position")), Some(ColorSchemeSlot::Dark1));
     /// assert_eq!(rule.fill.expect("a fill").foreground.expect("a colour").tint, Some(0.8));
     /// ```
     #[must_use]

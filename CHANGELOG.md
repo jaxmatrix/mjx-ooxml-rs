@@ -60,6 +60,65 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.150] - 2026-09-09
+
+### SpreadsheetML `@theme`: the writer and the resolver meant different colours by the same number (MJXOFF-246, H6)
+
+`mjx-sml`'s stylesheet writer authored font 0 — the font every cell that names no font of its own
+draws with — as `<color theme="1"/>`, meaning the theme's first **text** colour, which is what
+Excel's own font 0 says. `mjx-sml`'s resolver read that same `1` as `lt1`, the theme's **background**.
+So this library read the default font colour of every workbook it authored as *white*, and a renderer
+built on `effective_cell_format` would have painted white text on a white sheet. Nothing saw it: both
+candidate slots are defined in every theme, so the reference gate resolved either way, schema validity
+passed and the round trip passed.
+
+The resolver was following an *inference*, and that is the substance of this change. §20.1.6.2 is a
+DrawingML clause about `clrScheme`, and the table it prints is headed **"Sequence Index"** — it states
+the document order of `CT_ColorScheme`'s children. SpreadsheetML's four colour elements say only *"a
+zero-based index into the `<clrScheme>` collection (§20.1.6.2)"*. That the sequence order is also the
+SpreadsheetML lookup table does not appear in either clause.
+
+**It is not, and ECMA's own markup says so.** The Part 1 5th-edition package ships
+`OfficeOpenXML-SpreadsheetMLStyles/`, whose `presetCellStyles.xml` and `presetTableStyles.xml` are the
+only SpreadsheetML *markup* the standard publishes — the built-in cell styles and table styles, in
+`@theme` positions. Every one of the sixty-three `Normal` fonts is `<color theme="1"/>` on a bare
+sheet; `Accent1`…`Accent6` and `Check Cell` are `<color theme="0"/>` over a mid-tone fill; a table
+style paints `theme="0"` text onto a `theme="0"` fill darkened 35%; `Title` and `Heading 1`…`4` are
+`<color theme="3"/>` with no fill at all. Under the sequence reading, all four are a colour on itself.
+
+So the two dark/light pairs are swapped and nothing else moves:
+
+```text
+0 lt1   1 dk1   2 lt2   3 dk2   4..9 accent1..accent6   10 hlink   11 folHlink
+```
+
+This is **not** *Office over the specification*: it is the standard's own normative sample data over
+an inference from a cross-reference in the same edition of the same standard. That it also agrees
+with what Excel writes, and with what all three third-party producers in `tests/fixtures/` write, is
+the outcome the fidelity rule wants rather than the argument for it.
+
+**The structural half matters as much as the table.** The writer no longer spells the number: it names
+`ColorSchemeSlot::Dark1` and lets `theme_color_position` supply the position. For as long as the two
+halves each stated the mapping in their own words they could drift, and they did. There is one table
+now and both ends read out of it — which is why MJXOFF-235's five `*_from_theme` constructors needed
+no change at all.
+
+Two gates, each red before this change and each failing for its own reason:
+
+* `crates/mjx-sml/tests/theme_index.rs` **derives** the mapping rather than restating it. It resolves
+  every font colour in ECMA's two preset files against the ground beside it and requires the two to be
+  tellable apart. ECMA's worst pair separates by 39.7 of 255; the sequence reading produces 144 pairs
+  under the floor, the worst of them exactly 0.0. It follows the `References/` convention — a notice
+  and a pass without the tree, a failure under `MJX_REQUIRE_SCHEMA=1` — so CI now fetches Part 1 for
+  its 84 KB styles member and runs `-p mjx-sml` in the schema job.
+* The same suite's **agreement** gate authors a package, reads font 0's colour back out of the
+  `xl/styles.xml` the writer produced, and resolves it against the `xl/theme/theme1.xml` the same
+  writer produced. Nothing in it re-types the number, so a writer and a resolver that disagree cannot
+  both be satisfied. This is the one-line assertion the ticket said did not exist.
+
+`docs/validation/05-workbooks.md` gains `V-XLSX-02.7`, the Excel-side tie-break: the derivation is from
+markup, and the reference implementation is what closes it.
+
 ## [0.0.149] - 2026-09-09
 
 Four API defects that were all the same shape: one half of a pair shipped and the other did not.

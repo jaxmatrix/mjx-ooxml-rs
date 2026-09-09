@@ -867,22 +867,59 @@ for (const stated of APPLY_FLAGS) {
 
 test("a theme slot names the position the numeric constructor takes", () => {
   scope((owned) => {
-    // `Color.fromTheme` states the file's own number and `Color.fromThemeSlot` names the slot; they
-    // must agree, so this asserts the pair rather than the number, and it asserts a slot whose
-    // position is *not* its ordinal in the enumeration (`Accent1` is 4, not 0) — a mapping that had
-    // drifted by one would pass on `Dark1` alone.
+    // `Color.fromTheme` states the file's own number and `Color.fromThemeSlot` names the slot. What
+    // this asserts is the *property* the projection has to have, never the table itself: the one
+    // place SpreadsheetML's `@theme` mapping is decided is `mjx_sml::styles::theme_color_position`,
+    // and a literal here would be a second copy of that decision sitting where nothing checks it.
+    // MJXOFF-246 is what taught that — a writer and a resolver each stating the mapping in their own
+    // words drifted apart and the library read the default font colour of every workbook it authored
+    // as white.
+    //
+    // A wasm enumeration *is* its ordinal in JavaScript, which makes the sharp claim writable with no
+    // number at all: `Dark1`'s position is **not** its ordinal, because the two dark/light pairs are
+    // swapped against the sequence order §20.1.6.2 prints for `clrScheme`'s children. A binding that
+    // projected the ordinal instead of calling `theme_color_position` — the single most likely way to
+    // get this wrong — passes on `Accent1` and every slot after it and fails right here.
+    const slots = [
+      ColorSchemeSlot.Dark1,
+      ColorSchemeSlot.Light1,
+      ColorSchemeSlot.Dark2,
+      ColorSchemeSlot.Light2,
+      ColorSchemeSlot.Accent1,
+      ColorSchemeSlot.Accent2,
+      ColorSchemeSlot.Accent3,
+      ColorSchemeSlot.Accent4,
+      ColorSchemeSlot.Accent5,
+      ColorSchemeSlot.Accent6,
+      ColorSchemeSlot.Hyperlink,
+      ColorSchemeSlot.FollowedHyperlink,
+    ];
+    const positions = slots.map((slot) => owned.keep(Color.fromThemeSlot(slot)).theme);
+    assert.deepEqual(
+      [...positions].sort((a, b) => a - b),
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "the twelve slots must occupy the twelve positions exactly once each",
+    );
+    assert.notEqual(
+      positions[slots.indexOf(ColorSchemeSlot.Dark1)],
+      ColorSchemeSlot.Dark1,
+      "`Dark1`'s position is not its ordinal — see MJXOFF-246",
+    );
+
     const bySlot = owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Accent1));
-    assert.equal(bySlot.theme, 4);
     assert.equal(bySlot.tint, undefined);
     assert.equal(bySlot.rgb, undefined);
-    assert.equal(owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Dark1, -0.25)).theme, 0);
-    assert.equal(owned.keep(Color.fromThemeSlot(ColorSchemeSlot.FollowedHyperlink)).theme, 11);
+    assert.equal(
+      owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Dark1, -0.25)).theme,
+      positions[slots.indexOf(ColorSchemeSlot.Dark1)],
+      "a tint must not move the position",
+    );
 
     // The same claim one level up: the fill pins nothing, which is the whole point of it beside
     // `solid`.
     const fill = owned.keep(PatternFillSpec.solidFromTheme(ColorSchemeSlot.Accent2, 0.4));
     const foreground = owned.keep(fill.foreground);
-    assert.equal(foreground.theme, 5);
+    assert.equal(foreground.theme, positions[slots.indexOf(ColorSchemeSlot.Accent2)]);
     assert.equal(foreground.tint, 0.4);
     assert.equal(foreground.rgb, undefined, "a theme-following fill pins no literal");
   });
