@@ -1156,7 +1156,7 @@ impl ResolvedRectangle {
 
 #[wasm_bindgen]
 impl ResolvedDrawCommand {
-    /// Which command this is, in the same vocabulary [`DrawCommand.kind`](DrawCommand::kind) uses.
+    /// Which command this is, in the same vocabulary `DrawCommand.kind` uses.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         match &self.0 {

@@ -36,11 +36,12 @@ value_class! {
     /// A resolved font reference, per script slot.
     EffectiveFonts(ooxml::EffectiveFonts), derive(PartialEq, Eq);
 
-    /// The curated subset of a run's effective character formatting — see this module's own doc
-    /// comment for which fields, and why not all of them.
+    /// The curated subset of a run's effective character formatting — see the guide's *What is not
+    /// projected* for which fields, and why not all of them.
     EffectiveCharacterProperties(ooxml::EffectiveCharacterProperties), derive(PartialEq);
 
-    /// The curated subset of a paragraph's effective layout — see this module's own doc comment.
+    /// The curated subset of a paragraph's effective layout — see the guide's *What is not
+    /// projected*.
     EffectiveParagraphProperties(ooxml::EffectiveParagraphProperties), derive(PartialEq);
 
     /// A resolved cell/table shading: the pattern's own colour and the background it draws over.

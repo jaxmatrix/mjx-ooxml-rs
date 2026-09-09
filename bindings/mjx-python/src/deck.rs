@@ -121,7 +121,7 @@ impl Deck {
     /// materialised are serialised from the model. The interpreter lock is released for the write.
     ///
     /// Raises `InvalidDocumentError` rather than emitting a file PowerPoint would offer to repair.
-    /// [`save_unchecked`](Deck::save_unchecked) is the deliberate override.
+    /// `save_unchecked` is the deliberate override.
     fn save<'py>(&self, python: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         python
             .detach(|| self.inner.save())
@@ -1546,8 +1546,12 @@ impl Deck {
             .map_err(to_py_err)
     }
 
-    /// Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface` references so
-    /// its cells hold exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+    /// references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+    /// answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. `regenerate_chart_workbook`
+    /// is the one that replaces the workbook wholesale.
     fn refresh_chart_workbook(
         &mut self,
         surface: SurfaceArg,

@@ -386,7 +386,7 @@ impl CellBlock {
     /// The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
     /// `"error"`.
     ///
-    /// The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell
+    /// The disambiguator for `rows`, which cannot tell a text cell from an error cell
     /// because both arrive as `str`. Built only when asked.
     fn kinds<'py>(&self, python: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let block = self.0.clone();

@@ -1107,7 +1107,7 @@ impl AdjustHandle {
     }
 
     /// The second axis's limits, when stated. An `xy` handle's are coordinates; a `polar` handle's
-    /// are angles, reported through [`second_angle_limits`](Self::second_angle_limits).
+    /// are angles, reported through `second_angle_limits`.
     #[getter]
     fn second_limits(&self) -> (Option<AdjustCoordinate>, Option<AdjustCoordinate>) {
         match &self.0 {
@@ -1322,7 +1322,7 @@ impl ResolvedRectangle {
 
 #[pymethods]
 impl ResolvedDrawCommand {
-    /// Which command this is, in the same vocabulary [`DrawCommand.kind`](DrawCommand::kind) uses.
+    /// Which command this is, in the same vocabulary `DrawCommand.kind` uses.
     #[getter]
     fn kind(&self) -> &'static str {
         match &self.0 {
@@ -1925,8 +1925,8 @@ impl ShapeGeometry {
             .collect()
     }
 
-    /// What a preset's adjustments are called — the keys
-    /// [`of`](ShapeGeometry::of) expects, in the order the specification lists them.
+    /// What a preset's adjustments are called — the keys `ShapeGeometry.of` expects, in the order
+    /// the specification lists them.
     #[staticmethod]
     fn adjustment_names(preset: PresetShapeType) -> Vec<&'static str> {
         Self::names(preset.into())
