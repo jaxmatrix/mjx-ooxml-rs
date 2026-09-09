@@ -27,6 +27,7 @@
 //! `@style` is `none`. A builder that filled in defaults would author markup the caller did not ask
 //! for, on a path whose whole point is that this project can explain every byte it emits.
 
+use mjx_dml::ColorSchemeSlot;
 use mjx_ooxml_core::Interner;
 use mjx_ooxml_types::spreadsheetml::{BorderStyle, PatternType};
 
@@ -59,6 +60,34 @@ impl PatternFillSpec {
         Self {
             pattern: Some(PatternType::Solid),
             foreground: Some(Color::from_opaque_rgb(hex)),
+            background: None,
+        }
+    }
+
+    /// A solid fill in one of the **workbook's own theme colours**, optionally tinted — the same
+    /// fill as [`solid`](Self::solid), stated so the opener's branding decides what it looks like.
+    ///
+    /// `tint` is `-1.0 ..= 1.0`: negative darkens, positive lightens, `None` writes no `@tint` at
+    /// all. `Some(-0.25)` is Excel's own "Accent 1, 25% darker".
+    ///
+    /// **Reach for this one unless the colour is the point.** A hex literal is right when the caller
+    /// means *that* colour — a brand's red, a traffic light — and wrong the rest of the time,
+    /// because it survives into a document whose owner has rebranded everything around it.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::PatternFillSpec;
+    ///
+    /// let heading = PatternFillSpec::solid_from_theme(ColorSchemeSlot::Accent1, None);
+    /// let colour = heading.foreground.expect("a colour");
+    /// assert_eq!(colour.theme, Some(4));
+    /// assert!(colour.rgb.is_none(), "nothing is pinned");
+    /// ```
+    #[must_use]
+    pub fn solid_from_theme(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self {
+            pattern: Some(PatternType::Solid),
+            foreground: Some(Color::from_theme_slot(slot, tint)),
             background: None,
         }
     }

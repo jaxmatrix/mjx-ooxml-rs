@@ -125,6 +125,7 @@ verbatim. **The table is about the reachable vocabulary, not about every byte a 
 | `format_table_style_part` | `mjx-dml` | ✓ | — | — | [dml-table](#dml-table) |
 | `paragraph_properties` | `mjx-dml` | ✓ | — | — | [dml-text](#dml-text) |
 | `remove_chart_data_labels` | `mjx-chart` | ✓ | ✓ | ✓ | — |
+| `resolved_scheme_color` | `mjx-dml` | ✓ | — | — | [dml-theme](#dml-theme) |
 | `row_height` | `mjx-dml` | ✓ | — | — | [dml-table](#dml-table) |
 | `run_properties` | `mjx-dml` | ✓ | — | — | [dml-text](#dml-text) |
 | `set_cell_anchor` | `mjx-dml` | ✓ | — | — | [dml-table](#dml-table) |
@@ -166,6 +167,7 @@ verbatim. **The table is about the reachable vocabulary, not about every byte a 
 | `set_text_range_properties_by_grapheme` | `mjx-dml` | ✓ | — | — | [dml-text](#dml-text) |
 | `shape_3d_properties` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
 | `shape_adjustments` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
+| `shape_backdrop` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
 | `shape_effects` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
 | `shape_fill` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
 | `shape_list_style_default` | `mjx-dml` | ✓ | — | — | [dml-text](#dml-text) |
@@ -175,6 +177,7 @@ verbatim. **The table is about the reachable vocabulary, not about every byte a 
 | `shape_transform` | `mjx-dml` | ✓ | — | — | [dml-shape](#dml-shape) |
 | `suppress_chart_data_labels` | `mjx-chart` | ✓ | ✓ | ✓ | — |
 | `table_part` | `mjx-dml` | ✓ | — | — | [dml-table](#dml-table) |
+| `table_style_flags` | `mjx-dml` | ✓ | — | — | [dml-table](#dml-table) |
 | `table_style_origin` | `mjx-sml` | — | — | ✓ | [sml-styles](#sml-styles) |
 | `theme` | `mjx-dml` | ✓ | — | — | [dml-theme](#dml-theme) |
 

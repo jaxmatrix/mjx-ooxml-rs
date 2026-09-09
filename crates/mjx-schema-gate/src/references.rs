@@ -40,6 +40,7 @@
 //! | `w:pStyle` / `w:rStyle` / `w:tblStyle` / `w:basedOn` / `w:next` / `w:link` | a `w:style@w:styleId` in `styles.xml` |
 //! | `w:numPr > w:numId` | a `w:num@w:numId` in `numbering.xml` |
 //! | `a:tableStyleId` | an `a:tblStyle@styleId` in `tableStyles.xml` |
+//! | An `a:tblPr` with an emphasis flag on and **no** style — an *absent* reference | an `a:tableStyle` or `a:tableStyleId` on the same table |
 //! | SpreadsheetML `c@s` / `row@s` / `col@style` / `xf@xfId` | a record of the named `styles.xml` table |
 //! | SpreadsheetML `xf@fontId` / `@fillId` / `@borderId` | a record of the named `styles.xml` table |
 //!
@@ -782,6 +783,57 @@ impl PartWalker<'_> {
                 ),
             }
         }
+        if local == "tblPr" {
+            self.check_table_emphasis(element, site);
+        }
+    }
+
+    /// DrawingML tables: the emphasis flags a table turns on with **no style for them to name**.
+    ///
+    /// This is the chart-series rule's shape applied to `a:tblPr`, and it is the other half of the
+    /// `a:tableStyleId` rule above. `firstRow="1" bandRow="1"` claims nothing about appearance on
+    /// its own: the flags say *which parts of the table's style to emphasise*, and a table that
+    /// turns them on and names neither an inline `a:tableStyle` nor an `a:tableStyleId` has asked
+    /// for six parts of nothing. The table renders unstyled and every other check passes — the
+    /// schema, because `a:tableStyleId` is optional; the round trip, because the bytes are the ones
+    /// we meant; and the rule above, because **an absent reference is not a dangling one**, which is
+    /// MJXOFF-200's own finding and exactly what made MJXOFF-232 invisible for as long as it was.
+    ///
+    /// The flags are `CT_TableProperties`' six: `firstRow`, `lastRow`, `firstCol`, `lastCol`,
+    /// `bandRow`, `bandCol`. `ST_OnOff` is read in every spelling the schema allows, because a file
+    /// may write `true` where we write `1` and both mean the same thing.
+    fn check_table_emphasis(&mut self, element: &RawElement, site: &str) {
+        const FLAGS: [&str; 6] = [
+            "firstRow", "lastRow", "firstCol", "lastCol", "bandRow", "bandCol",
+        ];
+        let turned_on: Vec<&str> = FLAGS
+            .into_iter()
+            .filter(|flag| {
+                attribute_named(element, self.interner, flag)
+                    .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "on"))
+            })
+            .collect();
+        if turned_on.is_empty() {
+            return;
+        }
+        let names_a_style = element.children.iter().any(|node| match node {
+            RawNode::Element(child) => matches!(
+                self.interner.resolve(child.name.local),
+                "tableStyle" | "tableStyleId"
+            ),
+            _ => false,
+        });
+        if names_a_style {
+            // The `a:tableStyleId` rule above resolves the named one; an inline `a:tableStyle`
+            // carries its own definition and refers to nothing.
+            self.audit.resolved += 1;
+            return;
+        }
+        self.report(
+            format!("{site} (emphasis flags with no style to resolve against)"),
+            turned_on.join(" "),
+            "the table turns these parts on and names neither an a:tableStyle nor an a:tableStyleId",
+        );
     }
 
     /// DrawingML charts: the **implicit** scheme colour a series with no `c:spPr` takes its fill

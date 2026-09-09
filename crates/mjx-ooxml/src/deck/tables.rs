@@ -8,7 +8,7 @@
 use crate::index::{count, index};
 use crate::{
     Deck, Emu, Error, ShapeBounds, ShapePath, Surface, TablePart, TableStyleDefinition,
-    TableStyleFormat, TableStylePart,
+    TableStyleFlags, TableStyleFormat, TableStylePart,
 };
 
 impl Deck {
@@ -317,6 +317,25 @@ impl Deck {
         Ok(self
             .presentation
             .set_table_part(surface.to_model(), shape_idx.to_model(), part, on)?)
+    }
+
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts of
+    /// its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers one flag;
+    /// this answers all six at once, which is the shape `applicable_parts` takes.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::table_style_flags`](mjx_pptx::Presentation::table_style_flags).
+    pub fn table_style_flags(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+    ) -> Result<TableStyleFlags, Error> {
+        Ok(self
+            .presentation
+            .table_style_flags(surface.to_model(), shape_idx.to_model())?)
     }
 
     /// The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or

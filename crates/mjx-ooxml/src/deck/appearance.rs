@@ -6,7 +6,8 @@
 //! the signature changes the facade makes and the reasons for each.
 
 use crate::{
-    Deck, EffectListSpec, Error, FillSpec, LineSpec, Scene3DSpec, Shape3DSpec, ShapePath, Surface,
+    Backdrop, Deck, EffectListSpec, Error, FillSpec, LineSpec, Scene3DSpec, Shape3DSpec, ShapePath,
+    Surface,
 };
 
 impl Deck {
@@ -209,6 +210,29 @@ impl Deck {
         Ok(self
             .presentation
             .shape_scene_3d(surface.to_model(), shape_idx.to_model())?)
+    }
+
+    /// The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+    /// (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+    /// backdrop — which almost every scene is.
+    ///
+    /// It is read separately from `shape_scene_3d` rather than as a field of `Scene3DSpec` because a
+    /// scene rebuilt from a spec drops what the spec does not carry: the backdrop survives an edit by
+    /// staying verbatim in the `a:scene3d`, and this is how a caller sees what is being preserved.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::shape_backdrop`](mjx_pptx::Presentation::shape_backdrop).
+    pub fn shape_backdrop(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+    ) -> Result<Option<Backdrop>, Error> {
+        Ok(self
+            .presentation
+            .shape_backdrop(surface.to_model(), shape_idx.to_model())?)
     }
 
     /// Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free `Scene3DSpec`,

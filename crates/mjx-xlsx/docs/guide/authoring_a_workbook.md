@@ -118,6 +118,36 @@ assert_eq!(
 # }
 ```
 
+## Which colour constructor to reach for
+
+Every colour in the authoring vocabulary is written one of two ways, and the choice is not a matter
+of taste.
+
+| Reach for | When |
+|---|---|
+| `PatternFillSpec::solid_from_theme(slot, tint)`, `Color::from_theme_slot(slot, tint)`, `ColorScaleSpec::two_color_from_theme`, `DataBarSpec::spanning_the_range_from_theme`, `DifferentialFormatSpec::highlight_from_theme` | **by default** — a heading band, a banded row, a data bar, a highlight. The colour is *decorative*: it is there to look like the rest of the document, and the document decides what that is |
+| `PatternFillSpec::solid(hex)`, `Color::from_opaque_rgb(hex)`, `ColorScaleSpec::two_color`, `DataBarSpec::spanning_the_range`, `DifferentialFormatSpec::highlight` | when the colour **itself is the datum** — a traffic light where red means failing, a brand's exact red in a logo cell, a colour a caller was given and must reproduce |
+
+The two write different markup for the same call. A theme slot writes
+`<fgColor theme="4"/>`, which is a *reference*: open the workbook in a template branded green and it
+comes out green. A literal writes `<fgColor rgb="FF1F3864"/>`, which is a *value*: it comes out navy
+in every document forever, including the one whose owner has rebranded everything around it.
+
+That is `mjx-ooxml`'s standing rule — where OOXML lets a value inherit, let it inherit — applied to
+an API rather than to a file, and until MJXOFF-235 only the second column existed as a one-liner. A
+`tint` of `-1.0 ..= 1.0` darkens (negative) or lightens (positive) the slot, so one accent covers a
+whole family: `Some(0.8)` is Excel's own *"Accent 1, Lighter 80%"*.
+
+The slot is DrawingML's [`ColorSchemeSlot`](mjx_dml::ColorSchemeSlot) rather than SpreadsheetML's
+`@theme` **position**, because `4` means `accent1` only to a reader with §20.1.6.2 open.
+`Color::from_theme(index, tint)` still takes the position, and is what a *reader* of a file needs,
+since a file may state a position the twelve-slot table does not name.
+
+**One thing a slot cannot express is contrast.** Text that has to stay legible against a fill is a
+constraint between two colours, and a slot states one — so `crates/mjx-ooxml/examples/build_a_workbook.rs`
+follows the theme for its heading *fill* and keeps a literal for the text on top of it. Following the
+theme is the default; it does not outrank being readable.
+
 ## Indices are identity
 
 Nothing in a workbook names a font, a fill, a border or an `xf`. Each is addressed by its **position**

@@ -1,8 +1,8 @@
 //! What a shape draws itself with: fill, outline, effect list, and the two 3-D surfaces.
 
 use mjx_dml::{
-    EffectList, EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, Scene3D, Scene3DSpec,
-    Shape3D, Shape3DSpec,
+    Backdrop, EffectList, EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, Scene3D,
+    Scene3DSpec, Shape3D, Shape3DSpec,
 };
 use mjx_ooxml_core::{FromXml, RawDocument};
 
@@ -240,6 +240,38 @@ impl Presentation {
             Some(scene) => {
                 let scene = Scene3D::from_xml(scene, &doc.interner)?;
                 Ok(scene.spec(&doc.interner))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene — its
+    /// `a:scene3d > a:backdrop` (`CT_Backdrop`) — or `None` when the shape has no scene, or a scene
+    /// that states no backdrop, which almost every scene is. Reading does not dirty the part.
+    ///
+    /// It is read separately from [`shape_scene_3d`](Self::shape_scene_3d) rather than as a field of
+    /// [`Scene3DSpec`], and the reason is fidelity rather than tidiness: a scene rebuilt from a spec
+    /// drops the internals the spec does not carry, so a `backdrop` field on `Scene3DSpec` would be
+    /// a field [`set_shape_scene_3d`](Self::set_shape_scene_3d) reads back and then discards. The
+    /// backdrop survives an edit because it stays **verbatim** in the `a:scene3d` this never
+    /// rewrites; this reader is how a caller sees what is being preserved.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the
+    /// `a:scene3d` element is not well-formed.
+    pub fn shape_backdrop(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<Backdrop>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        match slide::shape_scene_3d(shape, &doc.interner) {
+            Some(scene) => {
+                let scene = Scene3D::from_xml(scene, &doc.interner)?;
+                Ok(scene.backdrop(&doc.interner))
             }
             None => Ok(None),
         }

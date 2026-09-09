@@ -45,12 +45,15 @@
 //! * **Which class a name was used on.** See the asymmetry above. Resolving `.rows` to a receiver
 //!   would need a type checker for two languages; the un-exercised set does not need one.
 //! * **The type graph.** Whether every exported class can be *obtained* from some other method is a
-//!   real question with two real answers — `mjx_ooxml::ResolvedColor` and
-//!   `mjx_ooxml::TableStyleFlags` are exported by both bindings and returned, taken and constructed
-//!   by nothing in either — but answering it mechanically needs a signature parser over two
-//!   hand-written crates, and a signature parser that is subtly wrong is worse than none. The two
-//!   findings are written down in `bindings/mjx-python/docs/guide/what_is_not_projected.md` with
-//!   the command that reproduces them.
+//!   real question, and it is asked — but not here. It found three answers rather than the two this
+//!   file used to name: `mjx_ooxml::ResolvedColor`, `mjx_ooxml::TableStyleFlags` and
+//!   `mjx_ooxml::Backdrop` were exported by both bindings and returned, taken and constructed by
+//!   nothing in either (MJXOFF-228). The reason it is not asked here still stands: answering it
+//!   *from this file* would need a signature parser over two hand-written crates, and a signature
+//!   parser that is subtly wrong is worse than none. So
+//!   `xtask/tests/facade_curation.rs`'s `every_exported_class_is_obtainable_from_some_other_call`
+//!   reads the committed `.pyi` instead — a declaration that already exists and is parity-checked
+//!   against the compiled module — and parses nothing.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -602,13 +605,13 @@ fn the_share_of_each_binding_its_suite_exercises_is_what_the_guide_says() {
 }
 
 /// Members the committed Python stub declares, enumeration members and dunders aside.
-const PYTHON_DECLARED: usize = 1_637;
+const PYTHON_DECLARED: usize = 1_643;
 /// How many of [`PYTHON_DECLARED`] some test under `bindings/mjx-python/tests/` names.
-const PYTHON_EXERCISED: usize = 990;
+const PYTHON_EXERCISED: usize = 1_008;
 /// Functions `wasm-bindgen` exports to JavaScript.
-const WASM_DECLARED: usize = 1_761;
+const WASM_DECLARED: usize = 1_767;
 /// How many of [`WASM_DECLARED`] some test under `bindings/mjx-wasm/tests/node/` names.
-const WASM_EXERCISED: usize = 925;
+const WASM_EXERCISED: usize = 943;
 
 /// A percentage, or zero when the denominator is.
 fn percentage(part: usize, whole: usize) -> f64 {

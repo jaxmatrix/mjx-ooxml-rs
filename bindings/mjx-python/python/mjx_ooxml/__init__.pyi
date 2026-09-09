@@ -2024,6 +2024,27 @@ class Deck:
         `a:camera` or `a:lightRig`) also reads as `None`. Reading does not dirty the part.
         """
         ...
+    def shape_backdrop(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Backdrop | None:
+        """The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+        (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+        backdrop — which almost every scene is. It is read separately from `shape_scene_3d` because
+        a scene rebuilt from a `Scene3DSpec` drops what the spec does not carry: the backdrop
+        survives an edit by staying verbatim, and this is how a caller sees what is being preserved.
+        """
+        ...
+    def resolved_scheme_color(self, surface: int | Surface, color: SchemeColor) -> ResolvedColor | None:
+        """What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+        concrete `RRGGBB`: the surface's colour map turns the token into a scheme slot and its theme
+        turns the slot into RGB. `None` for `SchemeColor.PlaceholderColor`, for a surface with no
+        master in its chain, and for a slot the theme leaves undefined. The alpha is always `1.0`.
+        """
+        ...
+    def table_style_flags(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> TableStyleFlags:
+        """Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which
+        parts of its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers
+        one flag; this answers all six at once.
+        """
+        ...
     def set_shape_scene_3d(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scene: Scene3DSpec) -> None:
         """Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free
         `Scene3DSpec`, rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place,
@@ -2092,6 +2113,13 @@ class Deck:
     def shape_adjustments(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, size: GuideContext) -> list[BoundedAdjustment]:
         """Every adjustment of shape `shape_idx`'s **preset** geometry, resolved against a concrete
         shape size: each value *and* the numeric domain it may move in.
+        """
+        ...
+    def set_shape_adjustments(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, adjustments: Sequence[tuple[str, int]]) -> None:
+        """Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd`
+        entries of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec
+        units. An adjustment not named is left exactly as it was, and so are the `prst` token and
+        every other property of the shape. Marks only that slide part dirty.
         """
         ...
     def set_shape_geometry(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, geometry: Geometry) -> None:
@@ -6968,7 +6996,17 @@ class Color:
         ...
     @staticmethod
     def from_theme(index: int, tint: float | None = None) -> "Color":
-        """A theme colour by index, optionally tinted towards white (positive) or black (negative)."""
+        """A theme colour by index, optionally tinted towards white (positive) or black (negative).
+
+        The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states.
+        An author should reach for `from_theme_slot`, which names the slot instead of numbering it.
+        """
+        ...
+    @staticmethod
+    def from_theme_slot(slot: ColorSchemeSlot, tint: float | None = None) -> "Color":
+        """A theme colour by **slot**, optionally tinted — `from_theme` with the position spelled
+        out, and the constructor an author should reach for.
+        """
         ...
     @staticmethod
     def automatic() -> "Color":
@@ -7017,6 +7055,13 @@ class PatternFillSpec:
     @staticmethod
     def solid(hex: str) -> "PatternFillSpec":
         """A solid fill in one opaque colour — the shape a caller filling a cell almost always wants."""
+        ...
+    @staticmethod
+    def solid_from_theme(slot: ColorSchemeSlot, tint: float | None = None) -> "PatternFillSpec":
+        """A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+        this one unless the colour itself is the point: a hex literal survives into a document whose
+        owner has rebranded everything around it.
+        """
         ...
 
 @final

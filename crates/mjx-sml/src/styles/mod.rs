@@ -124,8 +124,8 @@ pub use number_formats::{
     NumberFormatTable, NumberFormatTableContent,
 };
 pub use palette::{
-    apply_tint, apply_tint_to_luminance, resolve_color, theme_color_slot, IndexedColor,
-    IndexedColorPalette,
+    apply_tint, apply_tint_to_luminance, resolve_color, theme_color_position, theme_color_slot,
+    IndexedColor, IndexedColorPalette,
 };
 pub use stylesheet::{StylesheetContent, StylesheetPart};
 pub use table_styles::{

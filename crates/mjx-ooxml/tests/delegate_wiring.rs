@@ -519,3 +519,51 @@ fn save_still_validates() {
         "text"
     );
 }
+
+/// `set_shape_adjustments` is wired to the adjustment writer and not to `set_shape_geometry`.
+///
+/// The two are the easiest pair on this surface to confuse: both take a surface, a shape and a
+/// description of a preset's shape, and both leave a deck that opens. They are told apart by what
+/// each cannot do — `set_shape_geometry` states a `Fraction`, so it can only ever write a value the
+/// typed vocabulary can name, and it rewrites the whole `a:avLst`. So the shape below is given
+/// **two** adjustments, only **one** of them is restated, and the value chosen is not one
+/// `Fraction::from_ratio` would produce from a round ratio: a delegate wired to the geometry writer
+/// loses the untouched handle, and one wired to the reader writes nothing at all.
+#[test]
+fn setting_an_adjustment_is_not_setting_the_geometry() {
+    use mjx_ooxml::{Emu, GuideContext};
+
+    let mut deck = Deck::blank(SlideSize::widescreen()).expect("a blank deck");
+    let slide = Surface::Slide(deck.add_slide_from_layout(0).expect("a slide"));
+    let shape: ShapePath = deck
+        .add_shape(slide, PresetShapeType::LeftArrow, bounds(0, 0, 400, 300))
+        .expect("a left arrow")
+        .into();
+
+    // A left arrow has `adj1` (the shaft's thickness) and `adj2` (the head's length).
+    deck.set_shape_adjustments(slide, shape.clone(), &[("adj1", 33_333), ("adj2", 44_444)])
+        .expect("both handles");
+    // Only one is restated; the other must survive untouched.
+    deck.set_shape_adjustments(slide, shape.clone(), &[("adj1", 12_345)])
+        .expect("one handle");
+
+    let read: Vec<(String, f64)> = deck
+        .shape_adjustments(
+            slide,
+            shape,
+            GuideContext::from_extents(Emu::from_emu(400), Emu::from_emu(300)),
+        )
+        .expect("the adjustments")
+        .into_iter()
+        .map(|adjustment| (adjustment.spec.wire_name.to_string(), adjustment.value))
+        .collect();
+
+    assert!(
+        read.contains(&("adj1".to_owned(), 12_345.0)),
+        "the restated handle did not take the value it was given: {read:?}"
+    );
+    assert!(
+        read.contains(&("adj2".to_owned(), 44_444.0)),
+        "restating one handle disturbed the other: {read:?}"
+    );
+}

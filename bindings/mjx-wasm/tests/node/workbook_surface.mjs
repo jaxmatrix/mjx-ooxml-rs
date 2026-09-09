@@ -20,6 +20,8 @@ import {
   ChartKind,
   ChartLabelScope,
   ChartRangeSeries,
+  Color,
+  ColorSchemeSlot,
   ColorSpec,
   DataLabelSpec,
   ErrorBarSpec,
@@ -30,6 +32,7 @@ import {
   LegendPosition,
   LineSpec,
   LineWidth,
+  PatternFillSpec,
   ResizingBehavior,
   SheetKind,
   TrendlineKind,
@@ -861,3 +864,26 @@ for (const stated of APPLY_FLAGS) {
     });
   }
 }
+
+test("a theme slot names the position the numeric constructor takes", () => {
+  scope((owned) => {
+    // `Color.fromTheme` states the file's own number and `Color.fromThemeSlot` names the slot; they
+    // must agree, so this asserts the pair rather than the number, and it asserts a slot whose
+    // position is *not* its ordinal in the enumeration (`Accent1` is 4, not 0) — a mapping that had
+    // drifted by one would pass on `Dark1` alone.
+    const bySlot = owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Accent1));
+    assert.equal(bySlot.theme, 4);
+    assert.equal(bySlot.tint, undefined);
+    assert.equal(bySlot.rgb, undefined);
+    assert.equal(owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Dark1, -0.25)).theme, 0);
+    assert.equal(owned.keep(Color.fromThemeSlot(ColorSchemeSlot.FollowedHyperlink)).theme, 11);
+
+    // The same claim one level up: the fill pins nothing, which is the whole point of it beside
+    // `solid`.
+    const fill = owned.keep(PatternFillSpec.solidFromTheme(ColorSchemeSlot.Accent2, 0.4));
+    const foreground = owned.keep(fill.foreground);
+    assert.equal(foreground.theme, 5);
+    assert.equal(foreground.tint, 0.4);
+    assert.equal(foreground.rgb, undefined, "a theme-following fill pins no literal");
+  });
+});

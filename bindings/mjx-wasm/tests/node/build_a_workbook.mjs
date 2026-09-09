@@ -31,10 +31,10 @@ import {
   CellFormatTarget,
   CellWrite,
   Color,
+  ColorSchemeSlot,
   FontProperties,
   Format,
   PatternFillSpec,
-  SpreadsheetPatternType,
   Workbook,
 } from "../../npm/dist/bundler/mjx_ooxml.js";
 import { partPayloads } from "./zip.mjs";
@@ -88,7 +88,7 @@ function buildTheGuidesWorkbook() {
     // ---- A style, built once and pointed at -----------------------------------------------------
     // Every `with…` returns a **new** value, so each intermediate is its own wasm handle.
     const white = keep(Color.fromOpaqueRgb("FFFFFF"));
-    const navy = keep(Color.fromOpaqueRgb("1F3864"));
+    // The heading's fill is a theme slot, its text a literal — see the Rust walkthrough.
     const font = workbook.appendFont(
       keep(
         keep(keep(keep(new FontProperties()).withFontName("Calibri")).withBold(true))
@@ -97,11 +97,7 @@ function buildTheGuidesWorkbook() {
       ),
     );
     const fill = workbook.appendPatternFill(
-      keep(
-        keep(keep(new PatternFillSpec()).withPattern(SpreadsheetPatternType.Solid)).withForeground(
-          navy,
-        ),
-      ),
+      keep(PatternFillSpec.solidFromTheme(ColorSchemeSlot.Accent1)),
     );
     const mediumEdge = keep(BorderEdgeSpec.styled(BorderStyle.Medium));
     const border = workbook.appendBorder(keep(keep(new BorderSpec()).withBottom(mediumEdge)));

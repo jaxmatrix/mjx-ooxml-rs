@@ -6,7 +6,7 @@ can do, and two classes that are exported and lead nowhere.
 
 ## The nine that stay in Rust, and why
 
-`Deck` carries 262 methods on the facade and 255 here; `Document` 126 and 123; `Workbook` 141 and
+`Deck` carries 262 methods on the facade and 259 here; `Document` 126 and 123; `Workbook` 141 and
 138. The difference is nine methods and, on `Deck`, four more that a default build does not compile
 at all. None of the nine is an oversight, and they are the same nine in both languages.
 
@@ -54,27 +54,40 @@ Two smaller ones from the same audit, both recorded on `crates/mjx-ooxml/docs/gu
 * **Package inspection is Excel's alone.** `Workbook.part_names`, `part_bytes` and `content_type_of`
   have no `Deck` or `Document` counterpart in any of the three languages.
 
-## Two classes that lead nowhere
+## Three classes that led nowhere, and the gate that would have found a fourth
 
-`ResolvedColor` and `TableStyleFlags` are exported by **both** bindings, and in both of them nothing
-returns one, nothing takes one, and — for `ResolvedColor` — nothing constructs one either. A caller
-can import the name and can never obtain a value.
+**Closed by MJXOFF-228.** `ResolvedColor` and `TableStyleFlags` were exported by the facade and by
+**both** bindings, and in all three languages nothing returned one, nothing took one, and — for
+`ResolvedColor` — nothing constructed one either. A caller could import the name and never obtain a
+value.
 
-They are not the bindings' doing. `crates/mjx-ooxml/src/lib.rs` re-exports both types, no facade
-method mentions either, and each binding faithfully projected what the facade published. The
-producers are one level down and are not themselves projected: `mjx_dml::resolve` computes a
-`ResolvedColor`, and `mjx_pptx`'s own `table_flags` helper is `pub(super)`.
+It was never the bindings' doing: `crates/mjx-ooxml/src/lib.rs` re-exported both types, no facade
+method mentioned either, and each binding faithfully projected what the facade published.
 
-To reproduce, from the repository root:
+The fork was real — project the producers, or stop re-exporting the types — and the producers won,
+because removing an export is a breaking change to three surfaces while adding a reader cannot break
+anyone. Each type now has exactly one:
+
+| Type | Obtained from |
+|---|---|
+| `ResolvedColor` | `Deck.resolved_scheme_color` / `Deck.resolvedSchemeColor` — what `a:schemeClr@val` actually paints on a surface, through its colour map and its theme |
+| `TableStyleFlags` | `Deck.table_style_flags` / `Deck.tableStyleFlags` — all six emphasis flags in one read, the shape `applicable_parts` takes |
+| `Backdrop` | `Deck.shape_backdrop` / `Deck.shapeBackdrop` — the plane a 3-D scene's shadows fall on |
+
+**`Backdrop` was not on the ticket.** MJXOFF-228 named two; the sweep written to close the class
+found three, which is the whole argument for writing the sweep rather than the two assertions. It is
+`every_exported_class_is_obtainable_from_some_other_call` in `xtask/tests/facade_curation.rs`, and it
+asks the type-level form of the reachability rule: **is every exported class named by some signature
+anywhere?** It reads the committed `.pyi` — a declaration that already exists, is parity-checked
+against the compiled module, and is checked by `mypy --strict` — rather than parsing signatures out
+of two hand-written Rust crates, which is what `xtask/tests/binding_projection.rs` refused to do and
+was right to refuse.
+
+To reproduce the shape it looks for, from the repository root:
 
 ```sh
-grep -rn "ResolvedColor\|TableStyleFlags" crates/mjx-ooxml/src/
+cargo test -p xtask --test facade_curation every_exported_class_is_obtainable_from_some_other_call
 ```
-
-Two hits, both of them lines in the `pub use` list. `xtask/tests/facade_curation.rs` cannot see this,
-because that ledger is about *methods* — a type with no producer is a shape it was never asked to
-look for. Fixing it is a facade decision with two answers, neither of them the bindings': project the
-producers, or stop re-exporting the types. It is recorded here rather than taken here.
 
 ## Three arguments that read differently in Python
 

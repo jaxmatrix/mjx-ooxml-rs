@@ -220,6 +220,30 @@ pub fn theme_color_slot(position: u32) -> Option<ColorSchemeSlot> {
     })
 }
 
+/// The SpreadsheetML `@theme` position that names `slot` — [`theme_color_slot`]'s inverse.
+///
+/// It is total where its inverse is partial, because every one of the twelve slots has a position
+/// and only a position can be out of range. It exists so an *authoring* caller never has to write
+/// the number: `4` is `accent1` only if you have §20.1.6.2 open, and this project's rule is that a
+/// reader should not need the spec to understand a name.
+#[must_use]
+pub fn theme_color_position(slot: ColorSchemeSlot) -> u32 {
+    match slot {
+        ColorSchemeSlot::Dark1 => 0,
+        ColorSchemeSlot::Light1 => 1,
+        ColorSchemeSlot::Dark2 => 2,
+        ColorSchemeSlot::Light2 => 3,
+        ColorSchemeSlot::Accent1 => 4,
+        ColorSchemeSlot::Accent2 => 5,
+        ColorSchemeSlot::Accent3 => 6,
+        ColorSchemeSlot::Accent4 => 7,
+        ColorSchemeSlot::Accent5 => 8,
+        ColorSchemeSlot::Accent6 => 9,
+        ColorSchemeSlot::Hyperlink => 10,
+        ColorSchemeSlot::FollowedHyperlink => 11,
+    }
+}
+
 /// ECMA-376 Part 1 §18.8.19's tint, applied to one luminance in `0.0..=1.0`.
 ///
 /// The prose states it over `0..HLSMAX`; both branches are linear in `Lum`, so the scale cancels and
@@ -489,6 +513,43 @@ mod tests {
             Some(ColorSchemeSlot::FollowedHyperlink)
         );
         assert_eq!(theme_color_slot(12), None);
+    }
+
+    /// The authoring direction is the reading direction turned round, and neither is written twice.
+    ///
+    /// Both halves are asserted: every position the reader defines comes back from the writer, and
+    /// the writer never produces a position the reader refuses. A second table that had drifted by
+    /// one slot would pass the first half on eleven of twelve and fail here.
+    #[test]
+    fn a_theme_slot_and_its_position_are_inverses_across_all_twelve() {
+        for position in 0..12 {
+            let slot = theme_color_slot(position).expect("twelve slots are defined");
+            assert_eq!(
+                theme_color_position(slot),
+                position,
+                "position {position} resolves to {slot:?}, which names a different position"
+            );
+        }
+        for slot in [
+            ColorSchemeSlot::Dark1,
+            ColorSchemeSlot::Light1,
+            ColorSchemeSlot::Dark2,
+            ColorSchemeSlot::Light2,
+            ColorSchemeSlot::Accent1,
+            ColorSchemeSlot::Accent2,
+            ColorSchemeSlot::Accent3,
+            ColorSchemeSlot::Accent4,
+            ColorSchemeSlot::Accent5,
+            ColorSchemeSlot::Accent6,
+            ColorSchemeSlot::Hyperlink,
+            ColorSchemeSlot::FollowedHyperlink,
+        ] {
+            assert_eq!(
+                theme_color_slot(theme_color_position(slot)),
+                Some(slot),
+                "{slot:?} names a position that reads back as something else"
+            );
+        }
     }
 
     #[test]

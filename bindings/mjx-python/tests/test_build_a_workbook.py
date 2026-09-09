@@ -31,11 +31,11 @@ from mjx_ooxml import (
     CellFormatTarget,
     CellWrite,
     Color,
+    ColorSchemeSlot,
     FontProperties,
     Format,
     OoxmlError,
     PatternFillSpec,
-    SpreadsheetPatternType,
     Workbook,
 )
 
@@ -80,6 +80,7 @@ def build_the_guides_workbook() -> bytes:
     )
 
     # ---- A style, built once and pointed at -------------------------------------------------------
+    # The heading's fill is a theme slot, its text a literal — see the Rust walkthrough.
     font = workbook.append_font(
         FontProperties(
             font_name="Calibri",
@@ -89,10 +90,7 @@ def build_the_guides_workbook() -> bytes:
         )
     )
     fill = workbook.append_pattern_fill(
-        PatternFillSpec(
-            pattern=SpreadsheetPatternType.Solid,
-            foreground=Color.from_opaque_rgb("1F3864"),
-        )
+        PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent1)
     )
     border = workbook.append_border(
         BorderSpec(bottom=BorderEdgeSpec(style=BorderStyle.Medium))

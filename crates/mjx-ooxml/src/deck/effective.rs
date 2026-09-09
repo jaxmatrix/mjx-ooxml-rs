@@ -8,10 +8,37 @@
 use crate::index::index;
 use crate::{
     CellBorder, CharacterPropertiesSpec, Deck, EffectListSpec, Error, FillSpec, LineSpec,
-    ParagraphPropertiesSpec, ShapeBounds, ShapePath, Surface, Transform2D,
+    ParagraphPropertiesSpec, ResolvedColor, SchemeColor, ShapeBounds, ShapePath, Surface,
+    Transform2D,
 };
 
 impl Deck {
+    /// What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+    /// concrete `RRGGBB`.
+    ///
+    /// The question a renderer asks, and the one a caller asks before pinning a literal: *what will
+    /// `accent1` be in this deck?* The surface's colour **map** turns the token into a scheme slot
+    /// (`tx1` is `dk1` on one master and `lt1` on another) and its **theme** turns the slot into RGB.
+    ///
+    /// `None` for `SchemeColor::PlaceholderColor` — `phClr` is not a scheme colour but a placeholder
+    /// a style reference substitutes — for a surface with no master in its chain, and for a slot the
+    /// theme leaves undefined. The alpha is always `1.0`; see the method below this one delegates to.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::resolved_scheme_color`](mjx_pptx::Presentation::resolved_scheme_color).
+    pub fn resolved_scheme_color(
+        &mut self,
+        surface: Surface,
+        color: SchemeColor,
+    ) -> Result<Option<ResolvedColor>, Error> {
+        Ok(self
+            .presentation
+            .resolved_scheme_color(surface.to_model(), color)?)
+    }
+
     /// The **effective** fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec` whose
     /// colors are resolved to concrete `RRGGBB` values — the fill the shape actually renders. Three
     /// sources are tried, in order: an explicit `p:spPr` fill; a `p:style > a:fillRef` (the theme fill-

@@ -25,7 +25,7 @@ use std::path::PathBuf;
 
 use mjx_ooxml::{
     BorderEdgeSpec, BorderSpec, BorderStyle, CellFormatSpec, CellFormatTarget, CellInput,
-    CellWrite, Color, FontProperties, Format, PatternFillSpec, SpreadsheetPatternType, Workbook,
+    CellWrite, Color, ColorSchemeSlot, FontProperties, Format, PatternFillSpec, Workbook,
 };
 
 /// Where this example writes: its first argument, or `target/examples/` by default.
@@ -90,6 +90,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ---- A style, built once and pointed at ----------------------------------------------------
     // The four `xl/styles.xml` tables are appended to, never deduplicated: an index handed back here
     // stays valid for the life of the workbook.
+    //
+    // The heading's **fill** is stated as a theme slot rather than as a hex literal: it is the
+    // workbook's own `accent1`, so a reader who opens this in a branded template sees their brand
+    // and not ours. `PatternFillSpec::solid` is what to reach for when the colour itself is the
+    // point — a traffic light, a brand's exact red — and a heading band is not that.
+    //
+    // The **text** stays a literal, deliberately: it has to contrast with whatever the fill turns
+    // out to be, which is a constraint a slot cannot express. Following the theme is the default,
+    // not a rule that overrides legibility.
     let font = workbook.append_font(&FontProperties {
         font_name: Some("Calibri".into()),
         bold: Some(true),
@@ -97,11 +106,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         color: Some(Color::from_opaque_rgb("FFFFFF")),
         ..FontProperties::default()
     })?;
-    let fill = workbook.append_pattern_fill(&PatternFillSpec {
-        pattern: Some(SpreadsheetPatternType::Solid),
-        foreground: Some(Color::from_opaque_rgb("1F3864")),
-        background: None,
-    })?;
+    let fill = workbook.append_pattern_fill(&PatternFillSpec::solid_from_theme(
+        ColorSchemeSlot::Accent1,
+        None,
+    ))?;
     let border = workbook.append_border(&BorderSpec {
         bottom: Some(BorderEdgeSpec::styled(BorderStyle::Medium)),
         ..BorderSpec::default()
