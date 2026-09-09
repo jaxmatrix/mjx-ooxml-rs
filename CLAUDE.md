@@ -43,7 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
-  | 3.6 — the box models | `mjx-layout-pptx`, `mjx-layout-xlsx` |
+  | 3.6 — the box models | `mjx-layout-pptx`, `mjx-layout-xlsx`, `mjx-layout-docx` |
   | 3.7 — the scene companions | `mjx-scene-pptx`, `mjx-scene-xlsx` |
   | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
@@ -134,11 +134,35 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `SheetFormatting` and the `xf` ladder beneath it for exactly the reason PowerPoint's consumes
   `mjx-pptx`'s. Two box models at **equal** rank means an edge between them is *sideways*, which the
   layering gate refuses by name: a spreadsheet's box model must not know what a slide is, and a
-  slide's must not know what a worksheet is. Word's will join them at 3.6 for the same reason. What
+  slide's must not know what a worksheet is. What
   the rank does not buy is, again, the other direction — at 3.6 an edge to `mjx-pptx` (3.0) is a
   perfectly legal *downward* edge — so *this box model reads one format, resolves no geometry and
   never paints* is held by `crates/mjx-layout-xlsx/tests/the_seam_holds.rs`, which refuses
   `mjx-geometry`, `mjx-scene`, `mjx-paint`, `mjx-pptx` and `mjx-docx` in both sections.
+
+  **`mjx-layout-docx` (MJXOFF-174) is the third at 3.6, and it is the only one of the three that
+  *reflows*.** PowerPoint's pagination is a slide index and Excel's is arithmetic over a row
+  geometry: page *N* is reachable in both without ever looking at page *N−1*. Word's is **emergent**
+  — where page 200 begins depends on everything on the 199 pages before it, and one font
+  substitution moves every boundary in the document — so this crate is the first real consumer of
+  `mjx-layout`'s `Checkpoint`, which exists for exactly that. It consumes `mjx-docx`'s
+  `DocumentFormatting`, which **MJXOFF-174 added** and which is the reason laying a long document out
+  is affordable at all: `Document::effective_paragraph_properties` re-parses `word/document.xml`,
+  `word/styles.xml` and the theme on *every call*, which is right for a caller asking one question
+  and quadratic for a layout engine asking per paragraph. The read-once surface is `mjx-xlsx`'s
+  `SheetFormatting` answer applied to a second format, and `crates/mjx-docx/tests/residency.rs`
+  asserts the two orchestrations of the one ladder agree paragraph by paragraph and run by run.
+
+  What that rank buys is what it bought twice already, and nothing more: `mjx-layout` at 1.6 cannot
+  depend on it, so the contract stays a contract; `mjx-docx` cannot grow a layout engine. What it
+  does not buy is again the other direction, so `crates/mjx-layout-docx/tests/the_seam_holds.rs`
+  refuses `mjx-geometry`, `mjx-scene`, `mjx-paint`, `mjx-pptx`, `mjx-xlsx` and both sibling box
+  models in **both** sections — and refuses `mjx-dml` besides, which is a decision rather than an
+  omission: MJXOFF-174's ticket lists DrawingML as a dependency and the tree does not need it,
+  because `mjx-docx` resolves every `themeColor` and `asciiTheme` reference *before* a value reaches
+  the box model. **Word has no scene companion yet.** PowerPoint's is `mjx-scene-pptx` and Excel's
+  `mjx-scene-xlsx`, both at 3.7; `mjx-scene-docx` is the ticket that has to follow MJXOFF-174, and
+  until it exists a Word `FragmentTree` cannot reach pixels.
 
   **`mjx-scene-pptx` at 3.7 (MJXOFF-170) exists because that same gate forbids the edge that would
   have made it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *the box

@@ -102,6 +102,7 @@ mod paragraph_properties;
 mod parts;
 mod property_macros;
 mod ranges;
+mod residency;
 mod revisions;
 mod run_properties;
 mod sections;
@@ -176,9 +177,16 @@ pub use paragraph_properties::{
     TextBoxTightWrapSetting, VerticalCharacterAlignment,
 };
 pub use parts::{DocumentParts, PartKind};
+// MJXOFF-174 (R19): the read-once, resolve-many surface a flow layout engine lays out — a separate
+// `pub use`, matching MJXOFF-136's and MJXOFF-138's precedent above, so this child's cluster stays a
+// single reviewable diff hunk.
 pub use ranges::{
     covered_text, paragraphs_spanned, Bookmark, BookmarkResolution, MarkerLocation, Markup,
     MarkupRange, RangeIndex, RangeResolution,
+};
+pub use residency::{
+    DocumentFormatting, DocumentLayoutSettings, HardBreak, ParagraphFormatting, RunFormatting,
+    SectionFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
 };
 pub use revisions::{
     math_control_properties, CellMergeTrackChange, CellPropertiesChange,
@@ -1773,6 +1781,41 @@ impl Document {
         })?;
         main.write_back(root, interner);
         Ok(())
+    }
+
+    /// Edits the paragraph properties (`w:pPr`) of the paragraph at `at`, creating an empty `w:pPr`
+    /// first if it carries none.
+    ///
+    /// The one primitive behind "give this paragraph a style", "keep it with the next one", "justify
+    /// it", "indent it" and every other `CT_PPrBase` member, exactly as
+    /// [`Document::edit_section_properties`] is the one primitive behind every `w:sectPr` member —
+    /// this method is that method's shape, applied one level down. Without it a caller could author a
+    /// paragraph's *text* and not its *layout*, which is the gap MJXOFF-174 (R19) found when it came
+    /// to lay one out.
+    ///
+    /// Only `word/document.xml` is dirtied, and only the paragraph `edit` touches: every other
+    /// paragraph, and everything inside this one that `edit` leaves alone, keeps its original bytes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `at` does not address a paragraph.
+    pub fn edit_paragraph_properties<R>(
+        &mut self,
+        at: impl Into<BlockPath>,
+        edit: impl FnOnce(&mut ParagraphProperties, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let path = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body
+            .paragraph_mut(&path)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+        let properties = paragraph.properties_or_insert(interner);
+        let result = edit(properties, interner);
+        main.write_back(root, interner);
+        Ok(result)
     }
 
     /// Inserts a new, empty paragraph so it becomes the paragraph at `at`, shifting every paragraph

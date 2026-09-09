@@ -58,6 +58,81 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.150] - 2026-09-09
+
+**Word's flow engine: lines, justification, and a pagination that is emergent (MJXOFF-174, R19).**
+
+PowerPoint's box model places absolutely and Excel's addresses a grid: in both, page *N* is reachable
+without ever looking at page *N−1*. **Word's pagination is emergent** — where page 200 begins depends
+on everything on the 199 pages before it, and a single font substitution moves every boundary in the
+document. `mjx-layout`'s `Checkpoint` exists for exactly that, and this is its first real consumer.
+
+### Added
+
+- **`mjx-layout-docx`, rank 3.6** — the third box model, beside PowerPoint's and Excel's so that an
+  edge between any two of them is *sideways* and the layering gate refuses it by name. Thirteen
+  modules: line layout against a per-line measure, the five alignments and two kinds of expansion,
+  the three line rules, the five tab kinds with their leaders and their implicit grid, hyphenation,
+  and a paginator that honours `w:pageBreakBefore`, `w:keepLines`, `w:widowControl` and `w:keepNext`.
+- **`mjx_docx::Document::formatting` — the whole document read once.** The per-paragraph reader
+  re-parses `word/document.xml`, `word/styles.xml` and the theme on **every call**, which is right
+  for a caller asking one question and quadratic for a layout engine asking per paragraph. The
+  read-once surface is `mjx-xlsx`'s `SheetFormatting` answer applied to a second format; the ladder's
+  order is now stated in exactly one place and both orchestrations call it, with
+  `crates/mjx-docx/tests/residency.rs` asserting they agree paragraph by paragraph and run by run.
+- **`mjx_docx::Document::edit_paragraph_properties`** — the one primitive behind every `CT_PPrBase`
+  member, exactly as `edit_section_properties` is the one primitive behind every `w:sectPr` member.
+  Without it a caller could author a paragraph's *text* and not its *layout*.
+- **`mjx_ooxml_types::support::universal_measure` and `half_point_measure`.** `ST_TwipsMeasure` and
+  `ST_HpsMeasure` are `xsd:union`s of a number and a universal measure, so `w:defaultTabStop` may
+  legally read `"0.5in"`. Two crates read them; one parser answers both.
+- **Hyphenation in `mjx-text` and `mjx-layout`.** `BreakKind::Hyphenation`,
+  `break_opportunities_with_hyphenation`, `LineBreaker::with_hyphenation` / `next_line_with`, and
+  `LineComposer::hyphenating` — which adds the hyphen's own advance to every candidate it measures,
+  because a line fitted without it overruns its measure on every hyphenated line.
+
+### Changed
+
+- **`LineComposer` reports `hyphenated`** on a composed line, and `ComposedLine` gained the field.
+  A soft hyphen already broke a line through UAX #14's class `BA`; whether a *hyphen is drawn* is a
+  rendering rule and now has somewhere to live.
+- **`mjx_docx::Hyperlink::content` is reachable inside the crate** (it already existed as
+  `pub(crate)`), which is what lets a reader walk a paragraph without living in `body.rs`.
+
+### Verified
+
+- **The checkpoint is proved by work, not by output.** `DocumentBoxModel::paragraphs_visited`
+  reports what a call had to look at, and `tests/a_checkpoint_is_work_not_output.rs` lays page 41 out
+  both ways: the fragments are identical EMU for EMU, the work is not, and — the assertion that makes
+  the other two mean something — **withholding the checkpoint makes the cost scale with the page
+  number while supplying it does not.**
+- **Each of the four pagination constraints is asserted by page assignment**, in a pair that differs
+  only in the one attribute, so a constraint that changed no page assignment fails rather than
+  passes.
+- **Justification is asserted on positions**, against each line's own natural positions rather than
+  against a left-aligned layout — the two are cut differently and are not comparable. The identity
+  case (a line with no gap) is asserted as an identity.
+- **Fragment-tier baselines over the Word corpus**, eight committed specimens reached page by page
+  through each checkpoint, every one stating `approver = generator` — which records that it is a
+  change detector and that no person has looked at it.
+- **Termination** for an unsatisfiable thousand-link `w:keepNext` chain, a paragraph taller than its
+  page, a column narrower than one glyph and an indent wider than the column.
+- **Provenance is declared and printed**: 13 `SpecCode`, 15 `DocumentedBehaviour`, 19
+  `EngineDerived`, of 47 rows. **Nobody ran Word.** The `EngineDerived` rows are change detectors and are not
+  evidence about Word; every one carries the reason it is a guess.
+
+### Known limitations
+
+- **Word has no scene companion.** `mjx-scene-docx` is the ticket that has to follow this one; until
+  it exists a Word `FragmentTree` cannot reach pixels.
+- **No pattern hyphenator ships.** `mjx_text::PatternHyphenator` exists and works; the Liang patterns
+  it needs are language data and none is committed here, so `w:autoHyphenation` hyphenates only at
+  the soft hyphens an author wrote unless a caller supplies one.
+- **No CJK face is committed**, so the East Asian justification difference is asserted at the cut and
+  the expansion point rather than end to end.
+- Sections, columns, headers, footers and footnotes are R20; tables and floating objects R21; fields,
+  numbering, revision marks and OMML R22.
+
 ## [0.0.149] - 2026-09-09
 
 **Conditional formatting evaluated, cell drawings placed, and a sheet paginated for print

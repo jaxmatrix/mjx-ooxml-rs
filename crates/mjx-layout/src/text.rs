@@ -55,8 +55,8 @@ use std::sync::Arc;
 
 use mjx_text::{
     AdvanceWidth, BidiAnalysis, BidiLevel, FaceId, FeatureSet, FontError, FontFace, FontSize,
-    LineBreakKind, LineBreakOptions, LineBreaker, ShapedGlyph, ShapedRun, Shaper, ShapingRequest,
-    TextDirection, TextScript,
+    Hyphenator, LineBreakKind, LineBreakOptions, LineBreaker, ShapedGlyph, ShapedRun, Shaper,
+    ShapingRequest, TextDirection, TextScript,
 };
 
 /// One stretch of a paragraph that a shaper can take: one direction, one script, one face, one size.
@@ -140,6 +140,14 @@ pub struct ComposedLine {
     pub ascent_in_points: f64,
     /// How far it reaches below, in points.
     pub descent_in_points: f64,
+    /// Whether the line ends at a hyphenation point, and so draws a hyphen the text does not
+    /// contain.
+    ///
+    /// The box model appends the glyph — this crate never invents text — but it is decided here,
+    /// because only the composer knows which opportunity the fitting loop took. `width_in_points`
+    /// **includes** the hyphen's advance, because that is the width the line was fitted against and
+    /// the width it is drawn at.
+    pub hyphenated: bool,
     /// How many times the breaker asked for the width of a candidate slice.
     ///
     /// Not decoration: it is the observable difference between the fast path for a paragraph that
@@ -175,6 +183,9 @@ pub struct LineComposer<'a> {
     runs: &'a [TextRun<'a>],
     bidi: &'a BidiAnalysis,
     breaker: LineBreaker<'a>,
+    /// The advance of the hyphen a hyphenated line ends with, or `None` when this composer does not
+    /// hyphenate at all.
+    hyphen: Option<f64>,
 }
 
 impl<'a> LineComposer<'a> {
@@ -195,6 +206,36 @@ impl<'a> LineComposer<'a> {
             runs,
             bidi,
             breaker: LineBreaker::new(text, options),
+            hyphen: None,
+        }
+    }
+
+    /// The same, hyphenating: `hyphenator` is asked where each word may be split, and a line may end
+    /// inside one.
+    ///
+    /// `hyphen_width_in_points` is the advance of the hyphen the box model will draw, at the size it
+    /// will draw it. It is a number rather than a face because the composer must **add it to every
+    /// candidate it measures** — a line fitted without it overruns the measure by a third of an em
+    /// on every hyphenated line, which is a defect no width assertion on the *slice* can see.
+    ///
+    /// Word's `w:consecutiveHyphenLimit` is not expressible here and is not meant to be: it is a
+    /// property of the *page*, not of a paragraph, so the box model counts and calls
+    /// [`LineComposer::next_line_without_hyphenation`] when the limit is reached.
+    #[must_use]
+    pub fn hyphenating(
+        text: &'a str,
+        runs: &'a [TextRun<'a>],
+        bidi: &'a BidiAnalysis,
+        options: LineBreakOptions,
+        hyphenator: &dyn Hyphenator,
+        hyphen_width_in_points: f64,
+    ) -> Self {
+        Self {
+            text,
+            runs,
+            bidi,
+            breaker: LineBreaker::with_hyphenation(text, options, hyphenator),
+            hyphen: Some(hyphen_width_in_points.max(0.0)),
         }
     }
 
@@ -236,13 +277,41 @@ impl<'a> LineComposer<'a> {
         from: usize,
         measure: f64,
     ) -> Result<ComposedLine, FontError> {
+        self.compose_line(shaper, from, measure, true)
+    }
+
+    /// The same, refusing to end the line inside a word even though this composer hyphenates.
+    ///
+    /// What `w:consecutiveHyphenLimit` needs: the limit counts *lines*, so it is the box model that
+    /// knows the count and this is how it says so. On a composer built by [`LineComposer::new`] it
+    /// is identical to [`LineComposer::next_line`].
+    ///
+    /// # Errors
+    ///
+    /// As [`LineComposer::next_line`].
+    pub fn next_line_without_hyphenation(
+        &self,
+        shaper: &mut Shaper,
+        from: usize,
+        measure: f64,
+    ) -> Result<ComposedLine, FontError> {
+        self.compose_line(shaper, from, measure, false)
+    }
+
+    fn compose_line(
+        &self,
+        shaper: &mut Shaper,
+        from: usize,
+        measure: f64,
+        hyphenate: bool,
+    ) -> Result<ComposedLine, FontError> {
         let from = from.min(self.text.len());
         if from >= self.text.len() {
             return Ok(self.empty_line(from));
         }
 
         let (break_end, hanging, kind, probes) = if self.can_break_before_the_end(from) {
-            self.fit(shaper, from, measure)?
+            self.fit(shaper, from, measure, hyphenate)?
         } else {
             // No interior opportunity, so the line runs to the end of the paragraph whatever the
             // measure says. Measuring candidates would ask a question with one possible answer.
@@ -263,6 +332,14 @@ impl<'a> LineComposer<'a> {
         } else {
             self.width_of(shaper, hanging)?
         };
+        if hyphenate && self.breaker.is_hyphenation_point(break_end) {
+            line.hyphenated = true;
+            // The width the line is drawn at includes the glyph the box model is about to append,
+            // and it is the same number the fitting loop measured this candidate by. Reporting the
+            // slice's width instead would make every consumer of `width_in_points` — justification
+            // above all — spread the hyphen's advance across the words.
+            line.width_in_points += self.hyphen.unwrap_or(0.0);
+        }
         Ok(line)
     }
 
@@ -272,6 +349,7 @@ impl<'a> LineComposer<'a> {
         shaper: &mut Shaper,
         from: usize,
         measure: f64,
+        hyphenate: bool,
     ) -> Result<(usize, Range<usize>, LineBreakKind, u32), FontError> {
         // One shaping of each item's tail, reused by every candidate. Shaping the tail *from this
         // line's start* rather than from the item's start is itself the re-shaping rule: the
@@ -283,8 +361,15 @@ impl<'a> LineComposer<'a> {
         let broken = {
             let mut width_of = |range: Range<usize>| -> f64 {
                 probes = probes.saturating_add(1);
+                let candidate_is_hyphenated = self.breaker.is_hyphenation_point(range.end);
                 match self.measure(shaper, &mut tails, range) {
-                    Ok(width) => width,
+                    Ok(width) => {
+                        if candidate_is_hyphenated {
+                            width + self.hyphen.unwrap_or(0.0)
+                        } else {
+                            width
+                        }
+                    }
                     Err(error) => {
                         failure.get_or_insert(error);
                         // Nothing fits, so the breaker takes the first opportunity and terminates
@@ -293,7 +378,8 @@ impl<'a> LineComposer<'a> {
                     }
                 }
             };
-            self.breaker.next_line(from, measure, &mut width_of)
+            self.breaker
+                .next_line_with(from, measure, hyphenate, &mut width_of)
         };
 
         if let Some(error) = failure {
@@ -407,6 +493,7 @@ impl<'a> LineComposer<'a> {
             hanging_width_in_points: 0.0,
             ascent_in_points,
             descent_in_points,
+            hyphenated: false,
             measure_probes: 0,
         })
     }
@@ -485,6 +572,7 @@ impl<'a> LineComposer<'a> {
             hanging_width_in_points: 0.0,
             ascent_in_points: 0.0,
             descent_in_points: 0.0,
+            hyphenated: false,
             measure_probes: 0,
         }
     }

@@ -1059,7 +1059,7 @@ impl EffectiveParagraphProperties {
 /// Extracts every `CT_PPrBase` field `ppr` states, resolving colours through `theme` — for a style
 /// definition's, `w:pPrDefault`'s, or a numbering level's own `w:pPr` (`CT_PPrGeneral` /
 /// [`StyleParagraphProperties`]).
-fn extract_style_paragraph_properties(
+pub(super) fn extract_style_paragraph_properties(
     ppr: &StyleParagraphProperties,
     theme: &ThemeContext,
     interner: &Interner,
@@ -1152,7 +1152,7 @@ fn extract_style_paragraph_properties(
 /// (`CT_PPr`/[`ParagraphProperties`]) rather than a style's `CT_PPrGeneral` — the two types expose the
 /// identical 32 accessor names (see `paragraph_properties.rs`'s and `styles.rs`'s own doc comments for
 /// why they are two Rust types at all), so the field-by-field body is intentionally the same shape.
-fn extract_paragraph_properties(
+pub(super) fn extract_paragraph_properties(
     ppr: &ParagraphProperties,
     theme: &ThemeContext,
     interner: &Interner,
@@ -1241,7 +1241,7 @@ fn extract_paragraph_properties(
     })
 }
 
-fn extract_numbering_reference(
+pub(super) fn extract_numbering_reference(
     value: &NumberingProperties,
     interner: &Interner,
 ) -> Result<Option<EffectiveNumberingReference>, DocxError> {
@@ -1444,7 +1444,7 @@ pub(super) fn merge_character_chain(
     Ok(result)
 }
 
-fn merge_paragraph_chain(
+pub(super) fn merge_paragraph_chain(
     chain: &[&StyleDefinition],
     theme: &ThemeContext,
     interner: &Interner,
@@ -1460,8 +1460,61 @@ fn merge_paragraph_chain(
     Ok(result)
 }
 
+/// The ladder's own order for a paragraph, stated **once**: direct formatting wins, then the
+/// paragraph style's chain, then the numbering level, then `w:docDefaults`.
+///
+/// It is a function rather than four calls at the two call sites because there are now two
+/// orchestrations of the same ladder — [`Document::effective_paragraph_properties`], which reads one
+/// paragraph and re-parses everything, and [`super::residency::DocumentFormatting`], which reads the
+/// whole document once — and an order stated twice is an order free to drift. Verified against
+/// ECMA-376 Part 1 §17.7.2; see [the guide](crate::effective_properties).
+#[must_use]
+pub(super) fn combine_paragraph_tiers(
+    direct: &EffectiveParagraphProperties,
+    paragraph_tier: &EffectiveParagraphProperties,
+    numbering: &EffectiveParagraphProperties,
+    doc_defaults: &EffectiveParagraphProperties,
+) -> EffectiveParagraphProperties {
+    direct
+        .merge_under(paragraph_tier)
+        .merge_under(numbering)
+        .merge_under(doc_defaults)
+}
+
+/// The same for a run: direct, then the character style's chain, then the paragraph style's, then
+/// the numbering level, then `w:docDefaults` — and then the twelve toggle properties recombined,
+/// which is **not** a merge and is why this cannot be four `merge_under` calls at a call site.
+///
+/// `table` is a table style's contribution (MJXOFF-119); outside a cell it is the all-`None`
+/// identity.
+#[must_use]
+pub(super) fn combine_run_tiers(
+    direct: &EffectiveCharacterProperties,
+    character_tier: &EffectiveCharacterProperties,
+    paragraph_tier: &EffectiveCharacterProperties,
+    numbering: &EffectiveCharacterProperties,
+    doc_defaults: &EffectiveCharacterProperties,
+    table: &EffectiveCharacterProperties,
+) -> EffectiveCharacterProperties {
+    let mut merged = direct
+        .merge_under(character_tier)
+        .merge_under(paragraph_tier)
+        .merge_under(numbering)
+        .merge_under(doc_defaults);
+    recombine_toggles(
+        &mut merged,
+        direct,
+        doc_defaults,
+        table,
+        numbering,
+        paragraph_tier,
+        character_tier,
+    );
+    merged
+}
+
 /// The first `w:numPr` a paragraph-style chain states (leaf first), or `None` if none of them do.
-fn numbering_reference_from_chain(
+pub(super) fn numbering_reference_from_chain(
     chain: &[&StyleDefinition],
     interner: &Interner,
 ) -> Result<Option<EffectiveNumberingReference>, DocxError> {
@@ -1658,24 +1711,16 @@ impl Document {
             None => EffectiveCharacterProperties::default(),
         };
 
-        let mut merged = direct_context
-            .direct
-            .merge_under(&character_tier)
-            .merge_under(&paragraph_tier)
-            .merge_under(&numbering_effective)
-            .merge_under(&doc_defaults);
-        recombine_toggles(
-            &mut merged,
+        Ok(combine_run_tiers(
             &direct_context.direct,
+            &character_tier,
+            &paragraph_tier,
+            &numbering_effective,
             &doc_defaults,
             // No table style applies outside a table cell — an all-`None` contribution, the XOR
             // identity, leaves this identical to the pre-MJXOFF-119 three-term combination.
             &EffectiveCharacterProperties::default(),
-            &numbering_effective,
-            &paragraph_tier,
-            &character_tier,
-        );
-        Ok(merged)
+        ))
     }
 
     /// The **effective** paragraph formatting of the paragraph at `paragraph` — every `CT_PPrBase`
@@ -1778,9 +1823,11 @@ impl Document {
             None => EffectiveParagraphProperties::default(),
         };
 
-        Ok(direct
-            .merge_under(&paragraph_tier)
-            .merge_under(&numbering_effective)
-            .merge_under(&doc_defaults))
+        Ok(combine_paragraph_tiers(
+            &direct,
+            &paragraph_tier,
+            &numbering_effective,
+            &doc_defaults,
+        ))
     }
 }

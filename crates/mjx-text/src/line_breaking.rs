@@ -72,6 +72,17 @@ pub enum BreakKind {
     Mandatory,
     /// A break the line may take if the measure calls for one.
     Allowed,
+    /// A break inside a word, offered by a [`Hyphenator`](crate::Hyphenator), at which a hyphen is
+    /// drawn.
+    ///
+    /// It is a third kind rather than an [`Allowed`](Self::Allowed) with a flag beside it because
+    /// the two are not interchangeable to a caller: taking this one **adds a glyph the text does
+    /// not contain**, so the width of the line that ends here is the width of the slice *plus a
+    /// hyphen*, and a box model that measured it as an ordinary break would overrun its measure by
+    /// a third of an em on every hyphenated line. Word also limits how many consecutive lines may
+    /// end at one (`w:consecutiveHyphenLimit`), which is a rule that can only be stated about a
+    /// break a caller can recognise.
+    Hyphenation,
 }
 
 /// A point at which a line may end.
@@ -296,10 +307,53 @@ impl<'a> LineBreaker<'a> {
         }
     }
 
+    /// Find the break opportunities in `text` under `options`, **and inside its words**, by asking
+    /// `hyphenator` where each one may be split.
+    ///
+    /// The points it answers are merged into the list as [`BreakKind::Hyphenation`]; nothing else
+    /// changes, so a caller that never takes one gets exactly [`LineBreaker::new`]'s answer.
+    ///
+    /// # Why a hyphenation point can never collide with a UAX #14 one
+    ///
+    /// UAX #14's opportunities sit *between* words and a hyphenator's sit *inside* one, so the two
+    /// sets are disjoint by construction — but "by construction" is a claim about the hyphenator,
+    /// not about this function, and a hyphenator that answered the end of a word would produce two
+    /// opportunities at one offset and a line that could be broken twice. So a merged point that
+    /// lands on an existing offset is **dropped**, and the ordinary break wins: an existing
+    /// opportunity is already reachable without adding a glyph.
+    #[must_use]
+    pub fn with_hyphenation(
+        text: &'a str,
+        options: LineBreakOptions,
+        hyphenator: &dyn crate::Hyphenator,
+    ) -> Self {
+        let opportunities = break_opportunities_with_hyphenation(text, &options, hyphenator);
+        Self {
+            text,
+            options,
+            opportunities,
+        }
+    }
+
     /// The text being broken.
     #[must_use]
     pub fn text(&self) -> &'a str {
         self.text
+    }
+
+    /// Whether a line ending exactly at `offset` ends at a hyphenation point, and so draws a hyphen.
+    ///
+    /// The question a box model asks about a line it has just fitted. It is answered from the
+    /// opportunity list rather than by re-running the hyphenator, so it costs a binary search.
+    #[must_use]
+    pub fn is_hyphenation_point(&self, offset: usize) -> bool {
+        self.opportunities
+            .binary_search_by_key(&offset, |opportunity| opportunity.at)
+            .is_ok_and(|index| {
+                self.opportunities
+                    .get(index)
+                    .is_some_and(|opportunity| opportunity.kind == BreakKind::Hyphenation)
+            })
     }
 
     /// The options in force.
@@ -333,6 +387,27 @@ impl<'a> LineBreaker<'a> {
         measure: f64,
         width_of: &mut dyn FnMut(Range<usize>) -> f64,
     ) -> LineBreak {
+        self.next_line_with(from, measure, true, width_of)
+    }
+
+    /// [`LineBreaker::next_line`], with the hyphenation points **skipped** when
+    /// `allow_hyphenation` is false.
+    ///
+    /// Skipped rather than measured as infinitely wide, and the difference is not cosmetic: this
+    /// loop stops at the first candidate that does not fit once one already has, so a refused
+    /// candidate in the middle of the list would end the search early and produce a line shorter
+    /// than the text allows. A skipped one is not a candidate at all.
+    ///
+    /// `w:consecutiveHyphenLimit` is why a caller needs it: the limit counts consecutive *lines*,
+    /// which is a fact about the page and not about the paragraph, so the opportunity list is built
+    /// once and this decides per line.
+    pub fn next_line_with(
+        &self,
+        from: usize,
+        measure: f64,
+        allow_hyphenation: bool,
+        width_of: &mut dyn FnMut(Range<usize>) -> f64,
+    ) -> LineBreak {
         if from >= self.text.len() {
             return LineBreak {
                 end: self.text.len(),
@@ -347,6 +422,7 @@ impl<'a> LineBreaker<'a> {
             .iter()
             .copied()
             .filter(|opportunity| opportunity.at > from)
+            .filter(|opportunity| allow_hyphenation || opportunity.kind != BreakKind::Hyphenation)
         {
             // UAX #14 reports the end of the text as a mandatory break, because there is nothing
             // after it to break before. That is not a *hard* break in the text, and it must **not**
@@ -459,6 +535,59 @@ pub fn break_opportunities(text: &str, options: &LineBreakOptions) -> Vec<BreakO
         });
     }
     opportunities
+}
+
+/// [`break_opportunities`], plus every point inside a word at which `hyphenator` says it may be
+/// split.
+///
+/// A word, here, is a maximal stretch between two consecutive opportunities: that is what the
+/// hyphenator is handed, so a hyphenator never sees leading or trailing spaces and never has to
+/// tokenise. Offsets it answers are relative to the stretch and are shifted here.
+///
+/// **Nothing is offered at the first or last character of a word**, and that filter lives in the
+/// hyphenator (see [`PatternHyphenator::with_minima`](crate::PatternHyphenator::with_minima)) rather
+/// than here, because how many characters must stay with each half is language data and not a
+/// property of line breaking.
+#[must_use]
+pub fn break_opportunities_with_hyphenation(
+    text: &str,
+    options: &LineBreakOptions,
+    hyphenator: &dyn crate::Hyphenator,
+) -> Vec<BreakOpportunity> {
+    let ordinary = break_opportunities(text, options);
+    let mut points = Vec::new();
+    let mut merged = Vec::with_capacity(ordinary.len());
+    let mut previous = 0_usize;
+    for opportunity in &ordinary {
+        let word = previous..opportunity.at;
+        if let Some(slice) = text.get(word.clone()) {
+            points.clear();
+            hyphenator.hyphenation_points(slice, &mut points);
+            for offset in points.iter().copied() {
+                let at = word.start.saturating_add(offset);
+                if at > word.start && at < word.end && text.is_char_boundary(at) {
+                    merged.push(BreakOpportunity {
+                        at,
+                        kind: BreakKind::Hyphenation,
+                    });
+                }
+            }
+        }
+        merged.push(*opportunity);
+        previous = opportunity.at;
+    }
+    // The hyphenator is asked per word and the words are walked in order, so `merged` is already
+    // ascending; the sort is a guard against a hyphenator that answered out of order, and the
+    // dedup is what drops a point that landed on an ordinary opportunity (see
+    // `LineBreaker::with_hyphenation`).
+    merged.sort_by_key(|opportunity| {
+        (
+            opportunity.at,
+            u8::from(opportunity.kind == BreakKind::Hyphenation),
+        )
+    });
+    merged.dedup_by_key(|opportunity| opportunity.at);
+    merged
 }
 
 fn permitted_by_kinsoku(text: &str, opportunity: BreakOpportunity, kinsoku: &KinsokuRules) -> bool {

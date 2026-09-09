@@ -303,6 +303,25 @@ footers with first/even/odd variants, footnotes and endnotes with their own refl
 frames, tab stop resolution, numbering and list restarts, fields, revision marks affecting layout,
 and OMML mathematical layout (its own typesetter, closer to TeX than to prose).
 
+> **Built in MJXOFF-174 (R19), part 1.** The crate exists at rank 3.6, beside the other two, and is
+> the **first real consumer of `mjx-layout`'s `Checkpoint`**: PowerPoint's pagination is a slide
+> index and Excel's is arithmetic over a row geometry, and Word's is *emergent*. What is in it is the
+> flow core — line layout against a per-line measure, the five alignments with inter-word and
+> inter-character expansion, the three line rules, the five tab kinds with leaders and the implicit
+> grid, hyphenation, and pagination honouring `w:pageBreakBefore`, `w:keepLines`, `w:widowControl`
+> and `w:keepNext`. **Sections, columns, headers, footers and footnotes are R20; tables and floating
+> objects R21; fields, numbering, revision marks and OMML R22**, and none of them is partly done.
+> Nothing in it is parity with Word: every behaviour chosen rather than read is marked `GUESS:` at
+> its site, and `crates/mjx-layout-docx/tests/the_provenance_is_declared.rs` prints the split of
+> where every expected value came from on every run.
+>
+> Two things it needed did not exist and were built with it. `mjx_docx::Document::formatting` reads
+> the whole document **once** — the per-paragraph reader re-parses `word/document.xml`,
+> `word/styles.xml` and the theme on every call, which is quadratic for a layout engine — and
+> `mjx-text`/`mjx-layout` grew hyphenation, which adds the hyphen's own advance to every candidate
+> the fitting loop measures. **Word still has no scene companion**, so a Word `FragmentTree` cannot
+> yet reach pixels; `mjx-scene-docx` at 3.7 is the ticket that has to follow this one.
+
 **`mjx-layout-xlsx` — grid.** Row/column geometry with hidden and auto-fit sizing, merged regions,
 the **number-format engine** (`numFmt` → display string, locale-aware, both 1900 and 1904 date
 systems, conditional format sections, fraction and scientific forms — a sub-project in its own

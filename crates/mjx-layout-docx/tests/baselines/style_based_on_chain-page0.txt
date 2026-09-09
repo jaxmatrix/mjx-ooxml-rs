@@ -1,0 +1,9 @@
+# specimen: style_based_on_chain.docx page 0
+# covers: a deep `w:basedOn` chain, resolved once by the residency rather than per paragraph
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# paragraphs in the document: 1
+# pages reached: 1
+   0 box       [] [914400 914400 6645910 9777730]
+   1 box       [0] [914400 914400 6645910 1060450]
+   2 line      [0, 0] [914400 914400 6645910 1060450]

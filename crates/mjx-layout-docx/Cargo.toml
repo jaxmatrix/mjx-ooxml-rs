@@ -1,0 +1,54 @@
+[package]
+name = "mjx-layout-docx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Word's box model: a document's paragraphs, lines, justification and pagination, turned into a mjx-layout FragmentTree — the only one of the three that reflows."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` — the unit every fragment is positioned in, and the one a twip and a half-point are
+# converted into exactly once, here.
+mjx-ooxml-core.workspace = true
+# Rank 1.5. The font engine. Every width, ascent, descent, break opportunity and hyphenation point in
+# this crate comes from here; none is computed here.
+mjx-text.workspace = true
+# Rank 1.6. The contract this crate implements: `BoxModel`, `FragmentTree`, `SourceRef` — and above
+# all `Checkpoint`, which was designed for exactly this crate and which this is the first real
+# consumer of. Also `LineComposer`, which fits a line against a measure; this crate never implements
+# line breaking.
+mjx-layout.workspace = true
+# Rank 1.0. `Justification`, `LineSpacingRule`, `TabStopType`, `TabStopLeader`, `BreakType` — the
+# WordprocessingML vocabulary a paragraph's own layout is stated in — and the two wire-string
+# measure parsers (`support::universal_measure`, `support::half_point_measure`), which are here and
+# not in this crate because `w:defaultTabStop` may legally read `"0.5in"` and more than one crate
+# has to be able to read it.
+mjx-ooxml-types.workspace = true
+# Rank 3.0. `Document::formatting` — the whole document parsed once and every rung of the
+# effective-property ladder already resolved. **Consumed, never re-derived**: `w:docDefaults`, the
+# `w:basedOn` chains, the character-style tier, the numbering level's own `w:pPr`/`w:rPr` and the
+# twelve toggle properties' XOR recombination have all already run by the time anything here reads a
+# value. That residency *is* this crate's reason to be above the format tier rather than inside it.
+mjx-docx.workspace = true
+thiserror.workspace = true
+
+# `mjx-dml` (rank 2.0) is deliberately NOT a dependency, and this is a decision rather than an
+# omission — the ticket lists it and the tree does not need it. A `.docx`'s theme is DrawingML, and
+# `mjx-docx` has already resolved every `themeColor` and `asciiTheme` reference against it before a
+# value reaches this crate: an `EffectiveColor` is a concrete `RRGGBB` or an unresolved reference,
+# and an `EffectiveFonts` slot is a font *name*. The one place DrawingML would enter is a floating
+# object's own content, and that is R21's. Declaring the edge would buy an unused import and one
+# more crate a flow engine could accidentally start resolving colours in.
+#
+# `mjx-geometry` (2.5) is absent for `mjx-layout-pptx`'s reason: a `ShapeFragment` carries a
+# `GeometryRef` — a bare number — and resolving it belongs to a scene companion.
+
+[dev-dependencies]
+# The committed corpus, so the suites below derive their fixtures from one place rather than from a
+# `const FIXTURES` list.
+mjx-fixtures.workspace = true

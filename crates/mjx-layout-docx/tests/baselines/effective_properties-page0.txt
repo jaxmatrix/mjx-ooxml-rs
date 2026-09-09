@@ -1,0 +1,34 @@
+# specimen: effective_properties.docx page 0
+# covers: the ladder fixture: `w:docDefaults`, a `w:basedOn` chain, a numbering level and direct formatting all stating the same members, so a change in `mjx-docx`'s resolution moves these numbers
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# paragraphs in the document: 9
+# pages reached: 1
+   0 box       [] [914400 914400 6645910 9777730]
+   1 box       [0] [914400 914400 6645910 1089660]
+   2 line      [0, 0] [914400 914400 6645910 1089660]
+   3 glyph run [0, 0, 0] [914400 914400 1005688 1089660]
+   4 box       [1] [914400 1089660 6645910 1250315]
+   5 line      [1, 0] [914400 1089660 6645910 1250315]
+   6 glyph run [1, 0, 0] [914400 1089660 995286 1250315]
+   7 box       [2] [914400 1250315 6645910 1396365]
+   8 line      [2, 0] [914400 1250315 6645910 1396365]
+   9 glyph run [2, 0, 0] [914400 1250315 980313 1396365]
+  10 box       [3] [914400 1396365 6645910 1542415]
+  11 line      [3, 0] [914400 1396365 6645910 1542415]
+  12 glyph run [3, 0, 0] [914400 1396365 993775 1542415]
+  13 box       [4] [914400 1542415 6645910 1688465]
+  14 line      [4, 0] [914400 1542415 6645910 1688465]
+  15 glyph run [4, 0, 0] [914400 1542415 982980 1688465]
+  16 box       [5] [914400 1688465 6645910 1834515]
+  17 line      [5, 0] [914400 1688465 6645910 1834515]
+  18 glyph run [5, 0, 0] [914400 1688465 979043 1834515]
+  19 box       [6] [914400 1834515 6645910 1989544]
+  20 line      [6, 0] [914400 1834515 6645910 1989544]
+  21 glyph run [6, 0, 0] [914400 1834515 994519 1989544]
+  22 box       [7] [914400 1989544 6645910 2135594]
+  23 line      [7, 0] [914400 1989544 6645910 2135594]
+  24 glyph run [7, 0, 0] [914400 1989544 1002792 2135594]
+  25 box       [8] [914400 2135594 6645910 2310854]
+  26 line      [8, 0] [914400 2135594 6645910 2310854]
+  27 glyph run [8, 0, 0] [914400 2135594 966673 2310854]
