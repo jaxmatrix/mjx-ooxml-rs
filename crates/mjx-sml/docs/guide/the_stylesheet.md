@@ -89,7 +89,7 @@ The element is named for its **slot** — `color` inside a font or a run's `rPr`
 |---|---|---|
 | `@rgb="FFFF0000"` | `ST_UnsignedIntHex`: **eight** digits, alpha first | the value itself |
 | `@indexed="8"` | a row of the legacy 56-entry palette | [`mjx_sml::styles::palette::resolve_color`](crate::styles::palette::resolve_color) against the workbook's own `indexedColors` |
-| `@theme="4"` | a **position** in `theme1.xml`'s colour scheme — not a `SchemeColor` token | the same resolver, against the theme |
+| `@theme="4"` | a **position** in `theme1.xml`'s colour scheme — not a `SchemeColor` token, and not §20.1.6.2's sequence order either: `0` is `lt1` and `1` is `dk1` (MJXOFF-246) | the same resolver, against the theme |
 | `@auto="1"` | the system foreground/background, whatever that is at render time | nothing here |
 
 `@tint` shifts whichever of the four was given towards white (positive) or black (negative), and

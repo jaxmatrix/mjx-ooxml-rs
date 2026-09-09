@@ -139,7 +139,13 @@ an API rather than to a file, and until MJXOFF-235 only the second column existe
 whole family: `Some(0.8)` is Excel's own *"Accent 1, Lighter 80%"*.
 
 The slot is DrawingML's [`ColorSchemeSlot`](mjx_dml::ColorSchemeSlot) rather than SpreadsheetML's
-`@theme` **position**, because `4` means `accent1` only to a reader with §20.1.6.2 open.
+`@theme` **position**, because a position means nothing to a reader who does not have the mapping in
+front of them — and because the mapping is not the one the position's own cross-reference suggests.
+`@theme="1"` is the theme's first **text** colour, not its first background; the two dark/light pairs
+are swapped against the *Sequence Index* table §20.1.6.2 prints for `clrScheme`'s children, and the
+module documentation of `mjx_sml::styles::palette` gives the evidence, which is ECMA's own preset
+cell and table styles. MJXOFF-246 is the unit that settled it, after the writer and the resolver in
+`mjx-sml` had spent five releases meaning different things by the same number.
 `Color::from_theme(index, tint)` still takes the position, and is what a *reader* of a file needs,
 since a file may state a position the twelve-slot table does not name.
 

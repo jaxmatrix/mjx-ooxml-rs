@@ -118,7 +118,7 @@ not as a description of the current layout. What is current is
   all three produce byte-identical parts. 🔨 Next, **validation**: every shipped feature checked by
   hand against real PowerPoint, which nothing has yet been. The harness for it is built —
   [`docs/validation/`](docs/validation/00-method.md) holds the method, the index, the risk order and
-  115 checks across the three formats, `cargo run -p xtask -- validation-artefacts` writes the files
+  116 checks across the three formats, `cargo run -p xtask -- validation-artefacts` writes the files
   a person opens, and [`docs/validation/06-the-office-pass.md`](docs/validation/06-the-office-pass.md)
   is how that person runs the pass. **The verdicts are the user's and every result line ships
   unfilled**, which is why this bullet still says *next*.
