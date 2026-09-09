@@ -158,6 +158,18 @@ walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.
 Rust one **part by part, byte for byte**. A method wired to the wrong `Deck` method changes one
 payload and fails there.
 
+That sentence was **false for Word in both bindings** until MJXOFF-239, and it read as true because
+the two Word files passed: they transcribed `build_a_document.rs` call for call and each wrote its
+*own* `.docx`, so nothing ran the Rust example and nothing compared. It is **checked rather than
+asserted** now. `xtask/tests/walkthrough_triples.rs` derives the walkthroughs from
+`crates/mjx-ooxml/examples/` instead of listing them, and fails when one has no copy in a binding,
+when a copy names no walkthrough, or when a copy does not run the Rust example and read both
+packages through that binding's one shared payload reader — `bindings/mjx-python/tests/opc.py` and
+`bindings/mjx-wasm/tests/node/zip.mjs`, one definition per suite and imported everywhere else,
+because a helper copied per file is a comparison that can go missing from a file unnoticed. What the
+gate cannot check is that the two payload maps are then asserted equal; what establishes *that* is
+breaking each walkthrough by one argument and confirming the comparison reddens and names the part.
+
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
 

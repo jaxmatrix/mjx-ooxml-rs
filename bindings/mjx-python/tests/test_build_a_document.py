@@ -2,28 +2,50 @@
 
 This is `crates/mjx-ooxml/examples/build_a_document.rs` call for call — the same paragraphs, the
 same numbered list, the same hyperlink, the same table, the same header, the same comment, the same
-footnote. `bindings/mjx-wasm/tests/node/build_a_document.mjs` is the third copy.
+footnote. `bindings/mjx-wasm/tests/node/build_a_document.mjs` is the third copy, and all three are
+compared against the Rust one **part by part, byte for byte** by
+`test_the_three_word_walkthroughs_agree` below.
+
+That comparison is the reason this file is shaped the way it is. Until MJXOFF-239 it was not here:
+this file transcribed the Rust example and wrote its own `.docx`, and nothing ever ran the Rust one
+or looked at the two together. Both files passed, which is exactly the failure that is invisible
+from a test report — *a `Document` method wired to the wrong facade method produced a different
+document and the suite stayed green, because there was nothing to be different from.*
 """
 
 from __future__ import annotations
 
-import os
+import dataclasses
 import pathlib
+import subprocess
+
+import pytest
 
 import mjx_ooxml
-from mjx_ooxml import Document, Format, HeaderFooterType, HyperlinkTarget, PageSize, SectionLocation
+from mjx_ooxml import (
+    Document,
+    Format,
+    HeaderFooterType,
+    HyperlinkTarget,
+    PageSize,
+    SectionLocation,
+)
+
+from opc import part_payloads
 
 OUTPUT_NAME = "python_build_a_document.docx"
 
 
-def _output_directory() -> pathlib.Path:
-    configured = os.environ.get("MJX_OUTPUT_DIR")
-    if configured:
-        return pathlib.Path(configured)
-    return pathlib.Path(__file__).resolve().parents[3] / "target" / "examples"
+@dataclasses.dataclass
+class Walkthrough:
+    """What the walkthrough noticed on its way through, so the assertions can name it."""
+
+    saved: bytes
+    paragraph_count: int
 
 
-def test_the_word_walkthrough_runs_end_to_end_through_the_python_binding() -> None:
+def build_the_guides_document() -> Walkthrough:
+    """The walkthrough itself, so the comparison below and the assertions above share one source."""
     document = Document.blank(PageSize.a4())
     assert document.format() == Format.Document
     assert document.paragraph_count() == 1
@@ -72,15 +94,22 @@ def test_the_word_walkthrough_runs_end_to_end_through_the_python_binding() -> No
 
     # ---- Save --------------------------------------------------------------------------------------
     document.validate()
-    saved = document.save()
-    assert len(saved) > 0
-    output_directory = _output_directory()
-    output_directory.mkdir(parents=True, exist_ok=True)
-    (output_directory / OUTPUT_NAME).write_bytes(saved)
+    return Walkthrough(
+        saved=document.save(),
+        paragraph_count=document.paragraph_count(),
+    )
+
+
+def test_the_word_walkthrough_runs_end_to_end_through_the_python_binding(
+    output_directory: pathlib.Path,
+) -> None:
+    run = build_the_guides_document()
+    assert len(run.saved) > 0
+    (output_directory / OUTPUT_NAME).write_bytes(run.saved)
 
     # ---- Reopen, to prove the bytes are a real document --------------------------------------------
-    reopened = Document.open(saved)
-    assert reopened.paragraph_count() == document.paragraph_count()
+    reopened = Document.open(run.saved)
+    assert reopened.paragraph_count() == run.paragraph_count
     assert reopened.paragraph_text(0) == "Quarterly Review"
     assert reopened.cell_text(0, 0, 0) == "Region"
     assert reopened.header_text(0, HeaderFooterType.Default) == "Quarterly Review — Internal"
@@ -88,8 +117,7 @@ def test_the_word_walkthrough_runs_end_to_end_through_the_python_binding() -> No
     assert len(reopened.footnotes()) == 1
 
 
-def test_document_open_refuses_a_presentation_by_name() -> None:
-    fixtures = pathlib.Path(__file__).resolve().parents[3] / "tests" / "fixtures"
+def test_document_open_refuses_a_presentation_by_name(fixtures: pathlib.Path) -> None:
     presentation_bytes = (fixtures / "sample.pptx").read_bytes()
     try:
         Document.open(presentation_bytes)
@@ -97,3 +125,50 @@ def test_document_open_refuses_a_presentation_by_name() -> None:
         assert failure.code == "UnsupportedFormat"
     else:
         raise AssertionError("Document.open must refuse a PresentationML package")
+
+
+@pytest.mark.skipif(
+    subprocess.run(["cargo", "--version"], capture_output=True).returncode != 0,
+    reason="cargo is not on PATH, so the Rust walkthrough cannot be run to compare against",
+)
+def test_the_three_word_walkthroughs_agree(output_directory: pathlib.Path) -> None:
+    """This walkthrough and the Rust one produce the *same document*, part for part.
+
+    Not "both produce a file", and not "both produce a file of about the right size": the same part
+    names, and byte-identical payloads for every one of them. That is the only assertion that can
+    tell a faithful binding from a plausible one — a method wired to the wrong `Document` method, a
+    paragraph index off by one, or an argument converted with the wrong units, changes a payload
+    here and nothing else would notice.
+
+    The Node walkthrough is compared against the same reference by
+    `bindings/mjx-wasm/tests/node/build_a_document.mjs`, which writes its document beside these two.
+    """
+    from_python = build_the_guides_document().saved
+
+    rust_output = output_directory / "facade_build_a_document.docx"
+    completed = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "-p",
+            "mjx-ooxml",
+            "--example",
+            "build_a_document",
+            "--",
+            str(rust_output),
+        ],
+        cwd=str(pathlib.Path(__file__).resolve().parents[3]),
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    python_parts = part_payloads(from_python)
+    rust_parts = part_payloads(rust_output.read_bytes())
+
+    assert sorted(python_parts) == sorted(rust_parts), (
+        "the two walkthroughs must author the same set of parts"
+    )
+    differing = [name for name in python_parts if python_parts[name] != rust_parts[name]]
+    assert not differing, f"these parts differ between the Python and Rust walkthroughs: {differing}"

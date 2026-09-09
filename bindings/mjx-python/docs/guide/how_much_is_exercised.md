@@ -5,6 +5,12 @@ Each of the three walkthroughs exists three times — `crates/mjx-ooxml/examples
 and the same for the document and the workbook — and every one compares its output against the Rust
 one **part by part, byte for byte**. So does the whole validation catalogue.
 
+That was not true of the document until MJXOFF-239: both Word files transcribed the Rust example and
+wrote their own `.docx`, and nothing compared. The sentence read as true because both files passed.
+`xtask/tests/walkthrough_triples.rs` now derives the walkthroughs from `crates/mjx-ooxml/examples/`
+and fails on a copy that does not run the Rust one, so this page's opening line is a checked claim
+rather than a remembered one.
+
 That is a strong gate, and it proves the projection is **wired**. It does not prove it is right
 **across the surface**, and it is worth saying why in the general form, because the shape recurs:
 
