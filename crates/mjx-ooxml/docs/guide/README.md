@@ -77,21 +77,81 @@ Nothing in this workspace touches a filesystem, a network, a clock, a thread or 
 generator — which is why the same calls run unchanged in a browser through
 `bindings/mjx-wasm`, and why the caller always owns the file handle.
 
-```no_run
+**The three differ in shape here.** The dispatch is a `match` in Rust, an `if` chain in Python and
+a `switch` in JavaScript, and the accessor that produces the [`FormatFamily`] is a method, an
+attribute and a free function — the first row of the table below. Reading the bytes and writing the
+result are the caller's job in all three, so neither is in the block.
+
+<!-- guide-example: open_edit_and_save_any_format rust -->
+```rust
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
+# let bytes = mjx_fixtures::fixture("sample.pptx");
 use mjx_ooxml::{detect_format, Deck, Document, FormatFamily, Workbook};
 
-let bytes = std::fs::read("in.pptx")?;
-match detect_format(&bytes)?.family() {
-    FormatFamily::Presentation => { let deck = Deck::open(&bytes)?; std::fs::write("out.pptx", deck.save()?)?; }
-    FormatFamily::WordProcessing => { let doc = Document::open(&bytes)?; std::fs::write("out.docx", doc.save()?)?; }
-    FormatFamily::Spreadsheet => { let wb = Workbook::open(&bytes)?; std::fs::write("out.xlsx", wb.save()?)?; }
-    // `FormatFamily` is `#[non_exhaustive]`: a fourth family is an added arm, not a broken build.
-    _ => unreachable!("three families today"),
-}
+// `bytes` is whatever the caller read. Which of the three surfaces opens it is the package's
+// answer, not the filename's.
+let saved = match detect_format(&bytes)?.family() {
+    FormatFamily::Presentation => Deck::open(&bytes)?.save()?,
+    FormatFamily::WordProcessing => Document::open(&bytes)?.save()?,
+    FormatFamily::Spreadsheet => Workbook::open(&bytes)?.save()?,
+    // `FormatFamily` is `#[non_exhaustive]`: a fourth family is an added arm, not a broken
+    // build.
+    other => return Err(format!("unhandled family {other:?}").into()),
+};
+assert!(!saved.is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: open_edit_and_save_any_format python -->
+```python
+from mjx_ooxml import Deck, Document, FormatFamily, Workbook, detect_format
+
+# `data` is whatever the caller read. Which of the three surfaces opens it is the package's
+# answer, not the filename's.
+family = detect_format(data).family
+if family == FormatFamily.Presentation:
+    saved = Deck.open(data).save()
+elif family == FormatFamily.WordProcessing:
+    saved = Document.open(data).save()
+elif family == FormatFamily.Spreadsheet:
+    saved = Workbook.open(data).save()
+else:
+    # A fourth family would be another branch here, not a broken program.
+    raise ValueError(f"unhandled family {family}")
+assert saved
+```
+<!-- guide-example end -->
+
+<!-- guide-example: open_edit_and_save_any_format js -->
+```js
+import { Deck, Document, FormatFamily, Workbook, detectFormat, formatFamily } from "@mjx/ooxml";
+
+// `data` is whatever the caller read. Which of the three surfaces opens it is the package's
+// answer, not the filename's.
+let opened;
+switch (formatFamily(detectFormat(data))) {
+  case FormatFamily.Presentation:
+    opened = Deck.open(data);
+    break;
+  case FormatFamily.WordProcessing:
+    opened = Document.open(data);
+    break;
+  case FormatFamily.Spreadsheet:
+    opened = Workbook.open(data);
+    break;
+  default:
+    // A fourth family would be another case here, not a broken program.
+    throw new Error("unhandled format family");
+}
+const saved = opened.save();
+opened.free(); // a wasm handle owns memory the garbage collector cannot see
+if (saved.length === 0) {
+  throw new Error("a saved package is never empty");
+}
+```
+<!-- guide-example end -->
 
 **Everything is addressed, nothing is handed out.** There is no `Slide` object, no `Paragraph`
 object and no `Sheet` object to hold. You name what you want on each call — a surface and a shape, a
