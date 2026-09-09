@@ -107,6 +107,32 @@ fn every_seam_of_the_surface_is_reachable_on_the_re_exported_presentation() {
         Geometry::Preset(_)
     ));
 
+    // The two halves of the adjustment surface, reached from outside: the wire-name writer and the
+    // domain reader it is documented as the other half of.
+    let round_idx = deck
+        .add_shape(
+            slide,
+            PresetShapeType::RoundedRectangle,
+            bounds(0, 0, 914_400, 457_200),
+        )
+        .expect("add a rounded rectangle");
+    deck.set_shape_adjustments(slide, round_idx, &[("adj", 42_000)])
+        .expect("write its corner radius by wire name");
+    let radius = deck
+        .shape_adjustments(
+            slide,
+            round_idx,
+            mjx_dml::GuideContext::from_size(mjx_dml::Size::from_emu(914_400, 457_200)),
+        )
+        .expect("read the adjustments back");
+    assert!(
+        radius
+            .iter()
+            .any(|adjustment| adjustment.spec.wire_name == "adj"
+                && (adjustment.value - 42_000.0).abs() < 1e-9),
+        "the wire-name writer and the domain reader disagree: {radius:?}"
+    );
+
     // Appearance, and the effective reader that answers for it.
     let navy = FillSpec::Solid(ColorSpec::Srgb("1F3864".to_owned()));
     deck.set_shape_fill(slide, box_idx, &navy).expect("fill it");

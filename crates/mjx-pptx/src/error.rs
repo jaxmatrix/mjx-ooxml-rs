@@ -333,6 +333,13 @@ pub enum PptxError {
     #[error("shape has no properties element")]
     ShapeHasNoProperties,
 
+    /// The shape states no `a:prstGeom` of its own, so it has no `a:avLst` to write an adjustment
+    /// into. A shape with an `a:custGeom` and a shape that inherits its geometry are both in this
+    /// position: an adjustment is a *re-statement* of one of a preset's own handles, and there is no
+    /// preset here to re-state.
+    #[error("shape has no preset geometry to adjust")]
+    ShapeHasNoPresetGeometry,
+
     /// The addressed shape is not a picture (`p:pic`), so it has no image to read or replace.
     #[error("shape is not a picture")]
     ShapeIsNotAPicture,

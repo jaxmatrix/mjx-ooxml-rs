@@ -885,7 +885,14 @@ pub(crate) const CASES: &[Case] = &[
                 changed(RELATIONSHIPS, Count::UpTo(1)),
                 changed(CONTENT_TYPES, Count::UpTo(1)),
                 changed(PRESENTATION, Count::UpTo(1)),
+                // MJXOFF-232: a new table names a style, so `add_table` reaches the table-styles
+                // part. Which of the two rules fires depends on what the deck already carries —
+                // `added` for a deck with no such part, `changed` for one whose `def` names a style
+                // it does not define, which is what PowerPoint writes (`charts.pptx` carries an
+                // empty `a:tblStyleLst` naming a built-in). A deck whose default really resolves —
+                // `tables.pptx` — trips neither, because nothing is authored into it.
                 added(TABLE_STYLES, Count::UpTo(1)),
+                changed(TABLE_STYLES, Count::UpTo(1)),
             ],
         },
         call: |deck, a| ran!(deck.add_table(a.surface, 2, 2, bounds())),
@@ -2289,6 +2296,17 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| ran!(deck.set_shape_fill(a.surface, need!(a.shape.clone()), &fill())),
     },
     Case {
+        method: "set_shape_adjustments",
+        touches: SLIDE_ONLY,
+        call: |deck, a| {
+            ran!(deck.set_shape_adjustments(
+                a.surface,
+                need!(a.text_shape.clone()),
+                &[("adj", 12_345)],
+            ))
+        },
+    },
+    Case {
         method: "set_shape_geometry",
         touches: SLIDE_ONLY,
         call: |deck, a| {
@@ -2565,6 +2583,11 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| ran!(deck.shape_placeholder(a.surface, need!(a.shape.clone()))),
     },
     Case {
+        method: "shape_backdrop",
+        touches: NOTHING,
+        call: |deck, a| ran!(deck.shape_backdrop(a.surface, need!(a.shape.clone()))),
+    },
+    Case {
         method: "shape_scene_3d",
         touches: NOTHING,
         call: |deck, a| ran!(deck.shape_scene_3d(a.surface, need!(a.shape.clone()))),
@@ -2611,6 +2634,16 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| {
             ran!(deck.table_part(a.surface, need!(a.table.clone()), TablePart::FirstRow))
         },
+    },
+    Case {
+        method: "resolved_scheme_color",
+        touches: NOTHING,
+        call: |deck, a| ran!(deck.resolved_scheme_color(a.surface, mjx_ooxml::SchemeColor::Accent1)),
+    },
+    Case {
+        method: "table_style_flags",
+        touches: NOTHING,
+        call: |deck, a| ran!(deck.table_style_flags(a.surface, need!(a.table.clone()))),
     },
     Case {
         method: "table_style_id",

@@ -22,6 +22,7 @@ import {
   Fraction,
   Angle,
   Geometry,
+  GuideContext,
   Hyperlink,
   LineSpec,
   LineWidth,
@@ -282,6 +283,19 @@ test("the preset geometry table works in both directions and keeps its units", (
     preset.free();
     read.free();
 
+    // The writing half arrives as two parallel arrays, because a wasm-bindgen signature cannot
+    // carry a list of pairs without serde. `12345` is not a value the typed `Fraction` path would
+    // produce from a round ratio, so a method wired to `setShapeGeometry` could not leave it there.
+    deck.setShapeAdjustments(0, shape, ["adj"], [12345]);
+    const restated = deck.shapeAdjustments(
+      0,
+      shape,
+      GuideContext.fromExtents(Emu.fromInches(4), Emu.fromInches(1)),
+    );
+    assert.equal(restated[0].value, 12345);
+    for (const entry of restated) entry.free();
+    assert.throws(() => deck.setShapeAdjustments(0, shape, ["adj", "adj2"], [1]), /name/);
+
     // The unit is part of the contract: an angle is not a proportion.
     const angle = Angle.fromDegrees(30);
     assert.throws(
@@ -538,5 +552,29 @@ test("a colour transform reaches the file and comes back", () => {
     for (const owned of [...transforms, color, read]) {
       owned.free();
     }
+  });
+});
+
+test("the three types nothing used to produce (MJXOFF-228)", () => {
+  withDeck((deck) => {
+    // `ResolvedColor`, `TableStyleFlags` and `Backdrop` were exported by this package and returned,
+    // taken and constructed by nothing, so a caller could name the type and never obtain a value.
+    const accent = deck.resolvedSchemeColor(0, SchemeColor.Accent1);
+    assert.equal(accent.toHex(), "4472C4");
+    assert.equal(accent.alpha, 1);
+    accent.free();
+    assert.equal(deck.resolvedSchemeColor(0, SchemeColor.PlaceholderColor), undefined);
+
+    const table = bounds(1, 1, 4, 2, (b) => deck.addTable(0, 2, 2, b));
+    const flags = deck.tableStyleFlags(0, table);
+    assert.equal(flags.firstRow, true);
+    assert.equal(flags.bandedRows, true);
+    assert.equal(flags.lastRow, false);
+    assert.equal(flags.bandedColumns, false);
+    flags.free();
+
+    const shape = bounds(1, 4, 2, 1, (b) => deck.addShape(0, PresetShapeType.Rectangle, b));
+    // A scene this library authors states no backdrop; the point is that the call exists.
+    assert.equal(deck.shapeBackdrop(0, shape), undefined);
   });
 });

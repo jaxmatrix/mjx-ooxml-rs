@@ -23,9 +23,9 @@ use pyo3::IntoPyObjectExt;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GeometrySource,
-    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
-    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    ApplyFlag, BorderStyle, CalculationMode, ColorSchemeSlot, FormatAspect, FormatLayer,
+    GeometrySource, GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior,
+    SheetKind, SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
     UnderlineType,
 };
 use crate::errors::to_py_err;
@@ -1617,10 +1617,21 @@ impl Color {
     }
 
     /// A theme colour by index, optionally tinted towards white (positive) or black (negative).
+    ///
+    /// The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states.
+    /// An author should reach for `from_theme_slot`, which names the slot instead of numbering it.
     #[staticmethod]
     #[pyo3(signature = (index, tint = None))]
     fn from_theme(index: u32, tint: Option<f64>) -> Self {
         Self(ooxml::Color::from_theme(index, tint))
+    }
+
+    /// A theme colour by **slot**, optionally tinted — `from_theme` with the position spelled out,
+    /// and the constructor an author should reach for.
+    #[staticmethod]
+    #[pyo3(signature = (slot, tint = None))]
+    fn from_theme_slot(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::Color::from_theme_slot(slot.into(), tint))
     }
 
     /// The system foreground/background colour, whatever that is at render time.
@@ -1811,6 +1822,15 @@ impl PatternFillSpec {
     #[staticmethod]
     fn solid(hex: &str) -> Self {
         Self(ooxml::PatternFillSpec::solid(hex))
+    }
+
+    /// A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+    /// this one unless the colour itself is the point: a hex literal survives into a document whose
+    /// owner has rebranded everything around it.
+    #[staticmethod]
+    #[pyo3(signature = (slot, tint = None))]
+    fn solid_from_theme(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::PatternFillSpec::solid_from_theme(slot.into(), tint))
     }
 
     /// `@patternType`.

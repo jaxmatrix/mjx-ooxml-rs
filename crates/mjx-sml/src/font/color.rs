@@ -25,7 +25,10 @@
 //! spreadsheet colour type in this workspace, shared by a rich-text run's `color` here and by
 //! everything `styles.xml` colours in MJXOFF-105 — fonts, fills, borders and the tab colour.
 
+use mjx_dml::ColorSchemeSlot;
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement, RawName, RawNode};
+
+use crate::styles::theme_color_position;
 
 use super::value::write_qualified_name;
 
@@ -116,16 +119,23 @@ impl Color {
 
     /// A theme colour by index, optionally tinted.
     ///
-    /// **This is the constructor to reach for, and it is the one nobody reaches for.** Every
-    /// convenience in the authoring vocabulary — [`PatternFillSpec::solid`](crate::PatternFillSpec::solid),
-    /// [`ColorScaleSpec::two_color`](crate::ColorScaleSpec::two_color),
-    /// [`DataBarSpec::spanning_the_range`](crate::DataBarSpec::spanning_the_range),
-    /// [`DifferentialFormatSpec::highlight`](crate::DifferentialFormatSpec::highlight) — takes a hex
-    /// literal, so the shortest path pins a colour into a file whose owner may have rebranded it,
-    /// and the theme-following path is the longer one. There is no `solid_theme` beside them
-    /// (MJXOFF-198 §6 F6 asks for one) because a spec's fields are public and the long path is one
-    /// line, and because a Rust-only convenience would be a surface two of the three languages
-    /// could not use:
+    /// `index` is a **position** in `theme1.xml`'s colour scheme, which is what a *file* states —
+    /// so this is the constructor a reader of a file needs. An **author** should reach for
+    /// [`from_theme_slot`](Self::from_theme_slot), which names the slot instead of numbering it.
+    ///
+    /// Until MJXOFF-235 this was the only theme-following constructor in the Excel authoring
+    /// vocabulary, and every convenience beside it took a hex literal — so the shortest path pinned
+    /// a colour into a file whose owner may have rebranded it, and the theme-following path was the
+    /// longer one. The doc comment here argued that a `solid_theme` was unnecessary because a spec's
+    /// fields are public and the long path is one line, and that a Rust-only convenience would be a
+    /// surface two of the three languages could not use. **The second half answered itself**:
+    /// `CLAUDE.md`'s rule is that when the facade grows a method both bindings grow it, so the
+    /// convenience is not Rust-only. Each of the four now has a theme-taking sibling —
+    /// [`PatternFillSpec::solid_from_theme`](crate::PatternFillSpec::solid_from_theme),
+    /// [`ColorScaleSpec::two_color_from_theme`](crate::ColorScaleSpec::two_color_from_theme),
+    /// [`DataBarSpec::spanning_the_range_from_theme`](crate::DataBarSpec::spanning_the_range_from_theme),
+    /// [`DifferentialFormatSpec::highlight_from_theme`](crate::DifferentialFormatSpec::highlight_from_theme)
+    /// — so the two paths cost one call each and the choice is visible at the call site.
     ///
     /// ```
     /// use mjx_ooxml_types::spreadsheetml::PatternType;
@@ -151,6 +161,32 @@ impl Color {
             tint,
             ..Self::default()
         }
+    }
+
+    /// A theme colour by **slot**, optionally tinted — [`from_theme`](Self::from_theme) with the
+    /// position spelled out.
+    ///
+    /// `4` is `accent1` only to a reader with §20.1.6.2 open, and this project's rule is that a
+    /// public identifier should not need the spec. So this is the constructor an *author* reaches
+    /// for, and [`from_theme`](Self::from_theme) is the one a *reader* of a file needs, where the
+    /// position is what the file states and may be one the twelve-slot table does not name.
+    ///
+    /// The slot is DrawingML's [`ColorSchemeSlot`], deliberately: a workbook colour and a shape
+    /// colour naming the same slot resolve to the same RGB, which is what
+    /// `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot` pins.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::Color;
+    ///
+    /// // "Accent 1, 25% darker" — the workbook's own accent, whatever the opener rebrands it to.
+    /// let shaded = Color::from_theme_slot(ColorSchemeSlot::Accent1, Some(-0.25));
+    /// assert_eq!(shaded, Color::from_theme(4, Some(-0.25)));
+    /// ```
+    #[must_use]
+    pub fn from_theme_slot(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self::from_theme(theme_color_position(slot), tint)
     }
 
     /// Whether this colour says nothing at all — every attribute absent.

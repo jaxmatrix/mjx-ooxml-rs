@@ -302,6 +302,15 @@ def test_bounds_transforms_and_geometry(deck: Deck) -> None:
     )
     assert adjustments and adjustments[0].spec.wire_name == "adj"
 
+    # The writing half, in the reader's own vocabulary: a wire name and a value in spec units.
+    # `12_345` is not a value the typed `Fraction` path would produce from a round ratio, so a
+    # method wired to `set_shape_geometry` could not leave it there.
+    deck.set_shape_adjustments(0, shape, [("adj", 12_345)])
+    restated = deck.shape_adjustments(
+        0, shape, GuideContext.from_extents(Emu.from_inches(4), Emu.from_inches(1))
+    )
+    assert restated[0].value == pytest.approx(12_345)
+
 
 def test_an_angle_adjustment_is_refused_where_a_proportion_was_wanted() -> None:
     """The preset table keeps the units: an `Angle` cannot stand in for a `Fraction`."""
@@ -668,3 +677,29 @@ def test_a_colour_transform_reaches_the_file_and_comes_back(deck: Deck) -> None:
     assert [transform.kind for transform in fill.color.transforms] == [
         ColorTransformKind.Tint
     ]
+
+
+def test_the_three_types_nothing_used_to_produce(deck: Deck) -> None:
+    """MJXOFF-228: `ResolvedColor`, `TableStyleFlags` and `Backdrop`.
+
+    All three were exported by this module and returned, taken and constructed by nothing — so a
+    caller could name the type and never obtain a value of it. `Backdrop` was not even on the
+    ticket; `xtask/tests/facade_curation.rs`'s `every_exported_class_is_obtainable_from_some_other_call`
+    is what found it, and is what stops a fourth appearing.
+    """
+    accent = deck.resolved_scheme_color(0, SchemeColor.Accent1)
+    assert accent is not None
+    assert accent.to_hex() == "4472C4"
+    assert accent.alpha == 1.0
+    # `phClr` is not a scheme colour; it is what a style reference substitutes.
+    assert deck.resolved_scheme_color(0, SchemeColor.PlaceholderColor) is None
+
+    table = deck.add_table(0, 2, 2, ShapeBounds.from_inches(1, 1, 4, 2))
+    flags = deck.table_style_flags(0, table)
+    assert flags.first_row is True and flags.banded_rows is True
+    assert flags.last_row is False and flags.banded_columns is False
+
+    shape = deck.add_shape(0, PresetShapeType.Rectangle, ShapeBounds.from_inches(1, 4, 2, 1))
+    # A scene this library authors states no backdrop, so the answer is `None` — the point is that
+    # the call exists and the type is reachable through it.
+    assert deck.shape_backdrop(0, shape) is None

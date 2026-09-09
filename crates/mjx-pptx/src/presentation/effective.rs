@@ -8,9 +8,9 @@ use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
     resolve_line, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
     EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, OnOffStyle,
-    ParagraphPropertiesSpec, ResolvedColor, SchemeColors, TableStyleBorder, TableStyleCellStyle,
-    TableStylePart, TableStyleTextStyle, TextBody, TextFont, TextListStyle, Theme,
-    ThemeableLineStyle, Transform2D,
+    ParagraphPropertiesSpec, ResolvedColor, SchemeColor, SchemeColors, TableStyleBorder,
+    TableStyleCellStyle, TableStylePart, TableStyleTextStyle, TextBody, TextFont, TextListStyle,
+    Theme, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement};
 use mjx_ooxml_types::namespaces::PML;
@@ -913,6 +913,47 @@ impl Presentation {
             }
         }
         Ok(resolved)
+    }
+
+    /// What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+    /// concrete `RRGGBB`.
+    ///
+    /// This is the question a renderer asks and the one a caller asks before pinning a literal:
+    /// *what will `accent1` be in this deck?* It is the two-step every effective reader takes
+    /// internally, exposed as one call — the surface's colour **map** turns the token into a scheme
+    /// slot (`tx1` is `dk1` on one master and `lt1` on another), and the surface's **theme** turns
+    /// the slot into RGB. Reading does not dirty any part.
+    ///
+    /// `None` when the deck cannot answer: `phClr` is not a scheme colour but a placeholder a style
+    /// reference substitutes; a surface with no master in its chain has no colour map; and a theme
+    /// may leave a slot undefined.
+    ///
+    /// The alpha of what comes back is always `1.0`. A theme's own slot colour may carry an
+    /// `a:alpha`, but [`SchemeColors`] resolves a scheme to RGB per slot and drops it, so this
+    /// reports the opacity it can stand behind rather than one it guessed.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or a part in the chain is
+    /// malformed.
+    pub fn resolved_scheme_color(
+        &mut self,
+        surface: impl Into<Surface>,
+        color: SchemeColor,
+    ) -> Result<Option<ResolvedColor>, PptxError> {
+        let surface = surface.into();
+        let Some(map) = self.color_map(surface)? else {
+            return Ok(None);
+        };
+        let Some(slot) = map.resolve(color) else {
+            return Ok(None);
+        };
+        let scheme = self.resolved_scheme_colors(surface)?;
+        Ok(scheme.rgb(slot).map(|[red, green, blue]| ResolvedColor {
+            red,
+            green,
+            blue,
+            alpha: 1.0,
+        }))
     }
 
     /// The surface's theme color scheme, resolved to concrete RGB — the interner-free bridge every
