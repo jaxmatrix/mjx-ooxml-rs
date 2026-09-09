@@ -268,7 +268,7 @@ a written reason beside every asymmetry and a test that fails when the table and
 
 ### Examples
 
-Forty-three runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
+Forty-four runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
 measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
 it**, because an example that only produced a file would prove nothing. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
@@ -317,6 +317,7 @@ cargo run -p mjx-ooxml --example guide_an_index_out_of_range
 cargo run -p mjx-ooxml --example guide_addressing_a_document
 cargo run -p mjx-ooxml --example guide_addressing_a_workbook
 cargo run -p mjx-ooxml --example guide_authoring_from_nothing
+cargo run -p mjx-ooxml --example guide_branching_on_an_error_code
 cargo run -p mjx-ooxml --example guide_detecting_a_format
 cargo run -p mjx-ooxml --example guide_downcasting_to_the_typed_cause
 cargo run -p mjx-ooxml --example guide_one_authoring_vocabulary

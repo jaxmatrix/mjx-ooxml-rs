@@ -29,10 +29,17 @@ mapping is by *what the caller should do*, not by which crate raised it.
 [`ErrorCode::as_str`] gives each one a stable spelling, which is what the two bindings key their own
 exception classes on.
 
-```
+**The three differ in shape here**, in two ways at once: an [`ErrorCode`] is an enumeration, eleven
+exception classes and eleven strings; and a [`CellInput`] passed to [`CellWrite::new`] becomes a
+static [`CellWrite`] constructor per kind in both bindings. Neither difference changes what is
+being asked — three refusals, and a workbook still untouched. See
+[Where the three languages differ in shape](crate::guide#where-the-three-languages-differ-in-shape).
+
+<!-- guide-example: branching_on_an_error_code rust -->
+```rust
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use mjx_ooxml::{CellInput, CellWrite, ErrorCode, Workbook};
 
-# fn main() -> Result<(), mjx_ooxml::Error> {
 let mut workbook = Workbook::blank()?;
 
 // An address that does not parse: refused before the worksheet is even opened.
@@ -48,15 +55,96 @@ let unrepresentable = workbook
 assert_eq!(unrepresentable.code(), ErrorCode::InvalidArgument);
 
 // A tab that is not there.
-let missing = workbook.read_range(9, "A1").expect_err("there is one sheet");
+let missing = workbook.read_range(9, "A1").expect_err("one sheet");
 assert_eq!(missing.code(), ErrorCode::IndexOutOfRange);
 assert_eq!(missing.detail().index, Some(9));
 
-// Nothing was written by any of the three.
+// And the contract worth knowing: a batch that would fail halfway is refused before the
+// package is touched at all, so nothing above wrote anything.
 assert!(workbook.read_sheet(0)?.is_empty());
 # Ok(())
 # }
 ```
+<!-- guide-example end -->
+
+<!-- guide-example: branching_on_an_error_code python -->
+```python
+from mjx_ooxml import CellWrite, IndexOutOfRangeError, InvalidArgumentError, Workbook
+
+workbook = Workbook.blank()
+
+# An address that does not parse: refused before the worksheet is even opened.
+try:
+    workbook.write_cells(0, [CellWrite.number("not-a-cell", 1.0)])
+    raise AssertionError("`not-a-cell` is not an A1 reference")
+except InvalidArgumentError as failure:
+    assert failure.code == "InvalidArgument"
+
+# A value SpreadsheetML has no spelling for.
+try:
+    workbook.write_cells(0, [CellWrite.number("A1", float("nan"))])
+    raise AssertionError("SpreadsheetML cannot spell NaN")
+except InvalidArgumentError as failure:
+    assert failure.code == "InvalidArgument"
+
+# A tab that is not there.
+try:
+    workbook.read_range(9, "A1")
+    raise AssertionError("there is one sheet")
+except IndexOutOfRangeError as failure:
+    assert failure.index == 9
+
+# And the contract worth knowing: a batch that would fail halfway is refused before the
+# package is touched at all, so nothing above wrote anything.
+assert workbook.read_sheet(0).is_empty
+```
+<!-- guide-example end -->
+
+<!-- guide-example: branching_on_an_error_code js -->
+```js
+import { CellWrite, Workbook } from "@mjx/ooxml";
+
+/** The code a call raised, or `undefined` if it did not raise. */
+function codeOf(call) {
+  try {
+    call();
+  } catch (raised) {
+    return raised.code;
+  }
+  return undefined;
+}
+
+const workbook = Workbook.blank();
+
+// An address that does not parse: refused before the worksheet is even opened.
+const badAddress = codeOf(() => workbook.writeCells(0, [CellWrite.number("not-a-cell", 1.0)]));
+if (badAddress !== "InvalidArgument") {
+  throw new Error("`not-a-cell` is not an A1 reference");
+}
+
+// A value SpreadsheetML has no spelling for.
+const unrepresentable = codeOf(() => workbook.writeCells(0, [CellWrite.number("A1", NaN)]));
+if (unrepresentable !== "InvalidArgument") {
+  throw new Error("SpreadsheetML cannot spell NaN");
+}
+
+// A tab that is not there.
+if (codeOf(() => workbook.readRange(9, "A1")) !== "IndexOutOfRange") {
+  throw new Error("there is one sheet");
+}
+
+// And the contract worth knowing: a batch that would fail halfway is refused before the
+// package is touched at all, so nothing above wrote anything.
+const sheet = workbook.readSheet(0);
+if (!sheet.isEmpty) {
+  throw new Error("three refusals wrote nothing");
+}
+
+// a wasm handle owns memory the garbage collector cannot see
+sheet.free();
+workbook.free();
+```
+<!-- guide-example end -->
 
 That last assertion is the contract worth knowing: **a batch that would fail halfway is refused
 before the package is touched at all.** Every reference in a [`Workbook::write_cells`] call is parsed
