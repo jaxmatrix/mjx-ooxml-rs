@@ -60,6 +60,103 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.161] - 2026-09-10
+
+### The small residues, drained (H17)
+
+Seven work items filed by the units that could have hidden them. Two of them turned out to be about
+something other than what they said, and the correction is the finding.
+
+#### The guide's `python` and `js` blocks are documents too (MJXOFF-256, MJXOFF-263)
+
+`xtask/tests/doc_gate.rs` dropped every fenced block before it looked for a claim, on a reason that
+is right for a Rust doctest and was never right for anything else: a `python` or `js` block is
+*run* by its binding's harness, which exercises its calls and says nothing about the paths its
+comments name. A fence is now dropped exactly when rustdoc compiles it.
+
+The corpus also grows two languages. `.py` and `.mjs` files carry comments; those comments are
+documents; every half of every guide example opens with a header naming its guide page, its Rust
+sibling and its harness **by path**, and none of it resolved against anything. Since a committed
+block is a byte-copy of a region of one of those files, checking the file checks the block.
+`.pyi` stays out: since MJXOFF-234 its docstrings are generated from `///` comments this gate
+already reads as Rust.
+
+Found on its first run: `bindings/mjx-python/tests/test_build_a_deck.py` named the JavaScript
+walkthrough as `tests/node/build_a_deck.mjs`, which resolves under `bindings/mjx-python/`.
+
+`xtask/tests/guide_examples.rs` gains the rule H12 suggested, stated over all three languages
+rather than over "not Rust": every block the facade guide shows in Rust, Python or JavaScript is a
+copy of a file a runner executes. It holds today with no edits; what it stops is the twentieth block
+written straight into a page.
+
+#### An example declares the packages it offers, and both are compared (MJXOFF-262, MJXOFF-260)
+
+Two facts about a guide example were inferred, and both inferences were wrong in a way nothing could
+see. *Whether* it produces a package was decided by looking for a binding named `saved`, so an
+example whose binding had been deleted was indistinguishable from one of the seven that genuinely
+produce none — and more than a third of the corpus took a skip path nobody read. *How many* it
+offers was one, and two examples author two, so the second package's bytes were compared by nothing
+and the choice of which to offer was explained in prose.
+
+Both are one statement now: every Rust half carries a `guide-example:packages` line naming the
+bindings it offers, or the word `none`, and the gate holds all three halves to the statement rather
+than to each other. `the_same_chart_on_all_three` offers the deck and the Word document;
+`one_authoring_vocabulary` offers the workbook and the deck. The Node harness has no skip left in it
+at all.
+
+#### `docProps/app.xml` is not provenance, and two fixtures prove it (MJXOFF-249)
+
+The ticket names `comments_third_party.xlsx` as the only fixture claiming Microsoft authorship.
+`charts.pptx` is a second: it carries `Microsoft Macintosh PowerPoint` and is python-pptx's template
+deck, which its own `docProps/core.xml` says in words. **The trap had already sprung** —
+`crates/mjx-pptx/tests/charts.rs` stated in a live doc comment that that deck was written by
+PowerPoint, and `crates/mjx-ooxml/tests/preservation/deck_cases.rs` drew a conclusion about what
+PowerPoint writes from its markup. Both are corrected.
+
+`xtask/tests/fixture_provenance.rs` asserts a negative against a ledger and classifies nothing: no
+fixture's `Application` may name Microsoft unless a person has written down how the file reached
+this repository. A gate that read the element and decided who wrote a file would build the inference
+the rule forbids and would have been wrong about both rows on its first run.
+
+#### The preset table style families come off ECMA's own markup (MJXOFF-250)
+
+`BuiltInTableStyleFamily`'s six prefixes and six bounds are compared against
+`presetTableStyles.xml`'s 144 published names in three directions — every name parses and writes
+back unchanged, every bound is the largest number its family reaches with no gap from 1, and one
+past a bound is refused and absent from the artefact. A seventh family variant fails to compile
+against the exhaustive match that enumerates them.
+
+#### A VML wrapper's child order, measured rather than assumed (MJXOFF-264)
+
+The ticket's premise — that per-child validation is "blind to sequence by construction" — is false.
+Handing a child to `xmllint` as a standalone document applies its content model rather than removing
+it, and a `v:shapetype` that writes `o:complex` before its shape elements fails validation today.
+The order of everything *inside* a wrapper's children has been audited since MJXOFF-245. What is
+left is the order of the wrapper's own children, and `<xml>` is a Microsoft convention that no
+schema in either pinned tree declares — it has no content model to be out of. Both halves are
+checked in `crates/mjx-schema-gate/tests/wrapper_child_order.rs`; the five pages that cited this
+ticket as an open gap now say what was measured.
+
+#### `SURFACES` is held to the facade handle population (MJXOFF-252, item 1)
+
+The known instance of the roster shape `derived_rosters.rs` cannot see, closed the way the ticket
+preferred: derived in place, through `xtask::facade_surface`, which both test binaries call rather
+than walking `crates/mjx-ooxml/src` twice. The ticket's second item — a `BasePopulation` for the
+enumerable things nobody has named — stays open.
+
+### Left open, with the measurement
+
+**MJXOFF-242** (`Package::part_bytes`). Both of its candidate closures are sized very differently
+from what it believes. It records fifty-three sites converted and "the only callers left are
+`mjx-opc`'s own round-trip suites, five `#[cfg(test)]` assertions and three guide pages"; the
+measurement today is **314 call sites in 83 files** outside `mjx-opc`, of which **10** are under a
+`src/` directory and four of those are `#[cfg(test)]`. A CI grep would need an exemption list of
+three hundred rows; the rename is a breaking change across the same three hundred and belongs in the
+`0.1.0` table. What *is* narrow is the misreading itself — **15** sites combine `part_bytes` with
+`is_none()`/`is_some()`, every one of them in a test — but the shape that would actually reintroduce
+the defect is a library site branching on `None`, and no lexical rule separates that from a site
+asking for the bytes. Recorded on the ticket rather than closed by a rule that would not catch it.
+
 ## [0.0.160] - 2026-09-10
 
 ### Two gaps that were classes rather than instances (MJXOFF-265, MJXOFF-266, H16)
