@@ -19,6 +19,14 @@
 //! not a text rendering of them. Nothing else re-derives that crate, so without a test there is no
 //! moment at which a generator defect stops being invisible.
 //!
+//! [`guide_examples`] joined it with MJXOFF-254, and for the third instance of the same reason:
+//! `xtask/tests/guide_examples.rs` asks whether the code blocks committed in the guide are copies
+//! of the files the three test runners execute, and it is written against [`Language`], the marker
+//! constants and the extractor themselves rather than against a text rendering of them. A gate that
+//! re-implemented the extraction would be comparing a second extractor to the first.
+//!
+//! [`Language`]: guide_examples::Language
+//!
 //! `fuzz` and `corpus` stay private to the binary. `fuzz` must: moving it would move the campaign's
 //! `#[global_allocator]` into every `xtask` test binary along with it.
 //!
@@ -26,4 +34,5 @@
 //! the cross-build matrix, so a library target here widens nothing.
 
 pub mod codegen;
+pub mod guide_examples;
 pub mod validation;

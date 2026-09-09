@@ -87,6 +87,25 @@ The `schema-validity (ECMA-376 XSDs)` CI job sets `MJX_REQUIRE_SCHEMA=1`, so in 
 a missing `xmllint` is a hard failure and this coverage can never silently skip. **A new authoring
 path gets a case in that file**, or nothing checks the markup it emits.
 
+### Guide examples are copied, never typed
+
+A code block in the facade guide that shows Python or JavaScript is **a copy of a file a test runner
+executes**, not a transcription. Each example is three files — `crates/mjx-ooxml/examples/guide_<name>.rs`,
+`bindings/mjx-python/tests/guide_examples/<name>.py` and
+`bindings/mjx-wasm/tests/node/guide_examples/<name>.mjs` — each with a `guide-example:start` /
+`guide-example:end` region, and the guide holds markers where the blocks go:
+
+```sh
+cargo run -p xtask -- guide-examples           # copy every region into the block that marks it
+cargo run -p xtask -- guide-examples --check   # write nothing; say whether the blocks are current
+```
+
+The committed output is what ships, exactly as for `mjx-ooxml-types`; there is no `build.rs`.
+`xtask/tests/guide_examples.rs` fails when a block has been hand-edited, when an example is missing
+one of its three languages, and when a half stops producing the package the other two compare
+against. **Adding an example means adding three files and three markers**, and then running the
+command — never typing a block into a page.
+
 ### The fuzz campaign
 
 `cargo test` proves the parsers do the right thing with the files we have. It says nothing about the
