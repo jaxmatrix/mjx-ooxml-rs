@@ -11,6 +11,33 @@ weakness no agent can retire — because the value of an Office-authored file is
 provenance, and a file this library wrote and called "PowerPoint-authored" would be a permanent lie
 in the one place there is no other defence against one.
 
+### Provenance is how a file got here, and `docProps/app.xml` does not say (MJXOFF-249)
+
+The sentence above has an obvious-looking shortcut, and it is wrong. `docProps/app.xml` carries an
+`<Application>` element, every Microsoft application writes its own name into it, and a reader
+checking this repository for Office provenance would naturally grep for that. **Two committed
+fixtures answer, and neither was written by Microsoft:**
+
+| Fixture | Claims | Actually written by |
+|---|---|---|
+| `tests/fixtures/charts.pptx` | `Microsoft Macintosh PowerPoint` 14.0000 | python-pptx — its own `docProps/core.xml` says `generated using python-pptx` |
+| `tests/fixtures/comments_third_party.xlsx` | `Microsoft Excel` 12.0000 | XlsxWriter 3.2.9, which emits that element verbatim as a compatibility measure |
+
+Every element in a file is something a producer *chose* to write, and a producer may choose to write
+somebody else's name. So **provenance is a fact about how a file reached this repository, not about
+its bytes** — it lives in the commit that added the file and in the person who ran the application,
+and there is no element that can be read instead.
+
+The repository had already made this mistake before it noticed it: `crates/mjx-pptx/tests/charts.rs`
+stated that `charts.pptx` *was written by PowerPoint*, and
+`crates/mjx-ooxml/tests/preservation/deck_cases.rs` drew a conclusion about what PowerPoint writes
+from that file's markup. Both were corrected under MJXOFF-249, and
+`xtask/tests/fixture_provenance.rs` is what stops the next one: no fixture's `Application` element
+may name Microsoft unless a person has written down, in that file's ledger, how the file actually
+got here. The gate asserts that negative and classifies nothing — a gate that read the element and
+decided who wrote a file would be building the very inference this section forbids, and would have
+been wrong about both rows above on its first run.
+
 ---
 
 ## 1 · Before you sit down
