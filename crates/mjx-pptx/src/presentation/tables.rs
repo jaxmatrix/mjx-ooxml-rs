@@ -550,6 +550,28 @@ impl Presentation {
         })
     }
 
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts
+    /// of its style (`firstRow`, `bandRow`, …) it asks to be emphasised.
+    ///
+    /// [`table_part`](Self::table_part) answers one flag; this answers all six at once, which is
+    /// what a caller deciding how to *draw* the table needs, because
+    /// [`applicable_parts`](mjx_dml::applicable_parts) takes the whole set. Reading does not dirty
+    /// the part.
+    ///
+    /// A table declaring no `a:tblPr` at all has every flag off.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn table_style_flags(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<TableStyleFlags, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            Ok(table_flags(table, interner))
+        })
+    }
+
     /// The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or
     /// `None` if it names none. Reading does not dirty the part.
     ///

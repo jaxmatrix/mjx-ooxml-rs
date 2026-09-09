@@ -72,8 +72,8 @@ use crate::content::{
 };
 use crate::enums::{
     ActiveXPersistence, AxisOrientation, CellBorder, ChartKind, DiagramPartKind, GraphicFrameKind,
-    LegendPosition, PlaceholderType, PresetShapeType, ShapeKind, SlideLayoutKind, TablePart,
-    TableStylePart, TargetMode, TextAnchoring, TextDirection,
+    LegendPosition, PlaceholderType, PresetShapeType, SchemeColor, ShapeKind, SlideLayoutKind,
+    TablePart, TableStylePart, TargetMode, TextAnchoring, TextDirection,
 };
 use crate::errors::map_error;
 use crate::format::Format;
@@ -81,11 +81,11 @@ use crate::geometry::{
     BoundedAdjustment, CellMargins, Geometry, GuideContext, ShapeBounds, SlideSize, Transform2D,
 };
 use crate::measures::{Emu, IndentLevel};
-use crate::paint::{ColorMap, EffectListSpec, FillSpec, LineSpec};
+use crate::paint::{ColorMap, EffectListSpec, FillSpec, LineSpec, ResolvedColor};
 use crate::support::{invalid_argument, str_list};
-use crate::tables::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
+use crate::tables::{CellFormat, Cells, TableStyleDefinition, TableStyleFlags, TableStyleFormat};
 use crate::text::{CharacterPropertiesSpec, ParagraphPropertiesSpec, ThemeInfo};
-use crate::three_d::{Scene3DSpec, Shape3DSpec};
+use crate::three_d::{Backdrop, Scene3DSpec, Shape3DSpec};
 
 /// How many rows and columns something spans.
 ///
@@ -415,6 +415,57 @@ impl Deck {
                 .shape_scene_3d(surface_of(surface)?, path_of(shape_idx)?),
         )
         .map(|value| value.map(Scene3DSpec))
+    }
+
+    /// The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+    /// (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+    /// backdrop — which almost every scene is. It is read separately from `shape_scene_3d` because a
+    /// scene rebuilt from a `Scene3DSpec` drops what the spec does not carry: the backdrop survives
+    /// an edit by staying verbatim, and this is how a caller sees what is being preserved.
+    #[wasm_bindgen(js_name = "shapeBackdrop")]
+    pub fn shape_backdrop(
+        &mut self,
+        surface: &SurfaceArg,
+        shape_idx: &ShapePathArg,
+    ) -> Result<Option<Backdrop>, JsValue> {
+        map_error(
+            self.inner
+                .shape_backdrop(surface_of(surface)?, path_of(shape_idx)?),
+        )
+        .map(|value| value.map(Backdrop))
+    }
+
+    /// What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+    /// concrete `RRGGBB`: the surface's colour map turns the token into a scheme slot and its theme
+    /// turns the slot into RGB. `None` for `SchemeColor.PlaceholderColor`, for a surface with no
+    /// master in its chain, and for a slot the theme leaves undefined. The alpha is always `1.0`.
+    #[wasm_bindgen(js_name = "resolvedSchemeColor")]
+    pub fn resolved_scheme_color(
+        &mut self,
+        surface: &SurfaceArg,
+        color: SchemeColor,
+    ) -> Result<Option<ResolvedColor>, JsValue> {
+        map_error(
+            self.inner
+                .resolved_scheme_color(surface_of(surface)?, color.into()),
+        )
+        .map(|value| value.map(ResolvedColor))
+    }
+
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts
+    /// of its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers one
+    /// flag; this answers all six at once.
+    #[wasm_bindgen(js_name = "tableStyleFlags")]
+    pub fn table_style_flags(
+        &mut self,
+        surface: &SurfaceArg,
+        shape_idx: &ShapePathArg,
+    ) -> Result<TableStyleFlags, JsValue> {
+        map_error(
+            self.inner
+                .table_style_flags(surface_of(surface)?, path_of(shape_idx)?),
+        )
+        .map(TableStyleFlags)
     }
 
     /// Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free `Scene3DSpec`,

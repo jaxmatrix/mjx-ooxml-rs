@@ -829,3 +829,63 @@ fn assigning_a_table_style_leaves_the_extension_beside_it_byte_identical() {
         String::from_utf8_lossy(&after)
     );
 }
+
+/// Every emphasis flag in one read (MJXOFF-228), and the six kept apart.
+///
+/// `TableStyleFlags` was exported by the facade and by both bindings and produced by nothing, so a
+/// caller in three languages could name the type and never obtain a value. `table_part` answers one
+/// flag at a time; `applicable_parts` — the call that decides what a table actually *draws* — takes
+/// all six at once, and this is where they come from.
+///
+/// The six are booleans, so they cannot be told apart by giving them six distinct values. They are
+/// turned on **one at a time** instead, and every other one is required to stay off, which is what
+/// catches a reader crossing `first_column` with `first_row` or `banded_rows` with `banded_columns`.
+#[test]
+fn the_six_emphasis_flags_are_read_together_and_never_confused() {
+    let (mut pres, table) = deck_with_table();
+
+    // `add_table` is born with two on (MJXOFF-232), so start from a known state.
+    for part in [TablePart::FirstRow, TablePart::BandedRows] {
+        pres.set_table_part(0, table, part, false).expect("clear");
+    }
+    let none_on = pres.table_style_flags(0, table).expect("read");
+    assert_eq!(none_on, mjx_dml::TableStyleFlags::default());
+
+    /// One emphasis flag: the part that turns it on, and the field it must show up in.
+    type Flag = (TablePart, fn(&mjx_dml::TableStyleFlags) -> bool);
+    let each: [Flag; 6] = [
+        (TablePart::FirstRow, |flags| flags.first_row),
+        (TablePart::LastRow, |flags| flags.last_row),
+        (TablePart::FirstColumn, |flags| flags.first_column),
+        (TablePart::LastColumn, |flags| flags.last_column),
+        (TablePart::BandedRows, |flags| flags.banded_rows),
+        (TablePart::BandedColumns, |flags| flags.banded_columns),
+    ];
+    for (part, _) in each {
+        pres.set_table_part(0, table, part, true).expect("set");
+        let flags = pres.table_style_flags(0, table).expect("read");
+        for (other, read) in each {
+            assert_eq!(
+                read(&flags),
+                other == part,
+                "{part:?} on: {other:?} read {}",
+                read(&flags)
+            );
+        }
+        pres.set_table_part(0, table, part, false).expect("clear");
+    }
+
+    // And the whole set at once, which is the shape `applicable_parts` takes.
+    for (part, _) in each {
+        pres.set_table_part(0, table, part, true).expect("set");
+    }
+    let all = pres.table_style_flags(0, table).expect("read");
+    assert!(
+        all.first_row
+            && all.last_row
+            && all.first_column
+            && all.last_column
+            && all.banded_rows
+            && all.banded_columns
+    );
+}

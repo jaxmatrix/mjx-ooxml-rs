@@ -520,3 +520,201 @@ fn every_method_left_behind_by_the_facade_is_on_the_ledger() {
 
     println!("facade curation ledger:\n{}", printed.join("\n"));
 }
+
+// ===============================================================================================
+// The type-level half of the same question (MJXOFF-228)
+// ===============================================================================================
+
+/// The committed Python stub — the one machine-readable statement of the whole projected surface.
+const PYTHON_STUB: &str = "bindings/mjx-python/python/mjx_ooxml/__init__.pyi";
+
+/// Classes that are **not** obtainable from another call, with the reason.
+///
+/// The only category is the exception hierarchy. An exception is obtained by being *raised*, which
+/// is a producer no signature mentions, and `bindings/mjx-python/tests/test_errors.py` is what
+/// exercises them. Nothing else belongs here: a value class that cannot be obtained is the defect
+/// this file is written against, not an entry to be added.
+const UNOBTAINABLE_BY_DESIGN: &[(&str, &str)] = &[
+    ("OoxmlError", "raised, never returned — the base of the hierarchy"),
+    ("IoError", "raised, never returned"),
+    ("MalformedDocumentError", "raised, never returned"),
+    ("InvalidDocumentError", "raised, never returned"),
+    ("IndexOutOfRangeError", "raised, never returned"),
+    ("WrongKindError", "raised, never returned"),
+    ("NotFoundError", "raised, never returned"),
+    ("NothingToReadError", "raised, never returned"),
+    ("InvalidArgumentError", "raised, never returned"),
+    ("StructureConflictError", "raised, never returned"),
+    ("UnsupportedContentError", "raised, never returned"),
+    ("UnsupportedFormatError", "raised, never returned"),
+];
+
+/// The floor on how many classes the stub declares, stated as *the walk is still matching*.
+const STUB_CLASS_FLOOR: usize = 250;
+
+/// The floor on how many non-documentation lines the walk reads.
+const STUB_CODE_LINE_FLOOR: usize = 2_000;
+
+/// **Is every exported value class obtainable from some other call?** — the type-level form of the
+/// reachability rule (MJXOFF-228).
+///
+/// # The hole this closes
+///
+/// `every_method_left_behind_by_the_facade_is_on_the_ledger` above is a ledger of **methods**. A
+/// type with no producer is a shape it was never asked to look for, and the audit found three:
+/// `mjx_ooxml::ResolvedColor`, `mjx_ooxml::TableStyleFlags` and `mjx_ooxml::Backdrop` were exported
+/// by the facade and by **both** bindings, and returned, taken and constructed by nothing in any of
+/// the three — so a caller in three languages could name a type and never obtain a value of it.
+/// MJXOFF-228 named the first two; `Backdrop` is this gate's own find, and is why it exists as a
+/// sweep rather than as two assertions.
+///
+/// # Why it reads the Python stub, and why that is not the signature parser the projection gate
+/// refused to write
+///
+/// `xtask/tests/binding_projection.rs`'s header says the type graph needs *"a signature parser over
+/// two hand-written crates, and a signature parser that is subtly wrong is worse than none"*. That
+/// is right, and it is avoided rather than argued with: **the signature file already exists.**
+/// `bindings/mjx-python/python/mjx_ooxml/__init__.pyi` is committed, is checked against the compiled
+/// module in both directions by `test_stub_parity.py`, and is checked by `mypy --strict`. Reading it
+/// is reading a declaration, not reconstructing one.
+///
+/// And the reading is deliberately the weakest one that answers the question. It parses **nothing**
+/// — no parentheses, no annotations, no line continuations, none of the 31 wrapped `def`s. It asks
+/// only: *does this class's name appear anywhere in the stub outside a docstring and outside its own
+/// `class` header?* A name that appears **nowhere** is exact — no signature can mention a name that
+/// is absent from every line — and that is the direction this asserts, which is the same asymmetry
+/// `binding_projection.rs` states about its own measure. A name that *does* appear is only evidence,
+/// and the gate takes it at face value; the cost of that is a false green, never a false red.
+///
+/// The answer is the same in all three languages, which is why this sits here and not in a binding:
+/// the Python mapping is the identity, and the wasm binding projects the same facade method by
+/// method.
+#[test]
+fn every_exported_class_is_obtainable_from_some_other_call() {
+    let stub = std::fs::read_to_string(repository_root().join(PYTHON_STUB))
+        .unwrap_or_else(|error| panic!("reading {PYTHON_STUB}: {error}"));
+
+    let mut declared: Vec<String> = Vec::new();
+    let mut mentioned: BTreeSet<String> = BTreeSet::new();
+    let mut code_lines = 0usize;
+    let mut inside_docstring = false;
+
+    for line in stub.lines() {
+        let trimmed = line.trim();
+        // Documentation is prose, and prose naming a class is not a way to obtain one.
+        if inside_docstring {
+            if trimmed.ends_with("\"\"\"") {
+                inside_docstring = false;
+            }
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("\"\"\"") {
+            // A one-line docstring opens and closes on the same line.
+            if !rest.ends_with("\"\"\"") || rest.len() < 3 {
+                inside_docstring = true;
+            }
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        // A `class X:` header *declares*; it never produces, so it is not evidence for anything.
+        if let Some(rest) = line.strip_prefix("class ") {
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() {
+                declared.push(name);
+            }
+            continue;
+        }
+        code_lines += 1;
+        for token in identifiers(line) {
+            mentioned.insert(token);
+        }
+    }
+
+    // ---- The floors, before either direction ---------------------------------------------------
+    assert!(
+        declared.len() >= STUB_CLASS_FLOOR,
+        "only {} class(es) were found in {PYTHON_STUB}; the walk has stopped matching, and every \
+         assertion below would pass on almost nothing",
+        declared.len(),
+    );
+    assert!(
+        code_lines >= STUB_CODE_LINE_FLOOR,
+        "only {code_lines} non-documentation line(s) were read from {PYTHON_STUB}; the docstring \
+         skip has swallowed the file, and every class would look unobtainable"
+    );
+
+    let ledger: BTreeMap<&str, &str> = UNOBTAINABLE_BY_DESIGN.iter().copied().collect();
+    assert_eq!(
+        ledger.len(),
+        UNOBTAINABLE_BY_DESIGN.len(),
+        "the ledger names the same class twice"
+    );
+
+    let orphans: Vec<&String> = declared
+        .iter()
+        .filter(|name| !mentioned.contains(*name))
+        .collect();
+
+    // ---- Direction 1: every orphan is on the ledger ---------------------------------------------
+    let unrecorded: Vec<&str> = orphans
+        .iter()
+        .map(|name| name.as_str())
+        .filter(|name| !ledger.contains_key(name))
+        .collect();
+    assert!(
+        unrecorded.is_empty(),
+        "{} exported class(es) are named by no signature anywhere, so a caller can name the type \
+         and never obtain a value of it:\n  {}\n\nEach is either a type whose producer should be \
+         projected onto the facade (and then onto both bindings), or an export to remove — which \
+         is a breaking change to three surfaces and belongs in the `0.1.0` table. \
+         `mjx_ooxml::ResolvedColor`, `TableStyleFlags` and `Backdrop` were the first three \
+         (MJXOFF-228).",
+        unrecorded.len(),
+        unrecorded.join("\n  "),
+    );
+
+    // ---- Direction 2: the ledger names nothing that is no longer an orphan -----------------------
+    let stale: Vec<&str> = ledger
+        .keys()
+        .copied()
+        .filter(|name| !orphans.iter().any(|orphan| orphan.as_str() == *name))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "the ledger names {} class(es) that are now obtainable, or that the stub no longer \
+         declares:\n  {}",
+        stale.len(),
+        stale.join("\n  "),
+    );
+
+    println!(
+        "exported classes obtainable from some other call: {} of {} declared in {PYTHON_STUB} \
+         ({} on the ledger, all of them raised rather than returned), over {code_lines} \
+         non-documentation line(s)",
+        declared.len() - orphans.len(),
+        declared.len(),
+        orphans.len(),
+    );
+}
+
+/// Every Python identifier in `line`, which is every token the scan treats as evidence.
+fn identifiers(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for character in line.chars() {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            current.push(character);
+        } else if !current.is_empty() {
+            out.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
+}

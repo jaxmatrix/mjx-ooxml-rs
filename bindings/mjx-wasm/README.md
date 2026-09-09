@@ -67,7 +67,7 @@ Node supports and currently prints an experimental warning for.
 
 ## What you get
 
-* **The whole PowerPoint surface** — 256 methods on `Deck`: slides, shapes, groups, text, runs,
+* **The whole PowerPoint surface** — 259 methods on `Deck`: slides, shapes, groups, text, runs,
   paragraphs, hyperlinks, fills, outlines, effects, 3-D, geometry, tables, cells, charts, chart
   decoration, pictures, media, notes, SmartArt, OLE objects, ActiveX controls, ink, and package
   hygiene.

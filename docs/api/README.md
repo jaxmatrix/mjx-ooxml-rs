@@ -182,7 +182,7 @@ someone who has to decide how much of a generated table to trust — the last is
 ## The bindings — `mjx-python`, `mjx-wasm`
 
 One guide set over the two crates that project `mjx-ooxml` onto another language, because they are
-one story told twice: the same 256 `Deck`, 123 `Document` and 138 `Workbook` methods, the same 181
+one story told twice: the same 259 `Deck`, 123 `Document` and 138 `Workbook` methods, the same 181
 value classes and the same 102 enumerations, differing in five places the target language forces.
 Hosted by `mjx-python`, with the one page that is about the npm package alone hosted by `mjx-wasm` —
 the arrangement the packaging tier and the upper markup already use, because the two bindings are

@@ -134,3 +134,122 @@ fn reading_theme_keeps_all_parts_byte_identical() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The resolved scheme colour (MJXOFF-228)
+// ---------------------------------------------------------------------------------------------
+
+/// `resolved_scheme_color` answers what a token **paints**, which is not what the theme *states*.
+///
+/// `theme()` above hands back a `ColorSpec` per slot, and two of the twelve are `a:sysClr` — so a
+/// caller asking "what is `tx1`?" gets `Other { kind: System, .. }` and no RGB. This reader is the
+/// one that resolves: it takes the token a shape writes (`a:schemeClr@val`), passes it through the
+/// surface's colour **map** — `tx1` is `dk1` here, and would be `lt1` on an inverted master — and
+/// then through the theme.
+///
+/// The two steps are asserted apart. `Accent1` exercises the identity path and pins the RGB;
+/// `Text1` exercises the map, and is the case a reader that skipped the map would fail, because
+/// `tx1` and `dk1` are different tokens naming the same colour only *because the map says so*.
+#[test]
+fn a_scheme_token_resolves_through_the_map_and_the_theme() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let before = byte_map(&Package::open(&fixture("sample.pptx")).expect("baseline"));
+
+    let accent = pres
+        .resolved_scheme_color(0, SchemeColor::Accent1)
+        .expect("resolving")
+        .expect("the theme defines accent1");
+    assert_eq!(accent.to_hex(), "4472C4", "the Office theme's own accent 1");
+    assert!((accent.alpha - 1.0).abs() < f64::EPSILON);
+
+    // `tx1` is a *mapped* token: the master's `p:clrMap` sends it to `dk1`, which this fixture
+    // states as an `a:sysClr` whose `lastClr` is black. Reading the slot directly under the name
+    // `Dark1` must agree, and a resolver that ignored the map would answer for the wrong slot.
+    let text = pres
+        .resolved_scheme_color(0, SchemeColor::Text1)
+        .expect("resolving")
+        .expect("the map sends tx1 to a slot the theme defines");
+    let dark = pres
+        .resolved_scheme_color(0, SchemeColor::Dark1)
+        .expect("resolving")
+        .expect("dk1 bypasses the map");
+    assert_eq!(text, dark, "tx1 must resolve to what the map sends it to");
+    assert_eq!(text.to_hex(), "000000");
+
+    // `bg1` goes to `lt1`, and must not answer the same as `tx1` — the pair is the one a resolver
+    // that returned a fixed slot would collapse.
+    let background = pres
+        .resolved_scheme_color(0, SchemeColor::Background1)
+        .expect("resolving")
+        .expect("the map sends bg1 to a slot the theme defines");
+    assert_eq!(background.to_hex(), "FFFFFF");
+    assert_ne!(background, text);
+
+    // **And the map is load bearing.** Everything above is also true of a resolver that ignored the
+    // map, because `sample.pptx`'s map is the identity one — so the same two tokens are asked again
+    // of a deck whose master maps them the other way round. `tx1` must now answer white and `bg1`
+    // black, which no fixed slot table can produce.
+    let mut inverted = Presentation::open(&with_an_inverted_color_map()).expect("open");
+    assert_eq!(
+        inverted
+            .resolved_scheme_color(0, SchemeColor::Text1)
+            .expect("resolving")
+            .expect("a slot")
+            .to_hex(),
+        "FFFFFF",
+        "tx1 follows the map, and this master sends it to lt1"
+    );
+    assert_eq!(
+        inverted
+            .resolved_scheme_color(0, SchemeColor::Background1)
+            .expect("resolving")
+            .expect("a slot")
+            .to_hex(),
+        "000000",
+        "bg1 follows the map, and this master sends it to dk1"
+    );
+    // `dk1` names a slot directly and bypasses the map, so it is unmoved by the inversion.
+    assert_eq!(
+        inverted
+            .resolved_scheme_color(0, SchemeColor::Dark1)
+            .expect("resolving")
+            .expect("a slot")
+            .to_hex(),
+        "000000"
+    );
+
+    // `phClr` is not a scheme colour: it is what a style reference substitutes.
+    assert_eq!(
+        pres.resolved_scheme_color(0, SchemeColor::PlaceholderColor)
+            .expect("resolving"),
+        None
+    );
+
+    // And the whole of it is a read.
+    let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    assert_eq!(after, before, "resolving a scheme colour dirtied a part");
+}
+
+/// `sample.pptx` with its master's `p:clrMap` inverted: `bg1` sent to `dk1` and `tx1` to `lt1`.
+///
+/// Every fixture in the corpus carries the identity map, which is the map that makes a resolver
+/// ignoring the map indistinguishable from one honouring it. So this one is authored by hand —
+/// swapping two attributes in the master is the whole of it, and it is a shape real decks take
+/// (an inverted, dark-background master is exactly this).
+fn with_an_inverted_color_map() -> Vec<u8> {
+    let mut package = Package::open(&fixture("sample.pptx")).expect("open");
+    let master =
+        mjx_opc::PartName::new("/ppt/slideMasters/slideMaster1.xml").expect("a literal part name");
+    let bytes = package.part_bytes(&master).expect("the master").to_vec();
+    let markup = String::from_utf8(bytes).expect("the master is utf-8");
+    let inverted = markup.replacen(
+        r#"bg1="lt1" tx1="dk1""#,
+        r#"bg1="dk1" tx1="lt1""#,
+        1,
+    );
+    assert_ne!(inverted, markup, "the fixture's colour map was not found");
+    package
+        .replace_part_bytes(&master, inverted.into_bytes())
+        .expect("replacing the master");
+    package.save_unchecked().expect("saving")
+}

@@ -344,6 +344,12 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .shape_3d_properties(slide, shape.clone())
         .expect("reading")
         .is_some());
+    // MJXOFF-228: `Backdrop` is re-exported, and this is what produces one — `None` here, because
+    // a scene this library authored states no backdrop, but the producer is reachable.
+    assert!(deck
+        .shape_backdrop(slide, shape.clone())
+        .expect("reading")
+        .is_none());
     deck.clear_shape_scene_3d(slide, shape.clone())
         .expect("clearing");
     deck.clear_shape_3d_properties(slide, shape.clone())
@@ -392,6 +398,11 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .expect("writing an adjustment");
 
     // --- effective readers -------------------------------------------------------------------------
+    // MJXOFF-228: `ResolvedColor` is re-exported, and this is what produces one.
+    assert!(deck
+        .resolved_scheme_color(slide, mjx_ooxml::SchemeColor::Accent1)
+        .expect("resolving")
+        .is_some());
     let _ = deck
         .effective_shape_fill(slide, shape.clone())
         .expect("an effective fill");
@@ -462,6 +473,13 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .table_style_id(slide, table.clone())
         .expect("reading")
         .is_some());
+    // MJXOFF-228: the six flags in one read. `TableStyleFlags` is re-exported, and until this
+    // existed nothing on any of the three surfaces produced one.
+    assert!(
+        deck.table_style_flags(slide, table.clone())
+            .expect("reading")
+            .first_row
+    );
     assert_eq!(
         deck.merged_cell_anchor(slide, table.clone(), 0, 0)
             .expect("an anchor"),

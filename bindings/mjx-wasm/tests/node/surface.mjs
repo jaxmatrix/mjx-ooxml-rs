@@ -554,3 +554,27 @@ test("a colour transform reaches the file and comes back", () => {
     }
   });
 });
+
+test("the three types nothing used to produce (MJXOFF-228)", () => {
+  withDeck((deck) => {
+    // `ResolvedColor`, `TableStyleFlags` and `Backdrop` were exported by this package and returned,
+    // taken and constructed by nothing, so a caller could name the type and never obtain a value.
+    const accent = deck.resolvedSchemeColor(0, SchemeColor.Accent1);
+    assert.equal(accent.toHex(), "4472C4");
+    assert.equal(accent.alpha, 1);
+    accent.free();
+    assert.equal(deck.resolvedSchemeColor(0, SchemeColor.PlaceholderColor), undefined);
+
+    const table = bounds(1, 1, 4, 2, (b) => deck.addTable(0, 2, 2, b));
+    const flags = deck.tableStyleFlags(0, table);
+    assert.equal(flags.firstRow, true);
+    assert.equal(flags.bandedRows, true);
+    assert.equal(flags.lastRow, false);
+    assert.equal(flags.bandedColumns, false);
+    flags.free();
+
+    const shape = bounds(1, 4, 2, 1, (b) => deck.addShape(0, PresetShapeType.Rectangle, b));
+    // A scene this library authors states no backdrop; the point is that the call exists.
+    assert.equal(deck.shapeBackdrop(0, shape), undefined);
+  });
+});

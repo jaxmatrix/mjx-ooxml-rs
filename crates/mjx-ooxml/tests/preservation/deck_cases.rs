@@ -2583,6 +2583,11 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| ran!(deck.shape_placeholder(a.surface, need!(a.shape.clone()))),
     },
     Case {
+        method: "shape_backdrop",
+        touches: NOTHING,
+        call: |deck, a| ran!(deck.shape_backdrop(a.surface, need!(a.shape.clone()))),
+    },
+    Case {
         method: "shape_scene_3d",
         touches: NOTHING,
         call: |deck, a| ran!(deck.shape_scene_3d(a.surface, need!(a.shape.clone()))),
@@ -2629,6 +2634,18 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| {
             ran!(deck.table_part(a.surface, need!(a.table.clone()), TablePart::FirstRow))
         },
+    },
+    Case {
+        method: "resolved_scheme_color",
+        touches: NOTHING,
+        call: |deck, a| {
+            ran!(deck.resolved_scheme_color(a.surface, mjx_ooxml::SchemeColor::Accent1))
+        },
+    },
+    Case {
+        method: "table_style_flags",
+        touches: NOTHING,
+        call: |deck, a| ran!(deck.table_style_flags(a.surface, need!(a.table.clone()))),
     },
     Case {
         method: "table_style_id",

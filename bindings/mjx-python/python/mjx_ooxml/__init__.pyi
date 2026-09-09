@@ -2024,6 +2024,27 @@ class Deck:
         `a:camera` or `a:lightRig`) also reads as `None`. Reading does not dirty the part.
         """
         ...
+    def shape_backdrop(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Backdrop | None:
+        """The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+        (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+        backdrop — which almost every scene is. It is read separately from `shape_scene_3d` because
+        a scene rebuilt from a `Scene3DSpec` drops what the spec does not carry: the backdrop
+        survives an edit by staying verbatim, and this is how a caller sees what is being preserved.
+        """
+        ...
+    def resolved_scheme_color(self, surface: int | Surface, color: SchemeColor) -> ResolvedColor | None:
+        """What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+        concrete `RRGGBB`: the surface's colour map turns the token into a scheme slot and its theme
+        turns the slot into RGB. `None` for `SchemeColor.PlaceholderColor`, for a surface with no
+        master in its chain, and for a slot the theme leaves undefined. The alpha is always `1.0`.
+        """
+        ...
+    def table_style_flags(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> TableStyleFlags:
+        """Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which
+        parts of its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers
+        one flag; this answers all six at once.
+        """
+        ...
     def set_shape_scene_3d(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scene: Scene3DSpec) -> None:
         """Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free
         `Scene3DSpec`, rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place,
