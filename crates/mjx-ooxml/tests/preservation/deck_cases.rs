@@ -885,7 +885,14 @@ pub(crate) const CASES: &[Case] = &[
                 changed(RELATIONSHIPS, Count::UpTo(1)),
                 changed(CONTENT_TYPES, Count::UpTo(1)),
                 changed(PRESENTATION, Count::UpTo(1)),
+                // MJXOFF-232: a new table names a style, so `add_table` reaches the table-styles
+                // part. Which of the two rules fires depends on what the deck already carries —
+                // `added` for a deck with no such part, `changed` for one whose `def` names a style
+                // it does not define, which is what PowerPoint writes (`charts.pptx` carries an
+                // empty `a:tblStyleLst` naming a built-in). A deck whose default really resolves —
+                // `tables.pptx` — trips neither, because nothing is authored into it.
                 added(TABLE_STYLES, Count::UpTo(1)),
+                changed(TABLE_STYLES, Count::UpTo(1)),
             ],
         },
         call: |deck, a| ran!(deck.add_table(a.surface, 2, 2, bounds())),

@@ -405,13 +405,24 @@ fn formatting_text_over_a_selection_leaves_the_text_itself_alone() {
 // Fidelity
 // ---------------------------------------------------------------------------------------------
 
+/// The baseline is the deck **with the table already in it**, and that is deliberate.
+///
+/// `add_table` reaches more than the slide since MJXOFF-232 — it names a table style, so it may
+/// author `tableStyles.xml`, its content type and its relationship — and that is declared in
+/// `crates/mjx-ooxml/tests/preservation/deck_cases.rs`. Measuring from before the table would fold
+/// that into this case and make it assert something it is not about. So the deck is saved and
+/// reopened first, and what is measured is the one call this case names: **formatting a selection**
+/// touches its slide and nothing else.
 #[test]
 fn formatting_a_selection_dirties_only_its_slide() {
-    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
-    let before = byte_map(&Package::open(&fixture("sample.pptx")).expect("baseline"));
-    let table = pres
+    let mut authored = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let table = authored
         .add_table(0, 2, 2, ShapeBounds::from_inches(1.0, 1.0, 4.0, 2.0))
         .expect("add table");
+    let with_a_table = authored.save().expect("save");
+
+    let before = byte_map(&Package::open(&with_a_table).expect("baseline"));
+    let mut pres = Presentation::open(&with_a_table).expect("reopen");
     pres.format_cells(0, table, Cells::all(), &CellFormat::new().with_fill(navy()))
         .expect("fill");
 

@@ -96,15 +96,27 @@ fn a_flag_can_be_turned_on_and_off() {
 // Assigning and authoring styles
 // ---------------------------------------------------------------------------------------------
 
+/// A new table already names a style, and `set_table_style` **replaces** that reference.
+///
+/// It read `None` here until MJXOFF-232: `add_table` wrote `firstRow="1" bandRow="1"` and no
+/// `a:tableStyleId`, so the two flags emphasised parts of a style that did not exist. What it names
+/// now is the deck's own default when it has one and a theme-following default this library authors
+/// when it does not — `sample.pptx` has no `tableStyles.xml`, so this is the authored one.
 #[test]
 fn a_table_can_be_pointed_at_a_style() {
     let (mut pres, table) = deck_with_table();
-    assert_eq!(pres.table_style_id(0, table).expect("read"), None);
+    let born_with = pres.table_style_id(0, table).expect("read");
+    assert!(
+        born_with.is_some(),
+        "a table with emphasis flags on must name a style for them to emphasise"
+    );
+    assert_ne!(born_with.as_deref(), Some(GUID));
 
     pres.set_table_style(0, table, GUID).expect("assign");
     assert_eq!(
         pres.table_style_id(0, table).expect("read"),
-        Some(GUID.to_owned())
+        Some(GUID.to_owned()),
+        "the reference is replaced, not appended to"
     );
 }
 
@@ -265,14 +277,25 @@ fn formatting_an_undefined_style_is_refused() {
     ));
 }
 
+/// A reference with nothing to resolve to is `None`.
+///
+/// The case used to make this claim about a table that named **no** style, which
+/// [`Presentation::add_table`] no longer produces (MJXOFF-232). The claim worth keeping is the one
+/// underneath it — the resolver answers `None` rather than inventing a style — and it is now made
+/// about a table pointed at a GUID the package does not define, which is the shape that actually
+/// occurs in the wild: PowerPoint writes an `a:tableStyleId` naming a built-in from its own gallery
+/// and puts no `a:tblStyle` in the file for it.
 #[test]
-fn resolving_a_table_that_names_no_style_is_none() {
+fn resolving_a_style_the_package_does_not_define_is_none() {
     let (mut pres, table) = deck_with_table();
+    // The one PowerPoint itself writes for "Medium Style 2 - Accent 1", defined in no file.
+    pres.set_table_style(0, table, "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}")
+        .expect("assign");
     assert!(
         pres.with_table_style(0, table, |_, _| Ok(()))
             .expect("resolve")
             .is_none(),
-        "a table with no tableStyleId resolves to nothing"
+        "a tableStyleId no a:tblStyle answers resolves to nothing"
     );
 }
 
@@ -440,6 +463,12 @@ fn the_tables_fixture_resolves_its_style_and_reading_dirties_nothing() {
 #[test]
 fn an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part() {
     let (mut pres, table) = deck_with_table();
+    // Everything shared, as it stands before the inline style is written.
+    let shared_before: std::collections::BTreeMap<String, Vec<u8>> =
+        byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"))
+            .into_iter()
+            .filter(|(name, _)| name.ends_with("tableStyles.xml") || name.ends_with(".rels"))
+            .collect();
     // `add_table` already turned on firstRow + bandRow, so the styled parts render.
     pres.set_inline_table_style(
         0,
@@ -489,15 +518,20 @@ fn an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part() {
         Some("D9E1F2")
     );
 
-    // The leanness contract: no shared `tableStyles.xml` part, no presentation relationship to one.
+    // The leanness contract: `set_inline_table_style` adds nothing to the shared world. It cannot
+    // be stated as *"no tableStyles.xml exists"* any more, because `add_table` authors one for the
+    // emphasis flags it turns on (MJXOFF-232) — so it is stated as the thing it was always about:
+    // the shared part and the presentation's relationships come out **byte for byte** as they went
+    // in, and the whole style travels in the slide.
     let saved = pres.save().expect("save");
-    let pkg = Package::open(&saved).expect("reopen package");
-    assert!(
-        !pkg.entries()
-            .iter()
-            .any(|e| e.name.ends_with("tableStyles.xml")),
-        "an inline style creates no shared part"
-    );
+    let after = byte_map(&Package::open(&saved).expect("reopen package"));
+    for (name, original) in &shared_before {
+        assert_eq!(
+            after.get(name),
+            Some(original),
+            "an inline style touched {name}"
+        );
+    }
 
     // Survives a reopen.
     let mut reopened = Presentation::open(&saved).expect("reopen");

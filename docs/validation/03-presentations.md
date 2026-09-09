@@ -419,6 +419,49 @@ reorganised by `MJXOFF-60`.
   Calls: `Deck::set_table_style` · `Deck.set_table_style` · `Deck.setTableStyle`
   Result: — · — · — · —
 
+#### V-PPTX-03.6 — the style a new table is born pointing at, and whose colours it uses
+
+- **Risk** high — **R6**, and the check MJXOFF-232 exists for. It is the one question in this area no
+  machine here can answer, because it is *what PowerPoint does with the emphasis flags*.
+- **Shipped by** `MJXOFF-232`.
+- **Artefact** `v-pptx-03-authored.pptx`
+- **Object** the **second** style in `ppt/tableStyles.xml` — `{9F6E9C1B-0B4E-4A1E-9B3D-6C2A8F4D7E10}`,
+  named *Themed Header and Banded Rows*. It is what `Deck::add_table` authors and points every new
+  table at, and it is also this file's `a:tblStyleLst@def`. Not one of its colours is a literal: the
+  header row is `<a:schemeClr val="accent1"/>` with `<a:schemeClr val="lt1"/>` text, and the first
+  horizontal band is `accent1` with `lumMod="20000" lumOff="80000"`.
+  **The table in this artefact does not use it** — `V-PPTX-03.2` repoints that table at *mjx
+  validation* — so this check is about the style as it sits in the gallery.
+- **Action** open Table Design → Table Styles and find *Themed Header and Banded Rows* in the gallery.
+  Apply it to the table. Then Design → Variants → Colours and switch the deck's theme to a visibly
+  different palette.
+- **Expect** the header row fills with the theme's **accent 1** and its text with **light 1**; the
+  first, third … data rows fill with accent 1 at **Lighter 80%**. After the theme change **every one
+  of those colours moves with it** — that is the whole claim, and a style that had pinned `4472C4`
+  would stay blue in a deck rebranded green. Record whether PowerPoint lists the style in the gallery
+  under its name, and whether the banding follows `bandRow`.
+  Calls: `Deck::add_table` · `Deck.add_table` · `Deck.addTable`
+  Result: — · — · — · —
+
+#### V-PPTX-03.7 — the emphasis flags a table is born with, and what they resolve against
+
+- **Risk** high — the half no gate in this repository could see before MJXOFF-232, and the reason the
+  fix needed a person: *what does PowerPoint do with `firstRow="1" bandRow="1"` when nothing resolves
+  them?*
+- **Shipped by** `MJXOFF-232`.
+- **Artefact** `v-pptx-03-authored.pptx`
+- **Object** the table's `a:tblPr`, which reads `firstRow="1" bandRow="1"` and carries an
+  `a:tableStyleId`. Until MJXOFF-232 it carried the two flags and **no** style id at all.
+- **Action** select the table and read Table Design → the *Header Row* and *Banded Rows* checkboxes.
+- **Expect** both are **ticked**, and both are visibly doing something. The old behaviour to compare
+  against is a table with the same two boxes ticked and no styling anywhere — if PowerPoint had
+  silently supplied a built-in style for an unresolved reference, the defect would have been
+  cosmetic in this renderer and real in every other one; if it rendered unstyled, the fix is load
+  bearing. **Record which.**
+  Calls: `Deck::add_table` · `Deck.add_table` · `Deck.addTable`
+  Calls: `Deck::table_part` · `Deck.table_part` · `Deck.tablePart`
+  Result: — · — · — · —
+
 #### V-PPTX-03.3 — cell anchoring, margins and a single cell border
 
 - **Risk** medium.

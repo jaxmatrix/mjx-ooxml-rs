@@ -456,10 +456,12 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
             .expect("reading"),
         Some(true)
     );
+    // MJXOFF-232: a table from `add_table` names a style, because the emphasis flags it is born
+    // with have to have something to emphasise. It was `None` here until that was fixed.
     assert!(deck
         .table_style_id(slide, table.clone())
         .expect("reading")
-        .is_none());
+        .is_some());
     assert_eq!(
         deck.merged_cell_anchor(slide, table.clone(), 0, 0)
             .expect("an anchor"),
