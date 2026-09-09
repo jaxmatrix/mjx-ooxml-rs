@@ -69,15 +69,41 @@
 //! not is `tests/a_checkpoint_is_work_not_output.rs`, which lays page 200 out both ways, asserts the
 //! fragments are identical, and asserts the work is not.
 //!
+//! # What one page is
+//!
+//! MJXOFF-174's page was a rectangle and a column. MJXOFF-175's is five things stacked, in the order
+//! they must be resolved because each one's size depends on the ones before it:
+//!
+//! 1. the **section** ([`crate::section`]) — the sheet, the margins, the columns and the break kind,
+//!    and a function of where the page *starts*, so it is settled first. **A `w:sectPr` inside a
+//!    paragraph ends the section that paragraph belongs to**, so page one's geometry comes from the
+//!    *first* `w:sectPr` and not the last; an engine that read only the body-level one lays every
+//!    document out at its last section's page size.
+//! 2. the **header and footer** ([`crate::stream`]) — laid out through the same flow engine the body
+//!    uses, in a band of their own, and their heights come off the body's.
+//! 3. the **note area** ([`crate::notes`]) — whose height and the body's decide each other, which is
+//!    a fixed point and the hardest thing in this crate. Its termination argument is written out in
+//!    that module, in full, because an undocumented fixed-point loop is where a hang lives.
+//! 4. the **body** ([`crate::paginate`]) — one or more column groups, balanced at a `continuous`
+//!    break.
+//! 5. the **generated marks** ([`crate::numbering`]) — line numbers in the margin, which nothing in
+//!    the run stream contains and nothing above this crate will ever draw.
+//!
+//! **The document's own geometry outranks the caller's [`Constraints`](mjx_layout::Constraints)**,
+//! and falls back to it wherever a section states nothing. That is not a preference: which section
+//! page 200 is in is not knowable without laying out the 199 before it, so a caller cannot choose.
+//!
 //! # What is deliberately not here
 //!
-//! * **Sections, columns, headers, footers and footnotes** — MJXOFF-175 (R20). One column per page,
-//!   from `Constraints`; a `w:br@type="column"` behaves as a page break, which is what it *means*
-//!   when there is one column.
 //! * **Tables and floating objects** — MJXOFF-176 (R21). A table's own paragraphs are not walked at
 //!   all: [`mjx_docx::DocumentFormatting::paragraphs`] is the body's top level.
 //! * **Fields, numbering, revision marks and OMML** — MJXOFF-177/178 (R22). A list's *number* is not
 //!   drawn; its indents are, because they are ordinary `w:pPr` members the ladder already resolved.
+//!   The same line separates the three generated marks this crate meets: a **page** number is
+//!   computed here ([`PageReport::page_number`]) and displayed by a `PAGE` field, a **footnote's
+//!   mark** is computed here ([`PageReport::notes`]) and drawn from `w:footnoteRef`, and a **line**
+//!   number is computed *and drawn* here — because it is in no run stream at all and no later child
+//!   would ever have anything to render it from.
 //! * **A display list.** This crate never paints and never resolves a handle;
 //!   `tests/the_seam_holds.rs` refuses `mjx-scene`, `mjx-paint` and `mjx-geometry` by name. **Word's
 //!   scene companion does not exist yet** — PowerPoint's is `mjx-scene-pptx` and Excel's is
@@ -95,9 +121,12 @@
 //! ECMA-376 says what the attributes are and is nearly silent on what a renderer does with them, so
 //! a number of behaviours here are readings rather than facts. Every one is marked `GUESS:` at the
 //! site that makes the choice, and the sharpest are collected in [`crate::style`],
-//! [`crate::tabs`], [`crate::justify`] and [`crate::paginate`]: where a tab stop is measured from,
-//! whether the space above a paragraph survives a page break, which face a hyphen takes, what a
-//! kashida alignment falls back to, and which characters an East Asian line is stretched around.
+//! [`crate::tabs`], [`crate::justify`], [`crate::paginate`], [`crate::section`], [`crate::notes`]
+//! and [`crate::numbering`]: where a tab stop is measured from, whether the space above a paragraph
+//! survives a page break, which face a hyphen takes, what a kashida alignment falls back to, which
+//! characters an East Asian line is stretched around, whether an absent `w:type` is a page break,
+//! whether "an even page" means an even page *number*, whether a header taller than its margin
+//! pushes the body down, where a footnote area's gap goes, and what `w:countBy` counts from.
 //!
 //! Confirmation is a human sitting against real Microsoft Word on Windows
 //! (`docs/validation/07-the-reference-pack.md`). LibreOffice is a change detector and not a
@@ -113,7 +142,11 @@ pub mod flow;
 pub mod justify;
 pub mod measure;
 pub mod model;
+pub mod notes;
+pub mod numbering;
 pub mod paginate;
+pub mod section;
+pub mod stream;
 pub mod style;
 pub mod tabs;
 pub mod text;
@@ -126,10 +159,18 @@ pub use justify::{
     expansion_points, is_east_asian, place, LineContext, LinePlacement, PlacedLeader, PlacedSegment,
 };
 pub use measure::{border_width, half_of, HAIRLINE};
-pub use model::{DocumentBoxModel, DocumentFlow, MAXIMUM_LEADER_GLYPHS};
-pub use paginate::{
-    assemble, widow_control, FlowPosition, PageAssembly, PageShape, PlacedParagraph,
+pub use model::{
+    DocumentBoxModel, DocumentFlow, FlowOrigin, PageReport, DEFAULT_LINE_NUMBER_DISTANCE,
+    MAXIMUM_LEADER_GLYPHS,
 };
+pub use notes::{DemandedNote, NoteArea, NoteCarry, NoteContent, PlacedNote};
+pub use numbering::{format_number, is_numbered, is_written_exactly, LARGEST_ROMAN};
+pub use paginate::{
+    assemble, fill_column, widow_control, ColumnEnd, ColumnFill, ColumnShape, FlowPosition,
+    LayoutCache, PageAssembly, PageShape, PlacedParagraph,
+};
+pub use section::{required_parity, starts_a_page, ColumnBand, Parity, SectionGeometry};
+pub use stream::{lay_out_stream, StreamLayout, StreamLine, UNBOUNDED_HEIGHT};
 pub use style::{Alignment, LineHeight, ParagraphStyle, RunStyle, ASSUMED_FONT_SIZE_POINTS};
 pub use tabs::{leader_character, TabKind, TabRuler, TabStop, DECIMAL_SEPARATOR};
 pub use text::{cut, CutPolicy, StyledItem, TextEngine, HYPHEN};

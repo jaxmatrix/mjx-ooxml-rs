@@ -35,10 +35,13 @@ use std::path::{Path, PathBuf};
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
 ///
-/// Twelve at MJXOFF-174, and the split is the crate's own shape: `address`, `checkpoint`,
-/// `decoration`, `error`, `flow`, `justify`, `lib`, `measure`, `model`, `paginate`, `style`, `tabs`,
-/// `text` — thirteen with `lib.rs`.
-const SOURCE_FILE_COUNT: usize = 13;
+/// Thirteen at MJXOFF-174 and **seventeen** at MJXOFF-175, and the four that were added are the four
+/// subsystems that child is: `section` (which sheet a page is, and what a break kind means),
+/// `stream` (a header, a footer or a note laid out through the one flow engine), `notes` (the
+/// body/footnote fixed point) and `numbering` (page, line and note counters, and the numeral systems
+/// they are written in). Exact rather than a floor, so adding a module stays a deliberate act; a
+/// `>=` would pass on a walk that stopped early.
+const SOURCE_FILE_COUNT: usize = 17;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

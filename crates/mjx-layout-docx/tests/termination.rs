@@ -185,3 +185,129 @@ fn a_paragraph_of_a_thousand_tabs_terminates() {
     let pages = walk(&mut model, &flow, &constraints, 100);
     assert!(!pages.is_empty());
 }
+
+/// **MJXOFF-175's own shape of the same failure**, and the one the ticket names: the note area and
+/// the body decide each other's height, so an implementation that let the reservation grow without a
+/// bound would place no body line, produce a next position equal to the page's own start, and
+/// repeat that page for ever.
+///
+/// `crate::notes` caps the reservation at the body's first line and splits the note instead. Here
+/// the note is **forty times** the height of the page it is referenced from.
+#[test]
+fn a_footnote_taller_than_the_page_terminates_and_advances_both_flows() {
+    let geometry = support::page_geometry(6.5, 1.5, 0.25);
+    let long: Vec<String> = (0..80).map(|index| format!("Note line {index}.")).collect();
+    let lines: Vec<&str> = long.iter().map(String::as_str).collect();
+    let paragraphs = vec![
+        support::paragraph_with_run(
+            "",
+            r#"<w:t xml:space="preserve">Paragraph zero.</w:t><w:footnoteReference w:id="2"/>"#,
+        ),
+        paragraph("", "Paragraph one."),
+        paragraph("", "Paragraph two."),
+    ];
+    let mut document = support::document_with_footnote(&paragraphs, &geometry, 2, &lines);
+    let flow = flow(&mut document);
+    let mut model = model();
+    let area = constraints(6.5, 1.5);
+
+    let mut pages = 0_usize;
+    let mut resume = None;
+    let mut placed_note_lines = 0_usize;
+    while pages < 500 {
+        let page = model
+            .layout_page(
+                &flow,
+                PageIndex::new(u32::try_from(pages).expect("a page number")),
+                &area,
+                resume.as_ref(),
+            )
+            .expect("every page lays out");
+        let report = model.last_page().clone();
+        assert!(
+            !report.notes.is_empty() || report.carried_note.is_none(),
+            "a page that carries a note forward must have placed some of it: {report:?}"
+        );
+        placed_note_lines += report.notes.len();
+        resume = page.continuation().cloned();
+        pages += 1;
+        if resume.is_none() {
+            break;
+        }
+    }
+    assert!(
+        pages < 500,
+        "the note/body fixed point must terminate; it produced {pages} pages and was still going"
+    );
+    assert!(
+        pages > 5,
+        "an eighty-line note on a page this small really does need several: {pages}"
+    );
+    assert!(
+        placed_note_lines > 0,
+        "and every page's area held part of the note"
+    );
+}
+
+/// A page too small to hold **anything** — the note area's cap is then zero — still advances.
+///
+/// This is the boundary the cap is written against: the body must keep its first line, so when the
+/// page is one line tall the notes get nothing at all, and the *body* is what makes progress. Both
+/// flows are then finite because each page consumes at least one line of one of them.
+#[test]
+fn a_page_with_no_room_for_a_note_still_advances_the_body() {
+    let geometry = support::page_geometry(6.5, 0.45, 0.1);
+    let paragraphs: Vec<String> = (0..6)
+        .map(|index| {
+            support::paragraph_with_run(
+                "",
+                &format!(
+                    r#"<w:t xml:space="preserve">Paragraph {index}.</w:t><w:footnoteReference w:id="2"/>"#
+                ),
+            )
+        })
+        .collect();
+    let mut document =
+        support::document_with_footnote(&paragraphs, &geometry, 2, &["A note.", "Two lines."]);
+    let flow = flow(&mut document);
+    let mut model = model();
+    let pages = walk(&mut model, &flow, &constraints(6.5, 0.45), 200);
+    assert!(!pages.is_empty());
+    assert!(
+        pages.len() < 200,
+        "a six-paragraph document must not need two hundred pages: {}",
+        pages.len()
+    );
+}
+
+/// A long chain of `continuous` sections all sharing one sheet terminates: each group consumes a
+/// section, and there are finitely many sections.
+#[test]
+fn a_chain_of_continuous_sections_terminates() {
+    let geometry = support::page_geometry(6.5, 11.0, 0.25);
+    let mut paragraphs: Vec<String> = Vec::new();
+    for index in 0..40 {
+        paragraphs.push(paragraph(
+            &format!(r#"<w:sectPr><w:type w:val="continuous"/>{geometry}</w:sectPr>"#),
+            &format!("Section {index}."),
+        ));
+    }
+    let markup = support::document_markup_with(
+        &paragraphs,
+        &format!(r#"<w:type w:val="continuous"/>{geometry}"#),
+    );
+    let mut document = support::document_from_bytes(markup);
+    let flow = flow(&mut document);
+    let mut model = model();
+    let pages = walk(&mut model, &flow, &constraints(6.5, 11.0), 200);
+    assert!(!pages.is_empty());
+    assert!(
+        pages.len() < 200,
+        "forty continuous sections share their sheets rather than each demanding one: {}",
+        pages.len()
+    );
+    assert!(
+        model.last_page().column_groups >= 1,
+        "and a page really does hold several sections' groups"
+    );
+}

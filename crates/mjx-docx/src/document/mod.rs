@@ -185,8 +185,10 @@ pub use ranges::{
     MarkupRange, RangeIndex, RangeResolution,
 };
 pub use residency::{
-    DocumentFormatting, DocumentLayoutSettings, HardBreak, ParagraphFormatting, RunFormatting,
-    SectionFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
+    ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, HardBreak,
+    HeaderFooterFormatting, HeaderFooterSlots, NoteFormatting, NoteReference, ParagraphFormatting,
+    RunFormatting, SectionColumns, SectionFormatting, SectionLineNumbering, SectionNoteRules,
+    SectionPageNumbering, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
 };
 pub use revisions::{
     math_control_properties, CellMergeTrackChange, CellPropertiesChange,

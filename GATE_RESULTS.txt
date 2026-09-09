@@ -1,18 +1,18 @@
-MJXOFF-174 (R19) — mjx-layout-docx, the flow engine
-branch pipeline/r19-flow-engine, version 0.0.150
-One pass, after the last edit. Every gate below ran in this run and in this order.
+MJXOFF-175 (R20) — gate results
+branch:   pipeline/r20-sections-notes
+version:  version = "0.0.151"
+started:  2026-09-09T10:59:36Z
 
-cargo fmt --all -- --check                     exit 0   2026-09-09T08:44:37Z -> 2026-09-09T08:44:43Z
-cargo test --workspace                         exit 0   2026-09-09T08:44:43Z -> 2026-09-09T08:58:07Z
-cargo clippy --workspace --all-targets         exit 0   2026-09-09T08:58:07Z -> 2026-09-09T08:59:08Z
-cargo test -p xtask --test layering            exit 0   2026-09-09T08:59:08Z -> 2026-09-09T08:59:09Z
-cargo test -p xtask --test escape_hatches      exit 0   2026-09-09T08:59:09Z -> 2026-09-09T08:59:10Z
-cargo test -p xtask --test unsafe_allowance    exit 0   2026-09-09T08:59:10Z -> 2026-09-09T08:59:10Z
-cargo run -p xtask -- tokens --check           exit 0   2026-09-09T08:59:10Z -> 2026-09-09T08:59:11Z
-check-suppress-naming.sh                       exit 0   2026-09-09T08:59:11Z -> 2026-09-09T08:59:11Z
-cargo doc --workspace --no-deps                exit 0   2026-09-09T08:59:11Z -> 2026-09-09T08:59:24Z
+fmt                                exit 0    2026-09-09T10:59:36Z -> 2026-09-09T10:59:41Z
+test-workspace                     exit 0    2026-09-09T10:59:42Z -> 2026-09-09T11:09:08Z
+clippy                             exit 0    2026-09-09T11:09:08Z -> 2026-09-09T11:09:18Z
+layering                           exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:18Z
+escape-hatches                     exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:18Z
+unsafe-allowance                   exit 0    2026-09-09T11:09:18Z -> 2026-09-09T11:09:19Z
+tokens-check                       exit 0    2026-09-09T11:09:19Z -> 2026-09-09T11:09:19Z
+suppress-naming                    exit 0    2026-09-09T11:09:19Z -> 2026-09-09T11:09:20Z
+rustdoc                            exit 0    2026-09-09T11:09:20Z -> 2026-09-09T11:09:49Z
 
-Test totals from this run:
-  test binaries: 394
-  cases passed: 4449
-  suites failed: 0
+finished: 2026-09-09T11:09:49Z
+cases:    4493 passing
+binaries: 428

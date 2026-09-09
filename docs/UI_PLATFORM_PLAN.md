@@ -309,8 +309,8 @@ and OMML mathematical layout (its own typesetter, closer to TeX than to prose).
 > flow core — line layout against a per-line measure, the five alignments with inter-word and
 > inter-character expansion, the three line rules, the five tab kinds with leaders and the implicit
 > grid, hyphenation, and pagination honouring `w:pageBreakBefore`, `w:keepLines`, `w:widowControl`
-> and `w:keepNext`. **Sections, columns, headers, footers and footnotes are R20; tables and floating
-> objects R21; fields, numbering, revision marks and OMML R22**, and none of them is partly done.
+> and `w:keepNext`. **Tables and floating objects are R21; fields, numbering, revision marks and OMML
+> R22**, and neither is partly done.
 > Nothing in it is parity with Word: every behaviour chosen rather than read is marked `GUESS:` at
 > its site, and `crates/mjx-layout-docx/tests/the_provenance_is_declared.rs` prints the split of
 > where every expected value came from on every run.
@@ -321,6 +321,27 @@ and OMML mathematical layout (its own typesetter, closer to TeX than to prose).
 > `mjx-text`/`mjx-layout` grew hyphenation, which adds the hyphen's own advance to every candidate
 > the fitting loop measures. **Word still has no scene companion**, so a Word `FragmentTree` cannot
 > yet reach pixels; `mjx-scene-docx` at 3.7 is the ticket that has to follow this one.
+
+> **Extended in MJXOFF-175 (R20), part 2.** Sections (page size and margins changing mid-document,
+> the five break kinds, mirrored margins, vertical alignment, section-scoped page numbering), columns
+> with **balancing at a `continuous` break**, headers and footers with their first/even/odd variants
+> and the height they take from the body, footnotes with their own reflow and continuation, endnotes
+> as flow, and line numbers computed *and drawn*. Four new modules, seventeen in all.
+>
+> **The interesting problem is the footnote, and it is a fixed point.** A note's height decides how
+> much body text fits on its page and the body text decides which notes are on it, so an engine that
+> laid the notes out *after* pagination was settled would produce a page that looks entirely right
+> and a paragraph three pages later that is wrong. `crates/mjx-layout-docx/src/notes.rs` states the
+> monotone-reservation argument in full and **proves the loop converges in at most two body
+> assemblies**; the reservation is capped at the body's first line so that a footnote taller than the
+> page splits and carries rather than starving the body, which is what makes both flows advance on
+> every page. `PageReport::assemblies` is asserted `<= 2` on every page of a document whose notes
+> really do move the boundary.
+>
+> **The document's own `w:sectPr` now outranks the caller's `Constraints`.** With one section the
+> caller could read the geometry and pass it; with several it cannot, because which section page 200
+> is in is not knowable without laying out the 199 before it. A section that states nothing still
+> inherits the caller's page — our defaults fill in only where the file is silent.
 
 **`mjx-layout-xlsx` — grid.** Row/column geometry with hidden and auto-fit sizing, merged regions,
 the **number-format engine** (`numFmt` → display string, locale-aware, both 1900 and 1904 date

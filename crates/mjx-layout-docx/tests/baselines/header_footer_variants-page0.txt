@@ -1,0 +1,15 @@
+# specimen: header_footer_variants.docx page 0
+# covers: a document whose section references all three header and all three footer variants with neither `w:titlePg` nor `w:evenAndOddHeaders` set — so every one of the six resolves to the default, and the header and footer bands are on the page
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# paragraphs in the document: 2
+# pages reached: 1
+   0 box       part 0 [] [914400 914400 6645910 9777730]
+   1 box       part 1 [0, 0] [914400 457200 6645910 603250]
+   2 line      part 1 [0, 0, 0] [914400 457200 6645910 603250]
+   3 glyph run part 1 [0, 0, 0, 0] [914400 457200 1679067 603250]
+   4 box       part 0 [0] [914400 914400 6645910 1060450]
+   5 line      part 0 [0, 0] [914400 914400 6645910 1060450]
+   6 box       part 2 [1, 0] [914400 10088880 6645910 10234930]
+   7 line      part 2 [1, 0, 0] [914400 10088880 6645910 10234930]
+   8 glyph run part 2 [1, 0, 0, 0] [914400 10088880 1627251 10234930]
