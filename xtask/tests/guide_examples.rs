@@ -9,7 +9,8 @@
 //! held together by whoever last remembered to update all three. Phase G's whole lesson is that
 //! prose is not checked, and a code block in a `.md` is prose that looks like code.
 //!
-//! So the guide holds **markers, not code**. Each example is three real files:
+//! So the guide holds **markers, not code**. Each example is three real files — with one exception
+//! that says so out loud, [below](#the-fourth-marker-form-and-why-it-is-a-claim-rather-than-a-suppression-mjxoff-261):
 //!
 //! | Language | File | Runner |
 //! |---|---|---|
