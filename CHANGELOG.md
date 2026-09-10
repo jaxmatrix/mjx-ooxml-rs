@@ -48,6 +48,7 @@ reconstructed afterwards.
 | `mjx_chart::ChartLabelScope::Plot { plot_idx: usize }`, `Series { series_idx: usize }`, `Point { series_idx: usize, point_idx: u32 }` | `Plot { plot_index: u32 }`, `Series { series_index: u32 }`, `Point { series_index: u32, point_index: u32 }` | MJXOFF-118. These were the **last three public fields in the workspace spelled `*_idx`** — an abbreviation named after `c:idx`, which is exactly the case 0.0.69 already settled for `mjx_dml::StyleMatrixReference::idx`. The width goes with the name: this type crosses the facade to both bindings, and **both already published these three as `u32` and cast on the way in and out**, so the rename and the narrowing change nothing in Python or TypeScript and delete five casts (two of them `usize as u32`, which truncate rather than fail). |
 | `mjx_pptx::ShapeInfo::index`, `mjx_pptx::LayoutInfo::index`, `mjx_pptx::LayoutInfo::master_index` — `usize` | `u32` | MJXOFF-118, finishing A9's own recorded loose end (*"better normalised once at v0.1"*). All three structs are re-exported **verbatim** by `mjx-ooxml` and by both bindings, which means they bypass `crates/mjx-ooxml/src/index.rs` — the one place the facade's `u32`/model `usize` width difference is meant to be crossed — and carried a host-dependent width into a foreign-function-facing type. Both bindings already read all three as `u32`; those casts are gone. A `mjx-pptx` caller feeding one of these back into a `Presentation` method converts once (`usize::try_from`), which `crates/mjx-pptx/src/index.rs` documents; a `mjx-ooxml` caller can now pass `ShapeInfo::index` straight to a `Deck` method, which was not possible before. |
 | `mjx_dml::ColorSpec` — three variants, `#[derive(Eq)]` | a fourth variant `Transformed { base: Box<ColorSpec>, transforms: Vec<ColorTransform> }`; **no `Eq`** | MJXOFF-219. `ColorSpec` is what every authoring caller hands in, and it carried a colour's kind and value and **no transform children**, so nothing in this workspace could author a colour transform and `Color::spec()` silently dropped a producer's. The three existing variants and every construction site are untouched — the alternative shape (`ColorSpec { kind, value, transforms }`, the ticket's option 1) is faithful to the schema and rewrites 393 call sites; this one costs an arm in the seven places that `match` on the enum. `Eq` goes because a transform's value is a `Fraction`/`Angle` (both `f64`, both `PartialEq` only); nothing in the workspace required it, and every type that embeds a `ColorSpec` — `FillSpec`, `LineSpec`, `EffectListSpec`, `CharacterPropertiesSpec` — was already `PartialEq` alone. |
+| **npm only** — `ChartWrap.kind` answered `"topAndBottom"` | it answers `"top_and_bottom"` | MJXOFF-268. The wasm binding's camelCase rule is about **method names**, which `xtask/tests/binding_projection.rs` enforces on `js_name` against the Rust name under it. A returned token is data, and the binding had already written that down itself, in `bindings/mjx-wasm/src/geometry.rs`'s comment on `ShapeGeometry::of`: *"the keys are the adjustment names, which stay `snake_case`: they are data … rather than method names"*. `ChartWrap.kind` was the one place in either binding that broke it, which is a claim the sweep behind it can support: every string literal both bindings spell in code was compared, and the twenty members declared by both that produce a token agreed on every one but this. Python is unchanged and was always right. Nothing in Rust changes, and the constructor keeps its camelCase `ChartWrap.topAndBottom()` — that is a name. The rule is no longer prose: `no_data_token_is_spelled_in_camel_case` and `the_two_bindings_produce_the_same_data_tokens` check it over both bindings, and neither carries a ledger of exceptions. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -59,6 +60,70 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.165] - 2026-09-10
+
+### A token is not a name, and now nothing has to remember that
+
+#### `ChartWrap.kind` answered a different string in each binding (MJXOFF-268)
+
+`ChartWrap.kind` returned `"top_and_bottom"` in Python and `"topAndBottom"` in JavaScript. A caller
+who ported a comparison from one binding to the other got a comparison that silently stopped
+matching — the worst shape a divergence can take, because nothing fails.
+
+The wasm binding was the one in the wrong, against a rule **it had written itself**, in
+`bindings/mjx-wasm/src/geometry.rs`'s comment on `ShapeGeometry::of`:
+
+> The keys are the adjustment names, which stay `snake_case`: they are data — the names ECMA-376's
+> prose gives each `a:gd` — rather than method names, and renaming data would make
+> `adjustmentNames` disagree with the record it describes.
+
+`CLAUDE.md`'s camelCase rule is about **method names**, and `xtask/tests/binding_projection.rs` has
+always enforced exactly that: every `js_name` must be the camel case of the Rust name it sits on. It
+said nothing about what a method *returns*, so the constructor `ChartWrap.topAndBottom()` was right
+and the token beside it was wrong, in the same file, eleven lines apart.
+
+**This is a break for the npm package**, tabulated under *Unreleased — 0.1.0* above. Python and Rust
+are unchanged.
+
+#### The sweep, because one instance is not a class
+
+The ticket found one member and said sizing the class was the first step. The comparison is over
+every string literal either binding spells **in code** — not in a comment, which is
+`xtask/tests/binding_doc_parity.rs`'s question, and not in an attribute, which is where a *name*
+lives (`js_name`, `#[pyo3(name = …)]`, `typescript_type`). That distinction is the whole gate: a
+JavaScript method name is never a literal in a function body, so what survives the filter is data by
+construction.
+
+Twenty members are declared by both bindings and produce a token from a `match` arm. Nineteen
+already agreed, on every token — `auto_number`, `follow_text`, `shared_text`, `quad_bezier_to`,
+`embedded_package` and the rest are all `snake_case` in JavaScript today. `ChartWrap.kind` was the
+only member of the class, which makes it an outlier rather than a convention, and the fix is one
+string.
+
+#### The rule stops being prose
+
+Two checks, in the file that already owns the naming rule they complement:
+
+* `no_data_token_is_spelled_in_camel_case` reads every code literal in **both** bindings and refuses
+  a single camelCase word. It is one-sided in the way the drift was, and it sees members the parity
+  check structurally cannot — `read_surface`'s inbound tokens exist only in JavaScript, and a
+  camelCase one there is named with its file and line.
+* `the_two_bindings_produce_the_same_data_tokens` pairs members by `(owner, name)` — exact, because
+  Rust has no overloading — and compares only the literals that stand where a value is *made*: on
+  either side of a `match` arm's `=>`, or before `.to_owned()`. A message handed to `expect` is
+  written in a body too and is not something a caller receives. Narrowing to produced literals is
+  what lets this check carry **no ledger of exceptions at all**.
+
+`xtask/src/binding_surface.rs` gained the extraction, so both checks read one scanner rather than
+two that could disagree — the reason that module exists. Its walk is brace-matched with string and
+character literals masked out first, which the `block_end` beside it is not, and the delimiters it
+declines to lex out of character literals are held to that by
+`a_delimiter_is_never_written_as_a_character_literal`.
+
+Both bindings' suites now assert all three of `ChartWrap.kind`'s tokens, which neither did: Python
+checked `"square"` and JavaScript checked nothing, which is exactly how the divergence survived a
+walkthrough that constructs all three wraps.
 
 ## [0.0.164] - 2026-09-10
 
@@ -374,9 +439,9 @@ and the schema attributes (`w:vanish`, `w:jc`, `w:outlineLvl`, `w:val="auto"`, `
 Word effective-properties getters name in Python and named nowhere in TypeScript. What remains is a
 ledger with a reason per row, held to the measurement in both directions.
 
-One row on it is not a prose difference at all: `ChartWrap.kind` returns `"top_and_bottom"` in Python
-and `"topAndBottom"` in JavaScript, which contradicts the wasm binding's own written rule that data
-tokens stay `snake_case`. MJXOFF-268 owns it.
+One row on it was not a prose difference at all: `ChartWrap.kind` returned `"top_and_bottom"` in
+Python and `"topAndBottom"` in JavaScript, which contradicted the wasm binding's own written rule
+that data tokens stay `snake_case`. MJXOFF-268 settled it in 0.0.165 and deleted the row.
 
 ## [0.0.159] - 2026-09-09
 
