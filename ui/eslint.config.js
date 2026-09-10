@@ -22,6 +22,17 @@
  *    `eslint-rules/design-values.js` for what it allows and why. It is scoped to `src/` and not to
  *    `stories/` or `dev/` on purpose: the ticket's rule is about *components*, and the throwaway
  *    probes exist precisely to write values a component may not.
+ *
+ *    ⚠ **MJXOFF-279 re-examined that scope and kept it, deliberately rather than by default.** A
+ *    story had pinned a literal `#808080` page colour, which went stale when MJXOFF-271 re-seeded
+ *    the palette. Widening the rule would flag six files that are legitimately right — a colour
+ *    picker's story supplies a document's palette *as data*, and `stories/gates/*` exist to be
+ *    wrong on purpose — and a rule that cries wolf gets disabled, which is worse than no rule. So
+ *    the exemption is **named and audited** instead: `tests/design-values.test.ts` lists exactly
+ *    which files outside `src/` may carry a literal colour, so a seventh is a line somebody adds
+ *    with a reason. The literal was never the instrument that would have caught that defect anyway
+ *    — the wrong thing was a *pairing* (a theme text token on a colour we do not own), which only
+ *    the a11y sweep can see, and did.
  * 5. **The icon-vendor ban** — `@fluentui/svg-icons` ships 20,679 SVG files, and
  *    `scripts/subset-icons.mjs` is the only thing allowed to read them. This is the *static* half
  *    of the subsetting guarantee: `tests/browser/icons.spec.ts` asserts what reached the bundle,

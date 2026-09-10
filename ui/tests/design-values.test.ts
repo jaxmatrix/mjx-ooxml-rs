@@ -214,3 +214,90 @@ describe('every shipped source is text a person and a tool can both read', () =>
     expect(control).toEqual([0]);
   });
 });
+
+/**
+ * **The rule's scope, audited rather than assumed** (MJXOFF-279).
+ *
+ * `mjx/no-literal-design-values` runs on `src/` and not on `stories/` or `dev/`, and the config
+ * says why: *"the ticket's rule is about components, and the throwaway probes exist precisely to
+ * write values a component may not."* That scope is what let `stories/surfaces/task-pane.stories.ts`
+ * pin a `#808080` page colour, which then drifted out of step with the palette and took the a11y
+ * sweep red when MJXOFF-271 re-seeded the tokens.
+ *
+ * ## Why the scope is *not* simply widened, which is the decision this test records
+ *
+ * Turning the rule on for `stories/` and `dev/` flags **six** files that are legitimately right —
+ * four stories and both probe modules. A colour
+ * picker's story must supply a document's theme palette, a standard row and an off-grid colour, all
+ * as *data*; `stories/gates/*` exist to be deliberately wrong, and their `#ff00ff` and their
+ * below-floor specimens are the failability proofs for two other gates. A rule that flagged those
+ * would be disabled within a week, and a disabled rule is indistinguishable from a clean tree —
+ * which is the exact failure mode this file's own header is written against.
+ *
+ * So the answer is neither *widen it* nor *leave it unwatched*: the set of files outside `src/`
+ * that may carry a literal colour is **named here**, in the idiom the rest of this catalogue uses
+ * for a deliberate exemption. A new one is a line somebody has to add, with a reason, in a diff a
+ * reviewer will see — and `task-pane.stories.ts` is no longer in it, because its page colour is now
+ * derived from the model rather than written.
+ *
+ * ⚠ **The lint was never the instrument that could have caught the `#808080` anyway**, and saying
+ * so is the more useful half of this note. The literal was deliberate and visible; what was wrong
+ * was the *pairing* — a theme text token painted on a colour the platform does not own — and no
+ * literal-value rule can see a pairing. The a11y sweep can, and did, on the first run after the
+ * re-seed. The gap was in **when that suite ran**, not in what it covers.
+ */
+describe('the literal-colour exemption outside src/, named rather than implied', () => {
+  /** Every `.ts` file under a directory, recursively. */
+  function everySourceUnder(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory)) {
+      const path = join(directory, entry);
+      if (statSync(path).isDirectory()) found.push(...everySourceUnder(path));
+      else if (entry.endsWith('.ts')) found.push(path);
+    }
+    return found;
+  }
+
+  /**
+   * A hex colour outside a comment — the rule's own first test, applied to a whole file.
+   *
+   * Comments are stripped for the reason the rule strips them: the *explanation* of a value is
+   * exactly where a value should be written down, and the prose above contains three.
+   */
+  function carriesLiteralColor(path: string): boolean {
+    const text = readFileSync(path, 'utf8')
+      .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
+      .replaceAll(/(^|\s)\/\/[^\n]*/g, '$1 ')
+      .replaceAll(/<!--[\s\S]*?-->/g, ' ');
+    return [...text.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].some((match) =>
+      [4, 5, 7, 9].includes(match[0].length),
+    );
+  }
+
+  it('is exactly these files, and each of them handles colour as data', () => {
+    const root = resolve(import.meta.dirname, '..');
+    const scanned = [
+      ...everySourceUnder(join(root, 'stories')),
+      ...everySourceUnder(join(root, 'dev')),
+    ];
+    expect(scanned.length, 'nothing was scanned, so this measures nothing').toBeGreaterThan(20);
+    const carrying = scanned
+      .filter(carriesLiteralColor)
+      .map((path) => path.slice(root.length + 1))
+      .sort();
+    expect(carrying).toEqual([
+      // The contrast helper's own arithmetic and its worked examples: a contrast function that
+      // could not name a colour would have nothing to be tested with.
+      'dev/contrast.ts',
+      // The deliberately-wrong probes. Their whole job is to be a value a component may not write.
+      'dev/probes.ts',
+      // The a11y sweep's failability half: specimens that MUST fall below the floor.
+      'stories/gates/contrast.stories.ts',
+      // `#ff00ff` and `#00ffff` as *wrong answers*, so the token resolver's gate can fail.
+      'stories/gates/token-resolution.stories.ts',
+      // A colour picker takes its palettes as data, because they belong to the document.
+      'stories/pickers/color-picker.stories.ts',
+      'stories/pickers/specimens.ts',
+    ]);
+  });
+});

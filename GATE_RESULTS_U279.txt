@@ -1,0 +1,753 @@
+
+> @mjx/ui@0.1.0 check
+> npm run tokens:check && npm run icons:check && npm run typecheck && npm run lint && npm run test:unit && npm run build-storybook && npm run test:browser
+
+
+> @mjx/ui@0.1.0 tokens:check
+> node scripts/check-tokens.mjs
+
+ui/tokens agrees with the source: 150 tokens, 150 custom properties, 50 scheme aliases.
+
+> @mjx/ui@0.1.0 icons:check
+> node scripts/subset-icons.mjs --check
+
+icons:check — 74 glyphs, generated.ts agrees with the manifest.
+
+> @mjx/ui@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @mjx/ui@0.1.0 lint
+> eslint .
+
+
+> @mjx/ui@0.1.0 test:unit
+> vitest run
+
+
+ RUN  v5.0.0 /home/xm-max/Documents/Projects/mjx-ooxml-rs/.claude/worktrees/client-platform/ui
+
+stderr | tests/gallery.test.ts
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+ ✓ tests/gallery.test.ts (57 tests) 670ms
+   ✓ the live-preview protocol (10)
+     ✓ a preview is closed by exactly one cancel or one commit, never both and never neither 644ms
+ ✓ tests/icon-subset.test.ts (12 tests) 488ms
+   ✓ the bundle budget, proved able to reject (3)
+     ✓ refuses the whole vendor set, measured rather than imagined 463ms
+ ✓ tests/pickers.test.ts (68 tests) 402ms
+ ✓ tests/surfaces.test.ts (49 tests) 325ms
+ ✓ tests/design-values.test.ts (18 tests) 113ms
+ ✓ tests/ribbon.test.ts (22 tests) 68ms
+ ✓ tests/story-conventions.test.ts (13 tests) 54ms
+ ✓ tests/feedback.test.ts (74 tests) 37ms
+ ✓ tests/menus.test.ts (51 tests) 28ms
+ ✓ tests/inputs.test.ts (83 tests) 31ms
+ ✓ tests/foundations.test.ts (25 tests) 14ms
+ ✓ tests/controls.test.ts (22 tests) 15ms
+ ✓ tests/contrast.test.ts (10 tests) 7ms
+ ✓ tests/plate-manifest.test.ts (9 tests) 8ms
+
+ Test Files  14 passed (14)
+      Tests  513 passed (513)
+   Start at  09:51:59
+   Duration  6.59s (import 47%, tests 43%, transform 9%, worker 1%)
+
+     Import  49 modules were evaluated 64 times · 2.49s total, 47% of tracked time
+             ~585ms faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+
+> @mjx/ui@0.1.0 build-storybook
+> storybook build
+
+
+┌  Building storybook v10.6.0
+│
+◇  Cleaning outputDir: storybook-static
+│
+◇  Loading presets
+│
+◇  Building manager..
+│
+●  Building open services..
+│
+●  Building preview..
+│  Vite vite v8.2.2 building client environment for production...
+transforming...
+│
+●  Copying static files: public at storybook-static
+✓ 296 modules transformed.
+rendering chunks...
+computing gzip size...
+│  Vite storybook-static/iframe.html
+│  20.70 kB │ gzip:   5.66 kB
+│  storybook-static/assets/iframe-CO9d9Q9e.css
+│  13.50 kB │ gzip:   2.17 kB
+│  storybook-static/assets/iframe-CUmVcayP.js
+│  0.04 kB │ gzip:   0.06 kB
+│  storybook-static/assets/react-hfcl3_dB.js
+│  0.09 kB │ gzip:   0.10 kB
+│  storybook-static/assets/theming-D3ysxGMx.js
+│  0.11 kB │ gzip:   0.12 kB
+│  storybook-static/assets/components-D88orgDV.js
+│  0.14 kB │ gzip:   0.14 kB
+│  storybook-static/assets/presets-DtelzXjA.js
+│  0.23 kB │ gzip:   0.21 kB
+│  storybook-static/assets/formatter-L2YTDE3Q-RkjpF8cC.js
+│  0.30 kB │ gzip:   0.24 kB
+│  storybook-static/assets/chunk-UAWMPV5J-_VQykhfG.js
+│  0.74 kB │ gzip:   0.45 kB
+│  storybook-static/assets/stylesheet-DrRyPqvx.js
+│  0.87 kB │ gzip:   0.51 kB
+│  storybook-static/assets/contrast-BcafOtep.js
+│  1.00 kB │ gzip:   0.54 kB
+│  storybook-static/assets/focus-BPF5lZ6a.js
+│  1.02 kB │ gzip:   0.56 kB
+│  storybook-static/assets/rolldown-runtime-DkW27tQK.js
+│  1.19 kB │ gzip:   0.67 kB
+│  storybook-static/assets/preload-helper-wdlQj8DP.js
+│  1.31 kB │ gzip:   0.74 kB
+│  storybook-static/assets/conventions-LdQa3D64.js
+│  1.45 kB │ gzip:   0.71 kB
+│  storybook-static/assets/density-DOKz3ADe.js
+│  1.49 kB │ gzip:   0.78 kB
+│  storybook-static/assets/chunk-IMSF75WX-CGYlPTyG.js
+│  1.67 kB │ gzip:   0.91 kB
+│  storybook-static/assets/matrix-_auM2444.js
+│  1.83 kB │ gzip:   0.83 kB
+│  storybook-static/assets/motion-B3-4urNk.js
+│  2.16 kB │ gzip:   0.99 kB
+│  storybook-static/assets/typography-SqMtELy7.js
+│  2.22 kB │ gzip:   0.92 kB
+│  storybook-static/assets/surfaces-BGpF1VgQ.js
+│  2.23 kB │ gzip:   0.88 kB
+│  storybook-static/assets/control-naming.stories-C7zMc9EJ.js
+│  2.57 kB │ gzip:   1.06 kB
+│  storybook-static/assets/resolver-B3k2lDul.js
+│  2.59 kB │ gzip:   1.17 kB
+│  storybook-static/assets/density.stories-DPh3xIr2.js
+│  3.11 kB │ gzip:   1.37 kB
+│  storybook-static/assets/container.stories-BRAKZQLo.js
+│  3.15 kB │ gzip:   1.21 kB
+│  storybook-static/assets/document-surface.stories-CpTT6qw3.js
+│  3.36 kB │ gzip:   1.37 kB
+│  storybook-static/assets/chunk-DRQKCCAG-DtXejAOb.js
+│  3.38 kB │ gzip:   1.41 kB
+│  storybook-static/assets/motion.stories-BJ7fUQ25.js
+│  4.16 kB │ gzip:   1.55 kB
+│  storybook-static/assets/token-resolution.stories-DflMlvJi.js
+│  4.17 kB │ gzip:   1.42 kB
+│  storybook-static/assets/specimens-DE6RI_6D.js
+│  4.27 kB │ gzip:   1.82 kB
+│  storybook-static/assets/focus.stories-CICr2y5E.js
+│  4.37 kB │ gzip:   1.80 kB
+│  storybook-static/assets/density.stories-1CQEWBpS.js
+│  5.02 kB │ gzip:   1.79 kB
+│  storybook-static/assets/chunk-7PIQR4A3-BGgO7bU4.js
+│  5.14 kB │ gzip:   1.93 kB
+│  storybook-static/assets/context-menu.stories-Cye6taJ9.js
+│  5.16 kB │ gzip:   1.66 kB
+│  storybook-static/assets/checkbox.stories-CRPI8KhY.js
+│  5.62 kB │ gzip:   1.72 kB
+│  storybook-static/assets/specimens-BBVtevAD.js
+│  5.66 kB │ gzip:   2.27 kB
+│  storybook-static/assets/specimens-Cl7pJ1EW.js
+│  5.83 kB │ gzip:   2.31 kB
+│  storybook-static/assets/task-pane.stories-Bx_tRVFR.js
+│  5.94 kB │ gzip:   2.00 kB
+│  storybook-static/assets/dialog-launcher.stories-DsQgfZVP.js
+│  6.20 kB │ gzip:   1.65 kB
+│  storybook-static/assets/word-tab-home.stories-BFQGv9sO.js
+│  6.62 kB │ gzip:   2.12 kB
+│  storybook-static/assets/control-states-IghF6DWH.js
+│  7.07 kB │ gzip:   2.65 kB
+│  storybook-static/assets/segmented-control.stories-DUD5cHHn.js
+│  7.37 kB │ gzip:   2.07 kB
+│  storybook-static/assets/specimens-BFlt91qV.js
+│  7.40 kB │ gzip:   2.76 kB
+│  storybook-static/assets/button.stories-CBKn2BTZ.js
+│  7.51 kB │ gzip:   2.38 kB
+│  storybook-static/assets/react-BZJXY1be.js
+│  7.53 kB │ gzip:   2.88 kB
+│  storybook-static/assets/label.stories-Dwpla5oN.js
+│  7.65 kB │ gzip:   2.07 kB
+│  storybook-static/assets/toast.stories-CaBpT9-L.js
+│  7.82 kB │ gzip:   2.48 kB
+│  storybook-static/assets/empty-state.stories-GnfZXGEX.js
+│  8.05 kB │ gzip:   2.34 kB
+│  storybook-static/assets/typography.stories-2kA3A3bB.js
+│  8.06 kB │ gzip:   2.43 kB
+│  storybook-static/assets/measure-input.stories-D7_r2sNb.js
+│  8.29 kB │ gzip:   2.20 kB
+│  storybook-static/assets/toggle-button.stories-DeEEp0xz.js
+│  8.29 kB │ gzip:   1.99 kB
+│  storybook-static/assets/split-button.stories-Cj79-kU-.js
+│  8.31 kB │ gzip:   1.99 kB
+│  storybook-static/assets/floating-2o0FcB8t.js
+│  8.37 kB │ gzip:   2.89 kB
+│  storybook-static/assets/plates.stories-CULxKNlh.js
+│  8.50 kB │ gzip:   3.24 kB
+│  storybook-static/assets/combo-box.stories-aU5smd_M.js
+│  8.56 kB │ gzip:   2.41 kB
+│  storybook-static/assets/surfaces.stories-CE5twDtx.js
+│  8.57 kB │ gzip:   2.43 kB
+│  storybook-static/assets/contrast.stories-CGpvv2Iw.js
+│  9.02 kB │ gzip:   2.86 kB
+│  storybook-static/assets/popover.stories-C41D1wmI.js
+│  9.36 kB │ gzip:   2.38 kB
+│  storybook-static/assets/screentip.stories-DcRJVofY.js
+│  9.51 kB │ gzip:   2.65 kB
+│  storybook-static/assets/slider.stories-DkDiG8dP.js
+│  9.87 kB │ gzip:   2.69 kB
+│  storybook-static/assets/progress.stories-Vg-H10Pm.js
+│  10.00 kB │ gzip:   2.68 kB
+│  storybook-static/assets/specimens-Da4p_Yzr.js
+│  10.37 kB │ gzip:   3.32 kB
+│  storybook-static/assets/dropdown.stories-CPGM11q6.js
+│  10.94 kB │ gzip:   2.72 kB
+│  storybook-static/assets/dialog.stories-CVN-Z6sF.js
+│  11.42 kB │ gzip:   2.78 kB
+│  storybook-static/assets/specimens-cyT2Zj3l.js
+│  11.63 kB │ gzip:   4.32 kB
+│  storybook-static/assets/mini-toolbar.stories-DErl_QXQ.js
+│  12.25 kB │ gzip:   3.06 kB
+│  storybook-static/assets/menu-model-sS_Pe0DS.js
+│  12.76 kB │ gzip:   5.07 kB
+│  storybook-static/assets/ribbon.stories-Cx8TuvV4.js
+│  13.42 kB │ gzip:   3.59 kB
+│  storybook-static/assets/font-picker.stories-WqoQgxG9.js
+│  14.07 kB │ gzip:   3.69 kB
+│  storybook-static/assets/gallery-model-Du46n-0q.js
+│  14.13 kB │ gzip:   5.20 kB
+│  storybook-static/assets/ribbon-model-DOx3XXB2.js
+│  14.26 kB │ gzip:   4.49 kB
+│  storybook-static/assets/icons.stories-DkVdjohC.js
+│  15.85 kB │ gzip:   4.25 kB
+│  storybook-static/assets/input-model-jfrKNF1S.js
+│  21.46 kB │ gzip:   7.00 kB
+│  storybook-static/assets/menu.stories-BZs7C--K.js
+│  21.47 kB │ gzip:   4.37 kB
+│  storybook-static/assets/color-picker.stories-B31JtM6G.js
+│  21.99 kB │ gzip:   5.40 kB
+│  storybook-static/assets/manifest-jZOii-yk.js
+│  25.11 kB │ gzip:   7.51 kB
+│  storybook-static/assets/gallery.stories-DvKlGquf.js
+│  25.60 kB │ gzip:   7.13 kB
+│  storybook-static/assets/tokens-BX_WXJsV.js
+│  26.04 kB │ gzip:   8.63 kB
+│  storybook-static/vite-inject-mocker-entry.js
+│  27.84 kB │ gzip:   9.66 kB
+│  storybook-static/assets/matchers-JIUQ3HVY-C789_MAK.js
+│  28.79 kB │ gzip:   9.68 kB
+│  storybook-static/assets/Color-6AOWCN3U-DscEqohl.js
+│  30.35 kB │ gzip:  11.48 kB
+│  storybook-static/assets/WithTooltip-CDUNV5IS-DZJsillR.js
+│  32.69 kB │ gzip:  11.46 kB
+│  storybook-static/assets/chunk-RDNWKK3U-C8FG2EtC.js
+│  44.13 kB │ gzip:  12.28 kB
+│  storybook-static/assets/syntaxhighlighter-4REYKNEV-84FzH4h-.js
+│  75.82 kB │ gzip:  27.23 kB
+│  storybook-static/assets/axe-pQGJbW0T.js
+│  586.90 kB │ gzip: 160.19 kB
+│  storybook-static/assets/DocsRenderer-JROSPFPF-B3FnK3YR.js
+│  1,014.59 kB │ gzip: 325.27 kB
+│  storybook-static/assets/iframe-DbY8A3yZ.js
+│  1,058.07 kB │ gzip: 292.01 kB
+
+│
+▲  Vite [plugin builtin:vite-reporter]
+│  (!) Some chunks are larger than 500 kB after minification. Consider:
+│  - Using dynamic import() to code-split the application
+│  - Use build.rolldownOptions.output.codeSplitting to improve chunking:
+│  ]8;;https://rolldown.rs/reference/OutputOptions.codeSplittinghttps://rolldown.rs/reference/OutputOptions.codeSplitting]8;;
+│  - Adjust chunk size limit for this warning via
+│  build.chunkSizeWarningLimit.
+│  Vite ✓ built in 1.65s
+│
+◇  Output directory:
+│  /home/xm-max/Documents/Projects/mjx-ooxml-rs/.claude/worktrees/client-platform/ui/storybook-static
+│
+└  Storybook build completed successfully
+
+
+> @mjx/ui@0.1.0 test:browser
+> playwright test
+
+
+Running 470 tests using 1 worker
+
+  ✓    1 [chromium] › tests/browser/a11y.spec.ts:37:3 › the accessibility sweep › the catalogue has stories, and the sweep is looking at all of them (5ms)
+  ✓    2 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Button · The States Matrix (1.4s)
+  ✓    3 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Button · The Size Variants (1.2s)
+  ✓    4 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Button · Two Line Labels (1.2s)
+  ✓    5 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Button · Unavailable And Explained (1.2s)
+  ✓    6 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Density · Both Densities (1.3s)
+  ✓    7 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Dialog Launcher · The States Matrix (1.3s)
+  ✓    8 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Dialog Launcher · In A Group Header (1.2s)
+  ✓    9 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Split Button · The States Matrix (1.4s)
+  ✓   10 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Split Button · The Two Regions (1.2s)
+  ✓   11 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Split Button · The Size Variants (1.3s)
+  ✓   12 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Toggle Button · The States Matrix (1.4s)
+  ✓   13 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Toggle Button · The Three Positions (1.2s)
+  ✓   14 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Controls/Toggle Button · A Formatting Cluster (1.1s)
+  ✓   15 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Empty State · The Action Does The Thing (1.2s)
+  ✓   16 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Empty State · Nothing Found (1.2s)
+  ✓   17 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Empty State · Nothing To Offer (1.2s)
+  ✓   18 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Mini Toolbar · Above The Selection (1.2s)
+  ✓   19 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Mini Toolbar · Flipped Below The Selection (1.3s)
+  ✓   20 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Mini Toolbar · A Selection With No Room (1.2s)
+  ✓   21 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Mini Toolbar · Under Right To Left (1.3s)
+  ✓   22 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Mini Toolbar · In Compact Density (1.3s)
+  ✓   23 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Progress · The Ladder (1.4s)
+  ✓   24 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Progress · Countable Units (1.2s)
+  ✓   25 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Progress · Told Apart From A Stalled Bar (1.3s)
+  ✓   26 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Progress · In Compact Density (1.2s)
+  ✓   27 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Screentip · Waits For A Pointer (1.3s)
+  ✓   28 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Screentip · A Row Of Commands (1.1s)
+  ✓   29 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Screentip · The Enhanced Tip (1.2s)
+  ✓   30 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Screentip · At The Bottom Of Its Room (1.2s)
+  ✓   31 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Toast · The Four Tones (1.3s)
+  ✓   32 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Toast · A Queue Over Time (1.2s)
+  ✓   33 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Feedback/Toast · In Compact Density (1.2s)
+  ✓   34 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Density · Both Modes (1.2s)
+  ✓   35 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Density · Nested Inside A Comfortable Shell (1.2s)
+  ✓   36 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Document surface · Page On Backdrop (1.1s)
+  ✓   37 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Document surface · Both Schemes (1.1s)
+  ✓   38 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Focus · Every Rung Of The Ladder (1.1s)
+  ✓   39 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Focus · The Harness Uses It Too (1.1s)
+  ✓   40 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · The Whole Subset (2.3s)
+  ✓   41 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · The Size Ladder (1.2s)
+  ✓   42 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · Regular Against Filled (1.4s)
+  ✓   43 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · Tinted From Tokens (1.2s)
+  ✓   44 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · An Icon Outside The Subset (1.1s)
+  ✓   45 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Icons · The Subset Ledger (1.2s)
+  ✓   46 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Motion · The Five Roles (1.3s)
+  ✓   47 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Motion · The Vocabulary (1.3s)
+  ✓   48 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Surfaces · The Elevation Ladder (1.2s)
+  ✓   49 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Surfaces · The Radius Scale (1.2s)
+  ✓   50 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Surfaces · The Shadow Is Ink Tinted (1.1s)
+  ✓   51 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Surfaces · The Accent Rungs (1.2s)
+  ✓   52 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Typography · The Scale (1.4s)
+  ✓   53 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Typography · Dense Against Relaxed (1.2s)
+  ✓   54 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Foundations/Typography · Display Is For Empty States (1.2s)
+  ✓   55 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · The States Matrix (1.9s)
+  ✓   56 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · Live Preview (1.5s)
+  ✓   57 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · A Large Gallery (2.8s)
+  ✓   58 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · Three Kinds Of Item (1.9s)
+  ✓   59 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · Degrading With Its Group (1.6s)
+  ✓   60 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · Under Right To Left (1.5s)
+  ✓   61 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Galleries/Gallery · On A Phone (1.5s)
+  ✓   62 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Container query · Responds To Its Container (1.1s)
+  ✓   63 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Container query · Two Widths At One Viewport (1.2s)
+  ✓   64 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Contrast · Machinery Can Reject (1.2s)
+  ✓   65 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Contrast · Token Rejected As Body Text (1.1s)
+  ✓   66 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Contrast · Token Accepted As Body Text (1.1s)
+  ✓   67 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Contrast · Palette Ledger (1.4s)
+  ✓   68 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Control Naming · Launcher With No Name (1.2s)
+  ✓   69 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Token resolution · Generated Default (1.1s)
+  ✓   70 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Token resolution · Host Property Wins (1.1s)
+  ✓   71 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Token resolution · Explicit Wins (1.1s)
+  ✓   72 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Gates/Token resolution · All Three Legs (1.1s)
+  ✓   73 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Harness/Plate gallery · Loaded (1.1s)
+  ✓   74 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Harness/Plate gallery · Manifest Missing (1.1s)
+  ✓   75 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Checkbox · The States Matrix (1.2s)
+  ✓   76 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Checkbox · The Three Positions (1.2s)
+  ✓   77 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Checkbox · Unavailable And Disabled (1.1s)
+  ✓   78 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Checkbox · In Compact Density (1.2s)
+  ✓   79 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Combo Box · The States Matrix (1.3s)
+  ✓   80 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Combo Box · Typing Filters (1.4s)
+  ✓   81 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Combo Box · A String The List Does Not Carry (1.6s)
+  ✓   82 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Combo Box · The Two Filters (1.6s)
+  ✓   83 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Combo Box · In A Properties Pane (1.4s)
+  ✓   84 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Dropdown · The Option States (1.3s)
+  ✓   85 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Dropdown · The Closed Field (1.2s)
+  ✓   86 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Dropdown · A Long List (1.9s)
+  ✓   87 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Dropdown · At The Bottom Of Its Room (1.3s)
+  ✓   88 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Dropdown · Under Right To Left (1.3s)
+  ✓   89 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Label · What It Actually Does (1.2s)
+  ✓   90 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Label · Required And Hinted (1.2s)
+  ✓   91 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Label · A Caption For A Group (1.2s)
+  ✓   92 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Measure Input · The States Matrix (1.3s)
+  ✓   93 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Measure Input · The Same Quantity Six Ways (1.2s)
+  ✓   94 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Measure Input · What It Does With Nonsense (1.2s)
+  ✓   95 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Measure Input · With A Decimal Comma (1.1s)
+  ✓   96 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Measure Input · Stepping Inside A Range (1.1s)
+  ✓   97 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Segmented Control · The Alignment Set (1.3s)
+  ✓   98 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Segmented Control · In A Properties Row (1.2s)
+  ✓   99 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Segmented Control · A Member That Cannot Be Chosen (1.2s)
+  ✓  100 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Segmented Control · Under Right To Left (1.2s)
+  ✓  101 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · At Several Values (1.3s)
+  ✓  102 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · With Ticks (1.2s)
+  ✓  103 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · A Fractional Step (1.2s)
+  ✓  104 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · A Maximum Off The Boundary (1.1s)
+  ✓  105 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · Under Right To Left (1.2s)
+  ✓  106 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Inputs/Slider · Unavailable And Disabled (1.3s)
+  ✓  107 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Context Menu · On A Canvas (1.4s)
+  ✓  108 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Context Menu · On A Phone (1.4s)
+  ✓  109 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · The States Matrix (1.4s)
+  ✓  110 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · The Item Anatomy (1.4s)
+  ✓  111 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · Submenus And Diagonal Travel (1.3s)
+  ✓  112 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · Positioning And Flipping (1.2s)
+  ✓  113 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · Under Right To Left (1.2s)
+  ✓  114 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · In Compact Density (1.3s)
+  ✓  115 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Menus/Menu · Opened By A Split Button (1.3s)
+  ✓  116 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · The States Matrix (1.2s)
+  ✓  117 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · A Document’s Own Theme (2.3s)
+  ✓  118 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · A Theme With Holes (2.2s)
+  ✓  119 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · No Theme Supplied (1.4s)
+  ✓  120 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · A Colour That Is On No Grid (1.5s)
+  ✓  121 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · Every Indicator, Measured (1.2s)
+  ✓  122 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · At The Bottom Of Its Room (2.2s)
+  ✓  123 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · Under Right To Left (2.2s)
+  ✓  124 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Colour Picker · In Compact Density (2.1s)
+  ✓  125 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · The States Matrix (1.4s)
+  ✓  126 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · What The Warning Is For (1.3s)
+  ✓  127 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · Every Row Says What It Is (1.5s)
+  ✓  128 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · Four Hundred Rows Of Faces (1.6s)
+  ✓  129 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · A Family The List Does Not Carry (1.2s)
+  ✓  130 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Pickers/Font Picker · In Compact Density (1.5s)
+  ✓  131 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · The Priority Ladder (1.6s)
+  ✓  132 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Three Presentations At One Width (1.6s)
+  ✓  133 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · On A Phone (1.5s)
+  ✓  134 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Ribbon States (2.0s)
+  ✓  135 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · The Simplified Form (1.6s)
+  ✓  136 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Ribbon · Contextual Tab Sets (1.7s)
+  ✓  137 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Worst Case (2.9s)
+  ✓  138 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Worst Case On A Phone (2.1s)
+  ✓  139 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Ribbon/Word TabHome · The Demotion Rules (2.1s)
+  ✓  140 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · A Modal Over The Document (1.2s)
+  ✓  141 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · Returned To Its Invoker (1.3s)
+  ✓  142 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · Modeless — The Document Is Still Live (1.3s)
+  ✓  143 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · The Scrim, Measured (1.2s)
+  ✓  144 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · A Popover Inside A Dialog (1.2s)
+  ✓  145 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Dialog · In Compact Density (1.2s)
+  ✓  146 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · One Stop Or Many (1.2s)
+  ✓  147 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · A Popover That Disagrees With Itself (1.2s)
+  ✓  148 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · At The Bottom Of Its Room (1.2s)
+  ✓  149 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Popover · Under Right To Left (1.2s)
+  ✓  150 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Docked Beside The Document (1.2s)
+  ✓  151 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Against A Coloured Page (1.2s)
+  ✓  152 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Docked At The Start Of The Line (1.2s)
+  ✓  153 [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · In Compact Density (1.2s)
+  ✓  154 [chromium] › tests/browser/a11y.spec.ts:100:3 › the contrast rule, as DESIGN_TOKENS.md §2.2 states it › axe and this project agree about which token is legal as body text (1.7s)
+  ✓  155 [chromium] › tests/browser/container.spec.ts:28:3 › the resizable container › is in the catalogue at all (0ms)
+  ✓  156 [chromium] › tests/browser/container.spec.ts:32:3 › the resizable container › changes the component’s band without changing the viewport (858ms)
+  ✓  157 [chromium] › tests/browser/container.spec.ts:78:3 › the resizable container › reports exactly the width it was asked for, with no chrome inside the container (906ms)
+  ✓  158 [chromium] › tests/browser/container.spec.ts:119:3 › the resizable container › shows two different bands at one instant, which no viewport can do (660ms)
+  ✓  159 [chromium] › tests/browser/container.spec.ts:132:3 › the resizable container › offers its presets to the keyboard, not only to a drag handle (672ms)
+  ✓  160 [chromium] › tests/browser/controls.spec.ts:277:3 › the foundations reach every control’s shadow root › all four adopt them, adopt them first, and show four consequences of having done so (766ms)
+  ✓  161 [chromium] › tests/browser/controls.spec.ts:360:3 › the foundations reach every control’s shadow root › and the focus ring on a control is the foundations’ ring, not one of its own (854ms)
+  ✓  162 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › button · light: every pair of states differs (857ms)
+  ✓  163 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › button · light: and what it computed is what the model says (708ms)
+  ✓  164 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › button · dark: every pair of states differs (811ms)
+  ✓  165 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › button · dark: and what it computed is what the model says (722ms)
+  ✓  166 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › toggleButton · light: every pair of states differs (925ms)
+  ✓  167 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › toggleButton · light: and what it computed is what the model says (804ms)
+  ✓  168 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › toggleButton · dark: every pair of states differs (878ms)
+  ✓  169 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › toggleButton · dark: and what it computed is what the model says (746ms)
+  ✓  170 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › splitButton · light: every pair of states differs (863ms)
+  ✓  171 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › splitButton · light: and what it computed is what the model says (706ms)
+  ✓  172 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › splitButton · dark: every pair of states differs (992ms)
+  ✓  173 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › splitButton · dark: and what it computed is what the model says (708ms)
+  ✓  174 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › dialogLauncher · light: every pair of states differs (841ms)
+  ✓  175 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › dialogLauncher · light: and what it computed is what the model says (711ms)
+  ✓  176 [chromium] › tests/browser/controls.spec.ts:394:7 › pairwise state distinctness, on what the browser computed › dialogLauncher · dark: every pair of states differs (841ms)
+  ✓  177 [chromium] › tests/browser/controls.spec.ts:433:7 › pairwise state distinctness, on what the browser computed › dialogLauncher · dark: and what it computed is what the model says (688ms)
+  ✓  178 [chromium] › tests/browser/controls.spec.ts:471:3 › a forced state is the real state › hovering a resting button computes exactly what force-state="hover" does (1.2s)
+  ✓  179 [chromium] › tests/browser/controls.spec.ts:491:3 › a forced state is the real state › and holding the pointer down computes exactly what force-state="active" does (1.1s)
+  ✓  180 [chromium] › tests/browser/controls.spec.ts:508:3 › a forced state is the real state › a pressed toggle under the pointer takes the onHover paint, which is the cascade order (1.2s)
+  ✓  181 [chromium] › tests/browser/controls.spec.ts:530:3 › a button behaves like a button › Enter and Space each activate it, exactly once, through the platform (832ms)
+  ✓  182 [chromium] › tests/browser/controls.spec.ts:550:3 › a button behaves like a button › a disabled button is out of the tab order and inert to the pointer (874ms)
+  ✓  183 [chromium] › tests/browser/controls.spec.ts:567:3 › a button behaves like a button › an unavailable button is reachable, explained, and still refuses to act (907ms)
+  ✓  184 [chromium] › tests/browser/controls.spec.ts:609:3 › a button behaves like a button › a large button’s long label wraps to two lines and is clamped there (708ms)
+  ✓  185 [chromium] › tests/browser/controls.spec.ts:660:3 › a toggle holds a state, and says so › aria-pressed moves with every activation, and the event follows it (910ms)
+  ✓  186 [chromium] › tests/browser/controls.spec.ts:681:3 › a toggle holds a state, and says so › a mixed toggle announces “mixed” and resolves to pressed when it is used (812ms)
+  ✓  187 [chromium] › tests/browser/controls.spec.ts:698:3 › a toggle holds a state, and says so › a disabled toggle cannot be moved by any route (770ms)
+  ✓  188 [chromium] › tests/browser/controls.spec.ts:712:3 › a split button is two controls, and they are independent › two regions, two names, two tab stops (808ms)
+  ✓  189 [chromium] › tests/browser/controls.spec.ts:746:3 › a split button is two controls, and they are independent › hovering one region leaves the other at rest (2.0s)
+  ✓  190 [chromium] › tests/browser/controls.spec.ts:794:3 › a split button is two controls, and they are independent › the pointer hits whichever region it is over, and they do different things (759ms)
+  ✓  191 [chromium] › tests/browser/controls.spec.ts:822:3 › a split button is two controls, and they are independent › Arrow Down opens the menu and never fires the action (906ms)
+  ✓  192 [chromium] › tests/browser/controls.spec.ts:856:3 › a split button is two controls, and they are independent › aria-expanded follows the host, never the event (707ms)
+  ✓  193 [chromium] › tests/browser/controls.spec.ts:881:3 › a dialog launcher names its dialog › every launcher in the catalogue has a name, and says it opens a dialog (1.1s)
+  ✓  194 [chromium] › tests/browser/controls.spec.ts:916:5 › every control clears the accessible target size › in both density modes, at the desktop container (743ms)
+  ✓  195 [chromium] › tests/browser/controls.spec.ts:916:5 › every control clears the accessible target size › in both density modes, at the phone container (768ms)
+  ✓  196 [chromium] › tests/browser/feedback.spec.ts:139:3 › the mini toolbar never covers the selection it serves › above it, when there is room above (783ms)
+  ✓  197 [chromium] › tests/browser/feedback.spec.ts:153:3 › the mini toolbar never covers the selection it serves › below it, when the selection is at the top of its room (757ms)
+  ✓  198 [chromium] › tests/browser/feedback.spec.ts:173:3 › the mini toolbar never covers the selection it serves › and says so, on the host, when the selection leaves nowhere to go (752ms)
+  ✓  199 [chromium] › tests/browser/feedback.spec.ts:189:3 › the mini toolbar is a toolbar › announces itself as one, with a name and a command per row (764ms)
+  ✓  200 [chromium] › tests/browser/feedback.spec.ts:211:3 › the mini toolbar is a toolbar › holds one tab stop, and the arrows do the moving (822ms)
+  ✓  201 [chromium] › tests/browser/feedback.spec.ts:236:3 › the mini toolbar is a toolbar › Escape gives the keyboard back to where it came from (789ms)
+  ✓  202 [chromium] › tests/browser/feedback.spec.ts:255:3 › the mini toolbar is a toolbar › a command fires, and a toggle reports which way it went (875ms)
+  ✓  203 [chromium] › tests/browser/feedback.spec.ts:287:3 › the mini toolbar is a toolbar › the hit-target floor holds in compact density (792ms)
+  ✓  204 [chromium] › tests/browser/feedback.spec.ts:311:3 › a screentip waits › resolves its delay from the cascade, and it is the token arithmetic (777ms)
+  ✓  205 [chromium] › tests/browser/feedback.spec.ts:326:3 › a screentip waits › is not there before the delay, and is there after it (1.6s)
+  ✓  206 [chromium] › tests/browser/feedback.spec.ts:354:3 › a screentip waits › the next tip in a row appears with no wait at all (2.5s)
+  ✓  207 [chromium] › tests/browser/feedback.spec.ts:371:3 › a screentip waits › Escape removes it and moves no focus at all (1.7s)
+  ✓  208 [chromium] › tests/browser/feedback.spec.ts:398:3 › a screentip waits › the trigger carries the tip’s text as its accessible description, from the start (844ms)
+  ✓  209 [chromium] › tests/browser/feedback.spec.ts:419:3 › a screentip waits › flips above its trigger, and still does not cover it (739ms)
+  ✓  210 [chromium] › tests/browser/feedback.spec.ts:442:3 › a toast is announced to exactly one ear › the two regions exist, never change their politeness, and carry the two roles (789ms)
+  ✓  211 [chromium] › tests/browser/feedback.spec.ts:469:3 › a toast is announced to exactly one ear › a polite toast makes no assertive announcement, and an error does (856ms)
+  ✓  212 [chromium] › tests/browser/feedback.spec.ts:492:3 › the toast queue, driven by real time › stacks in insertion order, oldest furthest from the corner (826ms)
+  ✓  213 [chromium] › tests/browser/feedback.spec.ts:517:3 › the toast queue, driven by real time › a second toast does not restart the first one’s clock (2.7s)
+  ✓  214 [chromium] › tests/browser/feedback.spec.ts:535:3 › the toast queue, driven by real time › an error stays while everything around it leaves (2.4s)
+  ✓  215 [chromium] › tests/browser/feedback.spec.ts:553:3 › the toast queue, driven by real time › the ceiling holds, and it is a positive number of real cards (1.1s)
+  ✓  216 [chromium] › tests/browser/feedback.spec.ts:565:3 › the toast queue, driven by real time › the dismissal is named after the message it dismisses, and works (855ms)
+  ✓  217 [chromium] › tests/browser/feedback.spec.ts:576:3 › the toast queue, driven by real time › every tone paints a different edge from the card it sits on (859ms)
+  ✓  218 [chromium] › tests/browser/feedback.spec.ts:598:3 › the toast queue, driven by real time › the dismissal clears the hit-target floor in compact density (766ms)
+  ✓  219 [chromium] › tests/browser/feedback.spec.ts:629:3 › a determinate bar is its value › the painted indicator is the value’s fraction of the track, at every step (1.5s)
+  ✓  220 [chromium] › tests/browser/feedback.spec.ts:648:3 › a determinate bar is its value › announces its own scale rather than a normalised hundred (785ms)
+  ✓  221 [chromium] › tests/browser/feedback.spec.ts:683:3 › an indeterminate bar is not a stalled one › the two are the same width, so a width comparison decides nothing (1.4s)
+  ✓  222 [chromium] › tests/browser/feedback.spec.ts:692:3 › an indeterminate bar is not a stalled one › one of them carries a value and the other carries none (742ms)
+  ✓  223 [chromium] › tests/browser/feedback.spec.ts:702:3 › an indeterminate bar is not a stalled one › and one of them moves (1.2s)
+  ✓  224 [chromium] › tests/browser/feedback.spec.ts:728:3 › an indeterminate bar is not a stalled one › under a reduced-motion preference neither moves, and the tree still tells them apart (1.5s)
+  ✓  225 [chromium] › tests/browser/feedback.spec.ts:759:3 › the empty state › announces itself, is named by its heading, and its picture is silent (777ms)
+  ✓  226 [chromium] › tests/browser/feedback.spec.ts:783:3 › the empty state › the action does the thing (775ms)
+  ✓  227 [chromium] › tests/browser/feedback.spec.ts:802:3 › the empty state › an emptiness with nothing to offer has no button rather than a dead one (726ms)
+  ✓  228 [chromium] › tests/browser/feedback.spec.ts:819:3 › the empty state › its heading is the display face, and the description is not (722ms)
+  ✓  229 [chromium] › tests/browser/foundations.spec.ts:95:3 › the type scale, as the browser computes it › renders all six roles, and no two of them the same (837ms)
+  ✓  230 [chromium] › tests/browser/foundations.spec.ts:131:3 › the type scale, as the browser computes it › resolves dense to the generated text.xs on leading.tight (875ms)
+  ✓  231 [chromium] › tests/browser/foundations.spec.ts:153:3 › the type scale, as the browser computes it › gives the serif to the display role and to nothing else (835ms)
+  ✓  232 [chromium] › tests/browser/foundations.spec.ts:173:3 › the type scale, as the browser computes it › the display role reaches an empty state, which is the only place it may (660ms)
+  ✓  233 [chromium] › tests/browser/foundations.spec.ts:185:3 › the elevation ladder, as the browser computes it › gives every rung its token background and its token radius (704ms)
+  ✓  234 [chromium] › tests/browser/foundations.spec.ts:219:3 › the elevation ladder, as the browser computes it › renders the whole radius scale, each step distinct (679ms)
+  ✓  235 [chromium] › tests/browser/foundations.spec.ts:235:3 › the elevation ladder, as the browser computes it › paints an ink-tinted shadow, not a neutral black (674ms)
+  ✓  236 [chromium] › tests/browser/foundations.spec.ts:264:3 › the elevation ladder, as the browser computes it › keeps the page shadow ink-tinted in the dark scheme too (648ms)
+  ✓  237 [chromium] › tests/browser/foundations.spec.ts:340:5 › the focus ring, driven by a keyboard › is visible on every rung of the ladder — light (1.5s)
+  ✓  238 [chromium] › tests/browser/foundations.spec.ts:340:5 › the focus ring, driven by a keyboard › is visible on every rung of the ladder — dark (1.5s)
+  ✓  239 [chromium] › tests/browser/foundations.spec.ts:377:3 › the focus ring, driven by a keyboard › does not appear for a pointer, which is what "keyboard-only" means (691ms)
+  ✓  240 [chromium] › tests/browser/foundations.spec.ts:400:3 › the focus ring, driven by a keyboard › is the same ring on the harness chrome, which had one of its own (707ms)
+  ✓  241 [chromium] › tests/browser/foundations.spec.ts:428:3 › the motion vocabulary, as the browser resolves it › gives every role its token easing, and never overshoot to a document object (661ms)
+  ✓  242 [chromium] › tests/browser/foundations.spec.ts:481:3 › density, on computed values › changes the spacing and keeps the hit target above the floor (696ms)
+  ✓  243 [chromium] › tests/browser/foundations.spec.ts:527:3 › density, on computed values › cascades into a subtree, which the colour scheme cannot (739ms)
+  ✓  244 [chromium] › tests/browser/gallery.spec.ts:165:3 › live preview restores exactly what was there › hovering several items in sequence changes the document at every step, and leaving puts it back (2.5s)
+  ✓  245 [chromium] › tests/browser/gallery.spec.ts:195:3 › live preview restores exactly what was there › the keyboard previews too, and Escape reverts exactly — sampled at every arrow (1.5s)
+  ✓  246 [chromium] › tests/browser/gallery.spec.ts:218:3 › live preview restores exactly what was there › Enter commits and Escape reverts, and the two are distinguishable (1.8s)
+  ✓  247 [chromium] › tests/browser/gallery.spec.ts:248:3 › live preview restores exactly what was there › after a commit, leaving restores the committed value and not the initial one (2.5s)
+  ✓  248 [chromium] › tests/browser/gallery.spec.ts:274:3 › live preview restores exactly what was there › the event sequence is exactly preview / cancel / commit, and never two previews at once (1.5s)
+  ✓  249 [chromium] › tests/browser/gallery.spec.ts:313:3 › live preview restores exactly what was there › an unavailable item never previews, because a preview it cannot keep is a broken promise (1.3s)
+  ✓  250 [chromium] › tests/browser/gallery.spec.ts:369:3 › rapid traversal is coalesced › crossing seven cells quickly emits one preview, not seven (1.3s)
+  ✓  251 [chromium] › tests/browser/gallery.spec.ts:387:3 › rapid traversal is coalesced › the anti-vacuity run: with the coalescing removed the same traversal emits one each (1.2s)
+  ✓  252 [chromium] › tests/browser/gallery.spec.ts:410:3 › rapid traversal is coalesced › however many requests are emitted, one preview is outstanding at most (966ms)
+  ✓  253 [chromium] › tests/browser/gallery.spec.ts:442:3 › a four-hundred-item gallery does not build four hundred cells › the item descriptors render nothing at all, and the cells are a window (1.8s)
+  ✓  254 [chromium] › tests/browser/gallery.spec.ts:494:3 › a four-hundred-item gallery does not build four hundred cells › scrolling builds the rows it reveals and drops the ones it leaves (1.8s)
+  ✓  255 [chromium] › tests/browser/gallery.spec.ts:532:3 › a four-hundred-item gallery does not build four hundred cells › the flyout of a large gallery is virtualised too, and its plan has sections in it (2.4s)
+  ✓  256 [chromium] › tests/browser/gallery.spec.ts:570:3 › a four-hundred-item gallery does not build four hundred cells › the plan the component built is the plan the model says (1.9s)
+  ✓  257 [chromium] › tests/browser/gallery.spec.ts:637:3 › the strip and the flyout never disagree about which item is selected › a selection made in the strip is the selection the flyout shows, and back again (2.3s)
+  ✓  258 [chromium] › tests/browser/gallery.spec.ts:680:3 › the strip and the flyout never disagree about which item is selected › while the flyout is open the strip is inert, so the same options are not offered twice (1.3s)
+  ✓  259 [chromium] › tests/browser/gallery.spec.ts:697:3 › the strip and the flyout never disagree about which item is selected › an item scrolled far out of the strip’s window is still reachable and still selectable (2.3s)
+  ✓  260 [chromium] › tests/browser/gallery.spec.ts:754:3 › the keyboard walks the grid in two dimensions › every key lands where nextGalleryIndex says, over the fixture’s ragged last row (1.5s)
+  ✓  261 [chromium] › tests/browser/gallery.spec.ts:799:3 › the keyboard walks the grid in two dimensions › there is exactly one tab stop, and Tab leaves the gallery rather than cycling in it (942ms)
+  ✓  262 [chromium] › tests/browser/gallery.spec.ts:822:3 › the keyboard walks the grid in two dimensions › under RTL the inline arrows mirror (937ms)
+  ✓  263 [chromium] › tests/browser/gallery.spec.ts:841:3 › the keyboard walks the grid in two dimensions › Alt + Arrow Down opens the flyout from the keyboard (1.8s)
+  ✓  264 [chromium] › tests/browser/gallery.spec.ts:917:5 › the states matrix, on what the browser computed › light: what it computed is what the model says (1.3s)
+  ✓  265 [chromium] › tests/browser/gallery.spec.ts:947:5 › the states matrix, on what the browser computed › light: every pair of states differs (1.4s)
+  ✓  266 [chromium] › tests/browser/gallery.spec.ts:917:5 › the states matrix, on what the browser computed › dark: what it computed is what the model says (1.4s)
+  ✓  267 [chromium] › tests/browser/gallery.spec.ts:947:5 › the states matrix, on what the browser computed › dark: every pair of states differs (1.4s)
+  ✓  268 [chromium] › tests/browser/gallery.spec.ts:978:3 › the states matrix, on what the browser computed › a forced state computes exactly what a real pointer produces (1.8s)
+  ✓  269 [chromium] › tests/browser/gallery.spec.ts:1007:3 › the states matrix, on what the browser computed › the keyboard highlight is the foundations’ ring and nothing of the gallery’s own (1.4s)
+  ✓  270 [chromium] › tests/browser/gallery.spec.ts:1037:3 › three genuinely different item kinds render › a text miniature, a shape and a swatch all reach a cell, and all paint (1.4s)
+  ✓  271 [chromium] › tests/browser/gallery.spec.ts:1097:3 › three genuinely different item kinds render › the cell’s accessible name is the item’s label, not the words drawn inside it (892ms)
+  ✓  272 [chromium] › tests/browser/gallery.spec.ts:1117:3 › the three presentations, and the placement primitive behind two of them › the flyout goes where placeFloating says, from the component’s own recorded inputs (1.4s)
+  ✓  273 [chromium] › tests/browser/gallery.spec.ts:1181:3 › the three presentations, and the placement primitive behind two of them › at a phone width the flyout is a sheet: pinned to the bottom edge, at full width (1.4s)
+  ✓  274 [chromium] › tests/browser/gallery.spec.ts:1224:3 › the three presentations, and the placement primitive behind two of them › press and hold previews on touch, and a tap commits — and the two are different (2.4s)
+  ✓  275 [chromium] › tests/browser/gallery.spec.ts:1305:3 › the three presentations, and the placement primitive behind two of them › a gallery degrades with its ribbon group, and it is measured as well as read back (2.3s)
+  ✓  276 [chromium] › tests/browser/gallery.spec.ts:1366:3 › the three presentations, and the placement primitive behind two of them › every part the component publishes is a part it actually renders, and no others (1.3s)
+  ✓  277 [chromium] › tests/browser/gallery.spec.ts:1392:3 › the three presentations, and the placement primitive behind two of them › every cell clears the accessible hit-target floor, in compact density (1.3s)
+  ✓  278 [chromium] › tests/browser/icons.spec.ts:58:3 › the icon subset, in the bundle › contains exactly the icons the manifest asks for, and no others (20ms)
+  ✓  279 [chromium] › tests/browser/icons.spec.ts:78:3 › the icon subset, in the bundle › holds the total SVG path data under a budget derived from the subset (17ms)
+  ✓  280 [chromium] › tests/browser/icons.spec.ts:97:3 › the icon subset, in the bundle › ships no vendor SVG file into the static output (1ms)
+  ✓  281 [chromium] › tests/browser/icons.spec.ts:118:3 › the icon element › renders every glyph in the subset, at the box its size claims (928ms)
+  ✓  282 [chromium] › tests/browser/icons.spec.ts:160:3 › the icon element › renders the size ladder at five distinct sizes (628ms)
+  ✓  283 [chromium] › tests/browser/icons.spec.ts:177:3 › the icon element › refuses an icon outside the subset, and says so in the DOM (677ms)
+  ✓  284 [chromium] › tests/browser/icons.spec.ts:210:3 › the icon element › is decorative without a label and an image with one (971ms)
+  ✓  285 [chromium] › tests/browser/icons.spec.ts:234:3 › the icon element › takes its colour from the text around it (662ms)
+  ✓  286 [chromium] › tests/browser/icons.spec.ts:262:3 › the icon element › the manifest, the catalogue and the bundle all agree on the count (17ms)
+  ✓  287 [chromium] › tests/browser/inputs.spec.ts:193:5 › a field’s paint › every cell computes what the model says, in light (1.2s)
+  ✓  288 [chromium] › tests/browser/inputs.spec.ts:224:5 › a field’s paint › no two cells look alike, in light (1.2s)
+  ✓  289 [chromium] › tests/browser/inputs.spec.ts:193:5 › a field’s paint › every cell computes what the model says, in dark (1.2s)
+  ✓  290 [chromium] › tests/browser/inputs.spec.ts:224:5 › a field’s paint › no two cells look alike, in dark (1.2s)
+  ✓  291 [chromium] › tests/browser/inputs.spec.ts:241:3 › a field’s paint › the fill never changes, which is the reason the table exists (1.2s)
+  ✓  292 [chromium] › tests/browser/inputs.spec.ts:257:3 › a checkbox › the box computes what the model says, for all four positions (1.2s)
+  ✓  293 [chromium] › tests/browser/inputs.spec.ts:275:3 › a checkbox › the third position is an attribute value and is announced as one (657ms)
+  ✓  294 [chromium] › tests/browser/inputs.spec.ts:288:3 › a checkbox › activating the indeterminate one checks it, and says so once (717ms)
+  ✓  295 [chromium] › tests/browser/inputs.spec.ts:307:3 › a checkbox › the row clears the hit-target floor in compact density (691ms)
+  ✓  296 [chromium] › tests/browser/inputs.spec.ts:317:3 › a checkbox › the two kinds of unavailability differ in the way the shared helper says (693ms)
+  ✓  297 [chromium] › tests/browser/inputs.spec.ts:335:3 › an option › all five states are produced at once, and each computes what the model says (1.2s)
+  ✓  298 [chromium] › tests/browser/inputs.spec.ts:373:3 › an option › the fifth state is reachable, and it is the one with two indicators (1.7s)
+  ✓  299 [chromium] › tests/browser/inputs.spec.ts:395:3 › an option › a second line is told apart from its label by size and never by colour (1.2s)
+  ✓  300 [chromium] › tests/browser/inputs.spec.ts:433:3 › the tab stops › a properties pane of two fields has two stops, and the labels have none (996ms)
+  ✓  301 [chromium] › tests/browser/inputs.spec.ts:448:3 › the tab stops › an open list is a disclosure: Tab leaves it and it closes (893ms)
+  ✓  302 [chromium] › tests/browser/inputs.spec.ts:464:3 › the tab stops › a segmented control holds exactly one stop for the whole group (702ms)
+  ✓  303 [chromium] › tests/browser/inputs.spec.ts:478:3 › a dropdown › Home and End move through the list, because this field is not a text box (946ms)
+  ✓  304 [chromium] › tests/browser/inputs.spec.ts:499:3 › a dropdown › Enter commits the option the cursor is on; Escape commits nothing (986ms)
+  ✓  305 [chromium] › tests/browser/inputs.spec.ts:528:3 › a dropdown › aria-activedescendant names a row that is actually in the DOM (1.2s)
+  ✓  306 [chromium] › tests/browser/inputs.spec.ts:549:3 › a dropdown › a long list builds only its window, and the number comes from the shared planner (938ms)
+  ✓  307 [chromium] › tests/browser/inputs.spec.ts:577:3 › a dropdown › the placement is the one `placeFloating` computes in Node from the same inputs (823ms)
+  ✓  308 [chromium] › tests/browser/inputs.spec.ts:748:3 › a combo box › exactly one of the nine paths finishes with a person still typing (0ms)
+  ✓  309 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing an exact label and pressing Enter (981ms)
+  ✓  310 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing a prefix, arrowing and pressing Enter (960ms)
+  ✓  311 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing and pressing Escape while the list is open (955ms)
+  ✓  312 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after pressing Escape with the list closed (940ms)
+  ✓  313 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing and pressing Tab (909ms)
+  ✓  314 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing a string the list does not carry and pressing Tab (925ms)
+  ✓  315 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after emptying the field and pressing Enter (954ms)
+  ✓  316 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after clicking an option (1.1s)
+  ✓  317 [chromium] › tests/browser/inputs.spec.ts:756:5 › a combo box › the field shows what the control reports, after typing and clicking outside (1.0s)
+  ✓  318 [chromium] › tests/browser/inputs.spec.ts:778:3 › a combo box › typing filters to exactly what the model says it filters to (919ms)
+  ✓  319 [chromium] › tests/browser/inputs.spec.ts:805:3 › a combo box › the arrows move through the filtered set and not through all of it (1.3s)
+  ✓  320 [chromium] › tests/browser/inputs.spec.ts:833:3 › a combo box › Home and End are caret keys, and the list does not take them (974ms)
+  ✓  321 [chromium] › tests/browser/inputs.spec.ts:856:3 › a combo box › Escape restores the text as it was when the list opened — not the value (1.0s)
+  ✓  322 [chromium] › tests/browser/inputs.spec.ts:880:3 › a combo box › a string the list does not carry: refused without allow-custom, kept with it (1.2s)
+  ✓  323 [chromium] › tests/browser/inputs.spec.ts:919:3 › a measure input › the same quantity is written correctly in all six units (750ms)
+  ✓  324 [chromium] › tests/browser/inputs.spec.ts:937:3 › a measure input › a typed measure commits the number the grammar says it means (757ms)
+  ✓  325 [chromium] › tests/browser/inputs.spec.ts:953:3 › a measure input › a comma is accepted in a dot field, and written back the way the field declares (778ms)
+  ✓  326 [chromium] › tests/browser/inputs.spec.ts:965:3 › a measure input › nonsense: the text stays, the value does not move, and it says so three ways (822ms)
+  ✓  327 [chromium] › tests/browser/inputs.spec.ts:997:3 › a measure input › an unknown unit is a different refusal, and names the fragment that defeated it (741ms)
+  ✓  328 [chromium] › tests/browser/inputs.spec.ts:1008:3 › a measure input › it stays invalid after blur, and Escape is the way out (873ms)
+  ✓  329 [chromium] › tests/browser/inputs.spec.ts:1030:3 › a measure input › an arrow key steps in the displayed unit and stops at the range’s end (811ms)
+  ✓  330 [chromium] › tests/browser/inputs.spec.ts:1072:3 › a slider › the thumb is where the model says, at five values including both ends (758ms)
+  ✓  331 [chromium] › tests/browser/inputs.spec.ts:1093:3 › a slider › a keyboard step moves by exactly the declared step (787ms)
+  ✓  332 [chromium] › tests/browser/inputs.spec.ts:1110:3 › a slider › Home and End land on the bounds exactly, even off a step boundary (858ms)
+  ✓  333 [chromium] › tests/browser/inputs.spec.ts:1134:3 › a slider › a value off a step boundary is snapped the way the model says (857ms)
+  ✓  334 [chromium] › tests/browser/inputs.spec.ts:1153:3 › a slider › under right-to-left the inline arrows mirror and the block ones do not (821ms)
+  ✓  335 [chromium] › tests/browser/inputs.spec.ts:1169:3 › a slider › the track announces its whole range, not just its value (739ms)
+  ✓  336 [chromium] › tests/browser/inputs.spec.ts:1179:3 › a slider › a slider with no native disabled still announces that it is unavailable (759ms)
+  ✓  337 [chromium] › tests/browser/inputs.spec.ts:1197:3 › a segmented control › the arrows move and choose, wrapping at both ends (924ms)
+  ✓  338 [chromium] › tests/browser/inputs.spec.ts:1215:3 › a segmented control › exactly one member is checked, and it is the one the value names (740ms)
+  ✓  339 [chromium] › tests/browser/inputs.spec.ts:1223:3 › a segmented control › an unavailable member is reachable and refused (748ms)
+  ✓  340 [chromium] › tests/browser/inputs.spec.ts:1242:3 › a label › its text becomes the control’s accessible name (759ms)
+  ✓  341 [chromium] › tests/browser/inputs.spec.ts:1253:3 › a label › it never overwrites a name the control already declared (750ms)
+  ✓  342 [chromium] › tests/browser/inputs.spec.ts:1261:3 › a label › a press on the label focuses the control it names (840ms)
+  ✓  343 [chromium] › tests/browser/inputs.spec.ts:1270:3 › a label › a required field announces the word as well as drawing the mark (808ms)
+  ✓  344 [chromium] › tests/browser/inputs.spec.ts:1285:1 › a sectioned list draws one heading per section, and they are one row tall (947ms)
+  ✓  345 [chromium] › tests/browser/menus.spec.ts:230:5 › the states matrix, on what the browser computed › light: what it computed is what the model says (789ms)
+  ✓  346 [chromium] › tests/browser/menus.spec.ts:275:5 › the states matrix, on what the browser computed › light: every pair of states differs (1.1s)
+  ✓  347 [chromium] › tests/browser/menus.spec.ts:230:5 › the states matrix, on what the browser computed › dark: what it computed is what the model says (761ms)
+  ✓  348 [chromium] › tests/browser/menus.spec.ts:275:5 › the states matrix, on what the browser computed › dark: every pair of states differs (1.1s)
+  ✓  349 [chromium] › tests/browser/menus.spec.ts:313:3 › the states matrix, on what the browser computed › the keyboard highlight is the foundations’ ring and nothing of the menu’s own (1.1s)
+  ✓  350 [chromium] › tests/browser/menus.spec.ts:337:3 › the item anatomy and the ARIA menu roles › every kind carries its role, its state, and the mark that goes with it (786ms)
+  ✓  351 [chromium] › tests/browser/menus.spec.ts:435:3 › the item anatomy and the ARIA menu roles › checking a box and choosing a radio move aria-checked, in both directions (1.1s)
+  ✓  352 [chromium] › tests/browser/menus.spec.ts:469:3 › the item anatomy and the ARIA menu roles › the mark gutter is reserved once for the whole menu, so the labels line up (792ms)
+  ✓  353 [chromium] › tests/browser/menus.spec.ts:510:3 › the full keyboard model › arrows move and wrap, Home and End jump, and type-ahead selects (824ms)
+  ✓  354 [chromium] › tests/browser/menus.spec.ts:543:3 › the full keyboard model › only one row is a tab stop, and Tab leaves the menu rather than cycling in it (789ms)
+  ✓  355 [chromium] › tests/browser/menus.spec.ts:577:3 › the full keyboard model › an unavailable row is reachable by arrow key and refuses to be activated (854ms)
+  ✓  356 [chromium] › tests/browser/menus.spec.ts:620:3 › the full keyboard model › Arrow Right opens a submenu immediately — the keyboard never waits for hover intent (807ms)
+  ✓  357 [chromium] › tests/browser/menus.spec.ts:652:3 › the full keyboard model › Escape closes exactly one level and gives focus back to the row that opened it (955ms)
+  ✓  358 [chromium] › tests/browser/menus.spec.ts:698:3 › the full keyboard model › under RTL the arrows mirror: Arrow Left opens and Arrow Right closes (1.7s)
+  ✓  359 [chromium] › tests/browser/menus.spec.ts:732:3 › focus goes back to the invoker › on Escape, on selection, and on an outside click (1.9s)
+  ✓  360 [chromium] › tests/browser/menus.spec.ts:761:3 › focus goes back to the invoker › a split button’s arrow opens a menu, and gets its focus back (842ms)
+  ✓  361 [chromium] › tests/browser/menus.spec.ts:824:3 › hover intent and the safe triangle › a submenu waits for the hover delay rather than opening on contact (1.2s)
+  ✓  362 [chromium] › tests/browser/menus.spec.ts:846:3 › hover intent and the safe triangle › a diagonal across a sibling does not close the submenu (1.9s)
+  ✓  363 [chromium] › tests/browser/menus.spec.ts:915:3 › hover intent and the safe triangle › a move straight down onto the sibling does close it, and so does pausing half way (1.8s)
+  ✓  364 [chromium] › tests/browser/menus.spec.ts:939:3 › hover intent and the safe triangle › hovering a row moves the keyboard to it, so the pointer and the keyboard agree (811ms)
+  ✓  365 [chromium] › tests/browser/menus.spec.ts:1022:5 › placement, flipping and the boundary that clips › at the start-start corner the component and placeFloating agree (1.2s)
+  ✓  366 [chromium] › tests/browser/menus.spec.ts:1022:5 › placement, flipping and the boundary that clips › at the start-end corner the component and placeFloating agree (1.2s)
+  ✓  367 [chromium] › tests/browser/menus.spec.ts:1022:5 › placement, flipping and the boundary that clips › at the end-start corner the component and placeFloating agree (1.2s)
+  ✓  368 [chromium] › tests/browser/menus.spec.ts:1022:5 › placement, flipping and the boundary that clips › at the end-end corner the component and placeFloating agree (1.2s)
+  ✓  369 [chromium] › tests/browser/menus.spec.ts:1076:3 › placement, flipping and the boundary that clips › a menu at the block end flips above its anchor rather than hanging out of the frame (1.7s)
+  ✓  370 [chromium] › tests/browser/menus.spec.ts:1103:3 › placement, flipping and the boundary that clips › the boundary is the harness frame, not the viewport (1.2s)
+  ✓  371 [chromium] › tests/browser/menus.spec.ts:1122:3 › placement, flipping and the boundary that clips › a submenu under RTL opens toward the end of the line, which is leftward (1.2s)
+  ✓  372 [chromium] › tests/browser/menus.spec.ts:1145:3 › the touch presentation is a sheet › on a phone-width container the menu is pinned to the bottom at full width (1.3s)
+  ✓  373 [chromium] › tests/browser/menus.spec.ts:1202:3 › the touch presentation is a sheet › a long press opens it, and a drag does not (2.2s)
+  ✓  374 [chromium] › tests/browser/menus.spec.ts:1245:3 › the context menu opens the three ways it has to › right-click puts it at the pointer (1.2s)
+  ✓  375 [chromium] › tests/browser/menus.spec.ts:1265:3 › the context menu opens the three ways it has to › the Context Menu key puts it at the focused element, and gives focus back (1.3s)
+  ✓  376 [chromium] › tests/browser/menus.spec.ts:1293:3 › the context menu opens the three ways it has to › Shift + F10 opens it too, for the keyboards that have no Context Menu key (806ms)
+  ✓  377 [chromium] › tests/browser/menus.spec.ts:1311:3 › density › a compact menu keeps every row above the accessible hit-target floor (709ms)
+  ✓  378 [chromium] › tests/browser/pickers.spec.ts:141:5 › a swatch › every state computes what the model says, in light (1.5s)
+  ✓  379 [chromium] › tests/browser/pickers.spec.ts:141:5 › a swatch › every state computes what the model says, in dark (1.5s)
+  ✓  380 [chromium] › tests/browser/pickers.spec.ts:187:3 › a swatch › no two states look alike, which is a different claim from the one above (1.4s)
+  ✓  381 [chromium] › tests/browser/pickers.spec.ts:207:3 › a swatch › the declared non-colour cue is actually drawn, not merely declared (1.5s)
+  ✓  382 [chromium] › tests/browser/pickers.spec.ts:230:5 › the selected-swatch indicator › reads on every swatch in a real palette, in light (1.5s)
+  ✓  383 [chromium] › tests/browser/pickers.spec.ts:268:5 › the selected-swatch indicator › a fixed indicator would have failed the same palette, in light (1.5s)
+  ✓  384 [chromium] › tests/browser/pickers.spec.ts:230:5 › the selected-swatch indicator › reads on every swatch in a real palette, in dark (1.5s)
+  ✓  385 [chromium] › tests/browser/pickers.spec.ts:268:5 › the selected-swatch indicator › a fixed indicator would have failed the same palette, in dark (1.5s)
+  ✓  386 [chromium] › tests/browser/pickers.spec.ts:296:3 › the colour a person chose › a theme swatch reports a slot, and never the colour it currently is (1.7s)
+  ✓  387 [chromium] › tests/browser/pickers.spec.ts:320:3 › the colour a person chose › every spelling of one colour commits one value — including one on no grid (1.6s)
+  ✓  388 [chromium] › tests/browser/pickers.spec.ts:340:3 › the colour a person chose › a colour the grid does not carry still round-trips through the attribute (969ms)
+  ✓  389 [chromium] › tests/browser/pickers.spec.ts:360:3 › the colour a person chose › a picker with no theme draws no theme section rather than inventing one (1.2s)
+  ✓  390 [chromium] › tests/browser/pickers.spec.ts:371:3 › the colour a person chose › a slot the document does not define is refused and says why (1.4s)
+  ✓  391 [chromium] › tests/browser/pickers.spec.ts:387:3 › the palette’s keyboard › the arrows walk the grid the way the model says, cell for cell (1.8s)
+  ✓  392 [chromium] › tests/browser/pickers.spec.ts:426:3 › the palette’s keyboard › the inline arrows mirror under right-to-left and the block ones do not (1.6s)
+  ✓  393 [chromium] › tests/browser/pickers.spec.ts:450:3 › the palette’s keyboard › the whole picker is one tab stop, and Tab out closes the palette (1.2s)
+  ✓  394 [chromium] › tests/browser/pickers.spec.ts:464:3 › the palette’s keyboard › a swatch never takes focus, which is what makes the stop count one (1.2s)
+  ✓  395 [chromium] › tests/browser/pickers.spec.ts:475:3 › the palette’s keyboard › the placement is the one placeFloating computes in Node from the same inputs (1.4s)
+  ✓  396 [chromium] › tests/browser/pickers.spec.ts:527:1 › a swatch cell clears the hit-target floor in compact density (1.5s)
+  ✓  397 [chromium] › tests/browser/pickers.spec.ts:557:3 › the substitution warning › it appears for a substituted face and does not for a present one (769ms)
+  ✓  398 [chromium] › tests/browser/pickers.spec.ts:596:3 › the substitution warning › a metric-compatible substitution and a reflowing one say different things (842ms)
+  ✓  399 [chromium] › tests/browser/pickers.spec.ts:615:3 › the substitution warning › the row carries the mark, and it is told apart by size and never by colour (1.3s)
+  ✓  400 [chromium] › tests/browser/pickers.spec.ts:645:3 › the substitution warning › a substituted family is still choosable, and choosing it commits it (1.5s)
+  ✓  401 [chromium] › tests/browser/pickers.spec.ts:697:3 › a list of faces › every row is exactly one row tall, headings included (1.3s)
+  ✓  402 [chromium] › tests/browser/pickers.spec.ts:747:3 › a list of faces › the faces in the fixture genuinely differ, which is what the gate above depends on (1.4s)
+  ✓  403 [chromium] › tests/browser/pickers.spec.ts:776:3 › a list of faces › only the window is built, and the number comes from the shared planner (1.4s)
+  ✓  404 [chromium] › tests/browser/pickers.spec.ts:807:3 › a list of faces › a compact list is shorter and still one height throughout (1.3s)
+  ✓  405 [chromium] › tests/browser/pickers.spec.ts:819:3 › a list of faces › the font picker is one tab stop as well (952ms)
+  ✓  406 [chromium] › tests/browser/ribbon.spec.ts:280:3 › the three group presentations, at declared container widths › every group reaches the presentation the ladder says, and looks like it (1.9s)
+  ✓  407 [chromium] › tests/browser/ribbon.spec.ts:329:3 › the three group presentations, at declared container widths › three groups sit in three presentations at one width (945ms)
+  ✓  408 [chromium] › tests/browser/ribbon.spec.ts:341:3 › the three group presentations, at declared container widths › the query container is the ribbon, and it has no chrome inside it (1.0s)
+  ✓  409 [chromium] › tests/browser/ribbon.spec.ts:354:3 › the three group presentations, at declared container widths › the tab strip becomes a picker at the width it declares (1.1s)
+  ✓  410 [chromium] › tests/browser/ribbon.spec.ts:370:3 › the three group presentations, at declared container widths › the simplified form refuses full and never prevents a collapse (999ms)
+  ✓  411 [chromium] › tests/browser/ribbon.spec.ts:387:3 › reachability — the assertion that matters › every command is still there, and still drawn, in all three presentations (1.2s)
+  ✓  412 [chromium] › tests/browser/ribbon.spec.ts:430:3 › reachability — the assertion that matters › the reachability gate rejects a command that has been lost (1.0s)
+  ✓  413 [chromium] › tests/browser/ribbon.spec.ts:461:3 › the collapsed group is a popup, and a keyboard can use it › opens by keyboard, traps focus, and gives it back on Escape (1.9s)
+  ✓  414 [chromium] › tests/browser/ribbon.spec.ts:537:3 › the collapsed group is a popup, and a keyboard can use it › keeps the collapse trigger above the accessible hit-target floor in compact density (941ms)
+  ✓  415 [chromium] › tests/browser/ribbon.spec.ts:557:3 › the tab strip follows the ARIA tabs pattern › the selected tab is the only tab stop, arrows move it, and Tab leaves (1.1s)
+  ✓  416 [chromium] › tests/browser/ribbon.spec.ts:612:3 › the tab strip follows the ARIA tabs pattern › the narrow-width picker opens by keyboard and gives focus back (1.1s)
+  ✓  417 [chromium] › tests/browser/ribbon.spec.ts:656:3 › contextual tab sets › are titled, are told apart by a token pair, and say their set in their own name (1.3s)
+  ✓  418 [chromium] › tests/browser/ribbon.spec.ts:701:3 › contextual tab sets › a selected contextual tab computes the contextual paint, and a core one the core paint (1.7s)
+  ✓  419 [chromium] › tests/browser/ribbon.spec.ts:733:3 › contextual tab sets › the story’s own affordance makes a set appear, and announces it (937ms)
+  ✓  420 [chromium] › tests/browser/ribbon.spec.ts:766:3 › contextual tab sets › an appearing set does not move the keyboard (926ms)
+  ✓  421 [chromium] › tests/browser/ribbon.spec.ts:818:3 › contextual tab sets › a disappearing set moves selection back to the last core tab and does not lose focus (1.1s)
+  ✓  422 [chromium] › tests/browser/ribbon.spec.ts:867:3 › the ribbon’s three states › show exactly what the model says each one shows (1.0s)
+  ✓  423 [chromium] › tests/browser/ribbon.spec.ts:897:3 › the worst case — Word’s TabHome › renders every control the census counts, and keeps them all at every width (1.6s)
+  ✓  424 [chromium] › tests/browser/ribbon.spec.ts:921:3 › the worst case — Word’s TabHome › degrades group by group, in the order the priorities declare (1.6s)
+  ✓  425 [chromium] › tests/browser/ribbon.spec.ts:954:3 › the worst case — Word’s TabHome › keeps every group inside the demotion ceiling, and demotes nothing that opens a popup (1.4s)
+  ✓  426 [chromium] › tests/browser/surfaces.spec.ts:166:3 › a surface is in the top layer › a modal and its scrim are manual popovers, and the pointer reaches the modal (772ms)
+  ✓  427 [chromium] › tests/browser/surfaces.spec.ts:209:3 › a surface is in the top layer › the scrim covers the simulated screen and not the window (741ms)
+  ✓  428 [chromium] › tests/browser/surfaces.spec.ts:238:5 › a modal returns focus to whatever opened it › after closing by escape (836ms)
+  ✓  429 [chromium] › tests/browser/surfaces.spec.ts:238:5 › a modal returns focus to whatever opened it › after closing by closeButton (823ms)
+  ✓  430 [chromium] › tests/browser/surfaces.spec.ts:238:5 › a modal returns focus to whatever opened it › after closing by scrim (809ms)
+  ✓  431 [chromium] › tests/browser/surfaces.spec.ts:238:5 › a modal returns focus to whatever opened it › after closing by programmatic (820ms)
+  ✓  432 [chromium] › tests/browser/surfaces.spec.ts:303:3 › a modal’s background is genuinely unreachable › by the keyboard, and the hold marked something (876ms)
+  ✓  433 [chromium] › tests/browser/surfaces.spec.ts:351:3 › a modal’s background is genuinely unreachable › and by name, which is the mechanism `inert` alone does not give (775ms)
+  ✓  434 [chromium] › tests/browser/surfaces.spec.ts:371:3 › a modal’s background is genuinely unreachable › and every mark is put back exactly as it was found (820ms)
+  ✓  435 [chromium] › tests/browser/surfaces.spec.ts:396:3 › a modal’s background is genuinely unreachable › a modeless dialog holds nothing and does not trap (794ms)
+  ✓  436 [chromium] › tests/browser/surfaces.spec.ts:418:1 › a modal wraps Tab from its last stop back to its first (826ms)
+  ✓  437 [chromium] › tests/browser/surfaces.spec.ts:431:3 › stacking › Escape closes the inner surface and leaves the outer one open (864ms)
+  ✓  438 [chromium] › tests/browser/surfaces.spec.ts:457:3 › stacking › closing the outer surface takes the inner one with it (824ms)
+  ✓  439 [chromium] › tests/browser/surfaces.spec.ts:492:3 › a sheet is a dialog at a phone’s width › the presentation CSS chose is the one the model predicts (1.2s)
+  ✓  440 [chromium] › tests/browser/surfaces.spec.ts:516:3 › a sheet is a dialog at a phone’s width › a sheet is pinned across the boundary with square bottom corners (777ms)
+  ✓  441 [chromium] › tests/browser/surfaces.spec.ts:548:3 › a sheet is a dialog at a phone’s width › and the phone-width sheet is the only presentation that shows a handle (772ms)
+  ✓  442 [chromium] › tests/browser/surfaces.spec.ts:562:5 › the measured edge and scrim survive the cascade › the modal's outline is the member the rule chose, in light (1.2s)
+  ✓  443 [chromium] › tests/browser/surfaces.spec.ts:562:5 › the measured edge and scrim survive the cascade › the modal's outline is the member the rule chose, in dark (1.3s)
+  ✓  444 [chromium] › tests/browser/surfaces.spec.ts:600:5 › the measured edge and scrim survive the cascade › the sheet's handle is the member the rule chose, in light (1.2s)
+  ✓  445 [chromium] › tests/browser/surfaces.spec.ts:600:5 › the measured edge and scrim survive the cascade › the sheet's handle is the member the rule chose, in dark (1.2s)
+  ✓  446 [chromium] › tests/browser/surfaces.spec.ts:622:3 › one stop or many › the walk and a real keyboard agree about how many stops there are (854ms)
+  ✓  447 [chromium] › tests/browser/surfaces.spec.ts:655:3 › one stop or many › a disclosure closes when focus leaves it and a trap does not (799ms)
+  ✓  448 [chromium] › tests/browser/surfaces.spec.ts:678:3 › one stop or many › a popover with too many stops says so on the console (757ms)
+  ✓  449 [chromium] › tests/browser/surfaces.spec.ts:689:3 › one stop or many › a surface with no room below it flips above its anchor (694ms)
+  ✓  450 [chromium] › tests/browser/surfaces.spec.ts:718:3 › the task pane › ignores Escape, a click outside, and losing focus (797ms)
+  ✓  451 [chromium] › tests/browser/surfaces.spec.ts:734:3 › the task pane › is in flow beside the document rather than drawn over it (705ms)
+  ✓  452 [chromium] › tests/browser/surfaces.spec.ts:761:3 › the task pane › the splitter resizes by keyboard, and says the width it actually is (821ms)
+  ✓  453 [chromium] › tests/browser/surfaces.spec.ts:790:5 › the task pane › the edge against a coloured page is the member the rule chose, in light (1.2s)
+  ✓  454 [chromium] › tests/browser/surfaces.spec.ts:790:5 › the task pane › the edge against a coloured page is the member the rule chose, in dark (1.2s)
+  ✓  455 [chromium] › tests/browser/surfaces.spec.ts:815:3 › the task pane › at a phone width it takes the whole frame and offers nothing to resize (786ms)
+  ✓  456 [chromium] › tests/browser/surfaces.spec.ts:855:3 › the hit-target floor holds in compact › a dialog’s close control (725ms)
+  ✓  457 [chromium] › tests/browser/surfaces.spec.ts:869:3 › the hit-target floor holds in compact › a task pane’s splitter (720ms)
+  ✓  458 [chromium] › tests/browser/surfaces.spec.ts:886:1 › driving the container never moves the window (1.2s)
+  ✓  459 [chromium] › tests/browser/theme.spec.ts:32:3 › the document surface › is in the catalogue at all (0ms)
+  ✓  460 [chromium] › tests/browser/theme.spec.ts:37:5 › the document surface › resolves to the generated light values (692ms)
+  ✓  461 [chromium] › tests/browser/theme.spec.ts:37:5 › the document surface › resolves to the generated dark values (586ms)
+  ✓  462 [chromium] › tests/browser/theme.spec.ts:51:3 › the document surface › keeps the page identical while the backdrop changes (910ms)
+  ✓  463 [chromium] › tests/browser/theme.spec.ts:83:3 › the document surface › the system scheme is reachable, and follows prefers-color-scheme (640ms)
+  ✓  464 [chromium] › tests/browser/token-resolution.spec.ts:37:3 › the token resolver › is in the catalogue at all (1ms)
+  ✓  465 [chromium] › tests/browser/token-resolution.spec.ts:42:3 › the token resolver › adopts a custom property set on the host, and returns to the default when it goes (681ms)
+  ✓  466 [chromium] › tests/browser/token-resolution.spec.ts:74:3 › the token resolver › the MutationObserver is what noticed, not a re-render (653ms)
+  ✓  467 [chromium] › tests/browser/token-resolution.spec.ts:91:3 › the token resolver › reports the generated default when the cascade has nothing to say (661ms)
+  ✓  468 [chromium] › tests/browser/token-resolution.spec.ts:115:3 › the token resolver › explicit configuration beats a host property that is also set (670ms)
+  ✓  469 [chromium] › tests/browser/visual.spec.ts:54:5 › visual regression › document-surface-light.png (705ms)
+  ✓  470 [chromium] › tests/browser/visual.spec.ts:54:5 › visual regression › document-surface-dark.png (694ms)
+
+  470 passed (9.1m)
+EXIT=0
