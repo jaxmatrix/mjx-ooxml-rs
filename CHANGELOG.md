@@ -60,6 +60,46 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.164] - 2026-09-10
+
+### An emptied root and an empty one are no longer the same row (H20)
+
+#### A part emptied by markup compatibility resolution now says so, and it is still not a defect (MJXOFF-273)
+
+0.0.163 pointed the child-order arm at the markup-compatibility-resolved view, which is right — a
+consumer that does not understand `a14` really is shown an empty `xdr:wsDr`, and the schema arm
+validates exactly that. It also bought a second way for a root to arrive with no element children,
+and the two are not the same fact:
+
+* `charts.pptx`'s `/ppt/tableStyles.xml` is a genuinely empty `a:tblStyleLst`. There was nothing
+  there and the audit saw all of it.
+* `legacy_form_control.xlsx`'s `/xl/drawings/drawing1.xml` is an `xdr:wsDr` whose only child is an
+  `mc:AlternateContent` holding one `mc:Choice Requires="a14"` and **no** `mc:Fallback`. Resolution
+  drops the subtree, and the audit saw nothing of what the file contains.
+
+Both then reported `root_child_elements = 0`, `elements_visited = 1`, floor 1, clean. A reader of an
+audit — including the human doing the Office pass, who reads `validation-artefacts --ingest`'s rows —
+could not tell a complete audit from a complete audit over nothing.
+
+`AuditedPart::raw_root_child_elements` is the count taken on the raw root, beside the resolved one,
+and `emptied_by_markup_compatibility_resolution()` reads the two together.
+
+**It is recorded, not reported, and that is the decision rather than an omission.** Auditing the
+losing choice would mean faulting a producer's extension markup against schemas that do not describe
+it, which is what `child_order.rs` refuses to do; flagging every emptied root as a *finding* would
+turn that deliberate, correct refusal into a permanent yellow on essentially every Office-authored
+drawing. So no assertion reddens on it, `assert_deck_is_in_schema_order` asserts exactly what it
+asserted before, and `--ingest`'s `child order` finding stays `Held` while its detail names the parts.
+
+The closing condition was two-sided and both halves are asserted, because a flag that fires on every
+empty part has distinguished nothing:
+`crates/mjx-schema-gate/tests/ordering.rs` holds `a_root_markup_compatibility_emptied_says_so`
+(the drawing is flagged, and is the workbook's only flagged part) against
+`a_genuinely_empty_root_is_not_flagged_as_emptied` (the `a:tblStyleLst` is not, and neither is
+anything else in that deck). The first case also requires the workbook to contain a root that
+resolution *shrinks* without emptying and that is not flagged, so the flag cannot decay into
+"carries `mc:`". `xtask/tests/office_corpus.rs` holds the reporter's half — the verdict and the text.
+
 ## [0.0.163] - 2026-09-10
 
 ### The two arms of the gate now look at the same markup (H19)
