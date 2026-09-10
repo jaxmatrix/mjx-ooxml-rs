@@ -386,8 +386,14 @@ const expectedMechanisms: Readonly<Record<string, Readonly<Record<string, Mechan
     rest: 'baseline',
     hover: 'border',
     editing: 'ring',
-    // 2.07 : 1 in light. The warning glyph and the message beneath it are what actually carry it.
-    invalid: 'declared',
+    // ⚠ **`declared` until MJXOFF-271's re-seed, and the change is an improvement rather than a
+    // drift.** `secondaryAccent` on `surface` was 2.07 : 1 in light, so the border carried nothing
+    // and the warning glyph and the message beneath it were the whole indicator. The re-seeded
+    // honey reaches **3.44 : 1 in light and 5.82 : 1 in dark**, so the edge now carries it in both
+    // schemes and this map records the stronger mechanism. The glyph and the message did **not**
+    // go away: WCAG 1.4.1 wants a cue that is not a colour whatever the ratio is, and
+    // `field.invalid` is still in the named list of declared cues below.
+    invalid: 'border',
     unavailable: 'weight',
     disabled: 'declared',
     focus: 'baseline',
@@ -398,7 +404,11 @@ const expectedMechanisms: Readonly<Record<string, Readonly<Record<string, Mechan
     // The bold-weight difference stands in for the real cue, which is the glyph: a check mark, a
     // dash, or nothing. `boxGlyphs` is asserted separately to draw three different things.
     checked: 'weight',
-    mixed: 'weight',
+    // The same re-seed, the same direction: `secondaryAccent` on `secondarySurface` is now
+    // **3.16 : 1 in light and 5.36 : 1 in dark**, so a mixed box is told from a checked one by its
+    // edge as well as by its glyph. `checked` did not move — `accentBorder` on `accentSurface` is
+    // still 1.19 / 1.29 — which is exactly MJXOFF-269's open finding and is re-measured there.
+    mixed: 'border',
   },
   option: {
     rest: 'baseline',
@@ -502,24 +512,46 @@ describe('the indicator rule', () => {
     ]);
   });
 
-  test('the invalid state’s border really is the one that cannot carry it', () => {
-    // The model says 2.07 : 1 in light. Asserted, so the paragraph cannot become false without
-    // this failing — and asserted as a *ceiling*, because a re-seed that fixed it should make
-    // somebody delete the escape hatch rather than leave it standing.
-    const measured = ratio('secondaryAccent', 'surface', 'light');
-    expect(measured).toBeLessThan(nonTextMinimum);
+  test('the invalid state’s border really is the one that carries it — and the cue stays anyway', () => {
+    // ⚠ **This gate used to assert the opposite, and MJXOFF-279 inverted it rather than deleting
+    // it.** It was written as a *ceiling* — `secondaryAccent` on `surface` at 2.07 : 1 in light —
+    // to pin the fact that the invalid edge could not be seen, with the note that "a re-seed that
+    // fixed it should make somebody delete the escape hatch rather than leave it standing".
+    // MJXOFF-271's re-seed did fix it, so the ceiling is now a **floor**: the pairing is measured
+    // in both schemes and must clear 3 : 1, and a future re-seed that made it weak again fails
+    // here rather than quietly returning the field to a glyph-only indicator.
+    for (const scheme of schemes) {
+      const measured = ratio('secondaryAccent', 'surface', scheme);
+      expect(measured, `secondaryAccent on surface is ${measured.toFixed(2)} : 1 in ${scheme}`)
+        .toBeGreaterThanOrEqual(nonTextMinimum);
+    }
+    // The escape hatch does **not** get deleted, and that half of the old note was wrong. A
+    // non-colour cue on an invalid field is WCAG 1.4.1, which has no ratio in it: an edge that
+    // clears 1.4.11 says nothing about whether colour is the *only* thing carrying the state.
     expect(fieldStates.invalid.nonColourCue).toBeDefined();
   });
 
   test('the borrowed `on` paint is carried by its weight and not by its edge', () => {
     // ⚠ A finding worth writing down, and one this child did not go looking for.
-    // `controlStateSpecs.on` borders with `accentBorder` on an `accentSurface` fill — 1.20 : 1 in
-    // light — and fills 1.14 : 1 against white. Neither is an indicator, and what actually
+    // `controlStateSpecs.on` borders with `accentBorder` on an `accentSurface` fill, and fills
+    // barely at all against the resting surface. Neither is an indicator, and what actually
     // distinguishes a pressed toggle, a checked box and a chosen option is the **bold label** the
     // same row declares. That is legitimate; what would not be legitimate is believing the edge
     // was doing it, which is what a reader of the table would assume.
+    //
+    // ⚠ **Re-measured after MJXOFF-271's re-seed (MJXOFF-279), which moved it by almost nothing.**
+    // The edge is **1.19 : 1 in light and 1.29 : 1 in dark** (it read 1.20 : 1 in light before);
+    // the fill is **1.09 : 1 and 1.07 : 1** against `surface` (it read 1.14 : 1). MJXOFF-269's
+    // finding therefore stands unchanged — this is the one pairing in the catalogue the re-seed did
+    // not rescue — and it is asserted in **both** schemes now rather than only in light, because
+    // the old single-scheme assertion could not have seen a dark-only regression.
     const on = effectiveStatePaint('on');
-    expect(ratio(on.borderColor, on.background, 'light')).toBeLessThan(nonTextMinimum);
+    for (const scheme of schemes) {
+      const edge = ratio(on.borderColor, on.background, scheme);
+      expect(edge, `the on edge is ${edge.toFixed(2)} : 1 in ${scheme}`).toBeLessThan(nonTextMinimum);
+      const fill = ratio(on.background, 'surface', scheme);
+      expect(fill, `the on fill is ${fill.toFixed(2)} : 1 in ${scheme}`).toBeLessThan(nonTextMinimum);
+    }
     expect(on.weight).toBe('bold');
     expect(effectiveStatePaint('rest').weight).not.toBe('bold');
   });
@@ -608,11 +640,30 @@ describe('an option', () => {
     }
   });
 
-  test('the ring the control table would have supplied is the one that fails', () => {
-    // `controlStateSpecs.onHover` rings with `accent` on an `accentSurface` fill. Measured here so
-    // the model's explanation for not borrowing it cannot quietly become untrue.
+  test('the ring the control table would have supplied now clears the floor — and is still not the one used', () => {
+    // ⚠ **Inverted by MJXOFF-279, and the *conclusion* is what changed, not the decision.**
+    //
+    // `controlStateSpecs.onHover` rings with `accent` on an `accentSurface` fill. This gate was a
+    // ceiling: the model's stated reason for not borrowing that row was that its ring *failed*, and
+    // the assertion existed so the explanation could not quietly become untrue. MJXOFF-271's
+    // re-seed made it true no longer — the borrowed ring is now **3.08 : 1 in light and 3.33 : 1 in
+    // dark** — so the ceiling becomes a floor and the justification is restated as a measurement
+    // rather than a disqualification.
+    //
+    // The option table still uses its own `accentPressed` ring, and now for a reason a gate can
+    // check: it is the *stronger* of the two in both schemes. That is the assertion below, and it
+    // would fail if a re-seed ever made borrowing the control row the better choice — which is a
+    // decision somebody should then take deliberately.
     const borrowed = effectiveStatePaint('onHover');
-    expect(ratio(borrowed.insetRing, borrowed.background, 'light')).toBeLessThan(nonTextMinimum);
+    for (const scheme of schemes) {
+      const borrowedRatio = ratio(borrowed.insetRing, borrowed.background, scheme);
+      expect(borrowedRatio, `the borrowed ring is ${borrowedRatio.toFixed(2)} : 1 in ${scheme}`)
+        .toBeGreaterThanOrEqual(nonTextMinimum);
+      const own = optionPaint('selectedActive');
+      const ownRatio = ratio(own.insetRing, own.background, scheme);
+      expect(ownRatio, `the option's own ring is ${ownRatio.toFixed(2)} : 1 in ${scheme}`)
+        .toBeGreaterThan(borrowedRatio);
+    }
     expect(optionStates.selectedActive.paint).not.toBe('onHover');
   });
 

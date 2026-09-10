@@ -10,6 +10,7 @@ import { tokens, type ColorScheme } from '../tokens/tokens.ts';
 import { contrastRatio, contrastRatioOrWorst, nonTextMinimum, parseHexColor } from '../src/tokens/contrast.ts';
 import {
   applyLuminance,
+  chooseSwatchHairline,
   chooseSwatchIndicator,
   chooseSwatchIndicatorAmong,
   colorChoicesEqual,
@@ -337,17 +338,17 @@ describe('the swatch indicator', () => {
     });
 
     test(`a swatch is told from the popup's own surface, in ${scheme}`, () => {
-      // Either the swatch differs from the surface it sits on, or its hairline does — the hairline
-      // being the same measured member. The minimum of that maximum is what a person actually
-      // needs, and it is a different question from the one above.
+      // Either the swatch differs from the surface it sits on, or its hairline does. The minimum of
+      // that maximum is what a person actually needs, and it is a different question from the one
+      // above — the one above asks whether a ring can be seen *on* a swatch.
       const surface = tokens.theme[scheme][swatchCellBackground];
+      const hairline = tokens.theme[scheme][chooseSwatchHairline(scheme).member];
       let lowest = Infinity;
       let at = '';
       for (const swatch of sweep) {
-        const member = chooseSwatchIndicator(swatch, scheme).member;
         const best = Math.max(
           contrastRatioOrWorst(swatch, surface),
-          contrastRatioOrWorst(tokens.theme[scheme][member], surface),
+          contrastRatioOrWorst(hairline, surface),
         );
         if (best < lowest) {
           lowest = best;
@@ -359,12 +360,60 @@ describe('the swatch indicator', () => {
       );
     });
 
+    test(`the hairline is the member that reads on the popup, not on the swatch, in ${scheme}`, () => {
+      // The two choosers answer different questions, so they must be allowed to differ — and in
+      // dark they do, for every mid-tone swatch. Named here so a refactor that pointed one at the
+      // other fails on the sentence rather than on a ratio three files away.
+      const surface = tokens.theme[scheme][swatchCellBackground];
+      const chosen = chooseSwatchHairline(scheme);
+      expect(chosen.member).toBe(chooseSwatchIndicatorAmong(surface, tokens.theme[scheme]).member);
+      expect(chosen.ratio).toBeGreaterThanOrEqual(nonTextMinimum);
+      // …and it is the *better* of the two against the popup, which is the whole rule.
+      for (const member of swatchIndicatorCandidates) {
+        expect(contrastRatioOrWorst(tokens.theme[scheme][member], surface)).toBeLessThanOrEqual(
+          chosen.ratio,
+        );
+      }
+    });
+
     test(`the cursor ring is a token against a token and clears 3 : 1 in ${scheme}`, () => {
       expect(swatchCellRingPairs.length).toBeGreaterThan(0);
       for (const [ring, on] of swatchCellRingPairs) {
         const ratio = contrastRatioOrWorst(tokens.theme[scheme][ring], tokens.theme[scheme][on]);
         expect(ratio, `${ring} on ${on} is ${ratio.toFixed(2)} : 1`).toBeGreaterThanOrEqual(nonTextMinimum);
       }
+    });
+
+    test(`the boundary gate can fail: the swatch's own indicator does not hold it, ${scheme}`, () => {
+      // ⚠ **The defect MJXOFF-279 closed, kept as the failability proof rather than deleted.**
+      //
+      // Until then the hairline was drawn in `swatchIndicatorProperty` — the member chosen to read
+      // against **the swatch** — and MJXOFF-271's re-seed lifted the dark surfaces far enough to
+      // make that visibly wrong. At `#ff2222` the indicator is `surface`; `surface` against
+      // `surfaceRaised` is 1.11 : 1 and the swatch itself is 2.85 : 1, so the boundary was carried
+      // by nothing at all. The hairline is now measured against the popup instead.
+      //
+      // Recorded as *the old rule's own worst case*, per scheme, so the assertion above is a
+      // measurement rather than an arithmetic identity. It is only in **dark** that the old rule
+      // actually fell through the floor — the light popup is 1.007 : 1 from `surface`, which sounds
+      // worse and is not, because a light popup leaves every swatch that takes `surface` as its
+      // indicator far away from it. That asymmetry is the finding, so both numbers are pinned.
+      const surface = tokens.theme[scheme][swatchCellBackground];
+      let lowest = Infinity;
+      for (const swatch of sweep) {
+        const member = chooseSwatchIndicator(swatch, scheme).member;
+        lowest = Math.min(
+          lowest,
+          Math.max(
+            contrastRatioOrWorst(swatch, surface),
+            contrastRatioOrWorst(tokens.theme[scheme][member], surface),
+          ),
+        );
+      }
+      const held = scheme === 'dark' ? false : true;
+      expect(lowest >= nonTextMinimum, `the old rule bottomed out at ${lowest.toFixed(2)} : 1`).toBe(
+        held,
+      );
     });
 
     test(`that ring gate can fail: a subtle border on the same surface does not clear it, ${scheme}`, () => {

@@ -9,8 +9,10 @@ import {
   surfaceScreenReader,
   surfaceStatesFor,
   surfaceTokenDependencies,
+  worstPageColor,
 } from './specimens.ts';
 import { typeRoleClass } from '../../src/foundations/typography.ts';
+import { tokens } from '../../tokens/tokens.ts';
 
 /**
  * `<mjx-task-pane>` — docked, resizable, persistent, and **the one surface a person cannot
@@ -53,12 +55,52 @@ export default meta;
 
 type Story = StoryObj;
 
+/**
+ * The ordinary page: white paper, read out of the document palette rather than written.
+ *
+ * `document.*.page` is `#ffffff` in **both** schemes on purpose — DESIGN_TOKENS.md §2.3 says an
+ * editor has two palettes and the document keeps true white whichever one the chrome is wearing —
+ * so one member serves every specimen here. It has to be a resolved colour rather than a `var()`
+ * because `document-color` is a value the pane *measures*, not one it paints.
+ */
+const paperPage = tokens.document.light.page;
+
+/**
+ * A document object: something on the page that a person can tab to.
+ *
+ * Painted entirely in tokens against a token — the platform's own surface, its own border and its
+ * own text colour — so that the one unmeasured colour in this story (the page) is only ever next to
+ * a *non-text* edge. See the comment in `workspace` for the a11y failure that made this a chip
+ * rather than a paragraph.
+ */
+const pageObjectStyle =
+  'display:inline-block;padding:var(--mjx-density-step);border-radius:var(--radius-control);' +
+  'border:1px solid var(--theme-border);background:var(--theme-surface);' +
+  'color:var(--theme-text-primary)';
+
 const fieldStyle =
   'padding:var(--mjx-density-step);border-radius:var(--radius-control);' +
   'border:1px solid var(--theme-border);background:var(--theme-surface);' +
   'color:var(--theme-text-primary)';
 
-/** The workspace: a document, and a pane beside it. */
+/**
+ * The workspace: a document, and a pane beside it.
+ *
+ * ⚠ **Nothing on the page is painted in a theme text colour, and MJXOFF-279 is why.**
+ *
+ * The page is a colour the platform does not own, so a token drawn *directly on it* is a pairing
+ * nobody has measured. This story used to put a body paragraph and a bare `<a>` in
+ * `--theme-text-primary` on a hard-coded mid-grey, at 3.05 : 1 and 2.38 : 1, and the a11y sweep
+ * failed on both. The pane's *edge* is allowed to sit against the page, because an edge is non-text
+ * and the rule that picks it is measured — that is what `dockEdgeReport` reports. Text is not, and
+ * 4.5 : 1 against an arbitrary colour is a promise a two-candidate palette cannot make.
+ *
+ * So the page carries an **object** rather than a run: a link painted as a platform chip, on the
+ * platform's own surface. The claim this specimen exists to make — *the document stays in the tab
+ * order and is never made inert* — is still checkable with a keyboard, and every contrast question
+ * on the page is a token against a token. It is also closer to what a document is: a page is paper,
+ * and what sits on it is content rather than chrome.
+ */
 function workspace(page: string, dock: 'inlineStart' | 'inlineEnd') {
   return html`
     <div
@@ -70,12 +112,9 @@ function workspace(page: string, dock: 'inlineStart' | 'inlineEnd') {
         id="page"
         class=${typeRoleClass('body')}
         style="flex:1 1 auto;min-inline-size:0;overflow:auto;padding:var(--mjx-density-gutter);
-               border-radius:var(--radius-card);background:${page};color:var(--theme-text-primary)"
+               border-radius:var(--radius-card);background:${page}"
       >
-        <p style="margin:0">
-          <a href="#page-body">The document</a>, which the pane is docked beside rather than drawn
-          over. It stays editable, stays in the tab order, and is never made inert.
-        </p>
+        <a href="#page-body" style=${pageObjectStyle}>The document</a>
       </div>
       <mjx-task-pane
         id="pane"
@@ -107,7 +146,7 @@ export const DockedBesideTheDocument: Story = {
           'and watch nothing happen — a task pane is closed by the application and by nothing a ' +
           'person can do to it.',
       )}
-      ${workspace('#ffffff', 'inlineEnd')}
+      ${workspace(paperPage, 'inlineEnd')}
     `,
 };
 
@@ -117,10 +156,12 @@ export const AgainstAColouredPage: Story = {
   render: () =>
     html`
       ${note(
-        'The page is a mid-grey, which is the worst kind of colour for a fixed edge: it is far ' +
-          'from nothing. The pane measures it and picks whichever end of the palette reads on it.',
+        `The page is ${worstPageColor} — not a colour anybody picked, but the one the rule is ` +
+          'weakest against over the whole sweep, computed here so the specimen and the caption ' +
+          'below it can never drift apart. The pane measures it and picks whichever end of the ' +
+          'palette reads on it.',
       )}
-      ${workspace('#808080', 'inlineEnd')} ${dockEdgeReport()}
+      ${workspace(worstPageColor, 'inlineEnd')} ${dockEdgeReport()}
     `,
 };
 
@@ -134,7 +175,7 @@ export const DockedAtTheStart: Story = {
           'again under right-to-left, which is why the key map is resolved through physicalSide ' +
           'rather than written twice.',
       )}
-      ${workspace('#ffffff', 'inlineStart')}
+      ${workspace(paperPage, 'inlineStart')}
     `,
 };
 
@@ -148,7 +189,7 @@ export const InCompactDensity: Story = {
           'A properties inspector is the surface compact density exists for. The splitter is the ' +
             'thing to measure: it still clears 24 CSS pixels.',
         )}
-        ${workspace('#ffffff', 'inlineEnd')}
+        ${workspace(paperPage, 'inlineEnd')}
       </div>
     `,
 };

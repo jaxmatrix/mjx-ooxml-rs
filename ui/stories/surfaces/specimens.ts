@@ -12,6 +12,7 @@
 import { html, type TemplateResult } from 'lit';
 
 import {
+  chooseDockEdge,
   chooseModalEdge,
   chooseSurfaceHandle,
   describeIndicator,
@@ -185,6 +186,35 @@ function fixedEdgeFailures(): string {
     })
     .join('; ');
 }
+
+/**
+ * The page colour a task pane's edge is **worst** against, over both schemes.
+ *
+ * ⚠ **Derived, and MJXOFF-279 is why.** *Against A Coloured Page* used to write `#808080` — a
+ * hand-picked mid-grey, chosen because a mid-grey is far from both ends of the palette. It was a
+ * reasonable guess and it was not the worst case: the rule actually bottoms out on a **teal**,
+ * because `chooseIndicator` takes the *quietest sufficient* candidate rather than the loudest, so
+ * the colour that pins it is the one that sits exactly on `textPrimary`'s threshold rather than the
+ * one furthest from everything.
+ *
+ * Computing it here rather than writing it means the specimen an auditor looks at is the same
+ * colour the caption beneath it reports, and a re-seed of the palette moves both together — which
+ * is the shape every other measured caption in this file already has. It also leaves no literal in
+ * the story, which is what let a colour drift out of step with the gate in the first place.
+ */
+export const worstPageColor: string = (() => {
+  let worst = '';
+  let lowest = Number.POSITIVE_INFINITY;
+  for (const colour of indicatorSweepColors()) {
+    let here = Number.POSITIVE_INFINITY;
+    for (const scheme of schemes) here = Math.min(here, chooseDockEdge(colour, scheme).ratio);
+    if (here < lowest) {
+      lowest = here;
+      worst = colour;
+    }
+  }
+  return worst;
+})();
 
 /** The dock-edge caption: the worst case over the whole sweep, in both schemes. */
 export function dockEdgeReport(): TemplateResult {

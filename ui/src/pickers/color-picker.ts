@@ -52,6 +52,7 @@
 
 import { installControlStyles } from '../controls/control-element.ts';
 import { themeVariable } from '../controls/control-states.ts';
+import type { ThemeMember } from '../tokens/resolver.ts';
 import { MjxComboBox } from '../inputs/combo-box.ts';
 import { defineListFieldDependencies } from '../inputs/list-field.ts';
 import { defineIcon } from '../icons/icon.ts';
@@ -64,6 +65,7 @@ import {
 import { TokenResolver } from '../tokens/resolver.ts';
 import type { PopupSurface } from '../inputs/list-surface.ts';
 import {
+  chooseSwatchHairlineAmong,
   chooseSwatchIndicatorAmong,
   colorPickerCss,
   describeColorChoice,
@@ -73,6 +75,8 @@ import {
   noColorChosen,
   parseColorChoice,
   resolveThemeColor,
+  swatchCellBackground,
+  swatchHairlineProperty,
   swatchIndicatorProperty,
   swatchKeyAction,
   swatchPaintProperty,
@@ -321,6 +325,13 @@ export class MjxColorPicker extends MjxComboBox {
       preview.style.setProperty(swatchPaintProperty, paint);
     }
     preview.style.setProperty(swatchIndicatorProperty, this.#indicatorFor(paint));
+    // The preview's edge sits on the *field*, and the palette's hairlines sit on the *popup*. Two
+    // backgrounds, so two answers, written where each is read.
+    preview.style.setProperty(swatchHairlineProperty, this.#hairlineOn('surface'));
+    this.#palette?.element.style.setProperty(
+      swatchHairlineProperty,
+      this.#hairlineOn(swatchCellBackground),
+    );
   }
 
   // ── the grammar ────────────────────────────────────────────────────────────
@@ -496,6 +507,26 @@ export class MjxColorPicker extends MjxComboBox {
             surface: this.#resolver?.theme('surface') ?? themeVariable('surface'),
           }).member;
     return themeVariable(member);
+  }
+
+  /**
+   * The token member a swatch's **hairline** is drawn in, on one background.
+   *
+   * A different question from `#indicatorFor` and therefore a different call: the indicator sits on
+   * the colour a person chose, the hairline sits against whatever the square is drawn on. Written
+   * once per surface — onto the palette, which every cell inherits from, and onto the preview,
+   * whose background is the field rather than the popup — because nothing about it varies per
+   * swatch. See `swatchHairlineProperty` for the defect that came of conflating them.
+   */
+  #hairlineOn(backgroundMember: ThemeMember): string {
+    const resolver = this.#resolver;
+    const background = resolver?.theme(backgroundMember) ?? themeVariable(backgroundMember);
+    return themeVariable(
+      chooseSwatchHairlineAmong(background, {
+        textPrimary: resolver?.theme('textPrimary') ?? themeVariable('textPrimary'),
+        surface: resolver?.theme('surface') ?? themeVariable('surface'),
+      }).member,
+    );
   }
 }
 

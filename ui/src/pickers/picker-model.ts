@@ -689,6 +689,57 @@ export const swatchStateCascade: readonly SwatchState[] = [
 /** The surface a cell ring is drawn on. The popup is the overlay rung, exactly as a menu. */
 export const swatchCellBackground: ThemeMember = 'surfaceRaised';
 
+/**
+ * The custom property the **hairline around a swatch** is written to.
+ *
+ * ⚠ **A different property from `swatchIndicatorProperty`, because it answers a different
+ * question, and MJXOFF-279 is the ticket that found out the hard way.**
+ *
+ * The two rings a swatch carries were always distinguished (`swatchStates` says so at length), but
+ * the *hairline* — the one-pixel edge every swatch wears, selected or not — was drawn in the
+ * measured **indicator**, which is chosen to read against **the colour a person chose**. Its job is
+ * the opposite one: it is the outermost edge of the square, its outward neighbour is the popup's
+ * own surface, and what it has to be told apart from is *that*.
+ *
+ * The two coincide at the extremes, which is why the original reasoning looked complete: a swatch
+ * the colour of the popup takes `textPrimary` as its indicator, and `textPrimary` reads on the
+ * popup. It is the **middle** that breaks. A mid-tone swatch takes `surface` as its indicator —
+ * `surface` reads better on it than `textPrimary` does — and `surface` against `surfaceRaised` is
+ * 1.11 : 1 in dark. So neither the swatch nor its hairline was told from the popup, and
+ * `tests/pickers.test.ts`'s boundary sweep bottomed out at **2.85 : 1 on `#ff2222`** the moment
+ * MJXOFF-271's re-seed lifted the dark surfaces.
+ *
+ * One property per question, each measured against the thing it actually sits next to.
+ */
+export const swatchHairlineProperty = '--mjx-swatch-hairline';
+
+/**
+ * Choose the hairline for a popup, given the surface it is drawn on and what the candidates
+ * **actually resolve to here**.
+ *
+ * The arithmetic is `chooseSwatchIndicatorAmong`'s and is delegated to it rather than repeated —
+ * *which of two candidates reads on this colour* is one question. What differs is the subject: the
+ * indicator's is the swatch, the hairline's is the popup. A reader who conflates them again will
+ * find the paragraph above waiting.
+ *
+ * It is a **per-popup** value rather than a per-cell one, because nothing about it depends on the
+ * swatch. `<mjx-color-picker>` writes it once onto the palette and lets it inherit.
+ */
+export function chooseSwatchHairlineAmong(
+  background: string,
+  candidates: Readonly<Record<SwatchIndicatorMember, string>>,
+): SwatchIndicator {
+  return chooseSwatchIndicatorAmong(background, candidates);
+}
+
+/** The same, against the generated palette for one scheme. What a gate sweeps with. */
+export function chooseSwatchHairline(scheme: ColorScheme): SwatchIndicator {
+  return chooseSwatchHairlineAmong(tokens.theme[scheme][swatchCellBackground], {
+    textPrimary: tokens.theme[scheme].textPrimary,
+    surface: tokens.theme[scheme].surface,
+  });
+}
+
 /** Every cell ring that actually paints, with what it is drawn on. The gate measures these. */
 export const swatchCellRingPairs: readonly (readonly [ThemeMember, ThemeMember])[] =
   swatchStateCascade
@@ -1107,7 +1158,10 @@ export const colorPickerCss = `
     border-style: solid;
     border-radius: ${radiusVariable('chip')};
     background: var(${swatchPaintProperty}, transparent);
-    border-color: var(${swatchIndicatorProperty}, ${themeVariable('border')});
+    /* The same edge question as the popup's hairline, asked about the field the preview sits in
+     * rather than about the popup. Not the indicator: this border's outward neighbour is the
+     * field's own fill, and the indicator is chosen against the colour inside the square. */
+    border-color: var(${swatchHairlineProperty}, ${themeVariable('border')});
   }
 
   /* No fill, and Automatic before a host has said what it resolves to: a diagonal rule rather than
@@ -1211,9 +1265,11 @@ export const colorPickerCss = `
     block-size: 100%;
     border-radius: ${radiusVariable('chip')};
     background: var(${swatchPaintProperty}, transparent);
-    /* The hairline, in the measured member: a swatch the colour of the popup is told from it by
-     * its edge, and a swatch nothing like the popup is told from it by itself. */
-    box-shadow: inset 0 0 0 1px var(${swatchIndicatorProperty});
+    /* The hairline, measured against **the popup** rather than against the swatch: a swatch the
+     * colour of the popup is told from it by its edge, and a swatch nothing like the popup is told
+     * from it by itself. See swatchHairlineProperty for why the two are different properties —
+     * borrowing the indicator here left mid-tone swatches at 2.85 : 1 against the popup. */
+    box-shadow: inset 0 0 0 1px var(${swatchHairlineProperty});
   }
 
   .swatch-paint[data-empty] {
