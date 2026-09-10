@@ -50,6 +50,15 @@
 //! run the generator itself, which means reaching [`docs_site::render`] rather than a rendering of
 //! it.
 //!
+//! [`repository_files`] joined it with MJXOFF-290, and for the seventh — this time because four
+//! tests already had the same answer written four times, and it was the *wrong* answer in all four.
+//! `doc_gate`, `entry_points`, `derived_rosters` and `release_versions` each carried their own
+//! four-line call asking Git for a file listing, and every one of them got the **index** back: a
+//! file a unit of work had just written was in none of their corpora until the commit that added
+//! it existed, which is precisely the run at which a gate is worth having. One module is what lets
+//! that be fixed once and be *tested* once — `xtask/tests/working_tree_corpus.rs` provokes the
+//! property by writing a file it never commits.
+//!
 //! Nothing depends on this crate — `xtask/tests/layering.rs` asserts it — and it is excluded from
 //! the cross-build matrix, so a library target here widens nothing.
 
@@ -59,4 +68,5 @@ pub mod docs_site;
 pub mod facade_surface;
 pub mod fixture_corpus;
 pub mod guide_examples;
+pub mod repository_files;
 pub mod validation;

@@ -29,11 +29,13 @@
 //!    `validation_index.rs`'s refinement of it. A floor pinned to the exact corpus size fires
 //!    before the assertion it guards and hides the mutation that was supposed to prove that
 //!    assertion.
-//! 3. **The corpus is derived, never listed.** `git ls-files` is what "the documents this
-//!    repository holds" means. It excludes `target/`, other worktrees under `.claude/` and every
-//!    vendored tree without a hand-maintained skip list — the same reason `mjx-fixtures` exists and
-//!    the same reason `CLAUDE.md` forbids a `const FIXTURES` list. A new page is inside the corpus
-//!    the moment it is committed.
+//! 3. **The corpus is derived, never listed.** `xtask::repository_files::WorkingTree` is what "the
+//!    documents this repository holds" means. It excludes `target/`, other worktrees under
+//!    `.claude/` and every vendored tree without a hand-maintained skip list — the same reason
+//!    `mjx-fixtures` exists and the same reason `CLAUDE.md` forbids a `const FIXTURES` list. A new
+//!    page is inside the corpus the moment it is **written**, not the moment it is committed: until
+//!    MJXOFF-290 the corpus was the Git index, so the one run of this gate that could have caught a
+//!    brand-new page's claim was the run before that page existed. See that module for why.
 //! 4. **The crate set is derived twice and compared in both directions** — see
 //!    [`declared_members`]. This one was added after the first version of this file shipped with
 //!    the hole it closes, and the hole is worth stating because it is the trap above at a
@@ -50,7 +52,8 @@
 //! # What is checked
 //!
 //! * [`every_path_a_document_names_exists`] — every repository path named in a code span or a
-//!   file-shaped markdown link, in **every tracked `.md`, `.rs`, `.py` and `.mjs` file**, resolves
+//!   file-shaped markdown link, in **every `.md`, `.rs`, `.py` and `.mjs` file this tree holds**,
+//!   resolves
 //!   to something on disk. Markdown is read whole apart from the fences rustdoc compiles; the
 //!   three source languages are read through their comments. See [`Kind`].
 //! * [`every_retired_path_entry_is_still_needed`] — the escape hatch below cannot rot silently.
@@ -68,9 +71,9 @@
 //! the only reason a reader opens an index at all.
 //!
 //! So the derivation is the **enforcement**, not the artefact. `docs/api/README.md` is written by
-//! a person; its row set is required to equal `git ls-files '*.md'` exactly, in both directions.
-//! Committing a page without indexing it fails here, and indexing a page that does not exist fails
-//! here. That is the property the ticket asks for, and the descriptions survive.
+//! a person; its row set is required to equal the `.md` files of the working tree exactly, in both
+//! directions. Writing a page without indexing it fails here, and indexing a page that does not
+//! exist fails here. That is the property the ticket asks for, and the descriptions survive.
 //!
 //! # What is deliberately *not* checked, and why
 //!
@@ -112,7 +115,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+
+use xtask::repository_files::WorkingTree;
 
 // ===============================================================================================
 // The corpus
@@ -126,28 +130,14 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Every file this repository tracks, repository-relative, in `git ls-files` order.
+/// Every file this working tree holds, repository-relative and sorted.
 ///
-/// Deriving the corpus rather than listing it is the whole point; see this file's header. A failure
-/// to run `git` is a hard failure and never a skip — an empty corpus would make every assertion
-/// below pass.
-fn tracked_files() -> Vec<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repository_root())
-        .arg("ls-files")
-        .output()
-        .expect("running `git ls-files` — the documentation corpus is derived from it");
-    assert!(
-        output.status.success(),
-        "`git ls-files` failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8(output.stdout)
-        .expect("git ls-files output is utf-8")
-        .lines()
-        .map(str::to_owned)
-        .collect()
+/// Deriving the corpus rather than listing it is the whole point; see this file's header. Reading
+/// the **working tree** rather than the index is MJXOFF-290, and the reason is in
+/// `xtask/src/repository_files.rs`: a document's claim is wrong the moment it is written, and a
+/// gate that cannot see the file until it is committed is a gate the author cannot run.
+fn working_tree() -> WorkingTree {
+    WorkingTree::read(&repository_root())
 }
 
 /// Which kind of file a document's prose lives in.
@@ -209,7 +199,7 @@ impl Kind {
 
     /// The smallest corpus this kind may shrink to before the walk is presumed broken.
     ///
-    /// A floor, never a total: it says `git ls-files` is still reaching this language, and it is
+    /// A floor, never a total: it says the corpus walk is still reaching this language, and it is
     /// far enough below every real count that it cannot fire in place of the comparison it guards.
     fn floor(self) -> usize {
         match self {
@@ -258,7 +248,7 @@ struct Member {
 /// # Why this exists at all, and why it is a *second* derivation
 ///
 /// Three of the four checks in this file are keyed by crate: the symbol map, the resolver's
-/// crate-name table, and the index's owner column. Each is built by a walk — over `git ls-files`,
+/// crate-name table, and the index's owner column. Each is built by a walk — over the working tree,
 /// over `*/Cargo.toml`, over `.rs` files — and **a walk that loses one crate makes every claim
 /// about that crate silently unchecked**. That is §7's shape at a granularity the totals cannot
 /// see: dropping `mjx-sml`, the largest crate in the workspace, takes 1,793 item names and every
@@ -391,14 +381,15 @@ fn crate_directories(tracked: &[String]) -> Vec<String> {
     directories
 }
 
-/// Reads the corpus: every tracked markdown page, and the comments of every tracked Rust, Python
-/// and JavaScript source file. See [`Kind`].
-fn corpus() -> Vec<Document> {
-    let tracked = tracked_files();
-    let crates = crate_directories(&tracked);
+/// Reads the corpus: every markdown page this tree holds, and the comments of every Rust, Python
+/// and JavaScript source file in it. See [`Kind`].
+fn corpus(tree: &WorkingTree) -> Vec<Document> {
+    println!("{}", tree.census());
+    let files = tree.paths();
+    let crates = crate_directories(files);
     let root = repository_root();
     let mut documents = Vec::new();
-    for file in &tracked {
+    for file in files {
         let Some(kind) = Kind::of(file) else {
             continue;
         };
@@ -1042,10 +1033,10 @@ const MINIMUM_PATH_MENTIONS: usize = 800;
 
 #[test]
 fn every_path_a_document_names_exists() {
-    let documents = corpus();
+    let tree = working_tree();
+    let documents = corpus(&tree);
     let root = repository_root();
-    let tracked = tracked_files();
-    let resolver = Resolver::new(&tracked);
+    let resolver = Resolver::new(tree.paths());
     let retired: BTreeMap<&str, &str> = RETIRED_PATHS.iter().copied().collect();
     let excluded: BTreeMap<&str, &str> = DOCUMENTS_EXCLUDED_FROM_THE_CLAIM_CHECKS
         .iter()
@@ -1174,8 +1165,9 @@ fn every_path_a_document_names_exists() {
     // root-addressed path is *ours* at all, so an entry missing from it sends every path under that
     // directory to `NotOurs` — skipped, uncounted, exactly as a missing crate used to be. It is
     // derived from `read_dir`, and this holds it against a second derivation: every first segment
-    // of every tracked file must be reachable from the root.
-    let addressable: BTreeSet<&str> = tracked
+    // of every file in the corpus must be reachable from the root.
+    let addressable: BTreeSet<&str> = tree
+        .paths()
         .iter()
         .filter_map(|file| file.split('/').next())
         .collect();
@@ -1214,7 +1206,8 @@ fn every_path_a_document_names_exists() {
         let held = documents.iter().filter(|d| d.kind == kind).count();
         assert!(
             held >= kind.floor(),
-            "only {held} {} document(s) are in the corpus; `git ls-files` is not reaching them",
+            "only {held} {} document(s) are in the corpus; the working-tree walk is not reaching \
+             them",
             kind.label()
         );
     }
@@ -1245,7 +1238,7 @@ fn every_retired_path_entry_is_still_needed() {
     // is a permission nobody will notice going wrong. An entry here is a licence to name a file
     // that does not exist, so when the last document that needed it stops naming it, the entry
     // comes out.
-    let documents = corpus();
+    let documents = corpus(&working_tree());
     for (path, ticket) in RETIRED_PATHS {
         let citing: Vec<&str> = documents
             .iter()
@@ -1465,7 +1458,7 @@ const MINIMUM_CRATES_REFERENCED: usize = 12;
 ///   name*, which is what goes stale when something is renamed or deleted.
 #[test]
 fn every_crate_qualified_symbol_a_document_names_resolves() {
-    let documents = corpus();
+    let documents = corpus(&working_tree());
     let symbols = workspace_symbols(&documents);
 
     // ---- The crate set, both directions, before anything is counted ------------------------------
@@ -1694,8 +1687,10 @@ const INDEX: &str = "docs/api/README.md";
 #[test]
 fn the_index_and_the_repository_agree_in_both_directions() {
     let root = repository_root();
-    let tracked = tracked_files();
-    let expected: BTreeSet<String> = tracked
+    let tree = working_tree();
+    println!("{}", tree.census());
+    let expected: BTreeSet<String> = tree
+        .paths()
         .iter()
         .filter(|file| file.ends_with(".md") && file.as_str() != INDEX)
         .cloned()
@@ -1745,7 +1740,7 @@ fn the_index_and_the_repository_agree_in_both_directions() {
     );
     assert!(
         expected.len() >= 40,
-        "only {} tracked markdown page(s) were found; `git ls-files` is not reaching them",
+        "only {} markdown page(s) were found in the working tree; the walk is not reaching them",
         expected.len()
     );
     assert!(
@@ -1793,7 +1788,7 @@ fn the_index_and_the_repository_agree_in_both_directions() {
     // above: a crate missing from this set makes a row that names it *fail* rather than pass. That
     // is safe, but it would fail for the wrong reason and name the wrong culprit, so the set is
     // held to Cargo.toml's `members` list in both directions like the others.
-    let crate_directories: BTreeSet<String> = crate_directories(&tracked)
+    let crate_directories: BTreeSet<String> = crate_directories(tree.paths())
         .into_iter()
         .map(|directory| {
             directory

@@ -3,9 +3,10 @@
 Every prose document this repository holds, what it covers, and which crate owns it. One page, so a
 reader arrives once and can reach everything.
 
-**This index is checked, not trusted.** `xtask/tests/doc_gate.rs` requires its row set to equal
-`git ls-files '*.md'` exactly, in both directions: committing a page without adding a row here fails
-the build, and a row naming a page that does not exist fails it too. The same gate reads every page
+**This index is checked, not trusted.** `xtask/tests/doc_gate.rs` requires its row set to equal the
+`.md` files of the working tree exactly, in both directions: *writing* a page without adding a row
+here fails the build — since MJXOFF-290 that is the moment the page is saved and no longer the
+moment it is committed — and a row naming a page that does not exist fails it too. The same gate reads every page
 below and fails when a file path or a crate-qualified symbol it names has stopped resolving. That is
 why the list is a table a person writes rather than a file a script emits — the derivation is the
 *enforcement*, and the descriptions are the reason to open an index at all.

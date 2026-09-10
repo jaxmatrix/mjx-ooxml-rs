@@ -72,7 +72,9 @@
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::process::Command;
+use std::sync::OnceLock;
+
+use xtask::repository_files::WorkingTree;
 
 /// The workspace root — `xtask/`'s parent.
 fn repository_root() -> PathBuf {
@@ -82,32 +84,22 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Every file this repository tracks, repository-relative.
+/// Every file this working tree holds, repository-relative.
 ///
-/// Derived rather than listed, for `doc_gate.rs`'s reason: a page is inside the corpus the moment it
-/// is committed. A failure to run `git` is a hard failure and never a skip — an empty corpus would
-/// make every assertion below pass.
-fn tracked_files() -> Vec<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repository_root())
-        .arg("ls-files")
-        .output()
-        .expect("running `git ls-files` — every corpus here is derived from it");
-    assert!(
-        output.status.success(),
-        "`git ls-files` failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let text = String::from_utf8(output.stdout).expect("`git ls-files` emits UTF-8");
-    let files: Vec<String> = text.lines().map(str::to_owned).collect();
-    assert!(
-        files.len() > 500,
-        "`git ls-files` returned {} paths, which is not this repository — every check below would \
-         pass vacuously",
-        files.len()
-    );
-    files
+/// Derived rather than listed, for `doc_gate.rs`'s reason: a page is inside the corpus the moment
+/// it is **written**. Reading the working tree rather than the Git index is MJXOFF-290, and it is
+/// what lets the author of a new guide page learn in the same run that the count on the front page
+/// no longer matches — see `xtask/src/repository_files.rs`.
+///
+/// Read once per test binary: several of the derivations below call this inside a loop, and the
+/// answer cannot change while a test process is running.
+fn repository_files() -> &'static [String] {
+    static FILES: OnceLock<Vec<String>> = OnceLock::new();
+    FILES.get_or_init(|| {
+        let tree = WorkingTree::read(&repository_root());
+        println!("{}", tree.census());
+        tree.paths().to_vec()
+    })
 }
 
 /// A tracked file's contents.
@@ -133,9 +125,10 @@ fn one_line(text: &str) -> String {
 /// one today; three more host a single page of somebody else's set (`mjx-mce`, `mjx-omml`,
 /// `mjx-vml`) and are covered by the index of the set that owns them.
 fn guide_set_indexes() -> Vec<String> {
-    let mut sets: Vec<String> = tracked_files()
-        .into_iter()
+    let mut sets: Vec<String> = repository_files()
+        .iter()
         .filter(|path| path.ends_with("/docs/guide/README.md"))
+        .cloned()
         .collect();
     sets.sort();
     assert!(
@@ -150,9 +143,9 @@ fn guide_set_indexes() -> Vec<String> {
 fn guide_pages_beside_the_index(directory: &str) -> usize {
     let prefix = format!("{directory}/");
     let index = format!("{directory}/README.md");
-    tracked_files()
-        .into_iter()
-        .filter(|path| path.starts_with(&prefix) && path.ends_with(".md") && *path != index)
+    repository_files()
+        .iter()
+        .filter(|path| path.starts_with(&prefix) && path.ends_with(".md") && **path != index)
         .count()
 }
 
@@ -160,11 +153,11 @@ fn guide_pages_beside_the_index(directory: &str) -> usize {
 ///
 /// Cargo discovers an example as `examples/<name>.rs` or `examples/<name>/main.rs`, which is why
 /// `crates/mjx-pptx/examples/support/mod.rs` is a shared module and not a twenty-ninth program.
-/// Applying that rule to the tracked files answers the same question `cargo metadata` does without
-/// a second JSON parser in this workspace's tests.
+/// Applying that rule to the files this tree holds answers the same question `cargo metadata` does
+/// without a second JSON parser in this workspace's tests.
 fn example_targets() -> Vec<(String, String)> {
     let mut examples = Vec::new();
-    for path in tracked_files() {
+    for path in repository_files() {
         let Some((crate_directory, rest)) = path.split_once("/examples/") else {
             continue;
         };
@@ -378,9 +371,9 @@ fn lines_of(paths: &[String]) -> usize {
 }
 
 /// The generated line count, the whole crate's line count, and the child-order table's, in that
-/// order. Each is `wc -l` over the tracked `.rs` files it names.
+/// order. Each is `wc -l` over the `.rs` files it names.
 fn generated_vocabulary_lines() -> (usize, usize, usize) {
-    let tracked = tracked_files();
+    let tracked = repository_files();
     let crate_sources: Vec<String> = tracked
         .iter()
         .filter(|path| path.starts_with("crates/mjx-ooxml-types/src/") && path.ends_with(".rs"))
@@ -406,10 +399,11 @@ const DATED_BANNER: &str = "> **Historical hand-off — this describes the repos
 
 /// The hand-off documents that carry [`DATED_BANNER`].
 fn dated_handoffs() -> Vec<String> {
-    tracked_files()
-        .into_iter()
+    repository_files()
+        .iter()
         .filter(|path| path.starts_with("docs/") && path.ends_with(".md"))
         .filter(|path| read(path).contains(DATED_BANNER))
+        .cloned()
         .collect()
 }
 
