@@ -385,3 +385,260 @@ pub fn wasm_names(root: &Path) -> BTreeSet<String> {
     }
     names
 }
+
+// ===============================================================================================
+// Data tokens — the string literals a binding *hands back*, as opposed to the names it is called by
+// ===============================================================================================
+
+/// One string literal a binding's own source spells **in code**.
+///
+/// "In code" is the whole discriminator, and it is what keeps a token check from condemning the
+/// binding's names: a JavaScript method name is only ever written in a `js_name` attribute or as a
+/// Rust identifier, and a Python one in a `#[pyo3(name = …)]`. Neither is ever a literal in a
+/// function body. So attribute lines and comment lines are dropped, and what is left is data.
+#[derive(Debug, Clone)]
+pub struct SourceLiteral {
+    /// The file it is written in, for a failure message.
+    pub file: String,
+    /// The `impl` target it sits under, or `<module>` for a free item.
+    pub owner: String,
+    /// The enclosing `fn`, or `<item>` for a literal outside one.
+    pub member: String,
+    /// Its one-based line number.
+    pub line: usize,
+    /// The literal's text, as written, escapes and all.
+    pub value: String,
+    /// Whether it stands where a value is **produced**: on either side of a `match` arm's `=>`, or
+    /// immediately before `.to_owned()`.
+    ///
+    /// This is the narrower of the two questions this type answers. Every literal is a candidate
+    /// for the casing rule — a data key read off a JavaScript object is data as much as a returned
+    /// token is — but only a produced one is comparable across the two bindings, because only a
+    /// produced one is something a *caller* receives. A message handed to `expect` or to
+    /// `invalid_argument` is neither.
+    pub produced: bool,
+}
+
+/// Every string literal `bindings/mjx-wasm/src/*.rs` spells in code.
+///
+/// # Panics
+/// If the directory cannot be read, or the scan finds implausibly few literals.
+#[must_use]
+pub fn wasm_source_literals(root: &Path) -> Vec<SourceLiteral> {
+    source_literals(&root.join("bindings/mjx-wasm/src"))
+}
+
+/// Every string literal `bindings/mjx-python/src/*.rs` spells in code.
+///
+/// # Panics
+/// If the directory cannot be read, or the scan finds implausibly few literals.
+#[must_use]
+pub fn python_source_literals(root: &Path) -> Vec<SourceLiteral> {
+    source_literals(&root.join("bindings/mjx-python/src"))
+}
+
+/// Every string literal one binding's sources spell in code, attributed to the `impl` and `fn` it
+/// sits in.
+///
+/// The walk is brace-matched over lines with **string literals masked out first**, so a
+/// `format!("{index}")` cannot close a block that is still open — a hazard [`block_end`] beside it
+/// carries and this one does not. Character literals are deliberately left alone, because telling
+/// `'{'` apart from the lifetime in `impl<'a>` needs a lexer;
+/// `a_delimiter_is_never_written_as_a_character_literal` in `xtask/tests/binding_projection.rs` is
+/// what makes that shortcut safe to keep.
+///
+/// # Panics
+/// If the directory cannot be read, or the scan finds implausibly few literals — a scanner that has
+/// stopped matching is a gate that has stopped asking.
+#[must_use]
+pub fn source_literals(directory: &Path) -> Vec<SourceLiteral> {
+    let mut found = Vec::new();
+    for (file, text) in sources(directory, "rs") {
+        let mut owners: Vec<(String, i32)> = Vec::new();
+        let mut owner = String::from("<module>");
+        let mut member: Option<(String, i32)> = None;
+        let mut depth = 0i32;
+        let mut attribute = 0i32;
+        for (offset, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            // An attribute, possibly spanning lines: `js_name`, `pyo3(name = …)` and
+            // `typescript_type` all live here, and every one of them is a *name*.
+            if attribute > 0 || trimmed.starts_with("#[") {
+                attribute += bracket_balance(line);
+                attribute = attribute.max(0);
+                continue;
+            }
+            let code = code_of(line);
+            let opened_impl = impl_target(code);
+            let opened_fn = function_name(code);
+            for (column, value) in string_literals(code) {
+                let before = code[..column].trim_end();
+                let after = code[column + value.written_len()..].trim_start();
+                found.push(SourceLiteral {
+                    file: file.clone(),
+                    owner: owner.clone(),
+                    member: member
+                        .as_ref()
+                        .map_or_else(|| String::from("<item>"), |(name, _)| name.clone()),
+                    line: offset + 1,
+                    produced: before.ends_with("=>")
+                        || after.starts_with("=>")
+                        || after.starts_with(".to_owned()"),
+                    value: value.text,
+                });
+            }
+            if member.is_none() {
+                if let Some(name) = opened_fn {
+                    member = Some((name, depth));
+                }
+            }
+            if let Some(name) = opened_impl {
+                owners.push((owner, depth));
+                owner = name;
+            }
+            depth += brace_balance(code);
+            if member.as_ref().is_some_and(|(_, opened)| depth <= *opened) {
+                member = None;
+            }
+            while owners.last().is_some_and(|(_, opened)| depth <= *opened) {
+                let (previous, _) = owners.pop().expect("just checked");
+                owner = previous;
+            }
+        }
+    }
+    assert!(
+        found.len() > 100,
+        "only {} string literal(s) found under {} — the scan has stopped matching",
+        found.len(),
+        directory.display()
+    );
+    found
+}
+
+/// One string literal as it was written, and as it reads.
+struct WrittenLiteral {
+    /// The literal's text with the delimiters removed, escapes left as written.
+    text: String,
+}
+
+impl WrittenLiteral {
+    /// How many bytes the literal occupies in the source, delimiters included.
+    fn written_len(&self) -> usize {
+        self.text.len() + 2
+    }
+}
+
+/// `line` with any trailing `//` comment removed, string-aware so a `"//"` inside a literal stays.
+///
+/// A line that is *only* a comment becomes empty, which is what drops doc comments: the prose the
+/// two bindings write is `xtask/tests/binding_doc_parity.rs`'s question, not this one's.
+fn code_of(line: &str) -> &str {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+    let mut in_string = false;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' if in_string => index += 1,
+            b'"' => in_string = !in_string,
+            b'/' if !in_string && bytes.get(index + 1) == Some(&b'/') => return &line[..index],
+            _ => {}
+        }
+        index += 1;
+    }
+    line
+}
+
+/// Every string literal in `code`, as `(byte offset of the opening quote, the literal)`.
+fn string_literals(code: &str) -> Vec<(usize, WrittenLiteral)> {
+    let bytes = code.as_bytes();
+    let mut found = Vec::new();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'\'' {
+            // A character literal or a lifetime. Either way it holds no string.
+            index += 1;
+            continue;
+        }
+        if bytes[index] != b'"' {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        index += 1;
+        let inner = index;
+        while index < bytes.len() && bytes[index] != b'"' {
+            index += if bytes[index] == b'\\' { 2 } else { 1 };
+        }
+        if index >= bytes.len() {
+            break;
+        }
+        found.push((
+            start,
+            WrittenLiteral {
+                text: code[inner..index].to_owned(),
+            },
+        ));
+        index += 1;
+    }
+    found
+}
+
+/// The name of the `fn` a line declares, whatever its visibility, if it declares one.
+#[must_use]
+pub fn function_name(line: &str) -> Option<String> {
+    let mut rest = line.trim_start();
+    for prefix in [
+        "pub(crate) ",
+        "pub(super) ",
+        "pub ",
+        "const ",
+        "async ",
+        "unsafe ",
+    ] {
+        if let Some(after) = rest.strip_prefix(prefix) {
+            rest = after;
+        }
+    }
+    let rest = rest.strip_prefix("fn ")?;
+    let name = identifier_prefix(rest);
+    (!name.is_empty()).then_some(name)
+}
+
+/// `{` minus `}` on a line, counting neither inside a string or character literal.
+fn brace_balance(code: &str) -> i32 {
+    balance(code, b'{', b'}')
+}
+
+/// `[` minus `]` on a line, counting neither inside a string or character literal.
+fn bracket_balance(code: &str) -> i32 {
+    balance(code_of(code), b'[', b']')
+}
+
+/// `open` minus `close` on a line, ignoring both inside a string literal.
+///
+/// **Character literals are deliberately not skipped.** Skipping them would mean telling `'{'`
+/// apart from the lifetime in `impl<'a>`, which needs a lexer; not skipping them costs nothing,
+/// because neither binding's sources hold a character literal for any of the four delimiters this
+/// is asked about. That is checked rather than assumed —
+/// `a_delimiter_is_never_written_as_a_character_literal` in
+/// `xtask/tests/binding_projection.rs` is what makes the shortcut safe to keep.
+fn balance(code: &str, open: u8, close: u8) -> i32 {
+    let bytes = code.as_bytes();
+    let mut depth = 0i32;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                index += 1;
+                while index < bytes.len() && bytes[index] != b'"' {
+                    index += if bytes[index] == b'\\' { 2 } else { 1 };
+                }
+            }
+            byte if byte == open => depth += 1,
+            byte if byte == close => depth -= 1,
+            _ => {}
+        }
+        index += 1;
+    }
+    depth
+}

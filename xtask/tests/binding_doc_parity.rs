@@ -117,15 +117,6 @@ const DIVERGENT: &[Divergent] = &[
                  renames-nothing rule, which has no wasm counterpart.",
     },
     Divergent {
-        owner: "ChartWrap",
-        member: "kind",
-        reason: "Not a prose difference at all: the two bindings return **different strings** for \
-                 the same wrap — `\"top_and_bottom\"` in Python, `\"topAndBottom\"` in JavaScript — \
-                 and each sentence correctly names its own. That is a value divergence in a data \
-                 token, and `ShapeGeometry.of`'s own wasm comment argues data keys stay \
-                 `snake_case`; MJXOFF-268 owns it. This row must be deleted, not edited, when it is.",
-    },
-    Divergent {
         owner: "CustomGeometrySpec",
         member: "guide_values",
         reason: "The TypeScript sentence names the return shape (`a record from guide name to \
