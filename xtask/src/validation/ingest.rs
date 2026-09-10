@@ -15,15 +15,29 @@
 //!
 //! * [`Verdict::Failed`] — the finding is about *this library*. Round-trip byte identity, the
 //!   fidelity tree, the facade's own re-save, a package defect we introduced by saving, a part out
-//!   of `xsd:sequence` against our generated tables. Every one of these says we lost or changed
-//!   something, and every one fails.
+//!   of `xsd:sequence` against our generated tables, **an address the format model could not read**
+//!   and **an edit that moved more than the leaf it was aimed at**. Every one of these says we lost
+//!   or changed something, and every one fails.
 //! * [`Verdict::Reported`] — the finding is about *the file*. A package defect it arrived with, a
 //!   part its producer wrote that the ECMA-376 XSDs reject, a namespace this gate does not
-//!   categorise. A7b's scope rule is explicit that a file arriving with a defect must still open and
-//!   re-save unchanged, and MJXOFF-103 measured the other half: Apache POI 5.5.1 writes an empty
-//!   `<c:tx/>` for an unnamed series, which `dml-chart.xsd` rejects. **A red build over someone
-//!   else's markup teaches nobody anything**, so these are printed in full and fail nothing.
-//! * [`Verdict::Skipped`] — the check could not run: no `References/`, no `xmllint`.
+//!   categorise, **a reference the file makes that resolves to nothing inside it**. A7b's scope rule
+//!   is explicit that a file arriving with a defect must still open and re-save unchanged, and
+//!   MJXOFF-103 measured the other half: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed
+//!   series, which `dml-chart.xsd` rejects. **A red build over someone else's markup teaches nobody
+//!   anything**, so these are printed in full and fail nothing.
+//! * [`Verdict::Skipped`] — the check could not run: no `References/`, no `xmllint`, or nothing in
+//!   the file the `edit` check could edit without changing more than one text leaf.
+//!
+//! # The two checks that are not about bytes (MJXOFF-278)
+//!
+//! Everything above was true of `opens`, `round-trip`, `xml tree`, `package`, `child order` and
+//! `schema` from the first day, and it was true of `facade` too — which opens the document and saves
+//! it back **with no edit in between**, so part-level laziness re-emits every part from its raw bytes
+//! and not one `FromXml` implementation runs. A file whose every reader in this workspace would
+//! refuse it came back with seven `held` rows. [`super::model`] is the answer: `model` walks the
+//! whole document through the format model and prints what it read, and `edit` makes the smallest
+//! edit the model offers and measures exactly which bytes moved. Read that module for the three-way
+//! split of a read error and for why a workbook's edit is a number.
 //!
 //! # The schema half says nothing about an ignorable extension, and that is deliberate
 //!
@@ -186,6 +200,21 @@ impl IngestReport {
     }
 }
 
+/// The two checks that build a typed element, run on their own (MJXOFF-278).
+///
+/// [`report`] runs them among the other eight, which is where a person reading an ingest wants them.
+/// This is the same two without the container and schema checks around them, so a suite that sweeps
+/// **every** committed fixture — as `xtask/tests/office_corpus.rs` does, because a roster of three
+/// hand-picked fixtures is the shape `xtask/tests/derived_rosters.rs` refuses — pays for the walk and
+/// not for a `xmllint` process per part.
+#[must_use]
+pub fn model_findings(format: ArtefactFormat, package: &Package, bytes: &[u8]) -> Vec<Finding> {
+    vec![
+        super::model::model_read(format, package, bytes),
+        super::model::typed_edit(format, package, bytes),
+    ]
+}
+
 /// The area a file name binds to: `v-xlsx-02.xlsx` answers `V-XLSX-02`.
 #[must_use]
 pub fn area_for_file_name(name: &str) -> Option<&'static Area> {
@@ -283,6 +312,8 @@ pub fn report(
     findings.push(fidelity_round_trip(&package));
     findings.push(facade_round_trip(format, &package, bytes));
     findings.push(package_invariants(&package, saved));
+    findings.push(super::model::model_read(format, &package, bytes));
+    findings.push(super::model::typed_edit(format, &package, bytes));
     findings.push(child_order(name, bytes));
     findings.push(schema_validity(name, bytes));
 

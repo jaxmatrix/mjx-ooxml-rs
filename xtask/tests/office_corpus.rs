@@ -31,10 +31,34 @@
 //! a part out of `xsd:sequence` are this library's and fail. A defect the file arrived with, and a
 //! part its producer wrote that the XSDs reject, are the file's and are printed instead — A7b's
 //! scope rule in one direction, and MJXOFF-103's Apache POI measurement in the other.
+//!
+//! # The two checks that build a typed element (MJXOFF-278)
+//!
+//! Everything in the paragraph above is about **bytes**, and for a long time so was every check the
+//! engine had — including `facade`, which opens the document and saves it back with no edit in
+//! between, so part-level laziness re-emits every part from raw bytes and no `FromXml` ever runs.
+//! `model` and `edit` are the two that cannot pass that way, and this suite holds them to it three
+//! times over:
+//!
+//! * [`a_corruption_the_byte_checks_hold_is_caught_by_the_model`] is the thesis of MJXOFF-278 turned
+//!   into an assertion. It renames one `a:tbl` inside a graphic frame that still declares the table
+//!   URI, then asserts that **every** byte check holds on the result and that `model` alone fails.
+//!   Without the model check that file is a clean report.
+//! * [`the_model_and_edit_checks_read_and_write_something_on_every_committed_fixture`] is the
+//!   anti-vacuity: a check that reads nothing passes trivially, so **every** committed package
+//!   fixture is walked — a population derived, not listed — and each format must still hold at least
+//!   one the model can edit.
+//! * [`the_typed_model_has_never_run_against_a_file_office_wrote`] is the absence, said out loud on
+//!   every run. The corpus is empty, so these two checks have never met markup Office authored — the
+//!   one thing they exist for — and a suite that did not print that would be a green nobody could
+//!   read correctly.
 
 use std::path::PathBuf;
 
-use xtask::validation::{corpus_directory, corpus_files, ingest, report, ArtefactFormat, Verdict};
+use mjx_ooxml_core::{Interner, RawElement, RawNode};
+use xtask::validation::{
+    corpus_directory, corpus_files, ingest, model_findings, report, ArtefactFormat, Verdict,
+};
 
 /// The corpus, or a hard failure when `MJX_REQUIRE_OFFICE_CORPUS` says there must be one.
 ///
@@ -340,4 +364,251 @@ fn the_corpus_directory_is_where_every_document_says_it_is() {
         directory.display()
     );
     let _: PathBuf = directory;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The two checks that build a typed element (MJXOFF-278)
+// ---------------------------------------------------------------------------------------------
+
+/// Renames the first descendant of `element` whose local name is `local`, and says whether it found
+/// one.
+///
+/// One rename is enough to break both tags: the fidelity tree holds an element once, so its start
+/// and end tags are re-emitted from the same name and the result is still well-formed XML — which is
+/// the whole point. A corruption that made the part unparseable would be caught by `xml tree` and
+/// would prove nothing about the model.
+fn rename_first(element: &mut RawElement, interner: &mut Interner, local: &str, to: &str) -> bool {
+    if interner.resolve(element.name.local) == local {
+        element.name.local = interner.intern(to);
+        return true;
+    }
+    for child in &mut element.children {
+        if let RawNode::Element(child) = child {
+            if rename_first(child, interner, local, to) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Every check the ingest ran that is about **bytes** and runs everywhere, in the order the report
+/// prints them.
+///
+/// `schema` is deliberately not here, for the reason `corruptions()` gives above: it needs
+/// `References/` and `xmllint`, it skips without them, and a corruption caught only by a check that
+/// skips on CI is a corruption nothing catches. It happens to catch this one where the schemas are
+/// present — the `a:tblish` has no global element declaration — which is exactly why the list has to
+/// say what it means by "every byte check" rather than being "all of them".
+const BYTE_CHECKS: [&str; 6] = [
+    "opens",
+    "round-trip",
+    "xml tree",
+    "facade",
+    "package",
+    "child order",
+];
+
+/// MJXOFF-278's thesis, as an assertion: a deck every byte check holds, and no reader of ours can
+/// read.
+///
+/// `tables.pptx` frames a table, and the frame's `a:graphicData@uri` is what says so. Renaming the
+/// `a:tbl` inside it leaves that declaration standing over markup that is no longer a table: the ZIP
+/// is sound, every payload round-trips, the fidelity tree re-serializes byte for byte, the facade
+/// opens and re-saves it unchanged — **because it edits nothing and laziness re-emits raw bytes** —
+/// the package invariants hold and no child is out of `xsd:sequence`. Six green checks over a file
+/// whose own `graphic_frame_kind` hands `table_dimensions` an address it cannot read.
+///
+/// This is the file the report used to call clean. Both halves of the assertion matter: if the byte
+/// checks ever start catching it, this test has stopped proving what it was written to prove.
+#[test]
+fn a_corruption_the_byte_checks_hold_is_caught_by_the_model() {
+    let sound = mjx_fixtures::fixture("tables.pptx");
+    let mut package = mjx_opc::Package::open(&sound).expect("opening tables.pptx");
+    let part = mjx_opc::PartName::new("/ppt/slides/slide1.xml").expect("a part name");
+    {
+        let tree = package.part_tree_mut(&part).expect("the slide tree");
+        assert!(
+            rename_first(&mut tree.root, &mut tree.interner, "tbl", "tblish"),
+            "tables.pptx no longer frames a table on slide 1, so this corruption corrupts nothing"
+        );
+    }
+    let bytes = package.save_unchecked().expect("saving the edited package");
+
+    let report = report(
+        "a-table-that-is-not-one.pptx",
+        ArtefactFormat::Presentation,
+        None,
+        &bytes,
+    );
+    print!("{}", report.render());
+
+    for check in BYTE_CHECKS {
+        let finding = report
+            .finding(check)
+            .unwrap_or_else(|| panic!("the report has no `{check}` finding:\n{}", report.render()));
+        assert!(
+            matches!(finding.verdict, Verdict::Held),
+            "`{check}` came back `{}` on the corruption. Every byte check holding is half of what \
+             this test proves — a file the container checks reject says nothing about whether the \
+             typed model is ever built:\n{}",
+            finding.verdict.label(),
+            report.render()
+        );
+    }
+
+    let model = report
+        .finding("model")
+        .unwrap_or_else(|| panic!("the report has no `model` finding:\n{}", report.render()));
+    assert!(
+        matches!(model.verdict, Verdict::Failed),
+        "`model` came back `{}` on a graphic frame that declares a table and holds none. A model \
+         check that cannot fail is the `facade` check with a different name:\n{}",
+        model.verdict.label(),
+        report.render()
+    );
+    assert!(
+        model.detail.contains("table"),
+        "and it must name the address it could not read, or a reader cannot act on it: {}",
+        model.detail
+    );
+}
+
+/// The anti-vacuity, over **every committed package fixture**: a walk that reads nothing, and an
+/// edit that writes nothing, both pass without ever building a typed element.
+///
+/// The corpus is derived rather than listed — `mjx_fixtures::package_fixtures_with_extension` over
+/// `ArtefactFormat::all()` — because three hand-picked fixtures is exactly the shape
+/// `xtask/tests/derived_rosters.rs` refuses, and because sweeping all of them is what turned up the
+/// two things a sample of three would have missed: a `w:sdt` slot that holds no run, and a `numId`
+/// two committed documents reference and their own `word/numbering.xml` does not define.
+///
+/// The floors are per format and phrased as *the sweep has stopped reading*, never as an exact
+/// total. Fixtures gain and lose content; a hard-coded count would be a test of the corpus rather
+/// than of the walk. What is asserted of **every** fixture is the pair that cannot be traded away:
+/// the model must not fault, and reading must leave every part alone.
+#[test]
+fn the_model_and_edit_checks_read_and_write_something_on_every_committed_fixture() {
+    for format in ArtefactFormat::all() {
+        let names = mjx_fixtures::package_fixtures_with_extension(format.extension());
+        assert!(
+            !names.is_empty(),
+            "no committed .{} fixture at all, so this format's half of the sweep runs over nothing",
+            format.extension()
+        );
+        let mut walked = 0usize;
+        let mut edited = 0usize;
+        let mut skipped = Vec::new();
+        for name in &names {
+            let bytes = mjx_fixtures::fixture(name);
+            let package = mjx_opc::Package::open(&bytes)
+                .unwrap_or_else(|error| panic!("{name}: not a package: {error}"));
+            let findings = model_findings(format, &package, &bytes);
+            let model = findings
+                .iter()
+                .find(|finding| finding.check == "model")
+                .unwrap_or_else(|| panic!("{name}: no `model` finding"));
+            assert!(
+                !matches!(model.verdict, Verdict::Failed),
+                "{name}: the typed model refused an address one of our own readers produced — {}",
+                model.detail
+            );
+            assert!(
+                !matches!(model.verdict, Verdict::Skipped),
+                "{name}: the `model` check skipped. It needs no tool and no schema tree, so a skip \
+                 here can only be a check that stopped running"
+            );
+            assert!(
+                model.detail.contains("reading dirtied nothing"),
+                "{name}: the walk did not establish that reading left every part alone, and every \
+                 byte comparison downstream of a read depends on it: {}",
+                model.detail
+            );
+            walked += 1;
+
+            let edit = findings
+                .iter()
+                .find(|finding| finding.check == "edit")
+                .unwrap_or_else(|| panic!("{name}: no `edit` finding"));
+            match edit.verdict {
+                Verdict::Held => edited += 1,
+                Verdict::Skipped => skipped.push(name.as_str()),
+                other => panic!(
+                    "{name}: an edit through the typed model came back `{}` — {}",
+                    other.label(),
+                    edit.detail
+                ),
+            }
+            println!("{name}\n  model {}\n  edit  {}", model.detail, edit.detail);
+        }
+        assert_eq!(
+            walked,
+            names.len(),
+            "the .{} sweep walked {walked} of {} fixture(s)",
+            format.extension(),
+            names.len()
+        );
+        assert!(
+            edited > 0,
+            "not one committed .{} fixture held anything the typed model could edit. The sweep has \
+             stopped measuring the sharpest thing in the ingest, and a report of nothing but skips \
+             is not a green. Skipped: {skipped:?}",
+            format.extension()
+        );
+        println!(
+            "the typed model walked all {} committed .{} fixture(s) and edited {edited} of them; \
+             {} held nothing editable without moving more than one text leaf: {skipped:?}",
+            names.len(),
+            format.extension(),
+            skipped.len()
+        );
+    }
+}
+
+/// What the two new checks have **not** been run against, said on every run.
+///
+/// `tests/office-authored/` is empty, no agent may fill it, and until somebody re-saves something
+/// out of Microsoft Office the typed model has still only ever read markup this project or
+/// LibreOffice wrote. That is the honest state, and it is worth nothing unless it is *visible*: a
+/// skip that reports as a pass is the defect this whole phase has been deleting. So the count is
+/// printed, named, and `MJX_REQUIRE_OFFICE_CORPUS=1` turns it into a failure the day CI should
+/// expect files — the same arrangement `MJX_REQUIRE_SCHEMA` and `MJX_REQUIRE_SOFFICE` make.
+///
+/// **The test's own name is the part that is visible without `--nocapture`.** `cargo test` swallows
+/// a passing test's stdout, so a line printed here is read by whoever asks for it; a line in the
+/// test list is read by everybody. The day a file arrives, this name is wrong and has to be
+/// changed, which is the point.
+#[test]
+fn the_typed_model_has_never_run_against_a_file_office_wrote() {
+    let files = corpus();
+    let mut read = 0usize;
+    for file in &files {
+        let report = ingest(&file.path, file.area).expect("ingesting a corpus file");
+        let model = report
+            .finding("model")
+            .unwrap_or_else(|| panic!("{}: no `model` finding", file.name));
+        println!("{}\n  model {}", file.name, model.detail);
+        if matches!(model.verdict, Verdict::Held | Verdict::Reported) {
+            read += 1;
+        }
+        assert!(
+            !matches!(model.verdict, Verdict::Skipped),
+            "{}: the `model` check skipped. It has no tool and no schema tree to be missing — a \
+             skip here can only be a check that stopped running",
+            file.name
+        );
+    }
+    println!(
+        "the typed model has been walked over {read} of {} Office-authored file(s) in {}",
+        files.len(),
+        corpus_directory().display()
+    );
+    if files.is_empty() {
+        println!(
+            "NOT ONE — the corpus is empty, so `model` and `edit` have still only ever read markup \
+             this project or LibreOffice wrote, which is exactly the weakness MJXOFF-130 and \
+             MJXOFF-278 exist to retire. docs/validation/06-the-office-pass.md is how a person \
+             fills it; no agent may."
+        );
+    }
 }

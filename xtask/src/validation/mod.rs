@@ -56,6 +56,7 @@
 mod corpus;
 mod document;
 mod ingest;
+mod model;
 mod presentation;
 mod workbook;
 
@@ -67,8 +68,8 @@ pub use corpus::{
     corpus_directory, corpus_files, original_for, original_path, CorpusFile, CORPUS_DIRECTORY,
 };
 pub use ingest::{
-    area_for_file_name, area_for_token, format_for_file_name, ingest, report, Finding,
-    IngestReport, Verdict,
+    area_for_file_name, area_for_token, format_for_file_name, ingest, model_findings, report,
+    Finding, IngestReport, Verdict,
 };
 
 /// Which of the three formats an area belongs to.
