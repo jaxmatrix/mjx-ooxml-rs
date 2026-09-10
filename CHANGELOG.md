@@ -48,6 +48,7 @@ reconstructed afterwards.
 | `mjx_chart::ChartLabelScope::Plot { plot_idx: usize }`, `Series { series_idx: usize }`, `Point { series_idx: usize, point_idx: u32 }` | `Plot { plot_index: u32 }`, `Series { series_index: u32 }`, `Point { series_index: u32, point_index: u32 }` | MJXOFF-118. These were the **last three public fields in the workspace spelled `*_idx`** — an abbreviation named after `c:idx`, which is exactly the case 0.0.69 already settled for `mjx_dml::StyleMatrixReference::idx`. The width goes with the name: this type crosses the facade to both bindings, and **both already published these three as `u32` and cast on the way in and out**, so the rename and the narrowing change nothing in Python or TypeScript and delete five casts (two of them `usize as u32`, which truncate rather than fail). |
 | `mjx_pptx::ShapeInfo::index`, `mjx_pptx::LayoutInfo::index`, `mjx_pptx::LayoutInfo::master_index` — `usize` | `u32` | MJXOFF-118, finishing A9's own recorded loose end (*"better normalised once at v0.1"*). All three structs are re-exported **verbatim** by `mjx-ooxml` and by both bindings, which means they bypass `crates/mjx-ooxml/src/index.rs` — the one place the facade's `u32`/model `usize` width difference is meant to be crossed — and carried a host-dependent width into a foreign-function-facing type. Both bindings already read all three as `u32`; those casts are gone. A `mjx-pptx` caller feeding one of these back into a `Presentation` method converts once (`usize::try_from`), which `crates/mjx-pptx/src/index.rs` documents; a `mjx-ooxml` caller can now pass `ShapeInfo::index` straight to a `Deck` method, which was not possible before. |
 | `mjx_dml::ColorSpec` — three variants, `#[derive(Eq)]` | a fourth variant `Transformed { base: Box<ColorSpec>, transforms: Vec<ColorTransform> }`; **no `Eq`** | MJXOFF-219. `ColorSpec` is what every authoring caller hands in, and it carried a colour's kind and value and **no transform children**, so nothing in this workspace could author a colour transform and `Color::spec()` silently dropped a producer's. The three existing variants and every construction site are untouched — the alternative shape (`ColorSpec { kind, value, transforms }`, the ticket's option 1) is faithful to the schema and rewrites 393 call sites; this one costs an arm in the seven places that `match` on the enum. `Eq` goes because a transform's value is a `Fraction`/`Angle` (both `f64`, both `PartialEq` only); nothing in the workspace required it, and every type that embeds a `ColorSpec` — `FillSpec`, `LineSpec`, `EffectListSpec`, `CharacterPropertiesSpec` — was already `PartialEq` alone. |
+| `mjx_ooxml::CellData` — five variants | a sixth, `Unreadable(String)`, with the accessor `CellData::unreadable_text` (`CellData.unreadable_text` in Python, `CellData.unreadableText` in npm) and the kind name `"unreadable"` in both bindings | MJXOFF-285. `<c t="n"><v>not-a-number</v></c>` read back as `Blank` — the answer a cell holding *nothing* gives — so a caller saw an empty cell where the file held data, with nothing anywhere to say a value had been dropped. The enumeration is deliberately exhaustive precisely so that a kind of cell cannot arrive as a blank, and this was one arriving as a blank. The vocabulary had no word for it already: `Text` would claim a kind of cell this is not and would make a numeric cell holding junk indistinguishable from a text cell holding the same characters, and `Error` means the file wrote `t="e"` and would put a token that is not an error code behind `error_code()`. Both bindings `match` this enumeration with no wildcard arm, which is what made the addition a compile error in three places rather than a silent gap. |
 | **npm only** — `ChartWrap.kind` answered `"topAndBottom"` | it answers `"top_and_bottom"` | MJXOFF-268. The wasm binding's camelCase rule is about **method names**, which `xtask/tests/binding_projection.rs` enforces on `js_name` against the Rust name under it. A returned token is data, and the binding had already written that down itself, in `bindings/mjx-wasm/src/geometry.rs`'s comment on `ShapeGeometry::of`: *"the keys are the adjustment names, which stay `snake_case`: they are data … rather than method names"*. `ChartWrap.kind` was the one place in either binding that broke it, which is a claim the sweep behind it can support: every string literal both bindings spell in code was compared, and the twenty members declared by both that produce a token agreed on every one but this. Python is unchanged and was always right. Nothing in Rust changes, and the constructor keeps its camelCase `ChartWrap.topAndBottom()` — that is a name. The rule is no longer prose: `no_data_token_is_spelled_in_camel_case` and `the_two_bindings_produce_the_same_data_tokens` check it over both bindings, and neither carries a ledger of exceptions. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
@@ -60,6 +61,75 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.170] - 2026-09-10
+
+### A number the file states and we cannot parse is no longer a blank
+
+#### `CellData` grows the kind it was exhaustive for (MJXOFF-285)
+
+`crates/mjx-ooxml/src/workbook/cells.rs` read a numeric cell with `mjx_sml::Cell::number`, which
+answers `None` for a `<v>` that will not parse, and filed that `None` under `CellData::Blank` — the
+same value it gives a cell that holds nothing at all:
+
+```xml
+<c r="A1" t="n"><v>not-a-number</v></c>
+```
+
+A caller reading that block saw an empty cell where the file holds data, and there was **nothing
+anywhere** — no error, no note, no second accessor — that said a value had been dropped. That is a
+fidelity failure of the plainest kind: the document states something and we report nothing.
+
+`CellData::Unreadable(String)` carries the text the file states, for the four cell types whose
+declared `c@t` can fail to read their own value: a `t="n"` whose `<v>` is not a number, a `t="b"`
+whose `<v>` is neither `1` nor `0`, a `t="s"` whose `<v>` is not an index, and a `t="inlineStr"`
+that wrote a `<v>` where its `<is>` belongs. It is **reported, never repaired**: reading is not an
+edit, and a workbook saved without touching such a cell still writes exactly the bytes it was opened
+with — `reporting_the_token_does_not_rewrite_it` asserts that against the saved markup.
+
+##### Why a variant, and why not a word the vocabulary already had
+
+MJXOFF-241 faced the same cost — an exhaustive enumeration reaching `mjx-ooxml` and both bindings —
+and found that the vocabulary already had the right word. This one does not. `Text` would say the
+cell holds a string, which is a claim about a *kind* of cell this is not, and would make a numeric
+cell holding `not-a-number` indistinguishable from a text cell holding those characters. `Error`
+means the file wrote `t="e"`, and would put a token that is not an error code behind
+`error_code()`. Reporting an `Err` from the read was refused for the reason the house style already
+gives: a whole workbook that will not open over one cell replaces a silent blank with a broken flow.
+
+The declared type is not carried beside the text — `c@t` is the markup tier's vocabulary and the
+facade has never published it — and `CellInput` gains nothing, because authoring a value no schema
+admits is not a thing this library should offer.
+
+A `t="s"` whose `<v>` is not an index used to `continue` out of the loop, which also dropped that
+cell's formula from the block. Reporting the cell rather than skipping it keeps the `<f>` beside it.
+
+##### One case that is next to it and is not it
+
+A `t="s"` whose index is readable and names no entry in `xl/sharedStrings.xml` stays `Blank`. Its
+token is not unreadable — it reads perfectly, as the number it is — and what is missing is the
+entry it names, so there is no token to report; `mjx_xlsx::Workbook::cell_text` gives that case the
+same reading, and the two surfaces still agree. A dangling reference is a different claim, and the
+`--ingest` report already has a category for it.
+
+##### What now says it
+
+`xtask/src/validation/model.rs`'s `model` check — the instrument MJXOFF-285 was measured with, which
+reported *"held — the cell read back as `Blank`"* — counts such cells and names them in its line:
+`… {n} value(s) the file states that no cell type here can read …`. Both bindings project the kind
+(`"unreadable"`) and the accessor, and an unreadable cell arrives in `rows()` as **its text rather
+than as `None`/`null`**, because `None` is what a blank answers and telling those two apart is the
+whole point.
+
+##### The gate
+
+`crates/mjx-ooxml/tests/workbook_unreadable_values.rs` builds its input the way `format_detection.rs`
+builds a `.pptm` — by rewriting one part of a real package, because no authoring call in this
+workspace will write a token its own schema refuses — and asserts the **discrimination** rather than
+the variant: the unreadable cell and the empty cell beside it are read in the same call, from the
+same row, and compared against each other. Reverting the four read arms answers `left: Blank` and
+`right: Blank` on that comparison. `test_a_value_the_file_states_and_we_cannot_read_is_not_a_blank`
+is the Python half, where the distinction is `"not-a-number"` against `None` in `rows()`.
 
 ## [0.0.169] - 2026-09-10
 
