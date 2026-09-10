@@ -311,5 +311,10 @@ wasm-pack test --node bindings/mjx-wasm              # the Rust side, in a wasm 
 - **Project-setup commits go on `main`;** once features start, **branch per feature + open a PR**.
 - **Atomic commits** (one self-contained change, easy rollback/cherry-pick); commit only when
   `cargo build` + `cargo test --workspace` are green.
+- **A release commit bumps every file that states the version**, not just `Cargo.toml`: the lock,
+  `CHANGELOG.md`'s newest heading and `bindings/mjx-wasm/npm/package.json` — which 0.0.167 forgot,
+  leaving the npm package unbuildable from `main` for two versions. `xtask/tests/release_versions.rs`
+  holds the four together and derives the set of carriers from `git ls-files`, so a fifth file that
+  starts restating the version fails rather than being missed (MJXOFF-286).
 - **Do NOT add `Co-Authored-By` or any AI-attribution trailer** to commits.
 - `References/` is git-ignored — never stage it; put test inputs under `tests/fixtures/`.
