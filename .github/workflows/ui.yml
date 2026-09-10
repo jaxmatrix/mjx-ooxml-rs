@@ -1,0 +1,107 @@
+name: UI catalogue
+
+# The Phase U component catalogue (`ui/`), which is a Node workspace outside the Rust rank graph.
+#
+# It is a SEPARATE workflow rather than a job in `ci.yml`, for two reasons. The obvious one is that
+# nothing here needs a Rust toolchain and nothing in `ci.yml` needs Node, so sharing a file would
+# mean every Rust job carrying a `paths` filter it does not want. The load-bearing one is the
+# claim this child makes and must keep: **`ui/` is invisible to Cargo.** A workflow that never
+# mentions `cargo` is the cheapest possible statement of that, and `isolation` below is the
+# expensive one — it asserts it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ui-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ui
+
+jobs:
+  catalogue:
+    name: tokens · typecheck · lint · build · a11y
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: install
+        run: npm ci
+
+      # The token-drift gate. It runs FIRST and with no toolchain but Node, deliberately: a
+      # contributor who hand-edits a generated hex value should be told so before anything else has
+      # a chance to fail confusingly. `xtask/tests/tokens.rs` and `mjx-tokens`'s `artefacts_agree`
+      # check the same pipeline from the Rust side; this is the one a TypeScript contributor runs.
+      - name: token drift
+        run: npm run tokens:check
+
+      - name: typecheck
+        run: npm run typecheck
+      - name: lint
+        run: npm run lint
+      - name: unit tests
+        run: npm run test:unit
+
+      # `build-storybook` fails on errors a dev server tolerates, which is why the browser tier
+      # runs against this artefact rather than against `storybook dev`.
+      - name: build the catalogue
+        run: npm run build-storybook
+
+      - name: install the browser
+        run: npx playwright install --with-deps chromium
+
+      # The gates: the a11y sweep over every story in the built index (including the ones that must
+      # FAIL), theming on computed values, the container-query mechanism, the token resolution
+      # order, and the visual plates.
+      - name: browser gates
+        run: npm run test:browser
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ui/playwright-report
+          retention-days: 7
+
+  isolation:
+    name: the Rust workspace does not know ui/ exists
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # `ui/` is a Node workspace outside the Rust rank graph. `cargo metadata` enumerates every
+      # workspace member, so a `ui` that ever appeared in that list — or a manifest accidentally
+      # added under it — would fail here rather than at whatever downstream point first noticed.
+      - name: no Cargo member comes from ui/
+        run: |
+          cargo metadata --no-deps --format-version 1 > metadata.json
+          if grep -q '"manifest_path":"[^"]*/ui/' metadata.json; then
+            echo "a Cargo workspace member lives under ui/, which must not happen" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, sys
+          members = json.load(open('metadata.json'))['packages']
+          named = [p['name'] for p in members if p['name'].startswith('ui') or '/ui/' in p['manifest_path']]
+          if named:
+              print('unexpected members:', named, file=sys.stderr)
+              sys.exit(1)
+          print(f'{len(members)} workspace members, none under ui/')
+          PY
+      - name: no Cargo manifest under ui/
+        run: |
+          if find ui -name Cargo.toml -print -quit | grep -q .; then
+            echo "ui/ must not contain a Cargo.toml" >&2
+            exit 1
+          fi

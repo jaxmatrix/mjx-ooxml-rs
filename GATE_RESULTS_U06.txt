@@ -1,0 +1,17 @@
+MJXOFF-185 [U06] — the gallery: the in-ribbon strip, the expanded flyout and live preview
+branch:  pipeline/r23-charts-diagrams
+head:    d27ad17
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-10T00:23:15+05:30
+
+tokens:check             exit=0   start=2026-09-10T00:23:15+05:30  finish=2026-09-10T00:23:15+05:30
+icons:check              exit=0   start=2026-09-10T00:23:15+05:30  finish=2026-09-10T00:23:18+05:30
+typecheck                exit=0   start=2026-09-10T00:23:18+05:30  finish=2026-09-10T00:23:28+05:30
+lint                     exit=0   start=2026-09-10T00:23:28+05:30  finish=2026-09-10T00:23:50+05:30
+test:unit                exit=0   start=2026-09-10T00:23:50+05:30  finish=2026-09-10T00:23:59+05:30
+build-storybook          exit=0   start=2026-09-10T00:23:59+05:30  finish=2026-09-10T00:24:04+05:30
+test:browser             exit=0   start=2026-09-10T00:24:04+05:30  finish=2026-09-10T00:28:36+05:30
+cargo metadata           exit=0   start=2026-09-10T00:28:36+05:30  finish=2026-09-10T00:28:36+05:30
+
+finished: 2026-09-10T00:28:36+05:30
+failures: 0

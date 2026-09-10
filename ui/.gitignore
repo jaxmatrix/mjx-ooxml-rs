@@ -1,0 +1,7 @@
+# The built catalogue and the browser tier's own output. Everything here is reproducible from a
+# checkout with `npm ci && npm run check`.
+storybook-static/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
