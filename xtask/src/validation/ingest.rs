@@ -598,11 +598,27 @@ fn child_order(label: &str, bytes: &[u8]) -> Finding {
         };
     }
     let vacuous = report.vacuous();
-    let detail = format!(
+    let mut detail = format!(
         "{} part(s) audited, {} required by the category tables",
         report.audited.len(),
         required.len()
     );
+    // Recorded, never a verdict (MJXOFF-273). A part whose root markup compatibility resolution
+    // emptied audits clean over nothing the file contains, and reads exactly like a part that was
+    // empty to begin with. Saying so is the whole of the fix: reddening it would mean faulting a
+    // producer's extension markup against schemas that do not describe it, which the gate refuses
+    // to do — and Office writes these in essentially every drawing that carries an `a14` choice.
+    let emptied = report.emptied_by_markup_compatibility_resolution();
+    if !emptied.is_empty() {
+        detail.push_str(&format!(
+            "; {} of them arrived with content that markup compatibility resolution removed, so \
+             the audit is complete over an empty root rather than over an empty part — their \
+             content is in a namespace no ECMA-376 schema describes and nothing is claimed about \
+             it: {:?}",
+            emptied.len(),
+            emptied.iter().map(|part| &part.name).collect::<Vec<_>>()
+        ));
+    }
     if vacuous.is_empty() {
         Finding {
             check: "child order",

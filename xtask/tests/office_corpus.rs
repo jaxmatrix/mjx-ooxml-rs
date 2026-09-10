@@ -206,6 +206,62 @@ fn corruptions() -> Vec<(&'static str, &'static str, Vec<u8>)> {
     ]
 }
 
+/// MJXOFF-273's third clause: the report a person reads must say which of the two empty roots it
+/// saw, and must not call either one a finding.
+///
+/// `legacy_form_control.xlsx` is the emptied case — an `xdr:wsDr` whose only child is an
+/// `mc:AlternateContent` with a losing `a14` choice and no `mc:Fallback` — and `charts.pptx` is the
+/// empty one. The verdict assertion is as load-bearing as the text: auditing the losing choice would
+/// mean faulting a producer's extension markup against schemas that do not describe it, so a
+/// `Reported` here would put a permanent yellow on essentially every Office-authored drawing. It is
+/// recorded, not reported.
+#[test]
+fn the_ingest_report_tells_an_emptied_root_from_an_empty_one() {
+    let emptied = report(
+        "legacy_form_control.xlsx",
+        ArtefactFormat::Workbook,
+        None,
+        &mjx_fixtures::fixture("legacy_form_control.xlsx"),
+    );
+    let finding = emptied
+        .finding("child order")
+        .expect("the workbook is audited, so the report has a child-order finding");
+    assert!(
+        matches!(finding.verdict, Verdict::Held),
+        "an emptied root is not a defect and must not be dressed as one — the verdict came back \
+         `{:?}` with: {}",
+        finding.verdict,
+        finding.detail
+    );
+    assert!(
+        finding.detail.contains("/xl/drawings/drawing1.xml"),
+        "but the report must still name it, or a reader cannot tell this complete audit was \
+         complete over nothing the file contains: {}",
+        finding.detail
+    );
+
+    let empty = report(
+        "charts.pptx",
+        ArtefactFormat::Presentation,
+        None,
+        &mjx_fixtures::fixture("charts.pptx"),
+    );
+    let finding = empty
+        .finding("child order")
+        .expect("the deck is audited, so the report has a child-order finding");
+    assert!(
+        matches!(finding.verdict, Verdict::Held),
+        "and a deck whose only bare root is a genuinely empty a:tblStyleLst holds: {}",
+        finding.detail
+    );
+    assert!(
+        !finding.detail.contains("resolution removed"),
+        "with nothing said about resolution removing anything — a clause on every empty part is \
+         noise, not a distinction: {}",
+        finding.detail
+    );
+}
+
 #[test]
 fn a_package_this_suite_corrupts_fails_the_checks_that_matter() {
     for (what, check, bytes) in corruptions() {

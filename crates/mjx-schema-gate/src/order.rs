@@ -49,6 +49,25 @@
 //! refused, and an emptied slot has no children left to put in any order, so nothing is given up by
 //! sharing. What the arms report about a part is a fact about one piece of markup.
 //!
+//! # Emptied is recorded, not reported (MJXOFF-273)
+//!
+//! Resolving first bought a second way for a root to arrive with no element children, and the two
+//! are not the same fact. `charts.pptx`'s `/ppt/tableStyles.xml` is a genuinely empty
+//! `a:tblStyleLst`: there was nothing there and the audit saw all of it.
+//! `legacy_form_control.xlsx`'s `/xl/drawings/drawing1.xml` is an `xdr:wsDr` whose only child is an
+//! `mc:AlternateContent` holding one `mc:Choice Requires="a14"` and **no** `mc:Fallback`, so
+//! resolution drops the subtree and the audit saw *nothing of what the file contains*. Both then
+//! report `root_child_elements = 0`, `elements_visited = 1`, floor 1, clean.
+//!
+//! [`AuditedPart::raw_root_child_elements`] is what tells them apart, and it changes **no verdict**.
+//! It is not a defect and must not be made to look like one: auditing the losing choice would mean
+//! faulting a producer's extension markup against schemas that do not describe it, which is exactly
+//! what `child_order.rs` refuses to do, and flagging every emptied root as a finding would turn that
+//! deliberate, correct refusal into a red on every Office-authored drawing. So the arm *records* the
+//! distinction — a reader of an [`OrderAudit`], and `xtask validation-artefacts --ingest`, can say
+//! which of the two they are looking at — while [`assert_deck_is_in_schema_order`] goes on asserting
+//! only what it asserted before.
+//!
 //! [`TreeAudit::elements_visited`]: mjx_ooxml_types::child_order::TreeAudit::elements_visited
 
 use mjx_ooxml_types::child_order;
@@ -99,6 +118,22 @@ pub struct AuditedPart {
     /// reporting the raw child it no longer has would make the floor read a structure the walk was
     /// never going to enter.
     pub root_child_elements: usize,
+    /// How many element children the root had **before** markup compatibility was resolved.
+    ///
+    /// This decides nothing — the floor reads [`root_child_elements`], because the resolved tree is
+    /// the only structure the walk was ever going to enter. It is here so a reader can tell an
+    /// empty part from an emptied one (MJXOFF-273): both arrive with `root_child_elements = 0` and
+    /// a complete one-element audit, and only this number says whether the file had content the
+    /// conforming view discards.
+    ///
+    /// It is **not** an upper bound on [`root_child_elements`], and reading it as one would be
+    /// wrong: resolution replaces an `mc:AlternateContent` with the children of the winning branch,
+    /// so a root loses children when the branch is smaller, gains them when it is larger, and keeps
+    /// the count when it is one for one. A part carrying no markup compatibility at all reports the
+    /// two equal, which is nearly every part of nearly every package.
+    ///
+    /// [`root_child_elements`]: AuditedPart::root_child_elements
+    pub raw_root_child_elements: usize,
 }
 
 impl AuditedPart {
@@ -110,6 +145,17 @@ impl AuditedPart {
         } else {
             MINIMUM_ELEMENTS_VISITED
         }
+    }
+
+    /// Whether this root arrived with element children and markup compatibility resolution left it
+    /// with none — so the audit below is complete over *nothing the file contains*.
+    ///
+    /// **Not a defect**, and no assertion here treats it as one; see the module documentation. It
+    /// separates `legacy_form_control.xlsx`'s `xdr:wsDr` (`true`) from `charts.pptx`'s empty
+    /// `a:tblStyleLst` (`false`), which are otherwise the same row.
+    #[must_use]
+    pub fn emptied_by_markup_compatibility_resolution(&self) -> bool {
+        self.root_child_elements == 0 && self.raw_root_child_elements > 0
     }
 }
 
@@ -147,6 +193,20 @@ impl OrderAudit {
         self.audited
             .iter()
             .filter(|part| part.elements_visited < part.floor())
+            .collect()
+    }
+
+    /// The audited parts whose root markup compatibility resolution emptied — a **complete audit
+    /// over nothing the file contains**, which is not the same fact as an empty part and is not a
+    /// defect either (MJXOFF-273).
+    ///
+    /// Kept separate from [`vacuous`](OrderAudit::vacuous) deliberately: a vacuous audit is a
+    /// codegen gap to chase, this is markup the gate correctly declines to describe.
+    #[must_use]
+    pub fn emptied_by_markup_compatibility_resolution(&self) -> Vec<&AuditedPart> {
+        self.audited
+            .iter()
+            .filter(|part| part.emptied_by_markup_compatibility_resolution())
             .collect()
     }
 }
@@ -233,6 +293,10 @@ fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, report: &mut Ord
         let Ok(document) = package.part_tree(&part) else {
             continue;
         };
+        // Read off the tree the package holds, before the line below rebinds `document` to the
+        // resolved view: it is the only place the raw shape is still in hand, and it is what
+        // separates an emptied root from an empty one (MJXOFF-273).
+        let raw_root_child_elements = element_children(&document.root);
         // The **same view [`crate::inspect`] validates** (MJXOFF-272). A part is re-serialized only
         // when it really carries markup compatibility, so the common path still walks the tree the
         // package holds.
@@ -275,13 +339,23 @@ fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, report: &mut Ord
         report.audited.push(AuditedPart {
             name: format!("{prefix}{}", part.as_str()),
             elements_visited: audit.elements_visited,
-            root_child_elements: root
-                .children
-                .iter()
-                .filter(|child| matches!(child, mjx_ooxml_core::RawNode::Element(_)))
-                .count(),
+            root_child_elements: element_children(root),
+            raw_root_child_elements,
         });
     }
+}
+
+/// How many of an element's children are elements.
+///
+/// Called twice on the same part — once on the raw root and once on the resolved one — which is the
+/// whole reason it is a function rather than the inline `filter().count()` it replaced: two
+/// spellings of one count are two places for the next change to reach only one.
+fn element_children(element: &mjx_ooxml_core::RawElement) -> usize {
+    element
+        .children
+        .iter()
+        .filter(|child| matches!(child, mjx_ooxml_core::RawNode::Element(_)))
+        .count()
 }
 
 /// Every part of `bytes` the ordering audit **must** have reached: one whose root namespace is a
