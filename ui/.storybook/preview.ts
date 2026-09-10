@@ -25,6 +25,8 @@ import { defineFeedback } from '../src/feedback/index.ts';
 import { defineFurniture } from '../src/furniture/index.ts';
 import { defineNavigators } from '../src/navigators/index.ts';
 import { defineFormulaChrome } from '../src/formula/index.ts';
+import { defineAnnotation } from '../src/annotation/index.ts';
+import { annotationDocumentCss } from '../src/annotation/annotation-sheets.ts';
 import { formulaDocumentCss } from '../src/formula/formula-sheets.ts';
 import { furnitureDocumentCss } from '../src/furniture/furniture-model.ts';
 import { feedbackDocumentCss } from '../src/feedback/feedback-model.ts';
@@ -85,6 +87,12 @@ defineNavigators();
 // would render with an empty gap where the address goes -- which reads as a workbook with no
 // selection rather than as a missing registration.
 defineFormulaChrome();
+// MJXOFF-193's annotation family. Registered here for the reason above and one of its own: a
+// review pane takes its annotations from a PROPERTY, and an unregistered <mjx-comment-card> is an
+// unknown inline element -- so a margin column would lay out as a paragraph of run-together author
+// names and comment bodies, which reads as a document whose review data arrived mangled rather
+// than as a missing registration.
+defineAnnotation();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -135,6 +143,15 @@ document.head.append(furnitureRule);
 const formulaRule = document.createElement('style');
 formulaRule.textContent = formulaDocumentCss;
 document.head.append(formulaRule);
+
+// MJXOFF-193's, and load-bearing for exactly the reason the formula bar's is: it carries the EIGHT
+// SCHEME-KEYED author colours, which can only be declared on :root because which token spells a
+// slot is a different answer in the two schemes. A catalogue without it renders every author band
+// in the border colour -- a review pane that has stopped telling authors apart, which is the one
+// thing the palette search exists to guarantee.
+const annotationRule = document.createElement('style');
+annotationRule.textContent = annotationDocumentCss;
+document.head.append(annotationRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
