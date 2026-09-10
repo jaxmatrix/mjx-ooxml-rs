@@ -133,8 +133,11 @@ assert.deepEqual(block.rows(), [["Region", 12.5]]);
 block.free();
 ```
 
-`rows()` cannot tell a text cell from an error cell — both arrive as a string — so `kinds()` is the
-disambiguator, built only when asked.
+`rows()` cannot tell a text cell from an error cell, or from a cell whose value the file states and
+no cell type here can read — all three arrive as a string — so `kinds()` is the disambiguator, built
+only when asked. That last kind, `"unreadable"`, is why `rows()` answers such a cell with its text
+rather than with `None`: `None` is what a blank answers, and a value the file holds is not a blank
+(MJXOFF-285).
 
 ## Writing a batch
 

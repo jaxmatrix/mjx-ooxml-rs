@@ -13,8 +13,9 @@
 //! *conversion* can be one call too, into JavaScript's own values and not into wasm handles.
 //!
 //! `rows()` answers `null`, `number`, `string` and `boolean`, because that is what a caller
-//! iterating a table wants. It cannot distinguish a text cell from an error cell, which both arrive
-//! as a `string`; [`CellBlock::kinds`] is the disambiguator, built only when asked.
+//! iterating a table wants. It cannot distinguish a text cell from an error cell or from an
+//! unreadable one, which all arrive as a `string`; [`CellBlock::kinds`] is the disambiguator, built
+//! only when asked.
 //!
 //! # The one shape that differs from Python's
 //!
@@ -164,25 +165,30 @@ fn kind_of(value: &ooxml::CellData) -> &'static str {
         ooxml::CellData::Text(_) => "text",
         ooxml::CellData::Boolean(_) => "boolean",
         ooxml::CellData::Error(_) => "error",
+        ooxml::CellData::Unreadable(_) => "unreadable",
     }
 }
 
 /// One cell as JavaScript's own types: `null`, `number`, `string` or `boolean`.
 ///
-/// An error cell arrives as its code (`"#DIV/0!"`), which a text cell holding that same text would
-/// too — `CellBlock.kinds` is how the two are told apart when it matters.
+/// An error cell arrives as its code (`"#DIV/0!"`) and an unreadable one as the text its file
+/// states, which a text cell holding that same text would too — `CellBlock.kinds` is how they are
+/// told apart when it matters. An unreadable cell is deliberately **not** `null`: `null` is what a
+/// blank answers, and telling those two apart is the whole reason the kind exists.
 fn native(value: &ooxml::CellData) -> JsValue {
     match value {
         ooxml::CellData::Blank => JsValue::NULL,
         ooxml::CellData::Number(number) => JsValue::from_f64(*number),
-        ooxml::CellData::Text(text) | ooxml::CellData::Error(text) => JsValue::from_str(text),
+        ooxml::CellData::Text(text)
+        | ooxml::CellData::Error(text)
+        | ooxml::CellData::Unreadable(text) => JsValue::from_str(text),
         ooxml::CellData::Boolean(value) => JsValue::from_bool(*value),
     }
 }
 
 #[wasm_bindgen]
 impl CellData {
-    /// `"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`.
+    /// `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         (kind_of(&self.0)).to_owned()
@@ -217,6 +223,13 @@ impl CellData {
     #[wasm_bindgen(getter, js_name = "errorCode")]
     pub fn error_code(&self) -> Option<String> {
         (self.0.error_code()).map(str::to_owned)
+    }
+
+    /// The text of a value this library could not read as the kind its cell declares, or `None` for
+    /// every other kind — including a blank, which is a cell that states no value at all.
+    #[wasm_bindgen(getter, js_name = "unreadableText")]
+    pub fn unreadable_text(&self) -> Option<String> {
+        (self.0.unreadable_text()).map(str::to_owned)
     }
 
     /// The value as one of JavaScript's own types: `null`, `number`, `string` or `boolean`.

@@ -13,8 +13,9 @@
 //! *crossing* is one call — this class exists so the *conversion* can be one call too.
 //!
 //! `CellBlock.rows()` answers Python's own types — `None`, `float`, `str`, `bool` — because that is
-//! what a caller iterating a table wants. It cannot distinguish a text cell from an error cell,
-//! which both arrive as `str`; `CellBlock.kinds` is the disambiguator, built only when asked.
+//! what a caller iterating a table wants. It cannot distinguish a text cell from an error cell or
+//! from an unreadable one, which all arrive as `str`; `CellBlock.kinds` is the disambiguator, built
+//! only when asked.
 
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -155,20 +156,23 @@ fn kind_of(value: &ooxml::CellData) -> &'static str {
         ooxml::CellData::Text(_) => "text",
         ooxml::CellData::Boolean(_) => "boolean",
         ooxml::CellData::Error(_) => "error",
+        ooxml::CellData::Unreadable(_) => "unreadable",
     }
 }
 
 /// One cell as Python's own types: `None`, `float`, `str` or `bool`.
 ///
-/// An error cell arrives as its code (`"#DIV/0!"`), which a text cell holding that same text would
-/// too — `CellBlock.kinds` is how the two are told apart when it matters.
+/// An error cell arrives as its code (`"#DIV/0!"`) and an unreadable one as the text its file
+/// states, which a text cell holding that same text would too — `CellBlock.kinds` is how they are
+/// told apart when it matters. An unreadable cell is deliberately **not** `None`: `None` is what a
+/// blank answers, and telling those two apart is the whole reason the kind exists.
 fn native(python: Python<'_>, value: &ooxml::CellData) -> PyResult<Py<PyAny>> {
     match value {
         ooxml::CellData::Blank => python.None().into_bound_py_any(python),
         ooxml::CellData::Number(number) => number.into_bound_py_any(python),
-        ooxml::CellData::Text(text) | ooxml::CellData::Error(text) => {
-            text.into_bound_py_any(python)
-        }
+        ooxml::CellData::Text(text)
+        | ooxml::CellData::Error(text)
+        | ooxml::CellData::Unreadable(text) => text.into_bound_py_any(python),
         ooxml::CellData::Boolean(value) => value.into_bound_py_any(python),
     }
     .map(pyo3::Bound::unbind)
@@ -176,7 +180,7 @@ fn native(python: Python<'_>, value: &ooxml::CellData) -> PyResult<Py<PyAny>> {
 
 #[pymethods]
 impl CellData {
-    /// `"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`.
+    /// `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`.
     #[getter]
     fn kind(&self) -> &'static str {
         kind_of(&self.0)
@@ -211,6 +215,13 @@ impl CellData {
     #[getter]
     fn error_code(&self) -> Option<&str> {
         self.0.error_code()
+    }
+
+    /// The text of a value this library could not read as the kind its cell declares, or `None` for
+    /// every other kind — including a blank, which is a cell that states no value at all.
+    #[getter]
+    fn unreadable_text(&self) -> Option<&str> {
+        self.0.unreadable_text()
     }
 
     /// The value as one of Python's own types: `None`, `float`, `str` or `bool`.

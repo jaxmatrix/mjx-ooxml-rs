@@ -27,6 +27,8 @@ from mjx_ooxml import (
     Workbook,
 )
 
+from opc import with_part_replaced
+
 
 @pytest.fixture
 def filled() -> Workbook:
@@ -801,3 +803,44 @@ def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None
     # …and nothing but the colour differs from the hex-taking sibling.
     assert fill.pattern == SpreadsheetPatternType.Solid == PatternFillSpec.solid("FF0000").pattern
     assert fill.background is None
+
+
+def _workbook_whose_first_row_is(cells: str) -> bytes:
+    """A one-sheet workbook whose first row is exactly `cells`, authored in the archive.
+
+    No call in this binding will write a token its own schema refuses, so the input has to come from
+    bytes — the same reason `crates/mjx-ooxml/tests/workbook_unreadable_values.rs` reaches for
+    `mjx_opc` to build its. The archive is opened through `opc.with_part_replaced`, because this
+    directory has exactly one place that knows what a package is.
+    """
+    saved = Workbook.blank().save()
+    part = Workbook.open(saved).sheet(0).part
+    assert part is not None
+    markup = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData><row r="1">{cells}</row></sheetData></worksheet>'
+    ).encode()
+    return with_part_replaced(saved, part, markup)
+
+
+def test_a_value_the_file_states_and_we_cannot_read_is_not_a_blank() -> None:
+    """MJXOFF-285. `None` is what a blank answers, so an unreadable cell must not answer `None`."""
+    workbook = Workbook.open(
+        _workbook_whose_first_row_is(
+            '<c r="A1" t="n"><v>not-a-number</v></c><c r="B1"/>'
+        )
+    )
+    block = workbook.read_range(0, "A1:B1")
+
+    stated = block.value(0, 0)
+    empty = block.value(0, 1)
+    assert (stated.kind, empty.kind) == ("unreadable", "blank")
+    assert stated.unreadable_text == "not-a-number"
+    assert empty.unreadable_text is None
+    assert stated.is_blank is False
+    assert empty.is_blank is True
+
+    # And in the shape a caller iterating a table actually reads: a string, not `None`.
+    assert block.rows() == [["not-a-number", None]]
+    assert block.kinds() == [["unreadable", "blank"]]

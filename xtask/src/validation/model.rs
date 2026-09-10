@@ -730,6 +730,10 @@ struct WorkbookCounts {
     booleans: usize,
     error_cells: usize,
     blanks: usize,
+    /// Cells whose `<v>` states a token their own `c@t` cannot read. **A statement about the file**,
+    /// like a dangling reference and unlike a fault: no schema admits the token, the file states it
+    /// anyway, and MJXOFF-285 is where the facade stopped reporting such a cell as a blank.
+    unreadable: usize,
     formulas: usize,
     characters: usize,
     merged_ranges: usize,
@@ -739,8 +743,8 @@ impl WorkbookCounts {
     fn describe(&self) -> String {
         format!(
             "{} sheet(s), {} cell(s) in their used ranges — {} number(s), {} string(s) of {} \
-             character(s), {} boolean(s), {} error code(s), {} blank(s) — {} formula(s) and {} \
-             merged range(s)",
+             character(s), {} boolean(s), {} error code(s), {} blank(s), {} value(s) the file \
+             states that no cell type here can read — {} formula(s) and {} merged range(s)",
             self.sheets,
             self.cells,
             self.numbers,
@@ -749,6 +753,7 @@ impl WorkbookCounts {
             self.booleans,
             self.error_cells,
             self.blanks,
+            self.unreadable,
             self.formulas,
             self.merged_ranges
         )
@@ -783,6 +788,7 @@ fn walk_workbook(workbook: &mut Workbook, notes: &mut Notes) -> WorkbookCounts {
                     }
                     CellData::Boolean(_) => counts.booleans += 1,
                     CellData::Error(_) => counts.error_cells += 1,
+                    CellData::Unreadable(_) => counts.unreadable += 1,
                 }
                 if notes
                     .take(at, block.formula(row, column))
