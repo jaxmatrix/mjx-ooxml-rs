@@ -62,6 +62,53 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.172] - 2026-09-10
+
+### The gates see a file before the commit that adds it
+
+#### The corpus four gates sweep is the working tree, not the Git index (MJXOFF-290)
+
+`xtask/tests/doc_gate.rs`, `xtask/tests/entry_points.rs`, `xtask/tests/derived_rosters.rs` and
+`xtask/tests/release_versions.rs` each derive their corpus from Git rather than from a
+hand-maintained list, which is the decision `CLAUDE.md` insists on and the reason CI gives the
+documentation gate a real checkout. Each of the four carried its own copy of the same four-line
+call, and every copy asked Git for the **index** — so a file a unit of work had just written was in
+none of the four corpora until the commit that added it existed.
+
+That makes this repository's own standing rule — *commit only when `cargo build` and
+`cargo test --workspace` are green* — **unsatisfiable for exactly the commit that introduces a
+file**, because the gate that judges the file only begins running once the commit exists. It cost
+0.0.171 a commit amend, and before that it cost two releases: `xtask/src/validation/model.rs`
+arrived in 0.0.168 naming `crates/mjx-pptx/docs/gaps.md`, a page that has never existed, and
+`doc_gate` was red on `main` until MJXOFF-287 came back for it. That claim was wrong in the file's
+**first** commit, so the run its author made before committing could not have seen it.
+
+`xtask/src/repository_files.rs` is the one corpus all four now read: tracked **plus**
+untracked-and-not-ignored, so `.gitignore` is the only skip list and `target/`, `References/`, the
+Python virtualenv and every tool cache stay out by being ignored rather than by being listed. The
+decision was taken per gate rather than in one stroke, and all four wanted the same answer — a
+document's claim is wrong when it is written, a front-page count has to change in the commit that
+changes what it counts, a roster in a brand-new file is a roster, and a fifth file stating the
+version is a release hazard from the moment somebody types it.
+
+##### The anti-vacuity
+
+A corpus that has quietly stopped including untracked files **looks exactly like a clean checkout**,
+and CI's checkout *is* clean — so the property cannot be observed and has to be provoked.
+`xtask/tests/working_tree_corpus.rs` writes a file into the working tree, commits nothing, and
+requires the corpus to grow by it and to shrink again when it is removed; a `Drop` guard is what
+removes it, because a leaked probe is an untracked file the very gates this defends would report on.
+Its second half is the one that matters next year: every `.rs` file in the tree is swept, and
+exactly one module may name Git's file-listing subcommand. A fifth gate that reaches for the
+four-line `Command` fails there with the reason written out.
+
+Every gate now prints its corpus census — how many files, how many tracked, how many untracked and
+not ignored — on a green run as well as a red one.
+
+Also here: `/.claude/` joins `.gitignore`. It was excluded only by this checkout's local
+`.git/info/exclude`, which is not committed and not what a corpus reading the working tree should
+depend on.
+
 ## [0.0.171] - 2026-09-10
 
 ### Two claims nothing was comparing to the thing they describe
