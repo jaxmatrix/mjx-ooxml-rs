@@ -100,6 +100,12 @@ import {
   type GroupPresentation,
 } from '../ribbon/ribbon-model.ts';
 import { floatingProperties } from '../overlay/floating.ts';
+import {
+  defaultOverscanRows,
+  rowsInWindow,
+  virtualWindow,
+  type VirtualWindow,
+} from '../foundations/virtual-list.ts';
 import type { Align, LogicalSide } from '../overlay/floating.ts';
 import type { ColorScheme } from '../../tokens/tokens.ts';
 
@@ -606,7 +612,7 @@ export function nextGalleryIndex(
  * One, at each end. Zero means a row is created during the scroll that reveals it, which is a blank
  * band on every flick; more than one buys nothing and costs exactly what virtualisation was for.
  */
-export const galleryOverscanRows = 1;
+export const galleryOverscanRows = defaultOverscanRows;
 
 /** One row of a surface's plan: a section heading, or a run of cells. */
 export type GalleryRow =
@@ -658,20 +664,27 @@ export function galleryRowPlan(
   return rows;
 }
 
-/** The slice of rows a surface builds, given where it is scrolled to. */
-export interface GalleryWindow {
-  /** The first row built, inclusive. */
-  readonly firstRow: number;
-  /** The last row built, exclusive. */
-  readonly lastRow: number;
-}
+/**
+ * The slice of rows a surface builds, given where it is scrolled to.
+ *
+ * MJXOFF-191 lifted this into `src/foundations/virtual-list.ts` as `VirtualWindow`; the name here
+ * is an alias so no caller in this crate had to change.
+ */
+export type GalleryWindow = VirtualWindow;
 
 /**
  * Which rows to build. **Pure, so the node-count gate has a number to compare against.**
  *
  * `firstVisibleRow` and `visibleRows` come from a measurement; everything after that is arithmetic,
- * and keeping it here is what lets `tests/gallery.test.ts` assert the clamping at both ends without
- * a browser.
+ * and keeping it out of the renderer is what lets `tests/gallery.test.ts` assert the clamping at
+ * both ends without a browser.
+ *
+ * ⚠ **This is now a one-line binding over `virtualWindow`, and the body moved rather than being
+ * copied.** MJXOFF-191 needed the same arithmetic for four navigators over rows that are *not* all
+ * one row tall, and the ticket is explicit that a second virtualisation is the thing to avoid — so
+ * the arithmetic went **down** into the foundations, exactly as MJXOFF-190 moved the splitter's.
+ * The signature, the defaults and the behaviour are unchanged, and `tests/navigators.test.ts`
+ * asserts that over a sweep rather than leaving it as a claim.
  */
 export function galleryWindow(
   rowCount: number,
@@ -679,11 +692,11 @@ export function galleryWindow(
   visibleRows: number,
   overscan = galleryOverscanRows,
 ): GalleryWindow {
-  if (rowCount <= 0) return { firstRow: 0, lastRow: 0 };
-  const first = Math.max(0, Math.min(firstVisibleRow, rowCount - 1) - overscan);
-  const last = Math.min(rowCount, Math.max(firstVisibleRow, 0) + Math.max(visibleRows, 1) + overscan);
-  return { firstRow: first, lastRow: Math.max(last, first) };
+  return virtualWindow(rowCount, firstVisibleRow, visibleRows, overscan);
 }
+
+/** How many rows a window holds — the foundations' own count, re-exported for a gate to read. */
+export { rowsInWindow };
 
 /**
  * The number of cells a window builds, for the gate to compare a node count against.
