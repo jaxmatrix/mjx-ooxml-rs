@@ -62,6 +62,36 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.171] - 2026-09-10
+
+### Two claims nothing was comparing to the thing they describe
+
+#### A token accessor's documented vocabulary is now the one its code answers (MJXOFF-276)
+
+About twenty accessors across the two bindings answer a string naming a kind, and each states its
+vocabulary in its own doc comment. The return type is `str`/`string`, so that sentence is the whole
+contract — and every gate around it compared code to code or sentence to sentence, never one to the
+other. Four sentences were already wrong. `Cells.kind` and `GridDiscrepancy.kind` document their
+named variants while both bodies also answer a wildcard, because both underlying enumerations are
+`#[non_exhaustive]`; a caller writing an exhaustive `switch` over the documented list had a branch
+nobody had told them about. `CellBlock.kinds` had gone stale two hours earlier, when 0.0.170's
+`CellData::Unreadable` reached the sibling accessor's sentence and not this one. And wasm's
+`SectionLocation.toString` promised `"body"` or `"paragraph"` while answering
+`"SectionLocation.body()"`.
+
+`xtask/tests/binding_projection.rs` now compares forty-two vocabularies to the bodies that answer
+them, in both directions, following one hop where a vocabulary is written once and called from
+several accessors. Five accessors whose value is made outside the binding that documents it stand
+on a ledger naming the file that makes it, rather than being counted as agreeing.
+
+#### A release that states the version in one file and not the others now fails (MJXOFF-286)
+
+0.0.167 bumped `Cargo.toml` and not `bindings/mjx-wasm/npm/package.json`, so the npm package could
+not be rebuilt from `main` until 0.0.168 tripped over `build-npm.sh`'s refusal — the one place that
+checked, and the one place a release never runs. `xtask/tests/release_versions.rs` holds the four
+files that state the version together, and derives that set from `git ls-files` so a fifth cannot
+appear unnoticed.
+
 ## [0.0.170] - 2026-09-10
 
 ### A number the file states and we cannot parse is no longer a blank
