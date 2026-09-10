@@ -150,7 +150,7 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   member's `__doc__`, so **the binding's `///` comment *is* the Python docstring** — a comment there
   that talks about Rust is already wrong in `help()` — and `bindings/mjx-python/tools/stub_docs.py`
   copies each `__doc__` into the committed stub, with `bindings/mjx-python/tests/test_stub_docs.py`
-  as the drift check over 1,937 governed docstrings. Editing a docstring in the `.pyi` is a test
+  as the drift check over 1,938 governed docstrings. Editing a docstring in the `.pyi` is a test
   failure. Only the prose is generated; the signatures are still hand-written. The two bindings are
   checked **against each other** too since MJXOFF-266 — their `///` comments are independently
   written, so `xtask/tests/binding_doc_parity.rs` pairs every member both project under one name and
@@ -167,7 +167,16 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   name without one must be a single word, with a ledger of the seven JavaScript itself forces
   (`toString`). Two further shapes differ, both forced: a range argument becomes
   two numbers, and a `Format`'s accessors are free functions (a wasm enumeration is a number in
-  JavaScript and cannot carry a getter). **No serde** — `serde-wasm-bindgen` would need derives on
+  JavaScript and cannot carry a getter). The same file asks a second question since
+  MJXOFF-276, of both bindings rather than of this one: **an accessor whose doc comment lists the
+  strings it can answer must list the ones its body actually writes.** The return type is
+  `str`/`string`, so that sentence is the whole contract, and the three gates around it compared
+  code to code or sentence to sentence — never one to the other. Forty-two vocabularies are held to
+  their bodies, through one hop where the tokens are written once and called from several accessors
+  (`kind_of`, `conformance_str`), and five accessors whose value is made outside the binding that
+  documents it stand on a ledger naming the file that makes it. Four sentences were already wrong,
+  one of them two hours old: MJXOFF-285's `Unreadable` variant reached `CellData.kind`'s sentence
+  and not `CellBlock.kinds`'. **No serde** — `serde-wasm-bindgen` would need derives on
   `FillSpec`/`ColorSpec` in the *shipped* `mjx-dml`, contradicting the hand-written-de/serialization
   decision above.
 

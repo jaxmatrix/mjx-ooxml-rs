@@ -3741,7 +3741,7 @@ class GridDiscrepancy:
     """One way a table's grid and its rows disagree with each other."""
     kind: str
     """Which kind of discrepancy this is: `"RowWidthMismatch"`, `"OrphanedVerticalMerge"` or
-    `"EmptyRow"`.
+    `"EmptyRow"` — or `"Unknown"` for a discrepancy a later build names and this one does not.
     """
     row: int | None
     """The row involved, for every kind."""
@@ -5441,7 +5441,9 @@ class Cells:
         """Every cell of the table."""
         ...
     kind: str
-    """Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"`."""
+    """Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"` —
+    or `"unknown"` for a selection a later build names and this one does not.
+    """
     rows: tuple[int, int] | None
     """The rows this selection covers, as a `range`, when it names any."""
     columns: tuple[int, int] | None
@@ -6561,7 +6563,7 @@ class CellBlock:
         ...
     def kinds(self) -> list[list[str]]:
         """The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
-        `"error"`.
+        `"error"` or `"unreadable"`, exactly the vocabulary `CellData.kind` answers.
 
         The disambiguator for `rows`, which cannot tell a text cell from an error cell
         because both arrive as `str`. Built only when asked.

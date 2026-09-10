@@ -69,7 +69,8 @@ impl Cells {
         Self(ooxml::Cells::all())
     }
 
-    /// Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"`.
+    /// Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"` —
+    /// or `"unknown"` for a selection a later build names and this one does not.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         match &self.0 {
