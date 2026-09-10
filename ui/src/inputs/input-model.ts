@@ -1175,6 +1175,20 @@ export const inputBaseCss = `
     white-space: nowrap;
     border: 0;
   }
+
+  /* ⚠ Restated LAST, and MJXOFF-274 found out what it costs to leave out.
+   *
+   * The user agent's own hidden rule lives in the user-agent origin, so any author rule at all
+   * beats it — and the trailing and message rules above are both author rules. Without this line a
+   * measure input drew its invalid warning glyph and its message box with the attribute set, the
+   * accessibility tree correct and every attribute assertion passing: a state indicator that is
+   * always on, which is the same as no indicator at all. MJXOFF-189 documented the trap and
+   * MJXOFF-190 and MJXOFF-191 restated the line; this sheet predates all three, and the defect only
+   * became visible when a field sat inside an assembled task pane instead of in a matrix of four.
+   *
+   * Important rather than source order alone, exactly as navigator-sheets.ts does: this sheet is
+   * joined with others after it. */
+  [hidden] { display: none !important; }
 `;
 
 /** `<mjx-label>`'s rules. */
@@ -1208,6 +1222,10 @@ export const labelCss = `
     display: block;
     color: ${themeVariable('textSecondary')};
   }
+
+  /* Restated last, for the reason the base sheet gives at length: a label hides its required mark
+   * and its hint with the attribute, and the hint rule above is an author rule that beat it. */
+  [hidden] { display: none !important; }
 `;
 
 /** The popup list's rules. The overlay rung, exactly as a menu — one card, not two. */
@@ -1453,6 +1471,10 @@ export const sliderCss = `
   }
 
   :host([data-disabled]) .slider { opacity: ${String(disabledOpacity)}; }
+
+  /* Restated last, for the reason the base sheet gives: a slider with no ticks hides its tick rail
+   * and tick labels with the attribute, and both are author display rules that beat it. */
+  [hidden] { display: none !important; }
 `;
 
 /** `<mjx-segmented-control>`'s rules. Every paint comes from the shared control table. */

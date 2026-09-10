@@ -265,6 +265,13 @@ const preview: Preview = {
 
   parameters: {
     layout: 'fullscreen',
+    // ⚠ **`Shell` first, and it is the deliverable rather than a preference** (MJXOFF-274). The
+    // catalogue is sixteen alphabetised folders and the assembly would otherwise land between
+    // `Ribbon` and `Surfaces` — which is exactly where a reviewer opening Storybook to look at the
+    // whole application would not think to look. The ticket asks for the nine shells to be
+    // *reachable from one obvious place*, and a sort order is the only mechanism Storybook offers
+    // for saying which place that is.
+    options: { storySort: { order: ['Shell', '*'] } },
     controls: { matchers: { color: /(background|color)$/i } },
     // The panel's own verdict. The *gate* is `tests/browser/a11y.spec.ts`, which runs axe over
     // every story in the built catalogue and fails the build — a panel a person has to remember to

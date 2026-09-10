@@ -1406,7 +1406,18 @@ export const fontPickerCss = `
     color: ${themeVariable('textPrimary')};
   }
 
-  .substitution-message[hidden] { display: none; }
+  /* ⚠ Restated LAST and for EVERY element, not just the message (MJXOFF-274).
+   *
+   * The user agent's own hidden rule is in the user-agent origin, so any author rule at all beats
+   * it — and the field-warning rule above is one. The single-selector version of this line covered
+   * the message and left the warning glyph beside the field permanently drawn, on every font picker
+   * in the catalogue, with the attribute set and the accessibility tree correct. A substituted-font
+   * warning that is always on says nothing, and it took an assembly to notice: in a story of four
+   * pickers a small triangle in each reads as part of the design.
+   *
+   * tests/browser/shell.spec.ts now asserts that nothing anywhere in the nine shells carries the
+   * attribute and still has a box. */
+  [hidden] { display: none !important; }
 `;
 
 // ── the catalogue contract ───────────────────────────────────────────────────
