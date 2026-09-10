@@ -220,6 +220,25 @@ export const iconRequests: readonly IconRequest[] = [
 
   // ── the ribbon's own marks (MJXOFF-182) ───────────────────────────
   {
+    name: 'cut',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "The clipboard verb (MJXOFF-194). A contextual action bar's shared four are cut, copy, paste and delete, and the first three had no drawing in this subset at all — Office's own three most-used commands, reachable on a phone only by name.",
+  },
+  { name: 'copy', sizes: [20, 24], variants: ['regular'], why: 'Clipboard verb.' },
+  {
+    name: 'clipboard-paste',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Clipboard verb. Fluent's own name for paste, and deliberately not the bare clipboard glyph: a clipboard says *the clipboard*, and the arrow into it says *put this there*.",
+  },
+  {
+    name: 'more-horizontal',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "The mobile bars' overflow control (MJXOFF-194). Horizontal rather than vertical because the rail it overflows is horizontal, and a vertical ellipsis beside a horizontal row reads as a menu for the row rather than as more of it.",
+  },
+  {
     name: 'arrow-down-right',
     sizes: [16],
     variants: ['regular'],

@@ -1110,8 +1110,20 @@ export const inputBaseCss = `
     transition-property: background, border-color, color, box-shadow, opacity;
   }
 
+  /*
+   * ⚠ align-self: stretch, and it is a HIT TARGET fix rather than a layout preference
+   * (MJXOFF-194). The field wears .mjx-hit-target, so the BOX is 40px tall in comfortable density
+   * -- but the entry is the focusable element and the thing a press actually lands on, and with the
+   * field's align-items: center it was 22px tall with nine dead pixels above and below it inside a
+   * control that looked like a full-height field. The catalogue-wide touch sweep found it at phone
+   * width on the dropdown, the combo box, the measure input and both pickers at once, which is
+   * exactly the class of defect it exists for: correct in every screenshot, and a third of the
+   * control unpressable in the hand. Stretching the entry makes the field's whole height the
+   * target and changes nothing about where the text sits.
+   */
   .entry {
     flex: 1 1 auto;
+    align-self: stretch;
     min-inline-size: 0;
     margin: 0;
     padding: 0;

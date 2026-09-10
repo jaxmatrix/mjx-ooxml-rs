@@ -51,6 +51,7 @@
  */
 
 import { clampToBounds, type SplitterBounds } from '../foundations/splitter.ts';
+import { phoneShellAtOrBelow } from '../harness/presets.ts';
 import type { TokenPath } from '../tokens/resolver.ts';
 
 // ── the grid, mirrored from crates/mjx-sml/src/address.rs ──────────────────────────────────────
@@ -1628,3 +1629,17 @@ export const formulaStoryTitles = {
   bar: 'Excel Chrome/Formula Bar',
   nameBox: 'Excel Chrome/Name Box',
 } as const;
+
+/**
+ * The container width at or below which the bar stacks: name box and affordances on one row, the
+ * formula on its own row beneath them.
+ *
+ * **An alias of `phoneShellAtOrBelow`, and it must stay one** — the fourth in this catalogue, after
+ * the ribbon's tab picker, the menu sheet and the gallery sheet. `src/harness/presets.ts` states the
+ * rule: two numbers that must agree and are written twice are two numbers that will not agree.
+ *
+ * It exists because MJXOFF-194's catalogue-wide touch sweep measured this bar's editor at **sixteen
+ * pixels wide** at the phone preset. See the container block in `formula-sheets.ts` for why nothing
+ * in U13's own suite could have found that.
+ */
+export const formulaBarStackAtOrBelow = phoneShellAtOrBelow;
