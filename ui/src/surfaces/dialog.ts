@@ -62,12 +62,21 @@ import {
   type Placement,
 } from '../overlay/floating.ts';
 import { wrapTab } from '../overlay/modality.ts';
+import {
+  defaultSheetDetent,
+  detentFraction,
+  isSheetDetent,
+  sheetDetentAttribute,
+  sheetDragClaim,
+  snapDetent,
+  type SheetDetent,
+} from '../mobile/sheet-detents.ts';
+import { sheetCompletionCss } from '../mobile/mobile-sheets.ts';
 import { SurfaceSession, type SurfaceSessionHost } from './surface-session.ts';
 import {
   closeButtonLabel,
   dialogCss,
   dialogPresentationCss,
-  sheetBoundaryFraction,
   surfaceCloseIcon,
   surfaceEvents,
   surfaceKinds,
@@ -91,16 +100,24 @@ export const dialogBoundaryFractions = { inline: 0.72, block: 0.86 } as const;
 // The `@property` registrations travel with the sheet they are in, and this component reads a
 // registered length back in pixels — so `floatingCss` goes on this shadow root as well as on the
 // document, exactly as `<mjx-menu>` does it.
-const styles = `${floatingCss}\n${dialogCss}\n${dialogPresentationCss}`;
+const styles = `${floatingCss}\n${dialogCss}\n${dialogPresentationCss}\n${sheetCompletionCss}`;
 
 let nextTitleSerial = 0;
 
 export class MjxDialog extends HTMLElement {
-  static readonly observedAttributes: readonly string[] = ['label', 'open', 'modal'];
+  static readonly observedAttributes: readonly string[] = [
+    'label',
+    'open',
+    'modal',
+    sheetDetentAttribute,
+  ];
 
   #root: ShadowRoot | undefined;
   #scrim: HTMLElement | undefined;
   #surface: HTMLElement | undefined;
+  #handle: HTMLElement | undefined;
+  #header: HTMLElement | undefined;
+  #body: HTMLElement | undefined;
   #title: HTMLElement | undefined;
   #closeButton: HTMLButtonElement | undefined;
   #session: SurfaceSession | undefined;
@@ -153,6 +170,23 @@ export class MjxDialog extends HTMLElement {
   set modal(value: boolean) {
     if (value) this.setAttribute('modal', '');
     else this.removeAttribute('modal');
+  }
+
+  /**
+   * Which detent the sheet rests at.
+   *
+   * Meaningful only in the sheet presentation: a centred dialog is sized by its content and there
+   * is nothing for a detent to say about it. The attribute is still accepted at every width,
+   * because a shell that sets it once and lets the container decide is the shell this catalogue is
+   * built for.
+   */
+  get detent(): SheetDetent {
+    const value = this.getAttribute(sheetDetentAttribute);
+    return isSheetDetent(value) ? value : defaultSheetDetent;
+  }
+
+  set detent(value: SheetDetent) {
+    this.setAttribute(sheetDetentAttribute, value);
   }
 
   /**
@@ -241,10 +275,12 @@ export class MjxDialog extends HTMLElement {
     handle.className = 'handle';
     handle.setAttribute('part', 'handle');
     handle.setAttribute('aria-hidden', 'true');
+    this.#handle = handle;
 
     const header = document.createElement('div');
     header.className = 'header';
     header.setAttribute('part', 'header');
+    this.#header = header;
 
     const title = document.createElement('h2');
     title.className = `title ${surfaceTypeRoles.title}`;
@@ -269,6 +305,7 @@ export class MjxDialog extends HTMLElement {
     body.className = `body ${surfaceTypeRoles.body}`;
     body.setAttribute('part', 'body');
     body.append(document.createElement('slot'));
+    this.#body = body;
 
     const footer = document.createElement('div');
     footer.className = 'footer';
@@ -282,6 +319,11 @@ export class MjxDialog extends HTMLElement {
 
     this.#session = new SurfaceSession(this.#sessionHost());
     this.addEventListener('keydown', this.#onKeyDown);
+    // The drag listens on the surface rather than on the handle, because the nested-scroll rule is
+    // about where a gesture STARTED and about what is under it — a listener on the handle alone
+    // could never see the drag that begins in a scrolled list, which is the case the rule exists
+    // for. `sheetDragClaim` is what decides; this is only what feeds it.
+    surface.addEventListener('pointerdown', this.#onSheetPointerDown);
   }
 
   #sessionHost(): SurfaceSessionHost {
@@ -404,10 +446,32 @@ export class MjxDialog extends HTMLElement {
     if (this.presentation === 'sheet') {
       // Inset zero: a sheet sits *on* the edge it is pinned to, which is the whole of what makes it
       // a sheet rather than a very wide dialog.
-      this.#placement = pinFloating(surface, outer, sheetBoundaryFraction);
+      this.#placement = pinFloating(surface, outer, detentFraction(this.detent));
+      this.#syncScrollability();
       return;
     }
     this.#placement = centreFloating(surface, clippingBoundary(surface, inset), dialogBoundaryFractions);
+    this.#syncScrollability();
+  }
+
+  /**
+   * **A scroll container a keyboard cannot reach is an accessibility failure**, and this body is one
+   * whenever nothing inside it is focusable.
+   *
+   * `.body` has been `overflow: auto` since MJXOFF-188; what nobody had met until MJXOFF-194 is a
+   * dialog whose *content* has no tab stop of its own — a sheet listing paragraph styles, say. axe
+   * calls it `scrollable-region-focusable`, `<mjx-resizable-container>`'s stage carries a tab stop
+   * for exactly this reason, and the catalogue's own notes record a story tripping it.
+   *
+   * The tab stop is **conditional on actually overflowing**, not declared. A dialog whose content
+   * fits has nothing to scroll and gains no stop, which is what keeps this from changing the tab
+   * order of every dialog in the catalogue.
+   */
+  #syncScrollability(): void {
+    const body = this.#body;
+    if (body === undefined) return;
+    if (body.scrollHeight - body.clientHeight > 1) body.tabIndex = 0;
+    else body.removeAttribute('tabindex');
   }
 
   // ── the ways it closes ─────────────────────────────────────────────────────
@@ -437,6 +501,146 @@ export class MjxDialog extends HTMLElement {
   #onScrimDown = (event: PointerEvent): void => {
     event.preventDefault();
     this.close('scrim');
+  };
+
+  // ── the sheet's drag, its detents, and the nested-scroll rule ──────────────
+
+  /**
+   * The drag in flight, or nothing.
+   *
+   * `startFraction` is where the sheet was when the finger landed, so the whole gesture is
+   * expressed in the same units the detents are and no pixel arithmetic leaks into the model.
+   */
+  #drag:
+    | {
+        readonly pointerId: number;
+        readonly startY: number;
+        readonly startFraction: number;
+        readonly boundaryHeight: number;
+        lastY: number;
+        lastAt: number;
+        velocity: number;
+        claimed: boolean;
+      }
+    | undefined;
+
+  /**
+   * **Where a drag begins decides who gets it, and that decision is `sheetDragClaim`'s.**
+   *
+   * The classic mobile defect is a sheet that dismisses itself when a person flicks a list inside
+   * it, and the reason it is so common is that the sheet's own listener sees a perfectly ordinary
+   * downward drag and has no idea the list under it had somewhere to go. So this handler gathers
+   * the four facts the rule needs — was it the handle, was it the header, how far is the scroller
+   * scrolled, and which way is the finger going — and asks the pure function. It decides nothing
+   * itself.
+   *
+   * ⚠ The claim is **re-evaluated on the first move**, not on the press. At `pointerdown` the
+   * gesture has no direction yet, and a rule that guessed one would give the sheet every press that
+   * landed in a list sitting at the top of its scroll.
+   */
+  #onSheetPointerDown = (event: PointerEvent): void => {
+    if (this.presentation !== 'sheet' || !this.open) return;
+    const surface = this.#surface;
+    if (surface === undefined) return;
+    const boundary = clippingBoundary(surface, 0);
+    if (boundary.height <= 0) return;
+
+    const path = event.composedPath();
+    const onHandle = this.#handle !== undefined && path.includes(this.#handle);
+    const onHeader = this.#header !== undefined && path.includes(this.#header);
+
+    const drag = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startFraction: surface.getBoundingClientRect().height / boundary.height,
+      boundaryHeight: boundary.height,
+      lastY: event.clientY,
+      lastAt: event.timeStamp,
+      velocity: 0,
+      claimed: onHandle || onHeader,
+    };
+    this.#drag = drag;
+
+    if (drag.claimed) {
+      // Capture only when the gesture is unambiguously the sheet's. Capturing on every press would
+      // take the pointer away from a list before anybody knew which of the two wanted it.
+      surface.setPointerCapture(event.pointerId);
+      surface.dataset['dragging'] = 'true';
+    }
+    surface.addEventListener('pointermove', this.#onSheetPointerMove);
+    surface.addEventListener('pointerup', this.#onSheetPointerUp);
+    surface.addEventListener('pointercancel', this.#onSheetPointerUp);
+  };
+
+  #onSheetPointerMove = (event: PointerEvent): void => {
+    const drag = this.#drag;
+    const surface = this.#surface;
+    if (drag === undefined || surface === undefined || event.pointerId !== drag.pointerId) return;
+
+    const deltaBlock = event.clientY - drag.startY;
+
+    if (!drag.claimed) {
+      const owner = sheetDragClaim({
+        onHandle: false,
+        onHeader: false,
+        scrollTop: this.#body?.scrollTop ?? 0,
+        deltaBlock,
+      });
+      if (owner === 'content') {
+        // The scroller keeps it. Nothing is prevented, so the browser scrolls the list exactly the
+        // way it would have if this listener had never existed.
+        return;
+      }
+      drag.claimed = true;
+      surface.setPointerCapture(event.pointerId);
+      surface.dataset['dragging'] = 'true';
+    }
+
+    const elapsed = Math.max(event.timeStamp - drag.lastAt, 1);
+    // Fractions per millisecond, and OPENING is positive — the sheet grows as the finger goes up,
+    // which is the opposite sign to the screen coordinate. `snapDetent` documents that convention;
+    // this line is where it is honoured.
+    drag.velocity = -((event.clientY - drag.lastY) / drag.boundaryHeight) / elapsed;
+    drag.lastY = event.clientY;
+    drag.lastAt = event.timeStamp;
+
+    // Downward only translates the sheet; upward is held at the current detent's own height,
+    // because growing past it would need a re-place mid-gesture and the box would then be measured
+    // in flight — U04's finding about reading a box in mid-transition, met head on.
+    const offset = Math.max(deltaBlock, 0);
+    surface.style.translate = `0 ${String(offset)}px`;
+    event.preventDefault();
+  };
+
+  #onSheetPointerUp = (event: PointerEvent): void => {
+    const drag = this.#drag;
+    const surface = this.#surface;
+    this.#drag = undefined;
+    if (surface !== undefined) {
+      surface.removeEventListener('pointermove', this.#onSheetPointerMove);
+      surface.removeEventListener('pointerup', this.#onSheetPointerUp);
+      surface.removeEventListener('pointercancel', this.#onSheetPointerUp);
+    }
+    if (drag === undefined || surface === undefined) return;
+    if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
+    delete surface.dataset['dragging'];
+    surface.style.removeProperty('translate');
+    if (!drag.claimed) return;
+
+    const travelled = Math.max(event.clientY - drag.startY, 0) / drag.boundaryHeight;
+    const outcome = snapDetent({
+      fraction: drag.startFraction - travelled,
+      velocity: drag.velocity,
+    });
+    if (outcome.kind === 'dismiss') {
+      // `scrim` rather than a seventh reason. A drag past the dismissal threshold is the same
+      // *kind* of dismissal a scrim press is — a pointer gesture that says *put this away* — and
+      // the sheet row already lists it. Adding a `drag` member to `SurfaceCloseReason` would widen
+      // a union three components switch on, to say something none of them would do differently.
+      this.close('scrim');
+      return;
+    }
+    this.detent = outcome.detent;
   };
 
   // ── keeping it where it goes ───────────────────────────────────────────────

@@ -34,7 +34,11 @@ import { motionRoleClass } from '../foundations/motion.ts';
 import { typeRoleClass } from '../foundations/typography.ts';
 import { floatingProperties } from '../overlay/floating.ts';
 import { customProperties } from '../../tokens/tokens.ts';
-import { referenceColourSlots, referenceSlotProperty } from './formula-model.ts';
+import {
+  formulaBarStackAtOrBelow,
+  referenceColourSlots,
+  referenceSlotProperty,
+} from './formula-model.ts';
 
 /** The scheme selectors, spelled exactly as `surface-model.ts` spells them. One contract, one form. */
 const schemeSelectors = {
@@ -198,6 +202,29 @@ export const formulaBarCss = `
     position: relative;
     flex: 1 1 auto;
     min-inline-size: 0;
+  }
+
+  /*
+   * THE PHONE ROW (MJXOFF-194). The name slot has a 96px floor, the divider and the three
+   * affordances are fixed, and the editor is the only flexible item -- so at 390px the formula a
+   * person is editing was measured at SIXTEEN PIXELS WIDE, which is a bar that renders correctly
+   * and cannot be used. The catalogue-wide touch sweep found it; nothing in U13's own suite could
+   * have, because every one of its assertions is caret-relative and a caret in a 16px box is still
+   * in the right place.
+   *
+   * The answer is the one Excel itself takes on a narrow window: the editor goes on its own row
+   * under the name box and the affordances, full width. Wrapping rather than hiding, so nothing is
+   * lost -- the same rule the ribbon and the status bar are built on.
+   */
+  @container (max-width: ${String(formulaBarStackAtOrBelow)}px) {
+    .bar {
+      flex-wrap: wrap;
+    }
+
+    .editor {
+      flex: 1 0 100%;
+      min-inline-size: 100%;
+    }
   }
 
   .backdrop {

@@ -101,8 +101,11 @@ One `CSSStyleSheet` is constructed once and adopted by every root that asks.
 
 ### The icon subset
 
-`@fluentui/svg-icons` ships **20,679** files and 12.7 MB; the catalogue ships **73 glyphs and 16 kB
-of path data** — 71 until MJXOFF-185, which added the two the gallery's affordance rail needs. The
+`@fluentui/svg-icons` ships **20,679** files and 12.7 MB; the catalogue ships **82 glyphs and 26 kB
+of path data** — 71 until MJXOFF-185, which added the two the gallery's affordance rail needs, and 73
+until MJXOFF-194, which added cut, copy, paste and the overflow ellipsis. (The first three are
+Office's three most-used commands and this catalogue had no drawing for any of them, which is a
+thing worth noticing: they are unreachable on a phone bar without one.) The
 workflow for a later child that needs a new icon is one step:
 
 ```sh
@@ -1917,6 +1920,217 @@ layout would be a list whose scroll height was written by an arithmetic that no 
 The gate reads the presentation property *and* three facts it does not control: a card's `position`,
 the handle's `display`, and the built-card count.
 
+## Mobile forms (MJXOFF-194)
+
+`src/mobile/` holds the two components that exist **only** on a phone — `<mjx-command-bar>` and
+`<mjx-contextual-action-bar>` — the completion of U09's sheet, and the one thing in this catalogue
+that is not a component at all: **a sweep over every component in it.** Open
+*Mobile/Gestures And Reach* first; it is written for a person doing the audit and everything on it
+is generated from the tables the components read.
+
+```html
+<mjx-command-bar label="Home"></mjx-command-bar>
+<mjx-contextual-action-bar selection="text" selection-label="12 words"></mjx-contextual-action-bar>
+<mjx-dialog label="Paragraph" modal open detent="half">…</mjx-dialog>
+```
+
+### Width is a container query; **shortness is a media query**
+
+Every responsive decision in this catalogue before this one was a container query, and that is
+right. But **a landscape phone is 844 px wide, so by width alone it is a tablet** — eight commands
+laid across a screen 390 px tall, all of them out of thumb reach. The missing fact is the viewport's
+*shape*, which is not a property of any container and cannot be one.
+
+So `mobilePresentationCss` emits three `@container` blocks and one `@media (max-height: …)` block
+nested inside a fourth, in the order `formFactorFor()` evaluates, every selector inside `:where()` so
+source order is the only thing deciding. That is not device sniffing — nothing branches on a
+user-agent string, a touch capability or a platform name — and `tests/browser/mobile.spec.ts` proves
+the media half is doing work by opening the **same container width twice** with only the viewport's
+block size different and requiring the two answers to differ.
+
+⚠ **`landscapePhoneInlineAtOrBelow` is 1000 and `smallTabletAtOrBelow` is 900, and the first draft
+was wrong about exactly that.** An iPhone 15 Pro Max in landscape is **932** px wide — *past* the
+small-tablet threshold — so bounding the landscape branch by that threshold sent the biggest phone on
+the market to the desktop presentation. The test that found it is named for the device.
+
+### The command bar is U04's ladder, and it is **one rail**
+
+`commandBarOrder` sorts by `groupPriorities`' rank, then by U04's `essential` flag, then by
+declaration order. Nothing here is a second priority scheme; `GroupPriority` and
+`essentialCommandLimit` are imported from `ribbon-model.ts`.
+
+The overflow is MJXOFF-183's rule applied a second time: **every command is built once, into one
+rail**, and the overflow control changes what that rail *is* — a horizontal scroller pinned to the
+bar, or a wrapped grid floating above it. The DOM nodes are identical in both, so *nothing is lost*
+is structural rather than remembered, and the browser gate asserts it by comparing the two lists of
+`data-command` values.
+
+Three gates, and the second is the one that matters:
+
+| Gate | Says |
+|---|---|
+| `the order equals an independently computed one` | a selection sort over an explicit key, with nothing in common with the comparator |
+| `the ladder's answer costs nothing, and taking the first N costs more` | `naiveCommandBarPartition` is **shipped beside** the real one and is measured against it |
+| `the fixture is DISCRIMINATING` | declaration order is asserted **not** to equal ladder order, or the comparison above is vacuous |
+
+`wordPhoneCommands` is Word's Home tab declared in *ribbon* order — Clipboard first, and Clipboard is
+`secondary` — so the two genuinely disagree. Font contributes four essential commands so the
+per-group ceiling of three has something to refuse, and two commands carry `hasPopup` so demotion
+rule 1 does.
+
+### The sheet was **completed**, not replaced
+
+A sheet is still `<mjx-dialog>` in its sheet presentation, still pinned with `pinFloating`. What U09
+left it without was the one number: `pinFloating` was handed `sheetBoundaryFraction`, and a sheet
+with one size has no detents. A detent **is** that number, and `full` is an *alias* of it, asserted.
+
+`sheetDragClaim` is the whole of the classic mobile defect, as four rules and a pure function:
+
+1. the handle and the header are always the sheet's;
+2. **a scrolled scroller keeps the drag, in either direction** — the rule whose absence dismisses a
+   sheet when a person flicks a long list;
+3. at the top of the scroller a downward drag hands off to the sheet;
+4. everything else is the content's, including an upward drag at the top.
+
+The claim is re-evaluated **on the first move, not on the press**: at `pointerdown` a gesture has no
+direction yet, and a rule that guessed one would give the sheet every press landing in a list at the
+top of its scroll.
+
+⚠ **The snap is not animated, deliberately.** A detent change re-runs `pinFloating`, and
+`applyPlacement` measures the box and corrects it — so a transition on `top` would be measured in
+mid-flight, which is U04's finding about reading a box during a transition. The *drag* is one-to-one
+with the finger (`translate`, with `transition-property: none` under `data-dragging`); only the
+release is instant.
+
+### Safe-area insets: the indirection is the point
+
+A component cannot be tested against `env(safe-area-inset-*)` in a headless browser — Chromium
+reports zero on every side and no flag changes it. So `mobileDocumentCss` publishes the four `env()`
+values into four **registered** `<length>` properties on the document, and every component reads the
+property. A notched device feeds them through `env()`; a gate feeds them by setting the property.
+Same value, same channel, nothing stubbed.
+
+⚠ **What the registration buys, and the test that thought it knew.** The first version of the gate
+asserted the property computes to something matching `/^\d+px$/`, on MJXOFF-189's finding that an
+unregistered custom property hands back its *substituted text*. That finding is true and the test was
+vacuous, because the substituted text here **is** `0px` — deleting every `@property` block left it
+green, and a mutation is what said so. What registration actually buys is **type checking**: a host
+that sets a nonsense value gets the declared initial value and the padding keeps its gutter, whereas
+unregistered the nonsense reaches the `calc()`, the declaration is invalid at computed-value time,
+and `padding-block-end` collapses to zero — a bar sitting on the home indicator because somebody
+typed a unit wrong. That is what the gate asserts now, and the mutation fails it.
+
+### The touch-target audit — and **both** axes
+
+MJXOFF-193 flagged that this catalogue's 24-pixel floor was asserted on the block axis only. This
+child owns the sweep, so the decision is made and stated: **both axes are asserted.** A 200 × 12
+target and a 12 × 200 one are equally unhittable, and every control here is laid out in a row, so the
+block axis is the one a stray padding fixes by accident.
+
+What makes that affordable rather than a wall of exemptions is that the rule asserted is **WCAG 2.2
+SC 2.5.8's actual rule**: at least 24 × 24, *or* a 24-pixel circle centred on the target touching no
+other target's circle. The spacing exception is what legitimately passes a scrollbar thumb, a
+splitter and a slider track — and it passes them for the right reason. **There is no exemption list.**
+
+The sweep runs over the built story index, at phone width, in both themes, and fails in four
+independent ways:
+
+| Failure | Where |
+|---|---|
+| a component `src/` defines that the registry does not know | `tests/mobile.test.ts`, before a browser starts |
+| a registered component no story renders | `every component was accounted for` |
+| a component declared target-free that grew a target | the same test |
+| a target under the floor | every per-story test |
+
+⚠ **Two ownership rules, and both were found by watching the sweep fail.** *A registered element
+owns itself* — `<mjx-menu-item>`, `<mjx-splitter>` and `<mjx-scrollbar>` put their role and their
+tab stop on their own **host**, so an upward-only walk attributed them to nobody and the accounting
+reported seven components as never showing a target. And *a shadow root confers ownership, light-DOM
+ancestry does not* — `<mjx-screentip>` wraps the control it describes, so an ancestor walk reported
+the screentip as having grown four buttons that belonged to the story.
+
+⚠ **`container` is a fifth audit kind and a weaker claim than `targets`.** A menu is full of things
+to press and builds none of them: every one is an `<mjx-menu-item>` that owns itself. So
+`<mjx-menu>`, `<mjx-context-menu>` and `<mjx-task-pane>` are asserted to add **nothing of their own**
+— the same anti-rot property `presentational` has — and are not asserted to contain anything, because
+what they contain is audited elsewhere or belongs to the host application. That is stated rather than
+glossed: it is the softest assertion in the sweep.
+
+⚠ **The spacing exception means "shrink one target" is not automatically a failure**, and that is
+the rule being right rather than the gate being weak. Shrinking every control to 12 px *tall* left
+the sweep green, correctly: a 12 px-tall button with 40 px between rows satisfies SC 2.5.8. Shrinking
+it on **both** axes, so neighbours' centres fall inside 24 px, fires immediately and names the
+element, the size and the distance. Anyone re-proving this gate should shrink and **crowd**, not just
+shrink — a break that changes nothing proves nothing, which is MJXOFF-183's own finding.
+
+⚠ **The aggregate is on disk, and that is not paranoia.** Playwright tears a worker down after a
+failing test and starts a fresh one, so a module-level total resets at every failure. The first
+version accumulated in memory, and on the run that had sixteen findings it reported forty components
+as never rendered. The far worse half of that bug is the other direction: a run with **no** failures
+never restarts a worker, so the in-memory aggregate looks complete and the accounting passes — the
+gate would have been correct exactly when it was not needed.
+
+### Four defects the sweep found, three of them in other children's components
+
+Every one is invisible in a screenshot, which is the whole argument for the sweep.
+
+* **`mjx-dropdown`, `mjx-combo-box`, `mjx-measure-input` and both pickers had a 22 px target inside a
+  40 px field.** `.field` wears `.mjx-hit-target` and `align-items: center`, so the focusable
+  `.entry` sat 22 px tall with nine dead pixels above and below it — a control that looks full
+  height and is a third unpressable. Fixed with `align-self: stretch` on `.entry` in `inputBaseCss`;
+  the text does not move.
+* **`mjx-formula-bar`'s editor was sixteen pixels wide at 390 px.** The name slot has a 96 px floor
+  and the affordances are fixed, so the formula — the thing the bar is *for* — got what was left.
+  Nothing in U13's own suite could have found it: every assertion there is caret-relative, and a
+  caret in a 16 px box is still in the right place. Fixed with a container block at
+  `formulaBarStackAtOrBelow` (the fourth alias of `phoneShellAtOrBelow`) that wraps the editor onto
+  its own full-width row, which is what Excel does on a narrow window.
+* **`mjx-toast-region` and `mjx-toast` were classified the wrong way round** — the region builds the
+  card and the toast is a descriptor, exactly as `<mjx-option>` is.
+* **Five `touch-action: none` declarations already existed in four crates and none was written
+  down.** The region table describes the mobile shell, so a browser gate over the mobile shell's own
+  stories checks the mobile shell — the ticket's trap, one level up. `reservedGestureSites` now names
+  all five with their justification (all five are drag affordances, which is the same argument the
+  sheet handle makes), and a **catalogue-wide** unit scan requires the set to match exactly.
+
+### Gestures: ambiguity resolves to the canvas, as a default branch
+
+`resolveGesture(gesture, region)` returns `'chrome'` only where a region explicitly claims the
+gesture; **everything else falls through to the canvas.** That is the rule as the function's default
+branch rather than as a policy written beside it, which is the only shape in which it cannot be
+forgotten. Forty-three of the forty-nine pairs are the canvas's.
+
+A claim is made by writing `touch-action`, not by adding a listener, so each region declares both and
+`gestureInconsistencies()` requires the claims to **equal** what the value actually suppresses. A
+region that claimed one gesture and wrote a value taking three would have quietly taken two more from
+the document.
+
+⚠ **`tap`, `doubleTap` and `longPress` are claimed by nobody, deliberately** — and **nothing here
+implements a long press.** `touch-action` cannot express those three, so a claim on one would be a
+claim the table could not enforce; and an earlier draft of this map said a long press on a command
+reveals its screentip, which nothing did. A convention described in a table with no code behind it is
+the shape CLAUDE.md calls worse than none, so the rows say what the components actually do and the
+screentip-on-long-press is named as loop 2's, where the bar is wired to a document.
+
+⚠ **The `canvas` row is a contract, not an observation.** There is no canvas in this catalogue, and
+Playwright has no multi-touch — so *pinch reaches the document* is asserted through the
+`touch-action` values every chrome region computes and the browser's own documented behaviour, never
+by driving two fingers. That is the strongest claim available without the renderer, and it is a
+weaker claim than it looks.
+
+### Reachability
+
+`thumbReachBlockFraction` is 0.55, measured from the **viewport's** bottom rather than any
+container's — a thumb does not know what a container query is. A primary action must lie **wholly**
+inside the band: half a button inside it is a button a person aims at and misses, and the half they
+can reach is the half nearest the edge. `GUESS:` the number is ours; no reach study was run.
+
+### `GUESS:` where this diverges from Office
+
+Four, marked at their sites: the thumb-reach fraction, the detent fractions and the flick projection
+span (120 ms), the per-form-factor slot counts, and the shortness threshold. None is checked against
+any platform's own physics and none of it is parity.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -2038,6 +2252,21 @@ the handle's `display`, and the built-card count.
   `aria-required-children`. A virtualised feed hits this the moment its data is empty, which is the
   one state a story is most likely to have and a gate least likely to cover. Drop the role rather
   than shipping an empty one.
+* **Playwright starts a fresh worker after a failing test**, so any module-level total in a spec file
+  resets at each failure. A sweep that accumulates across tests must write to disk, or its aggregate
+  is complete exactly on the runs where nothing was wrong — which is the worst possible property for
+  an assertion about coverage. MJXOFF-194 hit both directions of this in one afternoon.
+* **A scroll container with no focusable content inside it fails `scrollable-region-focusable`**, and
+  `<mjx-dialog>`'s body has been `overflow: auto` since MJXOFF-188. Nobody met it until a sheet
+  listed paragraph styles — an `<ol>` with no tab stop in it. The fix is conditional on the body
+  *actually* overflowing, because declaring the stop unconditionally would change the tab order of
+  every dialog in the catalogue.
+* **`env(safe-area-inset-*)` is always zero in headless Chromium and there is no flag.** Publish it
+  into a registered custom property on the document and have components read the property; that is a
+  channel a gate can drive without stubbing anything.
+* **A `@container` query alone cannot find a landscape phone.** It is 844 px wide, which by width is
+  a tablet. Shortness is a property of the viewport and needs `@media (max-height: …)` — which is not
+  device sniffing, and is the only fact in this catalogue that is not a container's.
 * **A story's own readout can fail the a11y sweep before the component does.** MJXOFF-193's packing
   readout has a `max-block-size` and `overflow: auto`, and at three hundred annotations it became a
   scroll container a keyboard could not reach: `scrollable-region-focusable`, reported against the

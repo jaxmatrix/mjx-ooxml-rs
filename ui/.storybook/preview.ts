@@ -26,6 +26,8 @@ import { defineFurniture } from '../src/furniture/index.ts';
 import { defineNavigators } from '../src/navigators/index.ts';
 import { defineFormulaChrome } from '../src/formula/index.ts';
 import { defineAnnotation } from '../src/annotation/index.ts';
+import { defineMobile } from '../src/mobile/index.ts';
+import { mobileDocumentCss } from '../src/mobile/mobile-sheets.ts';
 import { annotationDocumentCss } from '../src/annotation/annotation-sheets.ts';
 import { formulaDocumentCss } from '../src/formula/formula-sheets.ts';
 import { furnitureDocumentCss } from '../src/furniture/furniture-model.ts';
@@ -93,6 +95,11 @@ defineFormulaChrome();
 // names and comment bodies, which reads as a document whose review data arrived mangled rather
 // than as a missing registration.
 defineAnnotation();
+// MJXOFF-194's two mobile bars. Registered here for the reason above and one of their own: the
+// command bar takes its commands from a PROPERTY, so an unregistered one is an empty box — which
+// reads as a document with no commands available rather than as a missing registration, and is the
+// one failure a story cannot show by looking at it.
+defineMobile();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -152,6 +159,15 @@ document.head.append(formulaRule);
 const annotationRule = document.createElement('style');
 annotationRule.textContent = annotationDocumentCss;
 document.head.append(annotationRule);
+
+// MJXOFF-194's, and load-bearing for the reason the feedback rule is: it carries the FOUR
+// REGISTERED safe-area properties. An unregistered custom property hands getComputedStyle its
+// substituted text rather than a length, so a padding built on one resolves to nothing -- and a
+// notched phone silently loses the inset that keeps its command bar clear of the home indicator,
+// which is precisely the defect that is invisible on every device without a notch.
+const mobileRule = document.createElement('style');
+mobileRule.textContent = mobileDocumentCss;
+document.head.append(mobileRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
