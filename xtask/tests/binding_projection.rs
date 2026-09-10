@@ -1002,3 +1002,370 @@ fn joined(declarations: &[Declaration]) -> String {
         .collect::<Vec<_>>()
         .join(", ")
 }
+
+// ===============================================================================================
+// The error model, held to its own registrations (MJXOFF-275)
+// ===============================================================================================
+
+/// The Python exception classes a hand-written raise in `bindings/mjx-python/src` may construct
+/// **without** being one of the twelve `bindings/mjx-python/src/errors.rs` registers, and the
+/// reason each is right where it stands.
+///
+/// These are Python's own vocabulary for a mistake in the *call*, and they are the exact mirror of
+/// `bindings/mjx-wasm/src/support.rs`'s `invalid_argument`, which is a `RangeError` and equally not
+/// an `OoxmlError`. Routing them through `OoxmlError` would be the divergence, not the fix: PyO3
+/// raises `TypeError` for every argument conversion it generates, so a hand-written
+/// `FromPyObject` that raised something else would be the one member of the surface a caller could
+/// not guard the ordinary way.
+const PYTHON_HOST_VOCABULARY: &[(&str, &str)] = &[
+    (
+        "PyTypeError",
+        "an argument of the wrong type — the class PyO3 raises for every conversion it generates",
+    ),
+    (
+        "PyValueError",
+        "an argument of the right type carrying a value the call refuses",
+    ),
+    (
+        "PyKeyError",
+        "a name a mapping argument does not have, or one it has and the shape did not want",
+    ),
+];
+
+/// The constructions that are neither a registered class nor the host vocabulary, named by file and
+/// by the message they carry, because a line number rots and a message does not.
+///
+/// There is exactly one, and it is forced: it is raised while the exception hierarchy is being
+/// *built*, so it cannot be reported through a hierarchy that does not exist yet.
+const PYTHON_LEDGERED_RAISES: &[(&str, &str, &str)] = &[(
+    "errors.rs",
+    "PyRuntimeError",
+    "type() did not return a class",
+)];
+
+/// The floor under the Python scan. Well below what it finds, because the number it finds is a
+/// measurement and this is only the statement that the scanner still matches at all.
+const PYTHON_RAISE_FLOOR: usize = 15;
+
+/// Nothing in `bindings/mjx-python/src` raises a Python exception class the binding does not
+/// register, except the host vocabulary above and one ledgered site.
+///
+/// # The hole this closes, and why an unreachable arm was worth a gate
+///
+/// `ShapeGeometry.preset` raised `PyRuntimeError::new_err("unreachable")` until MJXOFF-275. A
+/// caller writing `except mjx_ooxml.OoxmlError` did not catch it, and no other gate could see it:
+/// `binding_doc_parity.rs` reads doc comments rather than runtime messages, and
+/// [`the_two_bindings_produce_the_same_data_tokens`] deliberately excludes a message handed to an
+/// error constructor. The arm is unreachable — `parts()` answers `None` only for `Unmodeled`, which
+/// the arm above it already matched, and its `match` carries no wildcard, so the compiler holds the
+/// equivalence rather than a comment — and that is exactly why it was worth closing: an unreachable
+/// arm is where an error model stops being total without anything failing.
+///
+/// So the sweep is asked rather than repeated by hand. It is the class of raise that is checked,
+/// not the one instance: `PyValueError`, `PyTypeError`, `PyKeyError` and `PyErr::new::<…>` are all
+/// shapes PyO3 offers, and reading the shapes that actually appear is what says how large the class
+/// is instead of guessing at it.
+#[test]
+fn every_exception_the_python_binding_constructs_is_registered_or_ledgered() {
+    let sites = binding_surface::python_raise_sites(&repository_root());
+    // Anti-vacuity, asked first: a sweep that matches no raise passes exactly as a binding with no
+    // unregistered raise does, and the two must not look alike from the outside.
+    assert!(
+        sites.len() >= PYTHON_RAISE_FLOOR,
+        "{} raise(s) found across bindings/mjx-python/src, under the floor of \
+         {PYTHON_RAISE_FLOOR} — the scanner has stopped matching",
+        sites.len()
+    );
+    let permitted: BTreeSet<&str> = PYTHON_HOST_VOCABULARY
+        .iter()
+        .map(|(class, _)| *class)
+        .collect();
+    let registered = registered_python_classes();
+    let mut offenders = Vec::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut ledgered_used = vec![false; PYTHON_LEDGERED_RAISES.len()];
+    for site in &sites {
+        *seen.entry(site.class.clone()).or_default() += 1;
+        if permitted.contains(site.class.as_str()) || registered.contains(&site.class) {
+            continue;
+        }
+        if let Some(index) = PYTHON_LEDGERED_RAISES
+            .iter()
+            .position(|(file, class, message)| {
+                *file == site.file && *class == site.class && site.tail.contains(message)
+            })
+        {
+            ledgered_used[index] = true;
+            continue;
+        }
+        offenders.push(format!(
+            "bindings/mjx-python/src/{}:{}: raises `{}`, which `errors.rs` does not register — a \
+             caller writing `except mjx_ooxml.OoxmlError` does not catch it. Raise through \
+             `crate::errors` instead, or put the class on PYTHON_HOST_VOCABULARY with a reason.\n    \
+             {}",
+            site.file,
+            site.line,
+            site.class,
+            site.tail.trim()
+        ));
+    }
+    assert!(
+        offenders.is_empty(),
+        "the Python binding's error model has a hole in it:\n  {}",
+        offenders.join("\n  ")
+    );
+    for (index, (file, class, message)) in PYTHON_LEDGERED_RAISES.iter().enumerate() {
+        assert!(
+            ledgered_used[index],
+            "PYTHON_LEDGERED_RAISES excuses `{class}` in {file} carrying \"{message}\", and no such \
+             raise exists — delete the row, or find out why the scan no longer sees it"
+        );
+    }
+    for (class, reason) in PYTHON_HOST_VOCABULARY {
+        assert!(
+            seen.contains_key(*class),
+            "PYTHON_HOST_VOCABULARY permits `{class}` ({reason}) and the scan found none — either \
+             the raise moved or the scanner has stopped matching"
+        );
+    }
+    let breakdown: Vec<String> = seen
+        .iter()
+        .map(|(class, count)| format!("{count} {class}"))
+        .collect();
+    println!(
+        "python error model: {} hand-written raise(s) ({}), every one registered or ledgered",
+        sites.len(),
+        breakdown.join(", ")
+    );
+}
+
+/// The two files that may build a JavaScript `Error`, and what each builds.
+///
+/// The wasm binding funnels every failure through three functions in these two files, so the
+/// mirror of the Python question is a stronger one: not *which class* a site constructs, but
+/// whether any site constructs one at all outside the factories.
+const WASM_ERROR_FACTORIES: &[(&str, &str, &str)] = &[
+    (
+        "errors.rs",
+        "js_sys::Error",
+        "`to_js_error` and `unsupported_content` — the `OoxmlError` projection. The name, the \
+         `code` and the `detail` are set here and nowhere else",
+    ),
+    (
+        "support.rs",
+        "js_sys::RangeError",
+        "`invalid_argument` — JavaScript's own argument vocabulary, the mirror of Python's \
+         `TypeError`/`ValueError`/`KeyError` and equally not an `OoxmlError`",
+    ),
+];
+
+/// The floor under the count of hand-written raises in the wasm binding — the population the
+/// Python floor above is over, so the two numbers are comparable.
+const WASM_RAISE_FLOOR: usize = 15;
+
+/// The mirror direction: the wasm binding builds an `Error` in two files and calls it from
+/// everywhere else.
+///
+/// MJXOFF-275 was written about Python, and the two bindings are held to each other everywhere else
+/// in this repository, so the same question has to be asked facing the other way. The answer is not
+/// the one the ticket assumed — `invalid_argument` is a `RangeError` with no `name`, no `code` and
+/// no `detail`, so `catch (e) { e.code === "InvalidArgument" }` never matched it — but the shape is
+/// sound, and it is sound for the same reason Python's `TypeError` is: a mistake in the call is
+/// reported in the host language's own vocabulary, and a failure the *library* reported is reported
+/// as an `OoxmlError`. What matters is that no third population exists, which is what this asks.
+#[test]
+fn every_error_the_wasm_binding_constructs_comes_from_one_of_its_two_factories() {
+    let root = repository_root();
+    let sites = binding_surface::wasm_raise_sites(&root);
+    // Anti-vacuity, asked first, and it cannot be the construction count: the whole point of this
+    // binding's shape is that there are three of those. What would vanish if the scan stopped
+    // matching is the *raising*, so that is what is floored — the same population, counted the same
+    // way, as the twenty-two the Python half reports.
+    let raises = wasm_hand_written_raises(&root);
+    assert!(
+        raises >= WASM_RAISE_FLOOR,
+        "{raises} hand-written raise(s) in bindings/mjx-wasm/src, under the floor of \
+         {WASM_RAISE_FLOOR} — the scanner has stopped matching"
+    );
+    let mut offenders = Vec::new();
+    let mut used = vec![false; WASM_ERROR_FACTORIES.len()];
+    for site in &sites {
+        match WASM_ERROR_FACTORIES
+            .iter()
+            .position(|(file, class, _)| *file == site.file && *class == site.class)
+        {
+            Some(index) => used[index] = true,
+            None => offenders.push(format!(
+                "bindings/mjx-wasm/src/{}:{}: builds `{}` outside the two factories, so it carries \
+                 neither `name = \"OoxmlError\"` nor a `code`. Call `crate::errors` or \
+                 `crate::support::invalid_argument` instead.\n    {}",
+                site.file,
+                site.line,
+                site.class,
+                site.tail.trim()
+            )),
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "the wasm binding raises outside its error model:\n  {}",
+        offenders.join("\n  ")
+    );
+    for (index, (file, class, reason)) in WASM_ERROR_FACTORIES.iter().enumerate() {
+        assert!(
+            used[index],
+            "WASM_ERROR_FACTORIES names `{class}` in {file} ({reason}) and the scan found none — \
+             either the factory moved or the scanner has stopped matching"
+        );
+    }
+    println!(
+        "wasm error model: {} hand-written raise(s), every one through a factory, and {} `Error` \
+         construction(s), both in the two ledgered files",
+        raises,
+        sites.len()
+    );
+}
+
+/// How many times `bindings/mjx-wasm/src` raises a failure of its own — a call to
+/// `invalid_argument` or to `unsupported_content`, their two definition lines excluded.
+///
+/// `to_js_error` and `map_error` are deliberately not counted: they *project* a failure
+/// `mjx_ooxml` reported, which is mechanical forwarding on nearly every method, and counting them
+/// would put a four-figure number beside the Python half's twenty-two and make the two
+/// incomparable.
+fn wasm_hand_written_raises(root: &std::path::Path) -> usize {
+    binding_surface::sources(&root.join("bindings/mjx-wasm/src"), "rs")
+        .iter()
+        .flat_map(|(_, text)| text.lines())
+        .filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.starts_with("//") && !trimmed.starts_with("pub(crate) fn ")
+        })
+        .map(|line| {
+            ["invalid_argument(", "unsupported_content("]
+                .iter()
+                .map(|needle| line.matches(needle).count())
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+/// The twelve class names `bindings/mjx-python/src/errors.rs` adds to the module.
+///
+/// Read out of `register`'s own table rather than listed here, so a thirteenth class is registered
+/// once and is permitted here the same day.
+fn registered_python_classes() -> BTreeSet<String> {
+    let source =
+        std::fs::read_to_string(repository_root().join("bindings/mjx-python/src/errors.rs"))
+            .expect("bindings/mjx-python/src/errors.rs is readable");
+    let table = source
+        .split_once("pub(crate) fn register(")
+        .expect("errors.rs declares `register`")
+        .1;
+    let names: BTreeSet<String> = table
+        .lines()
+        .filter_map(|line| {
+            let start = line.find("(\"")? + 2;
+            let end = line[start..].find('"')? + start;
+            Some(line[start..end].to_owned())
+        })
+        .filter(|name| name.ends_with("Error"))
+        .map(|name| format!("Py{name}"))
+        .collect();
+    assert!(
+        names.len() >= 12,
+        "{} class(es) read out of `register` — the table has stopped matching",
+        names.len()
+    );
+    names
+}
+
+/// The floor under the count of no-argument members swept for the rule below.
+const ARGUMENTLESS_MEMBER_FLOOR: usize = 1_000;
+
+/// A member that takes no argument never raises the argument vocabulary.
+///
+/// This is the rule underneath the two checks above, and it is the one that catches the shape
+/// MJXOFF-275 found rather than the class it happened to wear. Both bindings reserve a vocabulary
+/// for *a mistake in the call* — Python's `TypeError`/`ValueError`/`KeyError`, JavaScript's
+/// `RangeError` through `invalid_argument` — and each is right exactly where an argument was
+/// refused. A member with no arguments has no call to be mistaken, so reaching for that vocabulary
+/// there is a category error, and it is what the wasm half of `ShapeGeometry.preset` did: a getter
+/// answering `invalid_argument("this geometry names no preset")`, which no caller could have caused
+/// and which carried neither `name = "OoxmlError"` nor a `code`.
+///
+/// The two checks above could not see it. Python's asks which *class* is constructed, and the wasm
+/// one asks only that a construction sit in a factory — `invalid_argument` is a factory, and it was
+/// being called from the wrong kind of place, not written in the wrong file.
+///
+/// Arity comes from [`binding_surface::documented_members`], which already excludes `self` and
+/// PyO3's `Python<'_>` token, so a getter and a zero-argument static both count as zero and both
+/// are held to the rule for the same reason.
+#[test]
+fn no_argumentless_member_raises_the_argument_vocabulary() {
+    let root = repository_root();
+    let mut offenders = Vec::new();
+    let mut argumentless = 0usize;
+    let mut vocabulary_seen = 0usize;
+    for (binding, directory, marker, needles) in [
+        (
+            "wasm",
+            "bindings/mjx-wasm/src",
+            "#[wasm_bindgen]",
+            vec![String::from("invalid_argument(")],
+        ),
+        (
+            "python",
+            "bindings/mjx-python/src",
+            "#[pymethods]",
+            PYTHON_HOST_VOCABULARY
+                .iter()
+                .map(|(class, _)| format!("{class}::new_err"))
+                .collect(),
+        ),
+    ] {
+        for ((owner, name), member) in
+            binding_surface::documented_members(&root.join(directory), marker)
+        {
+            let raises: Vec<&String> = needles
+                .iter()
+                .filter(|needle| member.body.contains(needle.as_str()))
+                .collect();
+            if !raises.is_empty() {
+                vocabulary_seen += 1;
+            }
+            if member.arity > 0 {
+                continue;
+            }
+            argumentless += 1;
+            for needle in raises {
+                offenders.push(format!(
+                    "{directory}/{}:{}: {owner}.{name} takes no argument and raises `{}` — \
+                     there is no call for the caller to have got wrong. A failure a no-argument \
+                     member reports is the library's, so raise it through `crate::errors` \
+                     ({binding}).",
+                    member.file,
+                    member.line,
+                    needle.trim_end_matches('('),
+                ));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "a no-argument member reports a failure as if the caller had passed something:\n  {}",
+        offenders.join("\n  ")
+    );
+    // Anti-vacuity, both halves. The first says the member walk still sees the surfaces; the second
+    // says the needles still match a raise somewhere, so a rename of `invalid_argument` cannot turn
+    // this test into a tautology.
+    assert!(
+        argumentless >= ARGUMENTLESS_MEMBER_FLOOR && vocabulary_seen > 0,
+        "{argumentless} no-argument member(s) and {vocabulary_seen} member(s) raising the argument \
+         vocabulary at all — the scan has stopped matching"
+    );
+    println!(
+        "argument vocabulary: {argumentless} no-argument member(s) across both bindings raise none \
+         of it, and {vocabulary_seen} member(s) that do take arguments do"
+    );
+}

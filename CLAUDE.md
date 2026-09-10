@@ -180,6 +180,24 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   `FillSpec`/`ColorSpec` in the *shipped* `mjx-dml`, contradicting the hand-written-de/serialization
   decision above.
 
+**What a binding raises is held to what it registers** (MJXOFF-275). Each binding has two legitimate
+error populations and no third: the typed model — twelve Python classes rooted at `OoxmlError`, one
+JavaScript `Error` named `"OoxmlError"` carrying a `code` — and the **host language's own vocabulary
+for a mistake in the call**, which is `TypeError`/`ValueError`/`KeyError` in Python and a
+`RangeError` through `invalid_argument` in JavaScript. Those two mirror each other exactly, and
+routing the second through `OoxmlError` would be the divergence rather than the fix: PyO3 raises
+`TypeError` for every argument conversion it generates. A third population is the error model
+quietly ceasing to be total, and nothing a caller can write tells it apart from the other two — so
+`xtask/tests/binding_projection.rs` asks three questions of `xtask/src/binding_surface.rs`'s raise
+scan. Every one of the Python binding's hand-written raises is a registered class, the ledgered
+vocabulary, or the one site that raises *while the hierarchy is being built*; every `Error` the wasm
+binding constructs sits in one of its two factory files; and — the rule underneath both — **a member
+that takes no argument never raises the argument vocabulary**, because there is no call for the
+caller to have got wrong. `ShapeGeometry.preset` broke the first and the third at once: an arm the
+compiler can prove unreachable answered `PyRuntimeError("unreachable")` in Python, which
+`except mjx_ooxml.OoxmlError` did not catch, and `invalid_argument` in JavaScript, from a getter that
+takes nothing. Both now raise `unsupported_content`, which is what the arm would mean.
+
 The acceptance test for both is the same, and there are now four of it. Each of the three
 walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.rs`,
 `build_a_workbook.rs` — exists a second time under `bindings/mjx-python/tests/` and a third under

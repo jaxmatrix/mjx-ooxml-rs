@@ -27,7 +27,7 @@ use pyo3::types::PyModule;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{AdjustmentAxis, PathFillMode, PresetShapeType, SlideSizeKind};
-use crate::errors::to_py_err;
+use crate::errors::{to_py_err, unsupported_content};
 use crate::measures::{Angle, Emu, Fraction};
 
 value_class! {
@@ -1905,10 +1905,14 @@ impl ShapeGeometry {
     fn preset(&self) -> PyResult<PresetShapeType> {
         let preset = match &self.0 {
             ooxml::ShapeGeometry::Unmodeled(preset) => *preset,
+            // Unreachable: `parts` answers `None` only for `Unmodeled`, matched above, and its
+            // `match` carries no wildcard — so the compiler holds that equivalence rather than this
+            // comment. An `UnsupportedContentError` is nonetheless what it would mean, and it is a
+            // class `errors.rs` registers, so `except mjx_ooxml.OoxmlError` catches it (MJXOFF-275).
             _ => self
                 .parts()
                 .map(|(preset, _)| preset)
-                .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("unreachable"))?,
+                .ok_or_else(|| unsupported_content("this geometry names no preset"))?,
         };
         PresetShapeType::from_model(preset)
     }
