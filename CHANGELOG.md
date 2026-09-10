@@ -58,6 +58,78 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.156] - 2026-09-10
+
+**The design tokens, re-seeded from the product and made two-tier (MJXOFF-271).** The palette came
+from the marketing site; the application this editor is embedded in —
+`allr-agent/apps/hermes-universal` — has the same brand expressed quite differently, as ~14 skin
+seeds and ~11 mix percentages from which every surface, text colour and stroke is *derived* by
+`color-mix()`. Copying its resolved hexes would have thrown that away, so the source grew a second
+tier instead.
+
+### Added
+
+- **A derived tier in `docs/client-platform/data/tokens.json`.** A colour may now be written as
+  `{ "mix": [ … ] }` — a `color-mix(in srgb, …)` of the seeds and knobs above it, nesting allowed —
+  and the generator evaluates it. The seeds' and knobs' custom properties are hermes-universal's own
+  names (`--theme-foreground`, `--theme-primary`, `--theme-midground`, `--theme-background-seed`,
+  `--theme-mix-chrome`, …), which is what makes dropping this platform into that application
+  re-theme it with no code.
+- **A fourth generated artefact, `ui/tokens/derivations.css`.** Every other artefact carries the
+  *resolved* colour, because a canvas cannot paint an expression and a contrast gate cannot measure
+  one; this one restates the derived tier as literal `color-mix()` in terms of the scheme-relative
+  aliases, so a host that overrides one seed re-themes everything mixed from it through the cascade.
+  The renderer does the same through the new `mjx_tokens::Tokens::rederive`, which is the fourth
+  step of the resolution order and reports itself as `TokenSource::Derivation`.
+- **`mjx_tokens::color_mix`** — the only implementation of `color-mix(in srgb, …)` this project
+  owns. `ui/tokens/tokens.ts` carries values and no algorithm, so the TypeScript half has none of
+  its own to disagree with; the other evaluator is the browser's.
+- **`ui/tokens/chromium-agreement.mjs`**, which asserts those two agree for every derived token in
+  both schemes against Chromium's own `getComputedStyle`, and proves it can fail: a deliberately
+  wrong expectation must be reported, and an overridden seed must move the derived colours in the
+  browser.
+- **Two new source rules, both hard errors.** A member must be derived *the same way* in every
+  colour scheme — one `color-mix()` declaration serves both, so the schemes may differ in values and
+  not in shape, which is the architecture's *"dark mode is the same seeds with different knobs"* as
+  a check. And a derivation may only read tokens declared before it, because `rederive` is a single
+  forward pass.
+- `mjx_tokens::Percentage` and the `percentage` token type, for the mix knobs.
+
+### Fixed
+
+- **The generator quantised to eight bits at every token boundary where a browser evaluates a whole
+  expression in floating point**, which put five tokens — `--theme-border` and
+  `--document-page-border` among them — one step away from the chrome around them. The arithmetic
+  now runs in `mjx_tokens::ExactColor` and rounds once. It was found by the Chromium gate on its
+  first run, which is the only thing that could have found it.
+
+### Changed
+
+- **`--color-paper` is `#fbf8f2`**, hermes's own value, rather than the `#fdfcf9` measured from the
+  marketing site. `color.body`, `color.paper-neutral`, `color.card-neutral`, `color.green-lifted`,
+  `color.clay` and `color.warm` joined the palette; every semantic surface, text colour and stroke
+  in both schemes is now derived from them and has moved. `DESIGN_TOKENS.md` §2.1 and §2.3 carry the
+  new tables.
+- **Primary text is the ink itself and is not softened to 94% as hermes softens it.** Measured, not
+  preferred: a token tagged for text must be opaque, and an opaque approximation of `rgba(ink, 94%)`
+  is only exact on the one surface it was composited over. Softening it also dropped the colour
+  picker's worst-case swatch indicator to 2.99 : 1 over its 4,352-colour sweep, under WCAG 1.4.11's
+  floor. `text-secondary` keeps hermes's 74%, where the softening is a hierarchy step rather than a
+  texture.
+- `document.*.page-border` now aliases `theme.*.border` by name rather than by value, so the one
+  place chrome meets canvas cannot drift.
+- **`theme.dark.accent` is the brand green rather than a lifted `#4fc98a`, and the dark scheme's
+  tertiary fill knob is 5% where the light scheme's is 8%.** Both are measurements. In the light
+  scheme the accent-coloured label is *darker* than the accent fill, so a tint of that fill carries
+  it for free; `#4fc98a` inverted that ordering in the dark scheme and no tint of it could carry an
+  accent-coloured label. The harness's own preset button measured 3.90 : 1 — and the palette this
+  replaces had the same defect at **4.11 : 1**, unseen because the catalogue's accessibility sweep
+  runs the light story. It is now 4.84 : 1 light and 4.53 : 1 dark.
+- **`accent-surface`, `accent-border` and `secondary-surface` tint the *surface* rather than the
+  chrome background**, which is what they are drawn on, and use the tertiary rather than the primary
+  fill knob. At the primary knob the accent surface reached only 4.23 : 1 against the accent-coloured
+  label — a failure on every story in the catalogue, because the pairing is a shared-harness button.
+
 ## [0.0.155] - 2026-09-10
 
 **The parity ledger, generated from the suites and never asserted by hand (MJXOFF-179, R24).**

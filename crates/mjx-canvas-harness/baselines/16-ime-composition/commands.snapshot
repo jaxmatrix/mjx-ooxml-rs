@@ -3,7 +3,7 @@ section commands count=8
 section paints count=5
 section strokes count=1
 section geometries count=8
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
 0002 fill rect[45.333336,77.333336,122.66667,84] with #223b3366
 0003 fill rect[133.33334,77.333336,317.33334,84] with #1e7a4944

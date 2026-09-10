@@ -1,14 +1,14 @@
-display-list page=400x266.6667 scale=1.3333334 bytes=944
+display-list page=400x266.6667 scale=1.3333334 bytes=960
 section commands count=16
 section transforms count=1
-section paints count=9
+section paints count=10
 section strokes count=5
 section geometries count=12
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
 0002 push-transform [0.9945219 0.104528464 -0.104528464 0.9945219 15.172074 -20.16798]
-0003 fill rect[128,88,272,181.33334] with #fbefd8ff
-0004 stroke rect[128,88,272,181.33334] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0003 fill rect[128,88,272,181.33334] with #f9f3e9ff
+0004 stroke rect[128,88,272,181.33334] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
 0005 pop
 0006 stroke rect[124,84,276,185.33334] with width=1.3333334 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
 0007 fill outline[0x1 at 138.66667,101.333336,154.66667,117.333336] with #1e7a4938
@@ -16,7 +16,7 @@ section geometries count=12
 0009 fill outline[0x3 at 245.33334,152,261.33334,168] with #1e7a4938
 0010 stroke outline[0x4 at 245.33334,152,261.33334,168] with width=1.2 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
 0011 stroke outline[0x5 at 145.33334,108,254.66667,161.33334] with width=1.2 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#1e7a49ff
-0012 fill rect[282.6667,88,360,105.333336] with #ffffffff
-0013 stroke rect[282.6667,88,360,105.333336] with width=0.8000001 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e7e0d2ff
+0012 fill rect[282.6667,88,360,105.333336] with #fffefbff
+0013 stroke rect[282.6667,88,360,105.333336] with width=0.8000001 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e3d9c4ff
 0014 fill rect[288,93.333336,320.48,98.66667] with #223b33ff
 0015 fill rect[321.33334,93.333336,349.17334,98.66667] with #223b3399

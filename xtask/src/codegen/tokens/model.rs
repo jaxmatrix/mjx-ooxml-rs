@@ -22,6 +22,19 @@
 //! - **No two tokens reach the same CSS custom property**, the scheme layer's aliases included.
 //!   Silent collision is how one token would quietly overwrite another in exactly one of the three
 //!   artefacts.
+//! - **A derivation is the same expression in every colour scheme** (MJXOFF-271). The source's
+//!   second tier writes a colour as a `color-mix()` of seeds and knobs, and
+//!   `ui/tokens/derivations.css` hands the browser **one** declaration per derived member — the
+//!   scheme-relative alias — because that is what lets a host's seed override re-theme the chrome
+//!   through the cascade. One declaration can only be written if the schemes agree about the
+//!   *shape*, so `theme.light.background` and `theme.dark.background` must mix the same members in
+//!   the same order and differ only in the values behind them. That is the architecture's own
+//!   claim — *dark mode is the same seeds with different knobs, not a second palette* — turned
+//!   into a check.
+//! - **A derivation only reads tokens declared before it.** `mjx_tokens::Tokens::rederive` is one
+//!   forward pass over the emitted table, so a derived colour that feeds another has to come
+//!   first. A source that ordered them the other way would leave the second reading a stale value
+//!   at runtime while the committed artefacts looked perfect.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
@@ -119,7 +132,7 @@ impl Rgba {
     ///
     /// Two structs for one concept, deliberately. This one is the **source reader's**: it refuses
     /// upper case and the three- and four-digit shorthands, so one colour has exactly one spelling
-    /// in the one hand-edited file and the three artefacts cannot disagree about a value merely by
+    /// in the one hand-edited file and the artefacts cannot disagree about a value merely by
     /// disagreeing about its case. `mjx_tokens::Color`'s parser is the **host reader's** and
     /// accepts all four lengths, because a page's stylesheet legitimately writes `#fff`. What must
     /// not be duplicated is the *arithmetic*, and it is not: everything below converts and calls.
@@ -129,6 +142,16 @@ impl Rgba {
             green: self.green,
             blue: self.blue,
             alpha: self.alpha,
+        }
+    }
+
+    /// The other direction, for a colour a derivation produced rather than one the source wrote.
+    fn from_token_color(colour: mjx_tokens::Color) -> Self {
+        Self {
+            red: colour.red,
+            green: colour.green,
+            blue: colour.blue,
+            alpha: colour.alpha,
         }
     }
 }
@@ -260,6 +283,54 @@ pub(crate) enum Value {
     FontStack(Vec<String>),
     CubicBezier([f64; 4]),
     Shadow(Shadow),
+    Percentage(f64),
+}
+
+/// One side of a [`MixNode`].
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum MixTerm {
+    /// A colour written out in the source.
+    Literal(Rgba),
+    /// Another token, by its dotted path. The emitters turn that into a per-scheme custom property
+    /// for Rust and into the scheme-relative alias for CSS.
+    Token(String),
+    /// CSS's `transparent`.
+    Transparent,
+    /// A nested `color-mix()`, by index into the same node table.
+    Nested(usize),
+}
+
+/// One side's percentage.
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum MixPercentage {
+    Fixed(f64),
+    Token(String),
+}
+
+/// One `color-mix(in srgb, first p%, second q%)`.
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct MixNode {
+    pub(crate) first: MixTerm,
+    pub(crate) first_percentage: Option<MixPercentage>,
+    pub(crate) second: MixTerm,
+    pub(crate) second_percentage: Option<MixPercentage>,
+}
+
+/// A derived colour — a token whose value depends on a `color-mix()` somewhere.
+///
+/// Two forms, because a token that merely *names* a derived one should stay a name: emitting
+/// `--document-backdrop: var(--theme-background)` keeps the two in lockstep by construction, where
+/// inlining the expression a second time would let a host that overrode `--theme-background`
+/// directly re-theme the chrome and not the canvas behind it.
+///
+/// Everything else — a literal, or an alias to a literal — is resolved at generation time exactly
+/// as it was before there was a derived tier, and carries no row here.
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum Derivation {
+    /// Another token, by dotted path, which is itself derived.
+    Alias(String),
+    /// A `color-mix()` expression tree; the last node is the root.
+    Mix(Vec<MixNode>),
 }
 
 impl Value {
@@ -275,6 +346,7 @@ impl Value {
             Self::FontStack(_) => "fontFamily",
             Self::CubicBezier(_) => "cubicBezier",
             Self::Shadow(_) => "shadow",
+            Self::Percentage(_) => "percentage",
         }
     }
 
@@ -296,6 +368,7 @@ impl Value {
                 number(*y2)
             ),
             Self::Shadow(shadow) => shadow.css(),
+            Self::Percentage(value) => format!("{}%", number(*value)),
         }
     }
 
@@ -326,7 +399,7 @@ fn font_stack_css(faces: &[String]) -> String {
     out
 }
 
-/// Renders a number the way all three artefacts render it: Rust's shortest round-tripping form,
+/// Renders a number the way every artefact renders it: Rust's shortest round-tripping form,
 /// through `f32`, which is the width the generated Rust table stores. Going through `f32` here is
 /// what stops `tokens.css` and `tokens.ts` from carrying a precision the Rust table cannot hold.
 pub(crate) fn number(value: f64) -> String {
@@ -368,6 +441,11 @@ pub(crate) struct Token {
     /// The measured WCAG contrast ratio against that surface. Recorded in the generated docs for
     /// every colour that declares a background, and *enforced* for the ones tagged for text.
     pub(crate) contrast: Option<f64>,
+    /// The `color-mix()` expression this colour is derived from, when the source states one rather
+    /// than a literal. [`Token::value`] is then what evaluating it produced — the artefacts all
+    /// carry the resolved colour, because a canvas needs a colour and not an expression, and
+    /// `ui/tokens/derivations.css` carries the expression so the cascade can re-derive it.
+    pub(crate) derivation: Option<Derivation>,
 }
 
 /// A group's child: another group, or a token.
@@ -518,6 +596,8 @@ pub(crate) fn read(source: &str) -> Result<TokenSet> {
     };
     check_group_shapes_agree(&set)?;
     check_custom_properties_are_unique(&set)?;
+    check_schemes_derive_the_same_way(&set)?;
+    check_derivations_read_only_what_precedes_them(&set)?;
     Ok(set)
 }
 
@@ -646,11 +726,33 @@ fn read_token(
 ) -> Result<Token> {
     let type_name = effective_type.context(
         "no `$type`, and no group above it declares one — a token whose type is a guess is a token \
-         three artefacts can disagree about",
+         artefacts can disagree about",
     )?;
-    let raw = value.get("$value").context("no `$value`")?;
-    let raw = follow_aliases(raw, raw_values, &mut Vec::new())?;
-    let parsed = parse_value(type_name, raw)?;
+    let declared = value.get("$value").context("no `$value`")?;
+    // The immediate alias target, before following the chain — that is what a `var()` in the
+    // derivation layer must name.
+    let immediate_alias = declared.string().and_then(alias_target);
+    let raw = follow_aliases(declared, raw_values, &mut Vec::new())?;
+    let (parsed, derivation) = if raw.get("mix").is_some() {
+        if type_name != "color" {
+            bail!(
+                "a `mix` derivation produces a colour, but this token's `$type` is `{type_name}`"
+            );
+        }
+        let nodes = read_derivation(raw, raw_values)?;
+        let colour = Rgba::from_token_color(mjx_tokens::Color::from_exact(
+            evaluate(&nodes, raw_values, &mut Vec::new())
+                .context("evaluating the `mix` derivation")?,
+        ));
+        let derivation = match immediate_alias {
+            // The value came from somewhere else, and that somewhere is what should be named.
+            Some(target) => Derivation::Alias(target.to_owned()),
+            None => Derivation::Mix(nodes),
+        };
+        (Value::Color(colour), Some(derivation))
+    } else {
+        (parse_value(type_name, raw)?, None)
+    };
 
     let usage = extension
         .and_then(|it| it.get("usage"))
@@ -682,15 +784,12 @@ fn read_token(
 
     let mut contrast = None;
     if let (Value::Color(colour), Some(background_path)) = (&parsed, background_path.as_ref()) {
-        let background_raw = raw_values.get(background_path.as_str()).with_context(|| {
-            format!("declares its background as `{background_path}`, which is not a token")
-        })?;
-        let background_raw = follow_aliases(background_raw, raw_values, &mut Vec::new())?;
-        let Value::Color(background) = parse_value("color", background_raw)
-            .with_context(|| format!("reading the background `{background_path}`"))?
-        else {
-            bail!("the background `{background_path}` is not a colour");
-        };
+        // Resolved rather than merely parsed, because a declared background is now very often a
+        // *derived* surface — `{theme.light.background}` is a `color-mix()` of the seeds. A reader
+        // that only understood a literal would have quietly stopped measuring exactly the tokens
+        // the re-seed made interesting.
+        let background = resolved_color(background_path, raw_values, &mut Vec::new())
+            .with_context(|| format!("reading the background `{background_path}`"))?;
         contrast = Some(contrast_ratio(*colour, background));
         check_usage(usage, *colour, background, background_path)?;
     }
@@ -711,7 +810,231 @@ fn read_token(
         usage,
         background: background_path,
         contrast,
+        derivation,
     })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The derived tier
+// ---------------------------------------------------------------------------------------------
+
+/// Reads one `{ "mix": [ … ] }` object into a flat node table, root first.
+///
+/// The colour space is not a field. `color-mix(in srgb, …)` is the whole vocabulary — stated once
+/// here and once in `mjx_tokens::color_mix` — because a second space would be a second set of
+/// numbers for four artefacts to disagree about, and the one thing this pipeline exists to prevent
+/// is two answers to the same question.
+fn read_derivation(
+    value: &json::Value,
+    raw_values: &HashMap<String, &json::Value>,
+) -> Result<Vec<MixNode>> {
+    let mut nodes = Vec::new();
+    read_mix_node(value, raw_values, &mut nodes)?;
+    Ok(nodes)
+}
+
+/// Appends the node `value` describes, and returns its index. Children are appended first, so a
+/// node's operands always sit at a lower index than the node itself.
+fn read_mix_node(
+    value: &json::Value,
+    raw_values: &HashMap<String, &json::Value>,
+    nodes: &mut Vec<MixNode>,
+) -> Result<usize> {
+    let sides = value
+        .get("mix")
+        .and_then(json::Value::array)
+        .context("`mix` is an array of two sides")?;
+    if sides.len() != 2 {
+        bail!(
+            "`mix` has two sides — CSS `color-mix()` takes exactly two colours — not {}",
+            sides.len()
+        );
+    }
+    let (first, first_percentage) = read_mix_side(&sides[0], raw_values, nodes)?;
+    let (second, second_percentage) = read_mix_side(&sides[1], raw_values, nodes)?;
+    nodes.push(MixNode {
+        first,
+        first_percentage,
+        second,
+        second_percentage,
+    });
+    Ok(nodes.len() - 1)
+}
+
+fn read_mix_side(
+    side: &json::Value,
+    raw_values: &HashMap<String, &json::Value>,
+    nodes: &mut Vec<MixNode>,
+) -> Result<(MixTerm, Option<MixPercentage>)> {
+    let colour = side
+        .get("color")
+        .context("every side of a `mix` names a `color`")?;
+    let term = if colour.get("mix").is_some() {
+        MixTerm::Nested(read_mix_node(colour, raw_values, nodes)?)
+    } else {
+        let text = colour
+            .string()
+            .context("a `color` is a token reference, a `#rrggbb[aa]` literal or `transparent`")?;
+        match alias_target(text) {
+            Some(target) => {
+                if !raw_values.contains_key(target) {
+                    bail!("the `mix` reads `{{{target}}}`, which names no token");
+                }
+                MixTerm::Token(target.to_owned())
+            }
+            None if text == "transparent" => MixTerm::Transparent,
+            None => MixTerm::Literal(Rgba::parse(text)?),
+        }
+    };
+
+    let percentage = match side.get("percentage") {
+        None => None,
+        Some(raw) => {
+            let text = raw
+                .string()
+                .context("a `percentage` is `16%` or a reference to a percentage token")?;
+            Some(match alias_target(text) {
+                Some(target) => {
+                    if !raw_values.contains_key(target) {
+                        bail!(
+                            "the `mix` reads the percentage `{{{target}}}`, which names no token"
+                        );
+                    }
+                    MixPercentage::Token(target.to_owned())
+                }
+                None => MixPercentage::Fixed(parse_percentage(text)?),
+            })
+        }
+    };
+
+    Ok((term, percentage))
+}
+
+fn parse_percentage(text: &str) -> Result<f64> {
+    let number = text
+        .strip_suffix('%')
+        .with_context(|| format!("`{text}` is not a percentage: it does not end in `%`"))?;
+    number
+        .parse()
+        .with_context(|| format!("`{text}` is not a percentage: `{number}` is not a number"))
+}
+
+/// Evaluates a derivation, **through `mjx_tokens::color_mix` and nothing else**.
+///
+/// There is one implementation of `color-mix(in srgb, …)` in this workspace and it is that
+/// function; this walks the tree and calls it. A second evaluator here — even a "simple" one for
+/// the two-term case — is exactly the divergence the four-artefact pipeline exists to prevent, and
+/// it would diverge silently, because both would agree on the easy cases.
+/// The whole expression is evaluated in [`mjx_tokens::ExactColor`] and quantised **once**, by the
+/// caller. A browser does the same, and an implementation that rounded to eight bits at every token
+/// boundary would sit a step away from it on any expression more than one mix deep — which is what
+/// `ui/tokens/chromium-agreement.mjs` reported for five tokens, `--theme-border` and
+/// `--document-page-border` among them, before this took the exact path.
+fn evaluate(
+    nodes: &[MixNode],
+    raw_values: &HashMap<String, &json::Value>,
+    visited: &mut Vec<String>,
+) -> Result<mjx_tokens::ExactColor> {
+    evaluate_node(nodes, nodes.len() - 1, raw_values, visited)
+}
+
+fn evaluate_node(
+    nodes: &[MixNode],
+    at: usize,
+    raw_values: &HashMap<String, &json::Value>,
+    visited: &mut Vec<String>,
+) -> Result<mjx_tokens::ExactColor> {
+    let node = &nodes[at];
+    let first = evaluate_term(nodes, &node.first, raw_values, visited)?;
+    let second = evaluate_term(nodes, &node.second, raw_values, visited)?;
+    let percentage = |side: &Option<MixPercentage>| -> Result<Option<mjx_tokens::Percentage>> {
+        Ok(match side {
+            None => None,
+            Some(MixPercentage::Fixed(value)) => Some(mjx_tokens::Percentage {
+                // Every percentage in this source is a small decimal; the narrowing is exact for
+                // all of them and matches the width the emitted table stores.
+                value: *value as f32,
+            }),
+            Some(MixPercentage::Token(path)) => Some(mjx_tokens::Percentage {
+                value: resolved_percentage(path, raw_values)? as f32,
+            }),
+        })
+    };
+    mjx_tokens::color_mix_exact(
+        first,
+        percentage(&node.first_percentage)?,
+        second,
+        percentage(&node.second_percentage)?,
+    )
+    .context("both percentages are zero, which CSS calls invalid rather than defining a colour for")
+}
+
+fn evaluate_term(
+    nodes: &[MixNode],
+    term: &MixTerm,
+    raw_values: &HashMap<String, &json::Value>,
+    visited: &mut Vec<String>,
+) -> Result<mjx_tokens::ExactColor> {
+    Ok(match term {
+        MixTerm::Literal(colour) => colour.to_token_color().to_exact(),
+        MixTerm::Transparent => [0.0, 0.0, 0.0, 0.0],
+        MixTerm::Nested(at) => evaluate_node(nodes, *at, raw_values, visited)?,
+        MixTerm::Token(path) => resolved_exact_color(path, raw_values, visited)?,
+    })
+}
+
+/// The colour one token resolves to, following aliases and evaluating a derivation if it is one —
+/// **unquantised**, for the reason [`evaluate`] gives.
+fn resolved_exact_color(
+    path: &str,
+    raw_values: &HashMap<String, &json::Value>,
+    visited: &mut Vec<String>,
+) -> Result<mjx_tokens::ExactColor> {
+    if visited.iter().any(|seen| seen == path) {
+        visited.push(path.to_owned());
+        bail!("the derivation chain {} is a cycle", visited.join(" -> "));
+    }
+    visited.push(path.to_owned());
+    let raw = raw_values
+        .get(path)
+        .with_context(|| format!("`{path}` names no token"))?;
+    let raw = follow_aliases(raw, raw_values, &mut Vec::new())?;
+    let colour = if raw.get("mix").is_some() {
+        let nested = read_derivation(raw, raw_values)
+            .with_context(|| format!("reading the derivation of `{path}`"))?;
+        evaluate(&nested, raw_values, visited)?
+    } else {
+        match parse_value("color", raw).with_context(|| format!("reading `{path}`"))? {
+            Value::Color(colour) => colour.to_token_color().to_exact(),
+            _ => bail!("`{path}` is not a colour, so a `mix` cannot read it"),
+        }
+    };
+    visited.pop();
+    Ok(colour)
+}
+
+/// The eight-bit colour one token resolves to — what the contrast rule is applied to.
+fn resolved_color(
+    path: &str,
+    raw_values: &HashMap<String, &json::Value>,
+    visited: &mut Vec<String>,
+) -> Result<Rgba> {
+    Ok(Rgba::from_token_color(mjx_tokens::Color::from_exact(
+        resolved_exact_color(path, raw_values, visited)?,
+    )))
+}
+
+/// The percentage one token resolves to. A knob is always a literal — a percentage that was itself
+/// derived would be a knob nobody could find the value of.
+fn resolved_percentage(path: &str, raw_values: &HashMap<String, &json::Value>) -> Result<f64> {
+    let raw = raw_values
+        .get(path)
+        .with_context(|| format!("`{path}` names no token"))?;
+    let raw = follow_aliases(raw, raw_values, &mut Vec::new())?;
+    let text = raw
+        .string()
+        .with_context(|| format!("`{path}` is not a percentage"))?;
+    parse_percentage(text).with_context(|| format!("reading `{path}`"))
 }
 
 /// The contrast rule, **applied rather than restated**.
@@ -814,9 +1137,12 @@ fn parse_value(type_name: &str, raw: &json::Value) -> Result<Value> {
             Value::CubicBezier(values)
         }
         "shadow" => Value::Shadow(Shadow::parse(raw)?),
+        "percentage" => {
+            Value::Percentage(parse_percentage(text.context("a percentage is a string")?)?)
+        }
         other => bail!(
             "unknown `$type` `{other}`; this pipeline reads color, dimension, duration, number, \
-             fontWeight, fontFamily, cubicBezier and shadow"
+             fontWeight, fontFamily, cubicBezier, shadow and percentage"
         ),
     })
 }
@@ -939,6 +1265,174 @@ fn check_custom_properties_are_unique(set: &TokenSet) -> Result<()> {
             alias.custom_property.clone(),
             format!("the scheme layer of `{}`", alias.group_path),
         )?;
+    }
+    Ok(())
+}
+
+/// The dotted paths of every group whose children are colour schemes.
+fn scheme_group_paths(set: &TokenSet) -> Vec<Vec<String>> {
+    set.groups()
+        .into_iter()
+        .filter(|group| group.schemes)
+        .map(|group| group.path.clone())
+        .collect()
+}
+
+/// The name `ui/tokens/derivations.css` reads a token through.
+///
+/// For a token inside a colour scheme it is the **scheme-relative alias** — `theme.light.midground`
+/// is read as `--theme-midground` — because the derivation layer writes one declaration that has to
+/// be right in whichever scheme is in force, and because that alias is the name a host overrides.
+/// Every other token is read through its own property.
+pub(crate) fn derivation_reference(set: &TokenSet, path: &str) -> String {
+    let segments: Vec<String> = path.split('.').map(str::to_owned).collect();
+    for group in scheme_group_paths(set) {
+        if segments.len() == group.len() + 2 && segments.starts_with(&group) {
+            let mut alias = group.clone();
+            alias.extend_from_slice(&segments[group.len() + 1..]);
+            return custom_property(&alias);
+        }
+    }
+    custom_property(&segments)
+}
+
+/// A derivation with every token reference rewritten to the name the CSS layer reads it through,
+/// which is what makes two schemes' derivations comparable at all.
+fn derivation_shape(set: &TokenSet, derivation: &Derivation) -> Derivation {
+    let rewrite_term = |term: &MixTerm| match term {
+        MixTerm::Token(path) => MixTerm::Token(derivation_reference(set, path)),
+        other => other.clone(),
+    };
+    let rewrite_percentage = |percentage: &Option<MixPercentage>| match percentage {
+        Some(MixPercentage::Token(path)) => {
+            Some(MixPercentage::Token(derivation_reference(set, path)))
+        }
+        other => other.clone(),
+    };
+    match derivation {
+        Derivation::Alias(path) => Derivation::Alias(derivation_reference(set, path)),
+        Derivation::Mix(nodes) => Derivation::Mix(
+            nodes
+                .iter()
+                .map(|node| MixNode {
+                    first: rewrite_term(&node.first),
+                    first_percentage: rewrite_percentage(&node.first_percentage),
+                    second: rewrite_term(&node.second),
+                    second_percentage: rewrite_percentage(&node.second_percentage),
+                })
+                .collect(),
+        ),
+    }
+}
+
+/// Every token a derivation reads, by dotted path.
+fn derivation_reads(derivation: &Derivation) -> Vec<String> {
+    match derivation {
+        Derivation::Alias(path) => vec![path.clone()],
+        Derivation::Mix(nodes) => {
+            let mut out = Vec::new();
+            for node in nodes {
+                for term in [&node.first, &node.second] {
+                    if let MixTerm::Token(path) = term {
+                        out.push(path.clone());
+                    }
+                }
+                for percentage in [&node.first_percentage, &node.second_percentage] {
+                    if let Some(MixPercentage::Token(path)) = percentage {
+                        out.push(path.clone());
+                    }
+                }
+            }
+            out
+        }
+    }
+}
+
+/// Every scheme derives a given member the same way, or none of them does.
+///
+/// `ui/tokens/derivations.css` writes **one** declaration per derived member — the scheme-relative
+/// alias — so that a host's seed override reaches both schemes through the cascade. That is only
+/// writable if the schemes agree about the expression, and the architecture already claims they
+/// do: *dark mode is the same seeds with different knobs, not a second palette.* This is that
+/// claim as a check, and the failure it catches is invisible in the light scheme.
+fn check_schemes_derive_the_same_way(set: &TokenSet) -> Result<()> {
+    for group in set.groups().into_iter().filter(|group| group.schemes) {
+        let mut per_member: BTreeMap<String, Vec<(&Token, Option<Derivation>)>> = BTreeMap::new();
+        for entry in &group.entries {
+            let Entry::Group(scheme) = entry else {
+                continue;
+            };
+            let mut tokens = Vec::new();
+            collect_tokens(&scheme.entries, &mut tokens);
+            for token in tokens {
+                let member = token.path[group.path.len() + 1..].join("-");
+                per_member.entry(member).or_default().push((
+                    token,
+                    token
+                        .derivation
+                        .as_ref()
+                        .map(|derivation| derivation_shape(set, derivation)),
+                ));
+            }
+        }
+        for (member, occurrences) in per_member {
+            let Some((first_token, first_shape)) = occurrences.first() else {
+                continue;
+            };
+            for (token, shape) in occurrences.iter().skip(1) {
+                if shape != first_shape {
+                    bail!(
+                        "`{}` and `{}` are the same member of `{}` but are not derived the same \
+                         way: {} and {}. One `color-mix()` declaration is emitted per member, in \
+                         terms of the scheme-relative aliases, so that a host that overrides a seed \
+                         re-themes both schemes at once — which is only possible when the two \
+                         schemes mix the same members in the same order and differ in the values \
+                         behind them. Member `{member}`.",
+                        dotted(&first_token.path),
+                        dotted(&token.path),
+                        dotted(&group.path),
+                        describe_shape(first_shape),
+                        describe_shape(shape),
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn describe_shape(shape: &Option<Derivation>) -> String {
+    match shape {
+        None => "a literal value".to_owned(),
+        Some(Derivation::Alias(target)) => format!("an alias to `{target}`"),
+        Some(Derivation::Mix(nodes)) => format!("a derivation of {} mix(es)", nodes.len()),
+    }
+}
+
+/// A derivation reads only tokens declared before it.
+///
+/// `mjx_tokens::Tokens::rederive` is a single forward pass over the emitted table, so a derived
+/// colour that another derivation reads has to be recomputed first. A source that ordered them the
+/// other way would produce perfect committed artefacts — the generator resolves the whole tree —
+/// and a stale value at runtime the moment a host overrode a seed, which is the one time the
+/// derived tier matters.
+fn check_derivations_read_only_what_precedes_them(set: &TokenSet) -> Result<()> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for token in set.tokens() {
+        let here = dotted(&token.path);
+        if let Some(derivation) = &token.derivation {
+            for path in derivation_reads(derivation) {
+                if !seen.contains(&path) {
+                    bail!(
+                        "token `{here}` is derived from `{path}`, which the source declares after \
+                         it. `Tokens::rederive` evaluates the derived tier in one forward pass, so \
+                         a derivation must read only what precedes it — move `{path}` above \
+                         `{here}` in tokens.json"
+                    );
+                }
+            }
+        }
+        seen.insert(here);
     }
     Ok(())
 }
@@ -1188,6 +1682,103 @@ mod tests {
         }"##;
         let message = format!("{:#}", read(source).expect_err("must be refused"));
         assert!(message.contains("names no token"), "{message}");
+    }
+
+    /// A two-tier source in miniature: a seed, a knob, and a colour derived from both.
+    fn derived_source(dark_percentage: &str, order: &str) -> String {
+        let light = r##""seed": { "$value": "#000000", "$extensions": { "mjx": { "usage": "fill-only" } } },
+              "knob": { "$type": "percentage", "$value": "20%" },
+              "derived": {
+                "$value": { "mix": [
+                  { "color": "{theme.light.seed}", "percentage": "{theme.light.knob}" },
+                  { "color": "#ffffff" }
+                ] },
+                "$extensions": { "mjx": { "usage": "fill-only" } }
+              }"##;
+        let light = if order == "reversed" {
+            r##""derived": {
+                "$value": { "mix": [
+                  { "color": "{theme.light.seed}", "percentage": "{theme.light.knob}" },
+                  { "color": "#ffffff" }
+                ] },
+                "$extensions": { "mjx": { "usage": "fill-only" } }
+              },
+              "seed": { "$value": "#000000", "$extensions": { "mjx": { "usage": "fill-only" } } },
+              "knob": { "$type": "percentage", "$value": "20%" }"##
+                .to_owned()
+        } else {
+            light.to_owned()
+        };
+        format!(
+            r##"{{
+              "$description": "a test source",
+              "theme": {{
+                "$type": "color",
+                "$extensions": {{ "mjx": {{ "rustType": "Themes", "schemes": true }} }},
+                "light": {{
+                  "$extensions": {{ "mjx": {{ "rustType": "ThemeColors" }} }},
+                  {light}
+                }},
+                "dark": {{
+                  "$extensions": {{ "mjx": {{ "rustType": "ThemeColors" }} }},
+                  "seed": {{ "$value": "#ffffff", "$extensions": {{ "mjx": {{ "usage": "fill-only" }} }} }},
+                  "knob": {{ "$type": "percentage", "$value": "40%" }},
+                  "derived": {{
+                    "$value": {{ "mix": [
+                      {{ "color": "{{theme.dark.seed}}", "percentage": "{dark_percentage}" }},
+                      {{ "color": "#ffffff" }}
+                    ] }},
+                    "$extensions": {{ "mjx": {{ "usage": "fill-only" }} }}
+                  }}
+                }}
+              }}
+            }}"##
+        )
+    }
+
+    /// A derivation is evaluated, and the token carries the colour it produced.
+    #[test]
+    fn a_derived_colour_is_the_value_its_mix_produces() {
+        let set = read(&derived_source("{theme.dark.knob}", "seeds first")).expect("valid");
+        let derived = set
+            .tokens()
+            .into_iter()
+            .find(|token| dotted(&token.path) == "theme.light.derived")
+            .expect("the derived token");
+        // 20% black over white, in CSS's own arithmetic: 0.2 × 0 + 0.8 × 255 = 204 = 0xcc.
+        assert_eq!(derived.value.css(), "#cccccc");
+        assert!(matches!(derived.derivation, Some(Derivation::Mix(_))));
+        // …and the dark scheme's 40% over the same white is a different colour from the same shape.
+        let dark = set
+            .tokens()
+            .into_iter()
+            .find(|token| dotted(&token.path) == "theme.dark.derived")
+            .expect("the dark token");
+        assert_eq!(dark.value.css(), "#ffffff", "40% white over white is white");
+    }
+
+    /// The rule the derived tier is built on: the two schemes may differ in their *values* and not
+    /// in their *shape*, because one `color-mix()` declaration has to serve both.
+    #[test]
+    fn two_schemes_that_derive_a_member_differently_are_refused() {
+        // The dark scheme reaches for a literal where the light one reads the knob.
+        let message = format!(
+            "{:#}",
+            read(&derived_source("40%", "seeds first")).expect_err("must be refused")
+        );
+        assert!(message.contains("derived the same way"), "{message}");
+        assert!(message.contains("theme.dark.derived"), "{message}");
+    }
+
+    /// And the rule `Tokens::rederive`'s single forward pass rests on.
+    #[test]
+    fn a_derivation_reading_a_token_declared_after_it_is_refused() {
+        let message = format!(
+            "{:#}",
+            read(&derived_source("{theme.dark.knob}", "reversed")).expect_err("must be refused")
+        );
+        assert!(message.contains("declares after it"), "{message}");
+        assert!(message.contains("theme.light.seed"), "{message}");
     }
 
     #[test]

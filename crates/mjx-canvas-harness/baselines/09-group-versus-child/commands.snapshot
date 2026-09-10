@@ -4,15 +4,15 @@ section clips count=1
 section paints count=5
 section strokes count=4
 section geometries count=15
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
 0002 push-clip [85.333336,66.66667,309.33334,194.66667] geometry=none
-0003 fill rect[101.333336,82.66667,176,128] with #fbefd8ff
-0004 stroke rect[101.333336,82.66667,176,128] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
-0005 fill rect[194.66667,82.66667,290.6667,128] with #fbefd8ff
-0006 stroke rect[194.66667,82.66667,290.6667,128] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
-0007 fill rect[101.333336,141.33334,290.6667,178.66667] with #fbefd8ff
-0008 stroke rect[101.333336,141.33334,290.6667,178.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0003 fill rect[101.333336,82.66667,176,128] with #f9f3e9ff
+0004 stroke rect[101.333336,82.66667,176,128] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
+0005 fill rect[194.66667,82.66667,290.6667,128] with #f9f3e9ff
+0006 stroke rect[194.66667,82.66667,290.6667,128] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
+0007 fill rect[101.333336,141.33334,290.6667,178.66667] with #f9f3e9ff
+0008 stroke rect[101.333336,141.33334,290.6667,178.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
 0009 pop
 0010 stroke rect[78.66667,60,316,201.33334] with width=1.3333334 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#1e7a49ff
 0011 stroke rect[192,80,293.33334,130.66667] with width=1.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff

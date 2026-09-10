@@ -3,19 +3,19 @@ section commands count=63
 section paints count=4
 section strokes count=1
 section geometries count=63
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
-0002 stroke outline[0x1 at 44,46.666668,46.666668,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0003 stroke outline[0x2 at 104.26667,46.666668,106.933334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0004 stroke outline[0x3 at 164.53334,46.666668,167.20001,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0005 stroke outline[0x4 at 224.8,46.666668,227.46667,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0006 stroke outline[0x5 at 285.06668,46.666668,287.73334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0007 stroke outline[0x6 at 345.33334,46.666668,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0008 stroke outline[0x7 at 44,46.666668,348,49.333336] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0009 stroke outline[0x8 at 44,85.333336,348,88] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0010 stroke outline[0x9 at 44,124,348,126.66667] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0011 stroke outline[0xa at 44,162.66667,348,165.33334] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
-0012 stroke outline[0xb at 44,201.33334,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0002 stroke outline[0x1 at 44,46.666668,46.666668,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0003 stroke outline[0x2 at 104.26667,46.666668,106.933334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0004 stroke outline[0x3 at 164.53334,46.666668,167.20001,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0005 stroke outline[0x4 at 224.8,46.666668,227.46667,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0006 stroke outline[0x5 at 285.06668,46.666668,287.73334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0007 stroke outline[0x6 at 345.33334,46.666668,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0008 stroke outline[0x7 at 44,46.666668,348,49.333336] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0009 stroke outline[0x8 at 44,85.333336,348,88] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0010 stroke outline[0x9 at 44,124,348,126.66667] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0011 stroke outline[0xa at 44,162.66667,348,165.33334] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
+0012 stroke outline[0xb at 44,201.33334,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#eae3d3ff
 0013 fill rect[105.600006,85.83339,110.933334,87.50005] with #1e7a49ff
 0014 fill rect[116.26667,85.83339,121.600006,87.50005] with #1e7a49ff
 0015 fill rect[126.933334,85.83339,132.26668,87.50005] with #1e7a49ff

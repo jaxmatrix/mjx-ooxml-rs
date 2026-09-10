@@ -2,7 +2,7 @@ display-list page=400x266.6667 scale=1.3333334 bytes=660
 section commands count=13
 section paints count=4
 section geometries count=12
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
 0002 fill rect[45.333336,48,320,54.666668] with #223b3366
 0003 fill rect[45.333336,66.66667,330.6667,73.333336] with #223b3366

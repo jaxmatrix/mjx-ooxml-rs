@@ -24,17 +24,42 @@ fn rendered() -> String {
     page::render(&Tokens::DEFAULTS.clone())
 }
 
+/// Whether `needle` appears in `html` as a **whole identifier** rather than as a substring.
+///
+/// ⚠ **This exists because `d3` is also the tail of a colour, and MJXOFF-271's palette re-seed made
+/// one.** `--theme-light-border-subtle` became `#eae3d3`, and a bare `html.contains("d3")` read the
+/// last two characters of a hexadecimal literal as the D3 charting library and failed. Loosening
+/// the ban would have been the wrong repair — the constraint it enforces is the user's own, *no
+/// JavaScript graphics library* — so the check was made **precise** instead: a library reference is
+/// an identifier with a boundary either side (`d3.select`, `import d3`), and a hex digit run is not.
+fn contains_identifier(html: &str, needle: &str) -> bool {
+    let boundary = |character: Option<char>| {
+        character.is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
+    };
+    let mut from = 0;
+    while let Some(offset) = html[from..].find(needle) {
+        let at = from + offset;
+        let before = html[..at].chars().next_back();
+        let after = html[at + needle.len()..].chars().next();
+        if boundary(before) && boundary(after) {
+            return true;
+        }
+        from = at + needle.len();
+    }
+    false
+}
+
 #[test]
 fn the_page_draws_nothing_of_its_own() {
     let html = rendered();
+    // Markup and member names: these cannot occur inside a token value, so a plain substring is
+    // exactly the right test for them.
     for forbidden in [
         "<canvas",
         "getContext",
         "getImageData",
         "createElementNS",
         "<svg",
-        "d3",
-        "chart",
     ] {
         assert!(
             !html.contains(forbidden),
@@ -44,6 +69,25 @@ fn the_page_draws_nothing_of_its_own() {
              auditing."
         );
     }
+    // Library names, which are identifiers — see `contains_identifier`.
+    for forbidden in ["d3", "chart", "chartjs", "plotly", "echarts"] {
+        assert!(
+            !contains_identifier(&html, forbidden),
+            "the harness page names `{forbidden}`. The document renderer is entirely Rust with no \
+             JavaScript graphics library, and anything the page drew for itself would be a second \
+             renderer nobody is auditing."
+        );
+    }
+    // The check can still fail — proved rather than assumed, because an identifier-aware search
+    // that never matched would pass every page ever written.
+    assert!(
+        contains_identifier("<script>d3.select('#x')</script>", "d3"),
+        "the identifier search must still find a real library reference"
+    );
+    assert!(
+        !contains_identifier("--theme-border-subtle: #eae3d3;", "d3"),
+        "…and must not find one in the tail of a hexadecimal colour"
+    );
     assert!(
         html.contains("id=\"element\""),
         "the page has no element to show"
@@ -135,7 +179,7 @@ fn the_page_is_driven_by_the_generated_tokens() {
         "the page declares {declared} of the platform's {} tokens",
         mjx_tokens::TOKENS.len()
     );
-    // And it *uses* them: a page that declared ninety-two custom properties and then wrote its own
+    // And it *uses* them: a page that declared every custom property and then wrote its own
     // colours would pass the assertion above and be exactly as wrong.
     for used in [
         "var(--theme-light-background)",

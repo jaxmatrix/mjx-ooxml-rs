@@ -11,7 +11,7 @@
 //!
 //! # ⚠ Why this edits the file as text rather than round-tripping it as JSON
 //!
-//! `tokens.json` is *"the ONLY hand-edited artefact in the pipeline"*: 491 lines of grouped,
+//! `tokens.json` is *"the ONLY hand-edited artefact in the pipeline"*: nine hundred lines of grouped,
 //! commented, deliberately laid-out source whose `$description` fields are prose a person wrote.
 //! Parsing it into a generic value tree and printing it back would reformat every line of it, so a
 //! one-character tweak in the harness would arrive as a five-hundred-line diff and the review that
@@ -96,7 +96,7 @@ pub struct Editable {
 
 /// Every token the platform defines, with its current value out of `tokens`.
 ///
-/// Ninety-two of them, derived from [`TOKENS`] rather than listed here: a token added to the source
+/// Derived from [`TOKENS`] rather than listed here: a token added to the source
 /// appears in the editor the moment the generator has run, and one that is removed disappears.
 #[must_use]
 pub fn editable(tokens: &Tokens) -> Vec<Editable> {
@@ -129,6 +129,7 @@ pub fn kind_of(value: &TokenValue) -> &'static str {
         TokenValue::FontStack(_) => "font-stack",
         TokenValue::CubicBezier(_) => "cubic-bezier",
         TokenValue::Shadow(_) => "shadow",
+        TokenValue::Percentage(_) => "percentage",
     }
 }
 
@@ -180,6 +181,24 @@ pub enum WriteBackError {
         /// What `mjx_tokens::check_usage` said, measurement included.
         detail: String,
     },
+    /// The token is derived, so it has no value of its own to type into.
+    ///
+    /// Added by MJXOFF-271, when the source grew a second tier. A derived colour's `$value` is a
+    /// `color-mix()` of the seeds and knobs above it; replacing it with a literal would not be a
+    /// tweak but a **deletion of the derivation**, after which the colour would stop following its
+    /// seed and every later skin change would silently miss it. That is a decision to take in the
+    /// source with the reasoning written down, not one to make by dragging a colour picker.
+    #[error(
+        "`{path}` is derived — it is a `color-mix()` of {seeds}. Editing it here would replace the \
+         expression with a literal and quietly take the token out of the theme; adjust one of \
+         those instead, and every colour mixed from it follows."
+    )]
+    Derived {
+        /// The dotted path of the derived token.
+        path: String,
+        /// The tokens its expression reads, so the panel can offer them.
+        seeds: String,
+    },
     /// The file could not be read or written.
     #[error("{0}")]
     Io(String),
@@ -227,6 +246,14 @@ pub fn rewrite(
             custom_property: custom_property.to_owned(),
         })?;
 
+    // A derived token has no literal to replace; see `WriteBackError::Derived`.
+    if let Some(derivation) = derivation_of(custom_property) {
+        return Err(WriteBackError::Derived {
+            path: identity.path.to_owned(),
+            seeds: describe_seeds(derivation),
+        });
+    }
+
     // **Validated through the platform's own parser**, before a byte is written, and encoded into
     // the shape the token's own `$type` calls for. A value the resolver would reject is a value that
     // breaks `cargo run -p xtask -- tokens` for whoever runs it next, which is a failure a long way
@@ -260,8 +287,8 @@ pub fn rewrite(
 ///
 /// The sweep is over [`TOKENS`] rather than over the edited token, for the reason
 /// [`WriteBackError::Contrast`] gives: the rule binds a **pair**, and either half of a pair can be
-/// the one that moved. Nine of the ninety-two tokens are tagged for text today, so this is nine
-/// walks of a five-hundred-line file — cheaper than the JSON parse this module refuses to do.
+/// the one that moved. It is one pass over the file per token to load the literals, and then
+/// arithmetic — cheaper than the JSON parse this module refuses to do.
 ///
 /// # Errors
 ///
@@ -269,6 +296,20 @@ pub fn rewrite(
 /// a token the generated table has and the file does not, and [`WriteBackError::Malformed`] for a
 /// colour the platform's own parser will not take.
 fn check_contrast(source: &str) -> Result<(), WriteBackError> {
+    let resolved = snapshot_of(source)?;
+    let colour_of = |path: &str| -> Result<Color, WriteBackError> {
+        let identity =
+            mjx_tokens::identity_at(path).ok_or_else(|| WriteBackError::NotInSource {
+                path: path.to_owned(),
+                file: SOURCE.to_owned(),
+            })?;
+        match resolved.custom_property(identity.custom_property) {
+            Some(TokenValue::Color(colour)) => Ok(colour),
+            _ => Err(WriteBackError::Malformed(format!(
+                "`{path}` is not a colour, so a contrast rule cannot be measured against it"
+            ))),
+        }
+    };
     for identity in TOKENS {
         let (Some(usage), Some(background_path)) = (identity.usage, identity.background) else {
             continue;
@@ -276,8 +317,8 @@ fn check_contrast(source: &str) -> Result<(), WriteBackError> {
         if !usage.colours_text() {
             continue;
         }
-        let colour = colour_in_source(source, identity.path)?;
-        let background = colour_in_source(source, background_path)?;
+        let colour = colour_of(identity.path)?;
+        let background = colour_of(background_path)?;
         mjx_tokens::check_usage(usage, colour, background, background_path).map_err(|error| {
             WriteBackError::Contrast {
                 token: identity.path.to_owned(),
@@ -288,41 +329,128 @@ fn check_contrast(source: &str) -> Result<(), WriteBackError> {
     Ok(())
 }
 
-/// How many alias hops [`colour_in_source`] will follow before it calls the chain a cycle.
+/// How many alias hops [`literal_in_source`] will follow before it calls the chain a cycle.
 ///
 /// The source's longest chain is two (`document.light.selection-handle` → `color.green-deep` → a
 /// literal). Eight is generous and finite; the generator refuses a cycle outright and this must
 /// terminate rather than reproduce that analysis.
 const ALIAS_HOPS: usize = 8;
 
-/// The colour `path` resolves to **in this text**, following the W3C alias form.
+/// The whole token set **as this text says it is**, derived tier and all.
 ///
-/// Resolved out of the source being written rather than out of [`Tokens::DEFAULTS`], because the
+/// Built from the source being written rather than taken from [`Tokens::DEFAULTS`], because the
 /// defaults are what the *last* generator run emitted and the question here is whether the file as
 /// it will be on disk is one the *next* run will take. A background the same editing session
 /// changed a minute ago is only visible this way.
-fn colour_in_source(source: &str, path: &str) -> Result<Color, WriteBackError> {
+///
+/// # ⚠ The derived tier is re-derived, never re-implemented
+///
+/// Before MJXOFF-271 this walked the text for one colour, following the W3C alias form. It cannot
+/// do that any more: `theme.light.text-secondary` is tagged for text, and its `$value` is a
+/// `color-mix()` object rather than a colour — as is the background it declares. Rather than teach
+/// this module to evaluate a mix, which would be a **second** `color-mix()` implementation and
+/// therefore the exact divergence the four-artefact pipeline exists to prevent, it loads the
+/// literal **colours and percentages** out of the text and calls `Tokens::rederive`, which is
+/// `mjx_tokens::color_mix` and nothing else.
+///
+/// # Why only those two kinds
+///
+/// They are the only ones a contrast measurement or a derivation can read: a colour is the thing
+/// being measured or mixed, and a percentage is a mix knob. A radius, a duration, a font stack and a
+/// shadow are left at their defaults *deliberately* — loading them would mean parsing a shadow's
+/// `$value`, which is a JSON object and not a CSS shadow, and it would gain nothing measurable. The
+/// first attempt at this loaded everything, fed the shadow's object body to the resolver, and made
+/// the write-back refuse every edit with a message naming a fragment of JSON as a token path. The
+/// suite caught it.
+fn snapshot_of(source: &str) -> Result<Tokens, WriteBackError> {
+    let mut tokens = Tokens::DEFAULTS.clone();
+    for identity in TOKENS {
+        if derivation_of(identity.custom_property).is_some() {
+            // Recomputed below; whatever the file says for it is the *last* run's answer.
+            continue;
+        }
+        match Tokens::DEFAULTS.custom_property(identity.custom_property) {
+            Some(TokenValue::Color(_) | TokenValue::Percentage(_)) => {}
+            _ => continue,
+        }
+        let text = literal_in_source(source, identity.path)?;
+        tokens
+            .set_custom_property(identity.custom_property, &text)
+            .map_err(|error| WriteBackError::Malformed(error.to_string()))?;
+    }
+    tokens.rederive();
+    Ok(tokens)
+}
+
+/// The derivation for one custom property, if it has one.
+fn derivation_of(custom_property: &str) -> Option<&'static mjx_tokens::Derivation> {
+    mjx_tokens::DERIVATIONS
+        .iter()
+        .find(|derivation| derivation.custom_property == custom_property)
+}
+
+/// The tokens a derivation reads, as a readable list for [`WriteBackError::Derived`].
+fn describe_seeds(derivation: &mjx_tokens::Derivation) -> String {
+    let mut named: Vec<&str> = Vec::new();
+    match derivation.source {
+        mjx_tokens::DerivedFrom::Token(custom_property) => named.push(custom_property),
+        mjx_tokens::DerivedFrom::Mix(nodes) => {
+            for node in nodes {
+                for term in [node.first, node.second] {
+                    if let mjx_tokens::MixTerm::Token(custom_property) = term {
+                        named.push(custom_property);
+                    }
+                }
+                for percentage in [node.first_percentage, node.second_percentage] {
+                    if let Some(mjx_tokens::MixPercentage::Token(custom_property)) = percentage {
+                        named.push(custom_property);
+                    }
+                }
+            }
+        }
+    }
+    named.dedup();
+    named
+        .iter()
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The token path a W3C alias names, or `None` when the text is not an alias.
+///
+/// ⚠ **The braces alone are not enough to tell**, and reading them that way was a real defect: a
+/// shadow's `$value` and a `mix` derivation's are both JSON *objects*, so they also begin with `{`
+/// and end with `}`. Treating one as an alias made the write-back refuse every edit with a message
+/// naming a fragment of JSON as a token path. An alias is a dotted path, so it carries no
+/// whitespace and no quotes, and that is what is checked.
+fn alias_target(text: &str) -> Option<&str> {
+    let inner = text.strip_prefix('{')?.strip_suffix('}')?;
+    if inner.is_empty()
+        || inner
+            .chars()
+            .any(|character| character.is_whitespace() || character == '"' || character == '{')
+    {
+        return None;
+    }
+    Some(inner)
+}
+
+/// The literal CSS text `path` resolves to **in this text**, following the W3C alias form.
+fn literal_in_source(source: &str, path: &str) -> Result<String, WriteBackError> {
     let mut at = path.to_owned();
     for _ in 0..ALIAS_HOPS {
         let text = value_text(source, &at).ok_or_else(|| WriteBackError::NotInSource {
             path: at.clone(),
             file: SOURCE.to_owned(),
         })?;
-        match text
-            .strip_prefix('{')
-            .and_then(|rest| rest.strip_suffix('}'))
-        {
+        match alias_target(&text) {
             Some(target) => at = target.to_owned(),
-            None => {
-                let label =
-                    mjx_tokens::identity_at(&at).map_or(at.as_str(), |it| it.custom_property);
-                return mjx_tokens::parse_color(label, &text)
-                    .map_err(|error| WriteBackError::Malformed(error.to_string()));
-            }
+            None => return Ok(text),
         }
     }
     Err(WriteBackError::Malformed(format!(
-        "`{path}` does not resolve to a colour in {ALIAS_HOPS} alias hops, so the source has a \
+        "`{path}` does not resolve to a value in {ALIAS_HOPS} alias hops, so the source has a \
          cycle in it; `cargo run -p xtask -- tokens` names the chain"
     )))
 }
@@ -361,7 +489,7 @@ pub fn write_back(
 ///
 /// The first version of this function looked for `"$value": "…"` and nothing else. That is right for
 /// a colour, a dimension, a duration, a font stack, a shadow and an alias — and wrong for ten
-/// tokens of the ninety-two, which the suite found rather than a reader:
+/// tokens, which the suite found rather than a reader:
 ///
 /// ```text
 /// "medium": { "$value": 500 },              font-weight — a bare number
@@ -369,7 +497,7 @@ pub fn write_back(
 /// "ink":    { "$value": [0.45, 0, 0.2, 1] } ease — an array
 /// ```
 ///
-/// A harness that offered ninety-two controls and could commit eighty-two would be exactly the
+/// A harness that offered a control for every token and could commit only most of them would be exactly the
 /// shape of hole this phase keeps finding: produced, reachable, and silently doing nothing for a
 /// tenth of its surface. So the span is the JSON *value* — quotes included for a string — and
 /// [`json_for`] writes back whichever shape the token's type calls for.
@@ -415,9 +543,21 @@ fn object_of(text: &str, key: &str) -> Option<(usize, usize)> {
         let rest = text[after..].trim_start();
         if rest.starts_with(':') {
             let colon = after + (text[after..].len() - rest.len()) + 1;
-            let open = colon + text[colon..].find('{')?;
-            let close = matching_brace(text, open)?;
-            return Some((open + 1, close));
+            // ⚠ The object has to be the value **immediately** after the colon — whitespace and
+            // nothing else. Searching for the first `{` anywhere after it was a latent defect, and
+            // MJXOFF-271 walked into it: `$extensions.mjx.background` is a key spelled exactly
+            // `"background"`, and its value is an alias such as `"{theme.light.background}"`. So a
+            // walk looking for the `background` *token* matched an earlier token's contrast
+            // metadata, took the `{` from inside that string, and answered with the span of a
+            // token path. It only surfaced when a seed carrying that metadata was declared before
+            // the token of the same name; before that the token always came first, which is why a
+            // wrong reader looked right for two children.
+            let value = text[colon..].trim_start();
+            if value.starts_with('{') {
+                let open = colon + (text[colon..].len() - value.len());
+                let close = matching_brace(text, open)?;
+                return Some((open + 1, close));
+            }
         }
         from = after;
     }
@@ -481,6 +621,30 @@ fn json_value_after(text: &str, key: &str) -> Option<(usize, usize)> {
         b'[' => {
             let close = start + text[start..].find(']')?;
             Some((start, close + 1))
+        }
+        // An **object**: a shadow, or — since MJXOFF-271 — a `{ "mix": [ … ] }` derivation, which
+        // nests. Matched by counting braces rather than by finding the first `}`, because a
+        // derivation's operands are objects too and the first `}` closes one of them.
+        b'{' => {
+            let mut depth = 0_usize;
+            let mut index = start;
+            let mut inside_string = false;
+            while index < text.len() {
+                match bytes[index] {
+                    b'\\' if inside_string => index += 1,
+                    b'"' => inside_string = !inside_string,
+                    b'{' if !inside_string => depth += 1,
+                    b'}' if !inside_string => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return Some((start, index + 1));
+                        }
+                    }
+                    _ => {}
+                }
+                index += 1;
+            }
+            None
         }
         _ => {
             // A bare scalar runs to whatever ends it — and **`text` here is the token's own object

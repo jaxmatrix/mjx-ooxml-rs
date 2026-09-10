@@ -165,16 +165,23 @@ pub fn render(tokens: &Tokens) -> String {
     );
 
     html.push_str(
-        "<h2>Design tokens</h2>\n\
-         <p class=\"note\">Editing a value changes this page <em>and</em> the element, and writes \
-         back to <code>docs/client-platform/data/tokens.json</code>. Run \
-         <code>cargo run -p xtask -- tokens</code> afterwards to carry it into the three generated \
-         artefacts.</p>\n\
-         <label class=\"search\"><span class=\"visually-hidden\">Filter tokens</span>\
-         <input id=\"token-search\" type=\"search\" placeholder=\"Filter 92 tokens…\" \
-         autocomplete=\"off\"></label>\n\
-         <div id=\"tokens\"></div>\n\
-         <p id=\"token-status\" class=\"status\" role=\"status\"></p>\n",
+        // The count is read from the table rather than written here: it was `92` and the token
+        // source has since grown a seed-and-knob tier, so a literal would now be wrong on the page
+        // a person is auditing.
+        &format!(
+            "<h2>Design tokens</h2>\n\
+             <p class=\"note\">Editing a value changes this page <em>and</em> the element, and \
+             writes back to <code>docs/client-platform/data/tokens.json</code>. Run \
+             <code>cargo run -p xtask -- tokens</code> afterwards to carry it into the generated \
+             artefacts. A <em>derived</em> colour has no value of its own to type into — adjust the \
+             seed or knob it is mixed from, and everything mixed from that follows.</p>\n\
+             <label class=\"search\"><span class=\"visually-hidden\">Filter tokens</span>\
+             <input id=\"token-search\" type=\"search\" placeholder=\"Filter {} tokens…\" \
+             autocomplete=\"off\"></label>\n\
+             <div id=\"tokens\"></div>\n\
+             <p id=\"token-status\" class=\"status\" role=\"status\"></p>\n",
+            mjx_tokens::TOKENS.len()
+        ),
     );
     html.push_str("</aside>\n");
     html.push_str("</main>\n");

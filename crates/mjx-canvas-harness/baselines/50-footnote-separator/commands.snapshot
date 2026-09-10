@@ -3,15 +3,15 @@ section commands count=12
 section paints count=4
 section strokes count=1
 section geometries count=12
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
 0002 fill rect[45.333336,37.333336,344,44] with #223b3366
 0003 fill rect[45.333336,56,333.33334,62.666668] with #223b3366
 0004 fill rect[45.333336,74.66667,325.33334,81.333336] with #223b3366
 0005 fill rect[45.333336,93.333336,288,100] with #223b3366
-0006 stroke outline[0x1 at 44,129.33334,145.33334,132] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#5c7168ff
+0006 stroke outline[0x1 at 44,129.33334,145.33334,132] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#5a6c64ff
 0007 fill rect[45.333336,141.33334,298.6667,148] with #223b3366
 0008 fill rect[45.333336,160,242.66667,166.66667] with #223b3366
-0009 stroke outline[0x2 at 44,180,348,182.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#5c7168ff
+0009 stroke outline[0x2 at 44,180,348,182.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#5a6c64ff
 0010 fill rect[45.333336,192,325.33334,198.66667] with #223b3366
 0011 fill rect[45.333336,210.66667,173.33334,217.33334] with #223b3366

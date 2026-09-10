@@ -184,7 +184,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.155"
+version = "0.0.156"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"

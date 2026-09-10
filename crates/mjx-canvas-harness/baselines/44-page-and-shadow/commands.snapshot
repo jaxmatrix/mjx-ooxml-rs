@@ -4,10 +4,10 @@ section paints count=5
 section strokes count=1
 section effects count=1
 section geometries count=6
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 push-effect 0
 0002 fill rect[32,24,368,234.66667] with #ffffffff
-0003 stroke rect[32,24,368,234.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e7e0d2ff
+0003 stroke rect[32,24,368,234.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e3d9c4ff
 0004 pop
 0005 fill rect[64,58.666668,314.6667,65.333336] with #223b3366
 0006 fill rect[64,77.333336,325.33334,84] with #223b3366

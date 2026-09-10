@@ -3,10 +3,10 @@ section commands count=21
 section paints count=5
 section strokes count=2
 section geometries count=12
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
-0002 fill rect[117.333336,77.333336,282.6667,184] with #fbefd8ff
-0003 stroke rect[117.333336,77.333336,282.6667,184] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0002 fill rect[117.333336,77.333336,282.6667,184] with #f9f3e9ff
+0003 stroke rect[117.333336,77.333336,282.6667,184] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
 0004 stroke rect[113.333336,73.333336,286.6667,188] with width=1.3333334 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
 0005 fill rect[108.66667,68.66667,118,78] with #ffffffff
 0006 stroke rect[108.66667,68.66667,118,78] with width=1.3333334 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff

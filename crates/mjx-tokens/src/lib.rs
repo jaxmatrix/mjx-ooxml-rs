@@ -6,13 +6,23 @@
 //! property**. Selection handles, alignment guides, rulers and marching ants are drawn by the
 //! renderer, not by the browser, so they can only match the application around them if the same
 //! token values reach both. One source — `docs/client-platform/data/tokens.json` — is therefore
-//! generated into three artefacts by `cargo run -p xtask -- tokens`:
+//! generated into four artefacts by `cargo run -p xtask -- tokens`:
 //!
 //! | Artefact | Consumer |
 //! |---|---|
 //! | `ui/tokens/tokens.css` | the Web-Component chrome, as custom properties |
+//! | `ui/tokens/derivations.css` | the cascade, as the `color-mix()` the derived tier came from |
 //! | `ui/tokens/tokens.ts` | the shell's own logic, as typed constants |
 //! | `crates/mjx-tokens/src/generated.rs` | this crate, as [`Tokens`] and [`Tokens::DEFAULTS`] |
+//!
+//! # Two tiers, and one `color-mix()`
+//!
+//! The source (MJXOFF-271) is layered rather than flat, and it is layered the way the application
+//! this platform embeds into is: a handful of **seeds** and **knobs** that a host overrides, and a
+//! **derived** tier mixed from them. Dark mode is the same expressions over different seeds, not a
+//! second palette. [`color_mix`] is the only implementation of `color-mix(in srgb, …)` this project
+//! owns; the browser's is the other party, and `ui/tokens/chromium-agreement.mjs` asserts that the
+//! two agree for every derived token in both schemes rather than trusting that they do.
 //!
 //! The generated file is **committed**, never produced by a `build.rs` — the same doctrine
 //! `mjx-ooxml-types` follows, and for the same reasons: a generated file nobody can read in review
@@ -20,11 +30,12 @@
 //!
 //! # The resolution order
 //!
-//! [`resolve`] layers three sources, in this order:
+//! [`resolve`] layers four steps, in this order:
 //!
 //! 1. **explicit configuration** — what the embedding application passed in;
 //! 2. **host-supplied overrides** — the CSS custom properties read off the host element;
-//! 3. **generated defaults** — [`Tokens::DEFAULTS`].
+//! 3. **generated defaults** — [`Tokens::DEFAULTS`];
+//! 4. **derivation** — every derived colour recomputed from whichever seeds and knobs won.
 //!
 //! That order is what makes *"if tokens are set, adopt them"* true. Dropping the platform into a
 //! host that already declares `--color-paper` re-themes it with no code change, because the
@@ -204,6 +215,34 @@ impl fmt::Display for Duration {
     }
 }
 
+/// A percentage, held as the number CSS writes before the `%`.
+///
+/// The design-token source uses these for the **mix knobs** — `--theme-mix-chrome: 92%`,
+/// `--theme-fill-primary-accent-mix: 16%` — the tier a host turns to re-shape every derived
+/// surface at once. It is a type of its own rather than an `f32` because `92` and `92%` are
+/// different CSS values, and a knob that reached a stylesheet without its unit would make the
+/// `color-mix()` around it *invalid* rather than merely wrong, which is a failure that shows up as
+/// an unstyled surface a long way from the token.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Percentage {
+    /// The number before the `%`: `92` for `92%`.
+    pub value: f32,
+}
+
+impl Percentage {
+    /// The fraction this percentage is of one: `0.92` for `92%`.
+    #[must_use]
+    pub fn as_fraction(self) -> f64 {
+        f64::from(self.value) / 100.0
+    }
+}
+
+impl fmt::Display for Percentage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}%", css_number(self.value))
+    }
+}
+
 /// A CSS `cubic-bezier` easing curve: the two control points, with `(0, 0)` and `(1, 1)` implied.
 ///
 /// `x1`/`y1`/`x2`/`y2` are CSS's own names for them, which is the one place in this crate where a
@@ -307,7 +346,7 @@ impl fmt::Display for Shadow {
 }
 
 /// One token's value, whatever its type — what [`Tokens::custom_property`] answers with, and the
-/// form in which a token can be compared across the three artefacts.
+/// form in which a token can be compared across the artefacts.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenValue {
     /// A colour.
@@ -326,11 +365,13 @@ pub enum TokenValue {
     CubicBezier(CubicBezier),
     /// A drop shadow.
     Shadow(Shadow),
+    /// A percentage — one of the mix knobs a derivation reads.
+    Percentage(Percentage),
 }
 
 impl fmt::Display for TokenValue {
     /// The value as CSS text — byte for byte what `tokens.css` declares for it, which is what
-    /// makes the three artefacts comparable at all.
+    /// makes the artefacts comparable at all.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Color(value) => value.fmt(formatter),
@@ -341,6 +382,7 @@ impl fmt::Display for TokenValue {
             Self::FontStack(value) => value.fmt(formatter),
             Self::CubicBezier(value) => value.fmt(formatter),
             Self::Shadow(value) => value.fmt(formatter),
+            Self::Percentage(value) => value.fmt(formatter),
         }
     }
 }
@@ -516,6 +558,22 @@ impl FromCss for f32 {
     }
 }
 
+impl FromCss for Percentage {
+    const EXPECTED: &'static str = "a percentage";
+
+    fn from_css(text: &str) -> Result<Self, String> {
+        let number = text
+            .strip_suffix('%')
+            .ok_or_else(|| "it does not end in `%`".to_owned())?;
+        let number = number.trim();
+        Ok(Self {
+            value: number
+                .parse()
+                .map_err(|_| format!("`{number}` is not a number"))?,
+        })
+    }
+}
+
 impl FromCss for u16 {
     const EXPECTED: &'static str = "a font weight";
 
@@ -631,6 +689,12 @@ pub enum TokenSource {
     ExplicitConfiguration,
     /// It was read off the host element as a CSS custom property.
     HostCustomProperty,
+    /// Nobody set it, but a seed or a knob it is derived from *was*, so it was recomputed by
+    /// [`Tokens::rederive`] and no longer holds its generated default.
+    ///
+    /// This is the step that makes a two-tier source worth having: a host that sets one seed
+    /// re-themes every colour mixed from it, and this says which those were.
+    Derivation,
     /// Nobody overrode it, so it is [`Tokens::DEFAULTS`].
     GeneratedDefault,
 }
@@ -750,7 +814,352 @@ pub fn resolve<'a>(
         resolution.record(identity.custom_property, TokenSource::ExplicitConfiguration);
     }
 
+    // The fourth step: every derived colour is recomputed from whichever seeds and knobs won
+    // above — except the ones somebody set directly, which are an answer and not an input.
+    let set_directly: Vec<&'static str> =
+        resolution.overrides.iter().map(|(name, _)| *name).collect();
+    let before = resolution.tokens.clone();
+    resolution.tokens.rederive_except(&set_directly);
+    for derivation in DERIVATIONS {
+        if set_directly.contains(&derivation.custom_property) {
+            continue;
+        }
+        // Recorded only when it actually moved: a derivation that lands back on its generated
+        // default *is* its generated default, and saying otherwise would make `overrides()`
+        // report the whole derived tier on every resolve.
+        if before.custom_property(derivation.custom_property)
+            != resolution
+                .tokens
+                .custom_property(derivation.custom_property)
+        {
+            resolution.record(derivation.custom_property, TokenSource::Derivation);
+        }
+    }
+
     Ok(resolution)
+}
+
+// -------------------------------------------------------------------------------------------
+// Derivation — CSS `color-mix(in srgb, …)`, and the one implementation of it
+// -------------------------------------------------------------------------------------------
+
+/// **CSS `color-mix(in srgb, …)`, and the only implementation of it this project owns**
+/// (MJXOFF-271).
+///
+/// The token source has two tiers: literal *seeds and knobs*, and *derived* colours expressed as a
+/// mix of them. `ui/tokens/derivations.css` hands the derivation to the browser as a literal
+/// `color-mix()` so that a host overriding a seed re-themes the chrome through the cascade with no
+/// code; the Rust canvas cannot inherit a custom property, so it evaluates the same expression
+/// here. Those are two *evaluators* — ours and Chromium's — and exactly one of them is ours.
+/// `ui/tokens/chromium-agreement.mjs` asserts they agree for every derived token, in both schemes,
+/// against Chromium's own `getComputedStyle`.
+///
+/// # The two behaviours that are easy to get wrong
+///
+/// Both were measured in Chromium before this was written, and both are in the CSS Color 5
+/// definition rather than being quirks:
+///
+/// 1. **`color-mix(in srgb, C p%, transparent)` is an alpha operation, not a colour blend.**
+///    `transparent` is `rgba(0, 0, 0, 0)`, and because mixing is done on *premultiplied* channels
+///    its zero alpha contributes no colour at all — the result is `C`'s own channels at `p%`
+///    alpha, never `C` darkened toward black. The token source uses that form constantly, and an
+///    implementation that mixed un-premultiplied would darken every translucent stroke.
+/// 2. **Percentages that do not sum to 100% renormalise.** The two weights are scaled to sum to
+///    one, and if the *declared* sum was below 100% the result's alpha is scaled by that shortfall.
+///    So `color-mix(in srgb, A 20%, B 20%)` is a half-and-half mix at 40% alpha, not a mix that
+///    quietly leaves 60% of something behind.
+///
+/// # Precision, and why it is not a detail
+///
+/// A browser evaluates a whole nested expression in floating point and quantises once, when it
+/// paints. An implementation that rounded to eight bits at every token boundary would differ from
+/// it by a step on any expression more than one mix deep — which is not a rounding curiosity but a
+/// visible seam where a chrome border meets a canvas border. So the arithmetic is
+/// [`color_mix_exact`] over [`ExactColor`] and this is the one-mix convenience over it;
+/// [`Tokens::rederive`] carries the exact value between derivations and quantises only what it
+/// stores. `ui/tokens/chromium-agreement.mjs` caught exactly this, on five tokens, before it was
+/// fixed.
+///
+/// Returns `None` only when both percentages are zero, which CSS calls invalid rather than
+/// defining a colour for.
+#[must_use]
+pub fn color_mix(
+    first: Color,
+    first_percentage: Option<Percentage>,
+    second: Color,
+    second_percentage: Option<Percentage>,
+) -> Option<Color> {
+    color_mix_exact(
+        first.to_exact(),
+        first_percentage,
+        second.to_exact(),
+        second_percentage,
+    )
+    .map(Color::from_exact)
+}
+
+/// A colour part-way through a `color-mix()`: sRGB channels in `0.0..=255.0` and alpha in
+/// `0.0..=1.0`, unrounded.
+///
+/// It exists so a nested expression is evaluated the way a browser evaluates it — once, in
+/// floating point — rather than quantised at every step. See [`color_mix`].
+pub type ExactColor = [f64; 4];
+
+impl Color {
+    /// This colour as an [`ExactColor`].
+    #[must_use]
+    pub fn to_exact(self) -> ExactColor {
+        [
+            f64::from(self.red),
+            f64::from(self.green),
+            f64::from(self.blue),
+            f64::from(self.alpha) / 255.0,
+        ]
+    }
+
+    /// An [`ExactColor`] quantised to eight bits a channel — what a painter, a stylesheet and the
+    /// generated table all carry.
+    #[must_use]
+    pub fn from_exact(exact: ExactColor) -> Self {
+        // Each channel is a convex combination of values in `0..=255`, so the rounded and clamped
+        // result fits a `u8`; the clamp is belt and braces against a denormal reaching this.
+        let byte = |value: f64| value.round().clamp(0.0, 255.0) as u8;
+        Self {
+            red: byte(exact[0]),
+            green: byte(exact[1]),
+            blue: byte(exact[2]),
+            alpha: byte(exact[3] * 255.0),
+        }
+    }
+}
+
+/// [`color_mix`] without the quantisation — the arithmetic itself, and the only statement of it.
+#[must_use]
+pub fn color_mix_exact(
+    first: ExactColor,
+    first_percentage: Option<Percentage>,
+    second: ExactColor,
+    second_percentage: Option<Percentage>,
+) -> Option<ExactColor> {
+    let clamp = |percentage: Percentage| f64::from(percentage.value).clamp(0.0, 100.0);
+    let (first_weight, second_weight) = match (first_percentage, second_percentage) {
+        (None, None) => (50.0, 50.0),
+        (Some(first), None) => (clamp(first), 100.0 - clamp(first)),
+        (None, Some(second)) => (100.0 - clamp(second), clamp(second)),
+        (Some(first), Some(second)) => (clamp(first), clamp(second)),
+    };
+    let sum = first_weight + second_weight;
+    if sum <= 0.0 {
+        return None;
+    }
+    // Below 100% the shortfall becomes transparency; at or above it, only the ratio matters.
+    let alpha_multiplier = if sum < 100.0 { sum / 100.0 } else { 1.0 };
+    let first_weight = first_weight / sum;
+    let second_weight = second_weight / sum;
+
+    let first_alpha = first[3];
+    let second_alpha = second[3];
+    let alpha = first_alpha.mul_add(first_weight, second_alpha * second_weight);
+
+    let channel = |at: usize| -> f64 {
+        if alpha == 0.0 {
+            return 0.0;
+        }
+        // Premultiplied, which is what makes `transparent` an alpha operation rather than a blend
+        // toward black.
+        let premultiplied = first[at].mul_add(
+            first_alpha * first_weight,
+            second[at] * second_alpha * second_weight,
+        );
+        premultiplied / alpha
+    };
+
+    Some([channel(0), channel(1), channel(2), alpha * alpha_multiplier])
+}
+
+/// One side of a [`MixNode`]: what colour is being mixed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MixTerm {
+    /// A colour written out in the source.
+    Literal(Color),
+    /// Another token, named by **its own** custom property — `--theme-light-midground`, never the
+    /// scheme-relative alias.
+    ///
+    /// The alias is what `ui/tokens/derivations.css` writes, because a stylesheet has to work in
+    /// whichever scheme is in force; this table is evaluated by a renderer that already knows which
+    /// scheme it is painting, and a name that changed meaning underneath it would be a scheme bug
+    /// with no symptom until the theme was switched. Both names come from one model in the
+    /// generator, so they cannot describe different expressions.
+    Token(&'static str),
+    /// CSS's `transparent`, which is `rgba(0, 0, 0, 0)` — see [`color_mix`] for why that is an
+    /// alpha operation and not a blend toward black.
+    Transparent,
+    /// A nested `color-mix()`, by index into the same [`DerivedFrom::Mix`] node table.
+    Nested(usize),
+}
+
+/// One side's percentage: a number in the source, or one of the mix-knob tokens.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MixPercentage {
+    /// Written out in the source.
+    Fixed(Percentage),
+    /// A percentage token, by the custom property it is read through.
+    Token(&'static str),
+}
+
+/// One `color-mix(in srgb, first p%, second q%)`.
+///
+/// There is no colour-space field: the source states `srgb` once, in this crate's documentation,
+/// and a second space would be a second set of numbers for the four artefacts to disagree about.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MixNode {
+    /// The first colour.
+    pub first: MixTerm,
+    /// Its percentage, or `None` when the source left it to CSS's default.
+    pub first_percentage: Option<MixPercentage>,
+    /// The second colour.
+    pub second: MixTerm,
+    /// Its percentage, or `None`.
+    pub second_percentage: Option<MixPercentage>,
+}
+
+/// Where a derived token's value comes from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DerivedFrom {
+    /// Another token, which is itself derived. A token that merely *names* a derived one stays a
+    /// name rather than a second copy of the expression, so the two cannot come apart.
+    Token(&'static str),
+    /// A `color-mix()` expression tree; the **last** node is the root, because the reader appends
+    /// operands before the node that consumes them.
+    Mix(&'static [MixNode]),
+}
+
+/// One derived token: the custom property it produces and where its value comes from.
+///
+/// [`DERIVATIONS`] is the whole table, in the order the generator emitted it — which is a
+/// topological order the generator *checks*, so [`Tokens::rederive`] can evaluate it in one
+/// forward pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Derivation {
+    /// The CSS custom property this derivation produces, e.g. `--theme-light-background`.
+    pub custom_property: &'static str,
+    /// Where its value comes from.
+    pub source: DerivedFrom,
+}
+
+impl Tokens {
+    /// Re-evaluates every derived token from whatever seeds and knobs this set now carries.
+    ///
+    /// This is the fourth step of the resolution order — *explicit configuration → host property →
+    /// **derivation from whichever seeds won** → generated default*. [`resolve`] runs it for you;
+    /// it is public because an application that mutates a seed directly needs the same step, and
+    /// because leaving it implicit is how a host override would re-theme the chrome and not the
+    /// canvas.
+    ///
+    /// Evaluation is one forward pass over [`DERIVATIONS`]: the generator refuses to emit a
+    /// derivation that reads a token declared after it, so a derived token that feeds another has
+    /// already been rewritten by the time the second is reached.
+    pub fn rederive(&mut self) {
+        self.rederive_except(&[]);
+    }
+
+    /// [`rederive`](Self::rederive), leaving the named custom properties alone.
+    ///
+    /// A host that overrode a derived colour *directly* meant that colour, not the expression it
+    /// would otherwise have had — so re-deriving over it would silently discard the override, and
+    /// the theme would be half-applied with nothing to point at.
+    pub fn rederive_except(&mut self, keep: &[&str]) {
+        // The exact result of every derivation evaluated in this pass, so that a derivation reading
+        // another gets the browser's answer rather than a value already rounded to eight bits. See
+        // `color_mix`: quantising at every token boundary put five tokens a step away from
+        // Chromium, and a border is where that step shows.
+        let mut exact: Vec<(&'static str, ExactColor)> = Vec::new();
+        for derivation in DERIVATIONS {
+            if keep.contains(&derivation.custom_property) {
+                continue;
+            }
+            let evaluated = match derivation.source {
+                DerivedFrom::Token(custom_property) => self.exact_at(&exact, custom_property),
+                DerivedFrom::Mix(nodes) => self.evaluate_mix(&exact, nodes, nodes.len() - 1),
+            };
+            let Some(color) = evaluated else {
+                continue;
+            };
+            exact.push((derivation.custom_property, color));
+            // The generator only emits a derivation for a token whose value is a colour, so this
+            // is a colour token and the write cannot fail on a type mismatch.
+            let _ = self.set_custom_property(
+                derivation.custom_property,
+                &Color::from_exact(color).to_string(),
+            );
+        }
+    }
+
+    fn evaluate_mix(
+        &self,
+        exact: &[(&'static str, ExactColor)],
+        nodes: &[MixNode],
+        at: usize,
+    ) -> Option<ExactColor> {
+        let node = nodes.get(at)?;
+        color_mix_exact(
+            self.mix_term(exact, nodes, node.first)?,
+            self.mix_percentage(node.first_percentage)?,
+            self.mix_term(exact, nodes, node.second)?,
+            self.mix_percentage(node.second_percentage)?,
+        )
+    }
+
+    fn mix_term(
+        &self,
+        exact: &[(&'static str, ExactColor)],
+        nodes: &[MixNode],
+        term: MixTerm,
+    ) -> Option<ExactColor> {
+        match term {
+            MixTerm::Literal(color) => Some(color.to_exact()),
+            MixTerm::Transparent => Some([0.0, 0.0, 0.0, 0.0]),
+            MixTerm::Nested(at) => self.evaluate_mix(exact, nodes, at),
+            MixTerm::Token(custom_property) => self.exact_at(exact, custom_property),
+        }
+    }
+
+    /// The exact value of one token: what this pass computed for it if it is itself derived, and
+    /// the stored eight-bit colour otherwise.
+    fn exact_at(
+        &self,
+        exact: &[(&'static str, ExactColor)],
+        custom_property: &str,
+    ) -> Option<ExactColor> {
+        if let Some((_, value)) = exact.iter().find(|(name, _)| *name == custom_property) {
+            return Some(*value);
+        }
+        self.color_at(custom_property).map(Color::to_exact)
+    }
+
+    /// The colour a token custom property holds, or `None` when it is not a colour token.
+    fn color_at(&self, custom_property: &str) -> Option<Color> {
+        match self.custom_property(custom_property)? {
+            TokenValue::Color(color) => Some(color),
+            _ => None,
+        }
+    }
+
+    /// `None` means *the source wrote no percentage*, which CSS reads as a default rather than as
+    /// a failure — so an absent percentage and an unreadable one must not be confused, and the
+    /// outer `Option` is what keeps them apart.
+    fn mix_percentage(&self, percentage: Option<MixPercentage>) -> Option<Option<Percentage>> {
+        match percentage {
+            None => Some(None),
+            Some(MixPercentage::Fixed(value)) => Some(Some(value)),
+            Some(MixPercentage::Token(custom_property)) => {
+                match self.custom_property(custom_property)? {
+                    TokenValue::Percentage(value) => Some(Some(value)),
+                    _ => None,
+                }
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1016,7 +1425,7 @@ pub fn parse_color(custom_property: &str, text: &str) -> Result<Color, TokenErro
 // Shared rendering and parsing helpers
 // -------------------------------------------------------------------------------------------
 
-/// A number as CSS writes it, and as all three artefacts must agree it is written.
+/// A number as CSS writes it, and as every artefact must agree it is written.
 ///
 /// Rust's shortest round-tripping `f32` form is already CSS-legal (`1.25`, `0.875`, `18`); the one
 /// case it gets wrong for a stylesheet is `-0`, which is a value no design token has and a
@@ -1070,7 +1479,10 @@ mod tests {
     #[test]
     fn the_generated_defaults_carry_the_measured_allr_values() {
         let tokens = Tokens::DEFAULTS;
-        assert_eq!(tokens.color.paper.to_string(), "#fdfcf9");
+        // Re-seeded by MJXOFF-271 from hermes-universal's `allr` skin, which is the same brand as
+        // DESIGN_TOKENS.md §1 measured from the marketing site and is the value the surrounding
+        // application actually paints.
+        assert_eq!(tokens.color.paper.to_string(), "#fbf8f2");
         assert_eq!(tokens.color.green.to_string(), "#2e9e63");
         assert_eq!(tokens.color.green_deep.to_string(), "#1e7a49");
         assert_eq!(tokens.radius.card.to_string(), "16px");
@@ -1210,6 +1622,149 @@ mod tests {
                 .unwrap_or_else(|| panic!("`{}` has a value", identity.custom_property));
             assert_eq!(before, after, "`{}` did not round-trip", identity.path);
         }
+    }
+
+    /// The measurement the whole derived tier rests on: mixing toward `transparent` is an **alpha**
+    /// operation, not a blend toward black.
+    ///
+    /// `color-mix(in srgb, C 18%, transparent)` is `rgba(C.rgb, 0.18)` in Chromium, and an
+    /// implementation that mixed un-premultiplied would darken `C` toward black instead — which
+    /// would be wrong for every translucent token in the source and wrong in a way that still looks
+    /// like a colour.
+    #[test]
+    fn mixing_toward_transparent_changes_the_alpha_and_not_the_colour() {
+        let green = Color {
+            red: 0x2e,
+            green: 0x9e,
+            blue: 0x63,
+            alpha: 0xff,
+        };
+        let transparent = Color {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 0,
+        };
+        let mixed = color_mix(green, Some(Percentage { value: 18.0 }), transparent, None)
+            .expect("18% and 82% is a legal mix");
+        assert_eq!(mixed.red, green.red);
+        assert_eq!(mixed.green, green.green);
+        assert_eq!(mixed.blue, green.blue);
+        assert_eq!(mixed.alpha, 0x2e, "0.18 × 255 rounds to 46");
+    }
+
+    /// The second measurement: percentages that do not sum to 100% renormalise, and the shortfall
+    /// becomes transparency rather than being quietly dropped.
+    #[test]
+    fn percentages_that_do_not_sum_to_a_hundred_renormalise() {
+        let black = Color {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 0xff,
+        };
+        let white = Color {
+            red: 0xff,
+            green: 0xff,
+            blue: 0xff,
+            alpha: 0xff,
+        };
+        let mixed = color_mix(
+            black,
+            Some(Percentage { value: 20.0 }),
+            white,
+            Some(Percentage { value: 20.0 }),
+        )
+        .expect("40% in total is legal");
+        assert_eq!(
+            (mixed.red, mixed.green, mixed.blue),
+            (128, 128, 128),
+            "the two weights are scaled to a half each"
+        );
+        assert_eq!(
+            mixed.alpha, 102,
+            "and the 60% shortfall becomes transparency: 0.4 × 255"
+        );
+        assert_eq!(
+            color_mix(
+                black,
+                Some(Percentage { value: 0.0 }),
+                white,
+                Some(Percentage { value: 0.0 })
+            ),
+            None,
+            "two zero percentages is invalid in CSS rather than a colour"
+        );
+    }
+
+    /// Every derived token in the committed table really is what its own derivation produces.
+    ///
+    /// This is the arithmetic half of the agreement gate: `ui/tokens/chromium-agreement.mjs` proves
+    /// the derivations mean the same thing to a browser, and this proves the committed values were
+    /// not written by hand beside them.
+    #[test]
+    fn rederiving_the_defaults_reproduces_the_committed_values() {
+        assert!(
+            DERIVATIONS.len() >= 10,
+            "the derived tier has only {} tokens, which cannot be this source",
+            DERIVATIONS.len()
+        );
+        let mut tokens = Tokens::DEFAULTS.clone();
+        tokens.rederive();
+        assert_eq!(
+            tokens,
+            Tokens::DEFAULTS,
+            "re-deriving the shipped seeds must land exactly on the shipped values"
+        );
+    }
+
+    /// And it can move: one overridden seed re-themes everything mixed from it, which is the whole
+    /// reason the source has two tiers.
+    #[test]
+    fn overriding_one_seed_re_derives_everything_mixed_from_it() {
+        let resolved = resolve([], [("--theme-light-midground", "#0000ff")]).expect("a colour");
+        let moved: Vec<&str> = resolved
+            .overrides()
+            .filter(|(_, source)| *source == TokenSource::Derivation)
+            .map(|(name, _)| name)
+            .collect();
+        assert!(
+            moved.contains(&"--theme-light-border"),
+            "the ring colour feeds the border: {moved:?}"
+        );
+        assert!(
+            moved.contains(&"--document-light-page-border"),
+            "and the page border follows the chrome's, which is the seam that matters: {moved:?}"
+        );
+        assert_ne!(
+            resolved.tokens().theme.light.border,
+            Tokens::DEFAULTS.theme.light.border
+        );
+        assert_eq!(
+            resolved.tokens().theme.light.border,
+            resolved.tokens().document.light.page_border,
+            "chrome and canvas must not disagree about the one colour they share"
+        );
+        // A token nothing mixes from the overridden seed keeps its default.
+        assert_eq!(
+            resolved.tokens().theme.dark.border,
+            Tokens::DEFAULTS.theme.dark.border
+        );
+    }
+
+    /// A derived colour a host set **directly** is an answer, not an input — re-deriving over it
+    /// would discard the override and leave the theme half-applied.
+    #[test]
+    fn a_directly_overridden_derived_colour_survives_re_derivation() {
+        let resolved = resolve([("--theme-light-background", "#123456")], []).expect("a colour");
+        assert_eq!(
+            resolved.tokens().theme.light.background.to_string(),
+            "#123456"
+        );
+        assert_eq!(
+            resolved.source_of("--theme-light-background"),
+            Some(TokenSource::ExplicitConfiguration)
+        );
     }
 
     #[test]
