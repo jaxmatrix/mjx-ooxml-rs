@@ -1777,6 +1777,131 @@ of somebody else's reference entries into a component library would be a large, 
 `tests/formula.test.ts` asserts the *shape* of a signature rather than describing it, so a `compute`
 or an `evaluate` appearing on one is a failing test.
 
+## Annotation (MJXOFF-193)
+
+`src/annotation/` holds the four components review is made of — `<mjx-comment-card>`,
+`<mjx-comment-thread>`, `<mjx-tracked-change-card>` and `<mjx-review-pane>` — and the one component
+in this catalogue **whose layout is a function of geometry the canvas owns.** Open
+`Annotation/Review Pane → Anchors A Few Lines Apart` first, and click the cards.
+
+```html
+<mjx-review-pane label="Comments" side="inlineStart"></mjx-review-pane>
+<script>
+  document.querySelector('mjx-review-pane').annotations = [
+    { id: 'c1', kind: 'comment', model: 'threaded', author: 'Ada Lovelace',
+      time: '10:15', text: 'Should this be the 1843 figure?', anchorTop: 300,
+      replies: [{ id: 'r1', author: 'Charles Babbage', time: '10:22', text: 'It should.' }] },
+  ];
+</script>
+```
+
+### The margin packing problem, and why a stack is not it
+
+Cards want to sit beside their anchors; several anchors can be within a few lines of each other; and
+cards must not overlap. That is **one-dimensional packing with preferred positions**, and the
+ticket's trap is that it is invisible on the fixture anybody would write:
+
+> The margin packing problem does not appear with well-spaced anchors — and a simple stacked list
+> looks identical and correct there.
+
+Sort by anchor, subtract each card's cumulative stack offset, and *no overlap* becomes *z is
+non-decreasing*. Minimising the squared distance from the preferred positions under that constraint
+is **isotonic regression**, which `packMarginCards` solves exactly with pool-adjacent-violators in
+one pass — no iteration, no tolerance. Two things fall out of the transform rather than being coded:
+the column's bounds are a **uniform box in z** even though they are not in y, so the bounded answer
+is the unbounded one clamped; and pinning the selected card **splits the problem in two**, so *the
+selected card takes its preferred position and the others yield around it* is a property of the
+decomposition rather than a special case.
+
+Three gates hold it, and the second is the one that matters:
+
+| Gate | Says |
+|---|---|
+| `leaves no overlap` | what a stack also satisfies, which is why it is not enough |
+| `places every card as near its anchor as packing allows` | the layout **equals an independent optimum** computed by enumerating every block structure and taking the cheapest feasible one — an algorithm with nothing in common with PAVA |
+| `a simple stack is worse` | `stackMarginCards` is **shipped beside** the real one and costs more on the tight fixture, and cannot hold the pin |
+
+And the fixture is asserted to be tight (`the tight fixture really is tight`), because a later child
+who spreads those anchors out would silently turn the whole suite into a test of nothing.
+
+⚠ **The column's own top wins over the pin, and that is not a rounding case.** Seven cards are about
+seven hundred pixels tall and the last anchor is 388 into the document, so holding *it* at its anchor
+would need six cards above the column's beginning. The packer moves it and says so; it does not
+overlap. There is a test named for that.
+
+### Author colours: searched for, not chosen
+
+Eight hues evenly spaced around the wheel — the answer everyone writes — are **9.15 apart in
+CIEDE2000 to a normal-vision reader and 0.00 apart under simulated deuteranopia**: the first two
+simulate to the same byte. So `authorColourSlots` was searched over the whole brand palette,
+maximising the smallest distance across normal vision and all three dichromacies at once, and the
+gate re-runs that measurement rather than trusting the table. The light set clears the floor at 6.17
+and the dark set at 7.16; the naive rotation is asserted to **fail** the same gate.
+
+`dev/colour-vision.ts` is the instrument: Viénot, Brettel & Mollon's projection in **linear** sRGB
+(projecting gamma-encoded channels is the commonest way to get a plausible wrong answer), and a full
+CIEDE2000 checked against **nine rows of Sharma, Wu & Dalal's published test data**.
+
+Three consequences worth knowing before touching any of it:
+
+* **A slot is two tokens**, exactly as MJXOFF-192's reference colours are. `color.ink` is 11.88 : 1
+  on the light surface and **1.00 : 1** on the dark one, because the dark surface *is* `color.ink`.
+* **An author colour is never a text colour.** The palette contains six colours that reach 4.5 : 1 on
+  the light surface and two of them are the same green, so eight author-coloured *names* do not exist
+  to be chosen. The colour is a band and a dot — a delineated area — and the name beside it is
+  ordinary `text-primary`. `authorColourVisibilityMinimum` is 2 : 1 for that reason, and it is a
+  measurement: **no eight-colour subset of this palette reaches 2.5 : 1** on the light surface.
+* **Assignment is by first appearance, never by hash.** With eight slots and eight authors a hash
+  collides with probability 1 − 8!/8⁸ = 99.76%. `dev/colour-vision.ts` ships `naiveHashSlot` and the
+  gate measures the collision rate over it. The cost is stated rather than hidden: a colour is stable
+  *for a document*, not across documents, and nothing short of a presence layer can do better.
+
+### A feed, not a list
+
+The column is `role="feed"` and every card — and every reply inside a thread — is `role="article"`
+with `aria-posinset` and `aria-setsize`. A `list` would have announced *"list, 9 items"* on a
+document with 300 comments, because that is how many are in the DOM; the feed says *"4 of 300"*. The
+keyboard is the feed pattern's (Page Up/Down, Control + Home/End) plus arrow-key aliases for readers
+arriving from Office.
+
+⚠ **Focus returns to the feed when a card is recycled.** A scroll can take the focused card out of
+the window, and removing a focused element sends focus to `<body>` — at which point the feed's key
+handling is silently over, because events no longer reach the column. It looks exactly like a
+keyboard that stopped working for no reason.
+
+### Both comment models, and the affordances one of them cannot have
+
+A legacy `w:comment` has no `commentsExtended` entry: no parent, no children, no `done` flag. So the
+legacy card has **no reply button and no resolve button at all** — not disabled ones, because a
+disabled control says *not now* and the truth is *not ever, in this file format*. The difference is
+visible (squarer, dashed) **and** audible (a *note*, versus a *conversation*), and the gate asserts
+both, because a visual difference nobody can hear is a difference only some readers get.
+
+### The connector contract
+
+Each card reports its anchor (`anchorReport()`, `mjx-annotation-anchor`) and the pane aggregates
+(`mjx-annotation-anchors`) for **every** annotation, built or not — the canvas draws a line to a card
+that has scrolled out of view as readily as to one on screen. **The line itself is inventory entry 54
+and is canvas, not chrome.** `Annotation/Review Pane → The Connector Contract` shows the payload.
+
+### Virtualisation, and the route that was not taken
+
+`reviewWindow` is `windowForOffset` over an `ExtentTable` built from the packed layout, with each
+card's extent taken to include the gap beneath it. It deliberately does **not** go through
+`<mjx-virtual-list>`'s `VirtualScroller`: that class owns a DOM contract — two spacers and a run of
+contiguous rows — which packed cards cannot honour, since a packed card sits at an absolute offset
+with a gap of its own. U13 found the right route can be transitive; this is the mirror case, where
+the transitive route is the wrong one and the foundation is the right one.
+
+### The sheet
+
+Below `reviewSheetAtOrBelow` (an alias of `phoneShellAtOrBelow`, asserted) the pane becomes a sheet
+listing annotations in flow. Packing does not merely switch off — it stops meaning anything, because
+there is no margin for a card to sit beside — and **every card is built**, since a virtualised flow
+layout would be a list whose scroll height was written by an arithmetic that no longer described it.
+The gate reads the presentation property *and* three facts it does not control: a card's `position`,
+the handle's `display`, and the built-card count.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -1882,3 +2007,15 @@ or an `evaluate` appearing on one is a failing test.
 * **A backtick inside a CSS comment ends the template literal it is in.** `surface-model.ts` records
   this having cost it a build; it has now cost two, in the same way, in a paragraph explaining a
   colour choice.
+* **A container's own scroll height decides how much of a cluster you can see, so a DOM-level
+  overlap assertion on a margin column is an assertion about two cards, not seven.** MJXOFF-193's
+  browser gate scrolls the whole column, requires every snapshot to be clean **and** requires the
+  sweep to have seen every card. A single snapshot passed while showing two of seven.
+* **`getComputedStyle` on `--mjx-density-step` hands back `calc(var(--spacing) * 2)`**, not a length,
+  and `resolveLength` correctly refuses it. Registering another module's custom property to fix that
+  would be reaching into it; MJXOFF-193 measures a zero-width, hidden probe element whose
+  `block-size` is that variable instead, which needs nothing registered and cannot resolve to a
+  plausible wrong number.
+* **The browser tier runs against `storybook-static/`, so a source fix is invisible until you
+  rebuild.** MJXOFF-193 spent a cycle debugging an `aria-label` that was already in the source and
+  not yet in the bundle, and the failure reads as a component defect rather than as a stale build.
