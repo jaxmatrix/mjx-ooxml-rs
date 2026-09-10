@@ -200,6 +200,7 @@ ui/
     tokens/          the TypeScript half of the token resolver
     foundations/     the type scale, elevation ladder, focus ring, motion vocabulary and density
     controls/        the ribbon archetypes: button, toggle, split button, dialog launcher
+    furniture/       the chrome around the document: status bar, zoom control, scrollbar, splitter
     ribbon/          the containers those controls live in: ribbon, tab, group, contextual tab set
     menus/           menu, menu item, separator, section and the context menu
     gallery/         the in-ribbon strip, the expanded flyout, and the live-preview protocol
@@ -1361,6 +1362,150 @@ host carries, so every command would have been a tab stop with no way to fix it.
 `error` share one colour**, because this palette has one alarm colour and inventing a red would
 override the branding of whoever opens the file. And **an error toast is persistent while the other
 three dwell**, which is Fluent's behaviour rather than a rule anyone has written down about Office.
+
+## Document furniture (MJXOFF-190)
+
+`src/furniture/` holds the chrome that frames the document surface — `<mjx-status-bar>` with
+`<mjx-status-segment>`, `<mjx-zoom-control>`, `<mjx-scrollbar>` with `<mjx-scroll-mark>`, and
+`<mjx-splitter>`. Open `Furniture/Scrollbar → An Estimate Being Corrected` first, **with a pointer**.
+
+```html
+<mjx-status-bar label="Document status">
+  <mjx-status-segment label="Page" value="4 of 20" priority="essential"></mjx-status-segment>
+  <mjx-status-segment label="Words" value="3,182" priority="supplementary"></mjx-status-segment>
+</mjx-status-bar>
+
+<mjx-zoom-control percent="100" viewport-width="1000" viewport-height="700"></mjx-zoom-control>
+
+<mjx-scrollbar label="Document" controls="canvas" pages="20" page-height="1000" viewport="4000">
+  <mjx-scroll-mark kind="search" page="3" within="0.2" label="pipeline"></mjx-scroll-mark>
+</mjx-scrollbar>
+
+<mjx-splitter label="the navigator" controls="navigator"
+              min-start="0.15" min-end="0.3" storage-key="word/navigator"></mjx-splitter>
+```
+
+### The splitter is a *lift*, not a third implementation
+
+MJXOFF-188 built an ARIA window splitter inside `<mjx-task-pane>` and put its arithmetic in
+`surface-model.ts` under task-pane names. This child needed the same keyboard contract with
+different bounds, so the arithmetic moved to **`src/foundations/splitter.ts`** parameterised by its
+bounds, and `surface-model.ts`'s `clampFraction`, `fractionFromDrag` and `fractionFromKey` are now
+**one-line bindings** over it — same signatures, same behaviour, no caller changed.
+`tests/furniture.test.ts` asserts the equivalence over a sweep of 200 fractions, 172 drag positions
+and every key in both directions, rather than leaving it as a claim: if a binding ever drifts, the
+task pane and the splitter disagree about what an arrow key does, which is exactly the defect two
+copies would have had.
+
+### The scrollbar is R13's requirement seen from the front
+
+`crates/mjx-view/src/scroll.rs` (MJXOFF-168) gives a document a scrollbar the instant it opens by
+*estimating* how long it is, then corrects page heights one at a time as they are laid out.
+`src/furniture/scroll-model.ts` is the same design in this language, with the same names —
+`totalHeight`, `offsetOf`, `anchorAt`, `offsetOfAnchor`, `recordMeasuredHeight`, `measuredPages` —
+so a reader holding both files open can check them line by line.
+
+**There are two invariants and they are true at different moments:**
+
+| When | What is the state | What is derived | Why |
+|---|---|---|---|
+| not dragging | the **anchor** — a page and how far into it | the offset | a correction above the reader must not move the page under them |
+| dragging | the **pointer** | the offset | the point of the thumb under the finger must not move while the thumb changes size |
+
+`offsetUnderGrip` is the second one and it is three lines. The naive alternative — keep the offset,
+recompute the thumb from it — is what **both** suites compute *beside* the real answer and assert
+differs from it. Without that positive control a stability assertion is a tolerance nobody tested.
+
+The browser gate holds a real mouse button down through Playwright's own input path while the extent
+is revised underneath it, because the failure mode is temporal: a story with a fixed content height
+proves nothing at all, and a synthetic event sequence proves a handler exists rather than that the
+platform would ever call it.
+
+### A status bar is a live region, and the failure is announcing too much
+
+A page number that changes as a person scrolls is the reason the bar exists and it changes
+constantly. So `announce` **defaults to `off`** and a segment opts *in*; `polite` lands in the
+`status` region and `assertive` in the `alert` region, and the two regions are separate elements
+from the first render — MJXOFF-189's rule, because a live region's politeness is settled when it
+enters the accessibility tree. The gate advances the page number, asserts the value really changed,
+and asserts **both** regions are still empty.
+
+### Nothing is dropped — a demoted segment is the same element, moved
+
+MJXOFF-183's rule applied to a second container. The ladder is generated `@container` blocks writing
+`--mjx-status-presentation` onto one hidden probe per priority; the component reads those back and
+reassigns the segment's `slot` from its region to the overflow panel. **The same DOM node**, with
+the same identity, listeners and accessible name. The gate stamps every segment at the desktop
+width and reads the stamps back at the phone width, because a *count* cannot tell a moved element
+from a re-rendered copy.
+
+The `ResizeObserver` in there decides nothing: CSS cannot reassign a slot, so something has to ask
+the cascade again. The presentation itself is still CSS's, which is what makes the comparison
+against `statusPresentationAt()` meaningful.
+
+### Eight defects, and only six of them were the gates
+
+1. **The `@container` blocks would have lost.** The base rule was a bare `.probe` at (0,1,0) against
+   the generated blocks' `:where(…)` at (0,0,0), so the probe would have reported `shown` at every
+   width for ever — with the component and the model silently disagreeing and every other assertion
+   green. It is MJXOFF-183's specificity accident for the **fourth** time. Caught while writing the
+   unit gate, which now asserts the `:where()` wrapping *and* the emission order.
+2. **The splitter's fraction reached nothing.** A custom property inherits *down*, and the two
+   regions a splitter sits between are its **siblings** — so a fraction written only onto the host
+   is read by nobody, and a story sizing its navigator from `var(--mjx-split-fraction, 0.3)` keeps
+   the fallback for ever. Every attribute and every announced number was already correct; the
+   assertion that caught it was *the region got wider*. The fraction is now written on the
+   **boundary** as well, which is the honest place for it.
+3. **`box-sizing: border-box` cannot shrink a box below its own padding.** A collapsed region at
+   `inline-size: 0` still drew a 24-pixel stripe of surface, twice — once for `content-box` and once
+   for the padding floor. Hence `--mjx-split-collapsed`, so a region can zero its own padding.
+4. **The scrollbar was squeezed to 12 pixels.** A flex item's default is `flex-shrink: 1`, so a
+   scrollbar beside a canvas that wanted the room lost half its thickness — and the hit-target
+   floor, which is a promise about pixels on screen, quietly stopped being true. U07 found the same
+   default in the other axis.
+5. **`.mjx-hit-target` made the splitter's handle wider than its host.** That class sets a *minimum*
+   of 40 CSS pixels in comfortable density; on a 24-pixel divider it overflowed. The floor belongs
+   on the host, where `<mjx-task-pane>`'s splitter puts it.
+6. **The first mid-drag test passed its way to a silent zero.** At the desktop preset the harness
+   frame is 1440 wide inside a 1280 viewport and scrolls horizontally, so the scrollbar sat at
+   x = 1400 — off screen, where a real mouse cannot reach it and every pointer event was delivered
+   to nothing. `before.offset` was `0` and the drag had never happened.
+7. **A backtick inside a CSS comment ended the template literal, for the fourth time.** *"Named,
+   never `all`"* in a `transition-property` comment, and a wall of parse errors a hundred lines
+   away. Write CSS-comment prose in plain words.
+8. **The zoom readout's invalid edge was never painted.** `fieldStates.invalid` matches
+   `%s[data-invalid]` and there is **no `data-state` spelling of it**, so a field put into
+   `data-state="invalid"` is in a state the table paints nothing for. All three non-colour cues
+   were correct and the gate was green, because the gate counted cues and did not measure the edge.
+   It now measures it — as a *difference* between two computed colours rather than a remembered hex,
+   which is what the palette re-seed taught. Found by reading U07's table rather than by a gate,
+   which is the honest way to say it.
+
+### Two things that are deliberately *not* animated
+
+The scrollbar thumb wears **no motion class at all**, which is the only component in the catalogue
+that does not. `transition-property` defaults to `all`, so a settle class would ease the thumb's
+position and size — the thumb would lag the finger dragging it, and the mid-drag gate would be
+measuring an interpolated box. A gate that can be satisfied by an animation halfway through is not
+a gate. The splitter's *line* does wear one, and names the property it transitions.
+
+### One widening of a shared helper
+
+`measure.ts` grew `readTypedNumber`, and `parseMeasure` now calls it. A zoom readout takes a
+percentage rather than a length — there is no `%` among the six units and a percentage has no value
+in points — but what it *must* share is how a number is read: both decimal separators, no thousands
+separator, and `-`, `.` and `1.2.3` each landing in the invalid path with the text preserved. A
+second regex would have been a second answer to *"is `1.2.3` a number"*.
+
+### `GUESS:` where this diverges from Office
+
+Three, marked at their sites. **The zoom slider is linear** and Word's has a detent at 100 % in the
+middle of its travel; the alternative was to give `<mjx-slider>` a value space that is not the
+percentage, and then its `aria-valuenow` — the number a screen reader reads — would have been a
+track position rather than a zoom. **A second double-click restores rather than resets**, which is
+this catalogue's reading of Office's collapse. And the **status ladder's widths** are ours: the
+*shape* is Office's behaviour (items leave as the window narrows) but no number is checked against
+it.
 
 ## Things a later child should know
 
