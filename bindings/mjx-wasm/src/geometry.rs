@@ -22,6 +22,7 @@ use wasm_bindgen::prelude::*;
 
 use mjx_ooxml as ooxml;
 
+use crate::errors::unsupported_content;
 use crate::support::invalid_argument;
 
 use crate::enums::{AdjustmentAxis, PathFillMode, PresetShapeType, SlideSizeKind};
@@ -1735,8 +1736,12 @@ impl ShapeGeometry {
             ooxml::ShapeGeometry::Unmodeled(preset) => *preset,
             _ => match self.parts() {
                 Some((preset, _)) => preset,
-                // Unreachable: `parts` returns `None` only for `Unmodeled`, matched above.
-                None => return Err(invalid_argument("this geometry names no preset")),
+                // Unreachable: `parts` answers `None` only for `Unmodeled`, matched above, and
+                // its `match` carries no wildcard — so the compiler holds that equivalence rather
+                // than this comment. `unsupported_content` is nonetheless what it would mean, and
+                // unlike `invalid_argument` it carries `name = "OoxmlError"` and a `code`, which is
+                // what the Python side now raises too (MJXOFF-275).
+                None => return Err(unsupported_content("this geometry names no preset")),
             },
         };
         PresetShapeType::from_model(preset)

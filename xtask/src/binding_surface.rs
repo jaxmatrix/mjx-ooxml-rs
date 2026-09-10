@@ -860,3 +860,152 @@ pub fn arity(signature: &str) -> usize {
         .filter(|argument| !argument.contains("Python<") && !argument.ends_with(": Python"))
         .count()
 }
+
+// ===============================================================================================
+// Raise sites — where a binding constructs a failure itself (MJXOFF-275)
+// ===============================================================================================
+
+/// One place a binding's own code **constructs an exception object**, rather than projecting a
+/// failure the library reported.
+///
+/// Each binding has a typed error model — twelve registered classes rooted at `mjx_ooxml.OoxmlError`
+/// in Python, one `Error` named `"OoxmlError"` carrying a `code` in JavaScript — and each also
+/// raises in the host language's own argument vocabulary for a mistake in the *call*. Those are the
+/// two legitimate populations. A third is the error model quietly ceasing to be total, and it is
+/// invisible from inside either binding: nothing a caller can write tells "this class is the
+/// deliberate one" apart from "this class was reached for".
+///
+/// So this reads the construction sites out of both trees and lets a gate hold them to a written
+/// ledger. It deliberately does **not** read `?`, `map_err` or `.into()`: those forward an exception
+/// someone else built, and the question here is who built it.
+#[derive(Debug, Clone)]
+pub struct RaiseSite {
+    /// The file it is written in, for a failure message.
+    pub file: String,
+    /// Its one-based line number.
+    pub line: usize,
+    /// The exception type the site constructs, as written: `PyTypeError`, `js_sys::RangeError`.
+    pub class: String,
+    /// The rest of the line from the constructor onward, so a ledger can name a site by the message
+    /// it carries rather than by a line number that rots.
+    pub tail: String,
+}
+
+/// Every exception `bindings/mjx-python/src/*.rs` constructs itself.
+///
+/// Two spellings reach a Python exception class from Rust and both are read: `Class::new_err(…)`,
+/// written bare or through its `pyo3::exceptions::` path, and `PyErr::new::<Class>(…)`.
+/// `PyErr::new_type` is neither — it *defines* a class rather than raising one — and is skipped.
+///
+/// # Panics
+/// If the directory cannot be read, or a class name comes back in a shape no PyO3 exception has,
+/// which is what a backwalk that has stopped matching looks like from the outside.
+#[must_use]
+pub fn python_raise_sites(root: &Path) -> Vec<RaiseSite> {
+    let mut found = Vec::new();
+    for (file, text) in sources(&root.join("bindings/mjx-python/src"), "rs") {
+        for (offset, line) in text.lines().enumerate() {
+            let code = code_of(line);
+            for start in occurrences(code, "::new_err") {
+                let (class, from) = path_before(code, start);
+                found.push(RaiseSite {
+                    file: file.clone(),
+                    line: offset + 1,
+                    class: class.clone(),
+                    tail: code[from..].to_owned(),
+                });
+            }
+            for at in occurrences(code, "PyErr::new::<") {
+                let start = at + "PyErr::new::<".len();
+                let end = code[start..]
+                    .find('>')
+                    .map_or(code.len(), |index| start + index);
+                found.push(RaiseSite {
+                    file: file.clone(),
+                    line: offset + 1,
+                    class: last_path_segment(code[start..end].trim()),
+                    tail: code[start..].to_owned(),
+                });
+            }
+        }
+    }
+    for site in &found {
+        assert!(
+            site.class.starts_with("Py") && site.class.ends_with("Error"),
+            "{}:{} constructs `{}`, which is not the shape of a PyO3 exception class — the \
+             backwalk has stopped matching",
+            site.file,
+            site.line,
+            site.class
+        );
+    }
+    found
+}
+
+/// Every JavaScript `Error` object `bindings/mjx-wasm/src/*.rs` constructs itself.
+///
+/// The needle is `Error::new(`, which catches `js_sys::Error`, every `js_sys::*Error` subclass and
+/// `wasm_bindgen::JsError` alike, because each of them ends in the same five letters.
+///
+/// # Panics
+/// If the directory cannot be read.
+#[must_use]
+pub fn wasm_raise_sites(root: &Path) -> Vec<RaiseSite> {
+    let mut found = Vec::new();
+    for (file, text) in sources(&root.join("bindings/mjx-wasm/src"), "rs") {
+        for (offset, line) in text.lines().enumerate() {
+            let code = code_of(line);
+            for at in occurrences(code, "Error::new(") {
+                let (class, from) = path_before(code, at + "Error".len());
+                found.push(RaiseSite {
+                    file: file.clone(),
+                    line: offset + 1,
+                    class,
+                    tail: code[from..].to_owned(),
+                });
+            }
+        }
+    }
+    found
+}
+
+/// Every byte offset at which `needle` occurs in `haystack`.
+fn occurrences(haystack: &str, needle: &str) -> Vec<usize> {
+    haystack.match_indices(needle).map(|(at, _)| at).collect()
+}
+
+/// The type path immediately to the left of `end`.
+///
+/// `pyo3::exceptions::PyTypeError::new_err` read at its `::new_err` gives `PyTypeError`, and
+/// `js_sys::RangeError::new(` read at its `::new(` gives `js_sys::RangeError`. One qualifying
+/// segment is kept and only when it is `js_sys`, so the JavaScript ledger can name the module a
+/// class comes from while the Python one names the class alone — a `pyo3::exceptions::` prefix says
+/// nothing a bare `PyTypeError` does not. The offset it starts at comes back too, so a failure
+/// message can quote the construction rather than the half of it after the class name.
+fn path_before(line: &str, end: usize) -> (String, usize) {
+    let bytes = line.as_bytes();
+    let mut start = end;
+    while start > 0 && is_identifier_byte(bytes[start - 1]) {
+        start -= 1;
+    }
+    if start >= 2 && &line[start - 2..start] == "::" {
+        let mut qualifier = start - 2;
+        while qualifier > 0 && is_identifier_byte(bytes[qualifier - 1]) {
+            qualifier -= 1;
+        }
+        if &line[qualifier..start - 2] == "js_sys" {
+            return (line[qualifier..end].to_owned(), qualifier);
+        }
+    }
+    (line[start..end].to_owned(), start)
+}
+
+/// Whether a byte can appear in a Rust identifier.
+fn is_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+/// The last `::`-separated segment of a path.
+fn last_path_segment(path: &str) -> String {
+    path.rsplit("::").next().unwrap_or(path).trim().to_owned()
+}
