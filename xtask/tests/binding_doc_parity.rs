@@ -262,7 +262,7 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// One documented member of one binding.
+/// One documented member of one binding, as this file compares them.
 #[derive(Clone)]
 struct Documented {
     /// The `///` comment, every line joined with one space.
@@ -273,162 +273,24 @@ struct Documented {
 }
 
 /// Every `///`-documented `fn` inside an `impl` block annotated with `marker`, keyed by
-/// `(owner, Rust name)`.
+/// `(owner, Rust name)`, with the arity this file keys on computed from each signature.
 ///
-/// Deliberately over `src/` rather than over the generated `.d.ts` or the committed `.pyi`: the
-/// `.d.ts` is build output and git-ignored, and the `.pyi`'s docstrings are themselves generated
-/// from these comments (MJXOFF-234). The `///` comments *are* both surfaces' prose.
+/// The scan itself is `xtask/src/binding_surface.rs`'s, shared with
+/// `xtask/tests/binding_projection.rs` since MJXOFF-276 asked a second question of the same prose:
+/// two scanners over one surface would disagree with no way to say which was wrong.
 fn documented_members(directory: &Path, marker: &str) -> BTreeMap<(String, String), Documented> {
-    let mut found = BTreeMap::new();
-    for (_, text) in xtask::binding_surface::sources(directory, "rs") {
-        let lines: Vec<&str> = text.lines().collect();
-        let mut index = 0;
-        while index < lines.len() {
-            let Some(owner) = impl_target(lines[index]) else {
-                index += 1;
-                continue;
-            };
-            if !lines[index.saturating_sub(6)..index]
-                .iter()
-                .any(|line| line.trim() == marker)
-            {
-                index += 1;
-                continue;
-            }
-            let end = block_end(&lines, index);
-            let mut prose: Vec<String> = Vec::new();
-            let mut at = index + 1;
-            while at <= end {
-                let line = lines[at].trim();
-                if let Some(rest) = line.strip_prefix("///") {
-                    prose.push(rest.trim().to_owned());
-                } else if let Some(name) = function_name(line) {
-                    if !prose.is_empty() {
-                        let signature = signature(&lines, at, end);
-                        found.insert(
-                            (owner.clone(), name),
-                            Documented {
-                                prose: prose.join(" ").trim().to_owned(),
-                                arity: arity(&signature),
-                            },
-                        );
-                    }
-                    prose.clear();
-                } else if !line.is_empty() && !line.starts_with("#[") && !line.starts_with("//") {
-                    prose.clear();
-                }
-                at += 1;
-            }
-            index = end + 1;
-        }
-    }
-    found
-}
-
-/// `impl Foo {` — the type an impl block is written for, or `None` for anything else.
-fn impl_target(line: &str) -> Option<String> {
-    let rest = line.trim().strip_prefix("impl ")?;
-    let name: String = rest
-        .chars()
-        .take_while(|character| character.is_alphanumeric() || *character == '_')
-        .collect();
-    let tail = rest[name.len()..].trim();
-    (!name.is_empty() && (tail == "{" || tail.is_empty())).then_some(name)
-}
-
-/// The index of the line closing the block opened at `from`.
-fn block_end(lines: &[&str], from: usize) -> usize {
-    let mut depth = 0i32;
-    for (offset, line) in lines[from..].iter().enumerate() {
-        depth += i32::try_from(line.matches('{').count()).unwrap_or(0);
-        depth -= i32::try_from(line.matches('}').count()).unwrap_or(0);
-        if depth == 0 && offset > 0 {
-            return from + offset;
-        }
-    }
-    lines.len() - 1
-}
-
-/// `pub fn name(` / `fn name(` — the Rust name, or `None` for anything else.
-///
-/// The `<` is not optional decoration: `bindings/mjx-python/src/deck.rs` writes
-/// `fn save<'py>(&self, python: Python<'py>)`, and a needle that demands `(` immediately after the
-/// name misses every `PyBytes`-returning method in the crate — which is `save`, `save_unchecked`
-/// and every `*_bytes` reader, the members most worth comparing.
-fn function_name(line: &str) -> Option<String> {
-    let rest = line.strip_prefix("pub ").unwrap_or(line);
-    let rest = rest.strip_prefix("fn ")?;
-    let name: String = rest
-        .chars()
-        .take_while(|character| character.is_alphanumeric() || *character == '_')
-        .collect();
-    let after = &rest[name.len()..];
-    (!name.is_empty() && (after.starts_with('(') || after.starts_with('<'))).then_some(name)
-}
-
-/// The text between the parentheses of the signature beginning on line `at`, however many lines it
-/// is wrapped across.
-fn signature(lines: &[&str], at: usize, end: usize) -> String {
-    let mut text = String::new();
-    for line in &lines[at..=end] {
-        text.push_str(line.trim());
-        text.push(' ');
-        if text.matches('(').count() > 0 && text.matches('(').count() == text.matches(')').count() {
-            break;
-        }
-    }
-    let Some(open) = text.find('(') else {
-        return String::new();
-    };
-    let mut depth = 0usize;
-    for (offset, character) in text[open..].char_indices() {
-        match character {
-            '(' => depth += 1,
-            ')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return text[open + 1..open + offset].to_owned();
-                }
-            }
-            _ => {}
-        }
-    }
-    String::new()
-}
-
-/// How many arguments a signature takes, excluding `self` and PyO3's `Python<'_>` token.
-///
-/// The token is machinery rather than an argument of the projected method: counting it would put
-/// `Deck.open` at two against JavaScript's one and exclude thirty-three pairs that are the same
-/// method.
-fn arity(signature: &str) -> usize {
-    let mut depth = 0i32;
-    let mut arguments = Vec::new();
-    let mut current = String::new();
-    for character in signature.chars() {
-        match character {
-            '(' | '<' | '[' => depth += 1,
-            ')' | '>' | ']' => depth -= 1,
-            ',' if depth == 0 => {
-                arguments.push(std::mem::take(&mut current));
-                continue;
-            }
-            _ => {}
-        }
-        current.push(character);
-    }
-    arguments.push(current);
-    arguments
-        .iter()
-        .map(|argument| argument.trim())
-        .filter(|argument| !argument.is_empty())
-        .filter(|argument| {
-            let bare = argument.trim_start_matches('&').trim_start();
-            let bare = bare.strip_prefix("mut ").unwrap_or(bare);
-            !bare.starts_with("self")
+    xtask::binding_surface::documented_members(directory, marker)
+        .into_iter()
+        .map(|(key, member)| {
+            (
+                key,
+                Documented {
+                    arity: member.arity,
+                    prose: member.prose,
+                },
+            )
         })
-        .filter(|argument| !argument.contains("Python<") && !argument.ends_with(": Python"))
-        .count()
+        .collect()
 }
 
 // ===============================================================================================

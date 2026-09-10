@@ -181,7 +181,8 @@ impl SectionLocation {
         )?)))
     }
 
-    /// `"body"` or `"paragraph"`.
+    /// A readable form of this location — `SectionLocation.body()`, or
+    /// `SectionLocation.paragraph(...)` naming the path.
     #[wasm_bindgen(js_name = "toString")]
     pub fn to_display_string(&self) -> String {
         match &self.0 {

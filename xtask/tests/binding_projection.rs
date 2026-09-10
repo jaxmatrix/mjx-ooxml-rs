@@ -38,6 +38,16 @@
 //! exact — no test can call a member whose name is absent from every test source. The number worth
 //! trusting is therefore the un-exercised one, and it is the number the guide quotes.
 //!
+//! # The second question this file asks (MJXOFF-276)
+//!
+//! An accessor that answers a string naming a kind states its whole contract in its own doc
+//! comment, because `str`/`string` states none of it. Nothing compared that sentence to the code:
+//! `binding_doc_parity.rs` holds the two bindings' sentences to *each other*,
+//! [`the_two_bindings_produce_the_same_data_tokens`] holds their match arms to *each other*, and
+//! the exercised measure above counts a member's **name**, never its **answer**. Two identical,
+//! identically stale sentences passed all three, and four of them were —
+//! [`every_token_vocabulary_a_binding_documents_is_the_one_its_code_answers`] is what asks.
+//!
 //! # What is deliberately *not* checked here, and why
 //!
 //! * **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds every
@@ -456,6 +466,375 @@ fn produced_tokens(
             .push(literal.value.clone());
     }
     found
+}
+
+// ===============================================================================================
+// The documented vocabulary — MJXOFF-276
+// ===============================================================================================
+
+/// One arity-free accessor whose `///` comment names string literals its own body does not
+/// produce, with the reason the comparison stops there.
+///
+/// A row is a *decision*, not a suppression: every one of the five was read to the place the value
+/// is made, and what is recorded is what was found there. `every_unanswerable_row_still_names_an_accessor_that_answers_nothing`
+/// holds the list to the measurement, so a row that stops describing its accessor fails rather than
+/// lingering.
+struct Unanswerable {
+    /// The `impl` target the accessor sits in.
+    owner: &'static str,
+    /// Its Rust name.
+    member: &'static str,
+    /// Where the value is made, and why the sentence cannot be compared to a body here.
+    reason: &'static str,
+}
+
+/// The five accessors whose documented literals are not written in the binding that documents them.
+const UNANSWERABLE: [Unanswerable; 5] = [
+    Unanswerable {
+        owner: "Surface",
+        member: "kind",
+        reason: "the body is `self.0.kind_name()`; the five names are written in \
+                 `mjx_ooxml::Surface::kind_name` (crates/mjx-ooxml/src/address.rs), whose own doc \
+                 comment lists the same five — read and confirmed complete",
+    },
+    Unanswerable {
+        owner: "WorkbookExternalLinkInfo",
+        member: "kind",
+        reason: "the body is `self.0.kind`; the four shapes are written in \
+                 crates/mjx-ooxml/src/workbook/preserved.rs, and `oleObject` among them is \
+                 `CT_ExternalLink`'s own wire spelling, which CLAUDE.md forbids renaming — read \
+                 and confirmed complete",
+    },
+    Unanswerable {
+        owner: "AdjustmentSpec",
+        member: "wire_name",
+        reason: "an open set, not a vocabulary: `adj`, `adj1`, `adj2`… are a preset shape's own \
+                 adjustment names, and the sentence's trailing ellipsis says so",
+    },
+    Unanswerable {
+        owner: "Field",
+        member: "field_name",
+        reason: "an open set, not a vocabulary: ECMA-376's field-type keywords, of which the \
+                 sentence shows two and an ellipsis",
+    },
+    Unanswerable {
+        owner: "Format",
+        member: "conventional_extension",
+        reason: "an open set, not a vocabulary: three of the nine extensions, shown as examples \
+                 (`wasm` spells this one as a free function, which no `impl` block scan reaches)",
+    },
+];
+
+/// Below this many compared vocabularies the scan has stopped matching.
+///
+/// A floor, never a total: a check over twenty accessors that silently matched none would read
+/// exactly like a check over twenty accessors with nothing wrong. The real figure is printed on
+/// success.
+const MINIMUM_COMPARED_VOCABULARIES: usize = 36;
+
+/// Every backtick-quoted string literal a doc comment spells — the `` `"square"` `` form, and only
+/// that form.
+///
+/// A bare backtick span (`` `Format.WorkbookBinary` ``) names a symbol, not a token, and a bare
+/// quoted string outside backticks does not occur in either binding's prose. So the needle is the
+/// two characters together, in both directions.
+fn documented_tokens(prose: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let bytes = prose.as_bytes();
+    let mut index = 0usize;
+    while index + 2 < bytes.len() {
+        if bytes[index] == b'`' && bytes[index + 1] == b'"' {
+            if let Some(close) = prose[index + 2..].find("\"`") {
+                found.insert(prose[index + 2..index + 2 + close].to_owned());
+                index += 2 + close + 2;
+                continue;
+            }
+        }
+        index += 1;
+    }
+    found
+}
+
+/// The member a doc comment defers its vocabulary to, for the *"in the same vocabulary `X.y` uses"*
+/// form.
+///
+/// One sentence uses it — `ResolvedDrawCommand.kind` names `DrawCommand.kind` rather than
+/// repeating six tokens — and the form is worth supporting rather than expanding, because a copy of
+/// a list is a second thing to keep current. The reference is then checked: the two bodies must
+/// answer the same set.
+fn referenced_vocabulary(prose: &str) -> Option<(String, String)> {
+    let rest = prose.split_once("same vocabulary `")?.1;
+    let span = rest.split_once('`')?.0;
+    let (owner, member) = span.split_once('.')?;
+    Some((owner.to_owned(), member.to_owned()))
+}
+
+/// The set of tokens a member's body can answer, and where those tokens are written.
+///
+/// Two hops, and no more. A member that produces literals of its own answers those. A member that
+/// produces none but whose body names exactly one **free function in the same binding** that does —
+/// `CellData.kind` is `kind_of(&self.0)`, `Document.conformance` is `conformance_str(…)` — answers
+/// that function's, because the vocabulary is genuinely one set written once and called from
+/// several accessors. Anything further is a value made outside the binding, and [`UNANSWERABLE`] is
+/// where those are named.
+fn answered_tokens(
+    key: &(String, String),
+    body: &str,
+    produced: &BTreeMap<(String, String), Vec<String>>,
+    helpers: &BTreeMap<String, BTreeSet<String>>,
+) -> Option<(BTreeSet<String>, String)> {
+    if let Some(own) = produced.get(key) {
+        return Some((own.iter().cloned().collect(), String::from("its own arms")));
+    }
+    let called: Vec<&String> = helpers.keys().filter(|name| mentions(body, name)).collect();
+    match called.as_slice() {
+        [name] => Some((helpers[*name].clone(), format!("`{name}`"))),
+        _ => None,
+    }
+}
+
+/// Whether `body` names `identifier` as a whole word.
+///
+/// A whole word rather than a call, because `Document.conformance` hands `conformance_str` on as a
+/// function value — `map(conformance_str)`, no parenthesis in sight — and a needle demanding one
+/// misses the very accessor the two-hop rule exists for.
+fn mentions(body: &str, identifier: &str) -> bool {
+    let bytes = body.as_bytes();
+    let mut from = 0usize;
+    while let Some(offset) = body[from..].find(identifier) {
+        let at = from + offset;
+        let end = at + identifier.len();
+        let before_is_word =
+            at > 0 && (bytes[at - 1].is_ascii_alphanumeric() || bytes[at - 1] == b'_');
+        let after_is_word =
+            end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_');
+        if !before_is_word && !after_is_word {
+            return true;
+        }
+        from = at + 1;
+    }
+    false
+}
+
+/// **The sentence a caller reads is the vocabulary the code answers** (MJXOFF-276).
+///
+/// A token accessor's return type is `str`/`string`, so the list in its doc comment is the *whole*
+/// contract — and until this test nothing compared it to anything. `binding_doc_parity.rs` holds
+/// the two bindings' sentences to each other, `the_two_bindings_produce_the_same_data_tokens` above
+/// holds their match arms to each other, and the exercised measure counts a member's *name*, never
+/// its answer. Two identical, identically stale sentences passed all three.
+///
+/// Both directions are asked, because they fail differently:
+///
+/// * a member whose body can answer two or more tokens must document exactly those — which is what
+///   catches a token added to a match and to no sentence, the shape MJXOFF-285's `Unreadable`
+///   variant left behind in `CellBlock.kinds`;
+/// * an arity-free accessor whose sentence names two or more tokens must have a body that answers
+///   exactly those, or stand on [`UNANSWERABLE`] — which is what catches a sentence naming a token
+///   nothing writes.
+///
+/// **Argument vocabularies are in scope only when the binding writes them.** `Workbook.read_range`
+/// documents the A1 forms it accepts and `CellWrite.error` an error code or two; neither is a
+/// closed set, and neither is checked here, because a taken value is refused by the parser that
+/// reads it rather than promised by a return type. `Document.setConformance` *is* checked, and only
+/// incidentally: `conformance_from_str` writes its two tokens in this binding, so the first
+/// direction reaches it.
+#[test]
+fn every_token_vocabulary_a_binding_documents_is_the_one_its_code_answers() {
+    let root = repository_root();
+    let ledger: BTreeSet<(&str, &str)> = UNANSWERABLE
+        .iter()
+        .map(|row| (row.owner, row.member))
+        .collect();
+    let mut wrong = Vec::new();
+    let mut exercised: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut compared = 0usize;
+    for (binding, directory, marker, literals) in [
+        (
+            "JavaScript",
+            "bindings/mjx-wasm/src",
+            "#[wasm_bindgen]",
+            binding_surface::wasm_source_literals(&root),
+        ),
+        (
+            "Python",
+            "bindings/mjx-python/src",
+            "#[pymethods]",
+            binding_surface::python_source_literals(&root),
+        ),
+    ] {
+        let documented = binding_surface::documented_members(&root.join(directory), marker);
+        let produced = produced_tokens(&literals);
+        let helpers: BTreeMap<String, BTreeSet<String>> = produced
+            .iter()
+            .filter(|((owner, _), _)| owner == "<module>")
+            .map(|((_, member), tokens)| (member.clone(), tokens.iter().cloned().collect()))
+            .collect();
+        let answers = |key: &(String, String)| {
+            documented
+                .get(key)
+                .and_then(|member| answered_tokens(key, &member.body, &produced, &helpers))
+        };
+
+        // Direction one: what the code can answer, it must document.
+        let mut subjects: BTreeSet<(String, String)> = produced
+            .iter()
+            .filter(|((owner, _), tokens)| {
+                owner != "<module>" && tokens.iter().collect::<BTreeSet<_>>().len() >= 2
+            })
+            .map(|(key, _)| key.clone())
+            .collect();
+        subjects.extend(
+            documented
+                .keys()
+                .filter(|key| answers(key).is_some_and(|(tokens, _)| tokens.len() >= 2))
+                .cloned(),
+        );
+        for key in &subjects {
+            let Some(member) = documented.get(key) else {
+                wrong.push(format!(
+                    "{binding}: {}.{} answers {:?} and carries no `///` comment at all",
+                    key.0,
+                    key.1,
+                    produced
+                        .get(key)
+                        .map(|tokens| tokens.iter().collect::<BTreeSet<_>>()),
+                ));
+                continue;
+            };
+            let Some((answered, source)) = answers(key) else {
+                continue;
+            };
+            let claimed = if let Some(reference) = referenced_vocabulary(&member.prose) {
+                let target = documented
+                    .keys()
+                    .find(|(owner, name)| {
+                        *owner == reference.0
+                            && (*name == reference.1 || camel_case(name) == reference.1)
+                    })
+                    .cloned();
+                let Some(target) = target.filter(|target| answers(target).is_some()) else {
+                    wrong.push(format!(
+                        "{binding}: {}.{} defers its vocabulary to `{}.{}`, which this binding \
+                         either does not project or does not answer a vocabulary for \
+                         ({}:{})",
+                        key.0, key.1, reference.0, reference.1, member.file, member.line
+                    ));
+                    continue;
+                };
+                answers(&target).expect("just filtered on it").0
+            } else {
+                documented_tokens(&member.prose)
+            };
+            compared += 1;
+            if claimed != answered {
+                let missing: Vec<&String> = answered.difference(&claimed).collect();
+                let invented: Vec<&String> = claimed.difference(&answered).collect();
+                wrong.push(format!(
+                    "{binding}: {}.{} answers {answered:?} from {source} but its sentence names \
+                     {claimed:?} — undocumented: {missing:?}, documented and unwritable: \
+                     {invented:?} ({}:{})",
+                    key.0, key.1, member.file, member.line
+                ));
+            }
+        }
+
+        // Direction two: what an accessor documents, it must be able to answer.
+        for (key, member) in &documented {
+            if member.arity > 0 || subjects.contains(key) {
+                continue;
+            }
+            if documented_tokens(&member.prose).len() < 2 {
+                continue;
+            }
+            if ledger.contains(&(key.0.as_str(), key.1.as_str())) {
+                exercised.insert(key.clone());
+                continue;
+            }
+            wrong.push(format!(
+                "{binding}: {}.{} documents {:?} and its body answers none of them, and it stands \
+                 on no `UNANSWERABLE` row saying where the value is made ({}:{})",
+                key.0,
+                key.1,
+                documented_tokens(&member.prose),
+                member.file,
+                member.line
+            ));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a binding's documented vocabulary is not the one its code answers:\n  {}",
+        wrong.join("\n  ")
+    );
+    assert!(
+        compared >= MINIMUM_COMPARED_VOCABULARIES,
+        "only {compared} vocabulary/ies compared — the scanner has stopped matching, and the claim \
+         above would be made over almost nothing"
+    );
+    println!(
+        "documented vocabularies: {compared} compared across the two bindings, {} accessor(s) on \
+         the `UNANSWERABLE` ledger",
+        exercised.len()
+    );
+}
+
+/// Every [`UNANSWERABLE`] row still names an accessor that documents tokens and answers none.
+///
+/// The ledger is held to the measurement in the same way `binding_doc_parity.rs` holds its own: a
+/// row kept after its accessor started answering for itself would be a standing exemption nobody
+/// reads, and the reason written beside it would be describing something that is no longer there.
+#[test]
+fn every_unanswerable_row_still_names_an_accessor_that_answers_nothing() {
+    let root = repository_root();
+    let mut stale = Vec::new();
+    for row in &UNANSWERABLE {
+        let mut found = false;
+        for (directory, marker, literals) in [
+            (
+                "bindings/mjx-wasm/src",
+                "#[wasm_bindgen]",
+                binding_surface::wasm_source_literals(&root),
+            ),
+            (
+                "bindings/mjx-python/src",
+                "#[pymethods]",
+                binding_surface::python_source_literals(&root),
+            ),
+        ] {
+            let documented = binding_surface::documented_members(&root.join(directory), marker);
+            let produced = produced_tokens(&literals);
+            let helpers: BTreeMap<String, BTreeSet<String>> = produced
+                .iter()
+                .filter(|((owner, _), _)| owner == "<module>")
+                .map(|((_, member), tokens)| (member.clone(), tokens.iter().cloned().collect()))
+                .collect();
+            let key = (row.owner.to_owned(), row.member.to_owned());
+            let Some(member) = documented.get(&key) else {
+                continue;
+            };
+            if member.arity == 0
+                && documented_tokens(&member.prose).len() >= 2
+                && answered_tokens(&key, &member.body, &produced, &helpers).is_none()
+            {
+                found = true;
+            }
+        }
+        if !found {
+            stale.push(format!("{}.{} — {}", row.owner, row.member, row.reason));
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "an `UNANSWERABLE` row names no accessor that documents a vocabulary its own body cannot \
+         answer — it has been fixed, renamed or removed, and the row with it:\n  {}",
+        stale.join("\n  ")
+    );
+    println!(
+        "the unanswerable ledger: all {} row(s) still name an accessor whose vocabulary is made \
+         outside the binding that documents it",
+        UNANSWERABLE.len()
+    );
 }
 
 /// No delimiter this crate's brace and bracket matching cares about is ever written as a character

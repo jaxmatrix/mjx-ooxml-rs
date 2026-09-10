@@ -562,7 +562,7 @@ impl Field {
 #[pymethods]
 impl GridDiscrepancy {
     /// Which kind of discrepancy this is: `"RowWidthMismatch"`, `"OrphanedVerticalMerge"` or
-    /// `"EmptyRow"`.
+    /// `"EmptyRow"` — or `"Unknown"` for a discrepancy a later build names and this one does not.
     #[getter]
     fn kind(&self) -> &'static str {
         match self.0 {

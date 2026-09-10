@@ -392,7 +392,7 @@ impl CellBlock {
     }
 
     /// The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
-    /// `"error"`.
+    /// `"error"` or `"unreadable"`, exactly the vocabulary `CellData.kind` answers.
     ///
     /// The disambiguator for `rows`, which cannot tell a text cell from an error cell
     /// because both arrive as a `string`. Built only when asked.
