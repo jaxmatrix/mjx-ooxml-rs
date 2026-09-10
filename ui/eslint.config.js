@@ -162,6 +162,24 @@ export default tseslint.config(
   },
 
   {
+    /*
+     * **The assembly is held to the component rule** (MJXOFF-274).
+     *
+     * `mjx/no-literal-design-values` is scoped to `src/` because the ticket that wrote it is about
+     * *components*, and MJXOFF-279 re-examined that scope and kept it. The nine shells are the one
+     * place outside `src/` where the same argument applies with full force: an assembly is where
+     * the temptation to write a width, a gap or a divider colour by hand is worst, and a literal
+     * there is invisible for exactly as long as it happens to match the token.
+     *
+     * So this is a *narrowing* of the exemption rather than a widening of the rule: `stories/shell/`
+     * is the assembly and nothing else, and `tests/design-values.test.ts` still lists which files
+     * outside `src/` may legitimately carry a literal colour — none of them are here.
+     */
+    files: ['stories/shell/**/*.ts'],
+    rules: { 'mjx/no-literal-design-values': 'error' },
+  },
+
+  {
     files: ['scripts/**/*.mjs', '*.config.ts', '.storybook/**/*.ts'],
     rules: { 'no-console': 'off' },
   },

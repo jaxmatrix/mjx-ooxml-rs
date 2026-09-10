@@ -2131,6 +2131,114 @@ Four, marked at their sites: the thumb-reach fraction, the detent fractions and 
 span (120 ms), the per-form-factor slot counts, and the shortness threshold. None is checked against
 any platform's own physics and none of it is parity.
 
+## The assembly (MJXOFF-274)
+
+**Nine stories — PowerPoint, Word and Excel, each at desktop, tablet and phone — built from the real
+custom elements and from nothing else.** They live under `Shell/` and the sidebar is sorted to put
+that folder **first**, because the assembly is what a reviewer opens Storybook to look at.
+
+```sh
+cd ui && npm run storybook          # http://localhost:6006 → Shell/PowerPoint, Shell/Word, Shell/Excel
+```
+
+Fifteen children audited components in isolation, and every one of them can be right while the
+composition is wrong. What only appears here: a spacing that reads generous around one button and
+loose across five ribbon groups; two surfaces that each clear their contrast floor and sit badly
+beside one another; a component that takes half the window when nothing else is competing for it.
+
+### Live, inert, and where the line is
+
+Every component's **own** interaction works — menus open, the ribbon collapses, galleries preview,
+panes resize, the formula bar's autocomplete opens, the sheet snaps between detents, the phone rails
+overflow. **No command does anything to a document**: command dispatch, document binding, the
+`ShellBridge` and the real Rust canvas are all loop 2. The document surface says so on its face,
+because a reviewer must not be left wondering why pressing Bold changes nothing.
+
+### The gates, and what each is for
+
+| Gate | Where | What it refuses |
+|---|---|---|
+| **no mock-up** | `tests/shell.test.ts` | a raw `<button>`, `<input>`, `<dialog>`…; a `<div>` wearing a `role`; an interactive `aria-*` state; an invented `mjx-` element |
+| **coverage, forwards** | `tests/browser/shell.spec.ts` | a catalogued component that appears in none of the nine |
+| **coverage, backwards** | the same | a component named in `absentFromShells` that is in fact present — a reason that has become a lie |
+| **the right width** | the same | a story whose frame did not come up at the preset its own `globals` declare |
+| **no horizontal overflow** | the same | a box that is not a declared scroller and holds more than it is wide |
+| **no clipped surface** | the same | a named surface under 24 px on an axis, or outside the shell's own box |
+| **nothing hidden and drawn** | the same | an element carrying `hidden` that still has a box |
+| **both schemes** | the same | all of the above, at 9 × 2 |
+
+`stories/shell/shell-model.ts` holds the rule and the declarations; `shell-parts.ts` holds the layout
+and **the only wiring in the assembly**, which is one function that opens the surface a launcher
+names. Everything else a component does for itself.
+
+Two components are **deliberately absent from all nine**, with reasons in `absentFromShells`:
+`<mjx-resizable-container>` (the harness frame the story renders *inside*) and `<mjx-plate-gallery>`
+(a developer surface for the render oracle, not chrome the product ships).
+
+### The cosmetic problems the assembly revealed
+
+**This is the actual output of MJXOFF-274.** Nine of these were left as they are, on purpose:
+MJXOFF-195 is the user in front of the browser, and a composition problem is usually a decision about
+a token or a component rather than a bug to be quietly patched.
+
+**Fixed, because each was unambiguously a defect:**
+
+1. **`[hidden]` was not restated in three sheets, so four elements were permanently drawn.** A
+   measure input's invalid warning glyph *and* its message, a font picker's substitution warning, a
+   label's hint and a slider's empty tick rail, all with the attribute set, a correct accessibility
+   tree and four component suites passing. `ui/README.md` has recorded the trap since MJXOFF-189;
+   `input-model.ts` and `picker-model.ts` predate it. Invisible in a catalogue — a small triangle in
+   each of four fields on a page of fields reads as part of the design — and obvious the moment one
+   field sits in a task pane. Fixed with one line per sheet and locked by the *nothing hidden and
+   drawn* gate. Note that `picker-model.ts` had a **single-selector** version of the line covering
+   only the message: somebody met this once and patched the symptom.
+2. **The name box belongs inside the formula bar.** `<mjx-formula-bar>` builds a `name-box` slot of
+   its own; setting the two side by side left an empty 96 px slot in the bar and made the band 101 px
+   tall instead of 58.
+3. **`<mjx-measure-input>`'s `value` is always in points**, and a centimetre field written as `12.7`
+   reads `0.45 cm`. A number that is wrong and perfectly plausible.
+4. **A gallery in a ribbon does not clip.** Given a height it draws its second row *below the
+   ribbon*, over the navigation pane. The shell now sets `overflow: hidden`; whether the component
+   should is a question for the audit (see 5).
+
+**Left for MJXOFF-195, because each is a judgement:**
+
+1. **The ribbon takes 45–60 % of the window.** 390 px of 832 on a desktop PowerPoint, 522 px on a
+   tablet Word. Office's Home tab is about 140 px. Two causes, both design decisions:
+   * **`.body { flex-wrap: wrap }` — a ribbon that runs out of room wraps to a second row instead of
+     demoting a group.** The collapse ladder is driven by the *ribbon's* `@container` width, not by
+     how much room is left on the row, so five groups that are 1,935 px wide all stay expanded at
+     1,440 and wrap. Office never wraps. This is the single largest cosmetic finding.
+   * **A ribbon group lays its commands out in one horizontal row with full labels.** Office stacks
+     up to three small commands in a column; Clipboard is 460 px here and about 120 px there.
+2. **A gallery in a ribbon asks for 266 px** — half the ribbon, and roughly four times what Word's
+   Styles gallery occupies. The cell size comes from the item art, so the question is whether the
+   in-ribbon presentation should cap it.
+3. **`<mjx-dropdown>` will not lay out below 112 px** and silently overflows a narrower host. Every
+   short field in these ribbons is 7 rem for that reason.
+4. **`<mjx-task-pane>` will not lay out below about 280–336 px.** At 834 a quarter-width pane
+   overflows the workspace by 136 px, so the tablet shells give the pane a *larger share of the
+   smaller screen* and take it out of the navigator. The alternative — the pane becoming an
+   **overlay** at tablet — is a presentation the component does not have, and it is probably the
+   right answer.
+5. **Word at tablet is the hardest case in the catalogue.** A navigation pane on one side and a
+   review margin on the other leave the page 241 px. One of the two should probably go.
+6. **A review margin shows two cards** beside a desktop page, because the ribbon has taken half the
+   height and a card is about 150 px. The connector dots between the page and the column read as
+   stray marks when the cards they belong to are off-screen.
+7. **The formula bar's mode chip renders below the bar**, unattached to anything, and reads as a
+   floating status pill in the corner of the grid.
+8. **`<mjx-empty-state>`'s heading uses the display face**, which is right on a page and
+   disproportionate in a 280 px task pane.
+9. **A phone shell shows the contextual action bar and the command bar stacked.** In Office one
+   replaces the other; both are shown here so a reviewer can see both, and the two rails of icons
+   read as one confusing double row.
+
+Two smaller ones, recorded rather than argued: the **thumbnail rail wraps a title to one character
+per line below about 150 px** (the tablet fraction is 0.19 for that reason), and a **paused toast
+stack pins itself to the viewport corner**, so it is declared on the PowerPoint *desktop* shell only
+— at tablet it covered the task pane and at phone it would cover the command rail.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -2272,3 +2380,32 @@ any platform's own physics and none of it is parity.
   scroll container a keyboard could not reach: `scrollable-region-focusable`, reported against the
   story, in a sweep everyone reads as being about the component. The harness stage carries
   `tabindex="0"` for exactly this reason; anything scrollable a story writes needs it too.
+* **A story declares its own container size with `globals: { containerPreset }` in its CSF.** It is
+  Storybook's supported mechanism and it beats both the toolbar's last setting and a nested
+  `<mjx-resizable-container>` — which would give the story a second harness chrome inside the first.
+  A test that then *passes* the preset in the URL is testing its own URL: open the story without one
+  and assert the frame's measured width instead.
+* **`<mjx-formula-bar>` has a `name-box` slot, and the name box goes in it.** So do several other
+  components: check for a slot before laying two elements out side by side. Assembling them as
+  siblings looks almost right, and the "almost" is a 96 px empty slot and a band twice as tall as it
+  should be.
+* **`<mjx-measure-input>`'s `value` is in *points*, always.** The `unit` attribute is a display
+  choice. `value="12.7" unit="cm"` is 0.45 cm, which is wrong and entirely plausible.
+* **A component's shadow root can be a `display: block` region with an automatic height**, and
+  nothing slotted into one can fill it. `<mjx-context-menu>` is the example: wrapping a flex-sized
+  canvas area in it made the area take its *content's* height and run 218 px past the foot of the
+  shell. Wrap the page, not the pane.
+* **A floating surface inside a `container-type` element still escapes it.** Chromium does not make
+  such an element a containing block for fixed descendants — `overlay/floating.ts` measured that and
+  says so — so a menu or a dialog can be placed anywhere in the tree. But an `<mjx-menu>` that has
+  not been given the `floating` attribute is **in flow and visible**, and in a shell that means a
+  full-width menu sitting in the layout taking space from everything below it. A menu a shell holds
+  for later needs `floating` from the start.
+* **`[hidden]` is still not restated everywhere**, three children after MJXOFF-189 wrote the warning
+  down. MJXOFF-274 found four elements permanently drawn with the attribute set, in sheets written
+  before the discovery. When you add a sheet, restate it last; when you touch an old one, check.
+  `tests/browser/shell.spec.ts` now sweeps the whole assembly for it.
+* **A composition problem is usually a decision, not a bug.** The nine shells are for a person to
+  look at, and the temptation when one looks wrong is to reach into the component and change it.
+  Fix what is unambiguously broken; put the rest in a list with enough detail to be decided in a
+  sentence. The list from this child is under *The assembly* above.
