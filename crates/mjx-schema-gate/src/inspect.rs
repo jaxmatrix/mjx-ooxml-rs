@@ -227,7 +227,7 @@ pub(crate) fn is_xml_content_type(content_type: &str) -> bool {
 /// Whether any element or attribute anywhere in the subtree is in the markup-compatibility
 /// namespace. Attribute names carry no resolved namespace (the fidelity reader records the literal
 /// prefix), so prefixes are resolved through [`NamespaceScope`] exactly as `mjx-mce` does.
-fn carries_markup_compatibility(element: &RawElement, interner: &Interner) -> bool {
+pub(crate) fn carries_markup_compatibility(element: &RawElement, interner: &Interner) -> bool {
     fn walk(element: &RawElement, interner: &Interner, scope: &mut NamespaceScope) -> bool {
         scope.push_element(element, interner);
         let found = element
@@ -262,13 +262,38 @@ fn carries_markup_compatibility(element: &RawElement, interner: &Interner) -> bo
 /// # Errors
 /// Propagates an unsatisfied `mc:MustUnderstand` or a malformed `mc:AlternateContent`.
 pub fn markup_compatibility_resolved(document: &RawDocument) -> Result<Vec<u8>, ResolveError> {
+    Ok(fidelity::serialize_to_vec(
+        &markup_compatibility_resolved_tree(document)?,
+    ))
+}
+
+/// The same view as a **tree**, for the half of the gate that walks it instead of handing it to
+/// `xmllint`.
+///
+/// [`crate::order`] audits child order over exactly this, which is the whole of MJXOFF-272: the two
+/// arms used to disagree about which markup they were looking at, so a part whose content sat inside
+/// an `mc:AlternateContent` was validated in its resolved form and *ordered* in its raw one — where
+/// the tables name no `mc:AlternateContent` slot, so the walk stepped over the subtree without
+/// entering it. One function produces the view and both arms call it; a second resolution here
+/// would be a second thing to keep in step.
+///
+/// # Errors
+/// Propagates an unsatisfied `mc:MustUnderstand` or a malformed `mc:AlternateContent`.
+pub(crate) fn markup_compatibility_resolved_tree(
+    document: &RawDocument,
+) -> Result<RawDocument, ResolveError> {
     let understood = UnderstoodNamespaces::from_uris(crate::categories::ecma_376_namespaces());
     let resolved = resolve(document, &understood)?;
 
     let mut interner = Interner::new();
     let root = rebuild(&resolved, &document.interner, &mut interner);
-    let rebuilt = RawDocument::new(interner, document.bom, Vec::new(), root, Vec::new());
-    Ok(fidelity::serialize_to_vec(&rebuilt))
+    Ok(RawDocument::new(
+        interner,
+        document.bom,
+        Vec::new(),
+        root,
+        Vec::new(),
+    ))
 }
 
 /// Copies one resolved element into an owned [`RawElement`], re-interning its names.

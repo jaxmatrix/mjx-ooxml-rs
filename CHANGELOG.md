@@ -60,6 +60,52 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.163] - 2026-09-10
+
+### The two arms of the gate now look at the same markup (H19)
+
+#### The child-order audit walked the raw tree while the schema arm walked the resolved one (MJXOFF-272)
+
+`mjx-schema-gate` has two arms over every part. `inspect.rs` resolves markup compatibility first —
+the winning `mc:Choice` selected, ignorable markup dropped — and validates *that*. `order.rs` did
+not: it took `package.part_tree(&part)` and handed it straight to `child_order::audit_tree`, and the
+generated tables name no `mc:AlternateContent` slot, so the walk stepped over every such element
+without entering it.
+
+What that costs depends entirely on **where the element sits**, and the two shapes are not equally
+visible:
+
+* as a root's **only** child, the walk recognises nothing, visits one element, and
+  `MINIMUM_ELEMENTS_VISITED` fires. That is a red — a working alarm. `legacy_form_control.xlsx` was
+  tripping it, and `mjx-xlsx`'s `ORDER_SWEEP_EXCLUSIONS` register carried the row;
+* as one root child **among several**, the walk descends into the siblings and reports a count that
+  looks exactly like a healthy one, while the whole `mc:` subtree goes unaudited. **No floor can see
+  this**, because the number a floor reads is the number a healthy audit of the siblings produces.
+
+The second is the one that mattered, and it is the shape this programme keeps finding: a surface
+exercised at one point and reported as covered. Both are closed the same way — the ordering arm
+resolves through `markup_compatibility_resolved_tree`, the one function that produces the view, so
+the two arms cannot drift apart again. A part whose markup compatibility will not resolve is now a
+reported defect of the ordering arm rather than a silent fall-back to the raw tree.
+
+`crates/mjx-schema-gate/tests/ordering_under_markup_compatibility.rs` is what holds it, and neither
+of its two cases asserts a total. It authors an `xdr:wsDr` with a plain `xdr:twoCellAnchor` beside an
+`mc:AlternateContent` whose `mc:Fallback` holds a **copy of that anchor**, so the relation between
+the two walks is a property of the markup rather than a quoted number: the resolved walk must visit
+exactly twice the structure below the root that the raw walk does. The second case puts the
+fallback's `xdr:clientData` ahead of its `xdr:from` and requires the audit to redden naming
+`CT_TwoCellAnchor` — while the raw walk still reports the part clean and past the floor, which is the
+silence being closed.
+
+A third case covers the branch the fix *opened* rather than the one it closed: a part whose markup
+compatibility will not resolve is reported by name, because falling back to the raw tree there would
+put the arm straight back to auditing markup the schema arm never sees — silently, and for exactly
+the parts most likely to be hiding something.
+
+`ORDER_SWEEP_EXCLUSIONS` and `the_order_sweep_exclusion_is_still_necessary` are **deleted**. The
+register asserted its own row was still needed, so fixing the defect turned it red and the row could
+not outlive it; every committed `.xlsx` now takes every step of the sweep with nothing held back.
+
 ## [0.0.162] - 2026-09-10
 
 ### The last residues, and the one the sweep found on its way (H18)

@@ -24,6 +24,31 @@
 //!    — see [`MINIMUM_ELEMENTS_VISITED`].
 //! 3. **Something was audited at all.**
 //!
+//! # The markup it walks is the markup the schema arm validates (MJXOFF-272)
+//!
+//! Both arms are pointed at the same part, and until MJXOFF-272 they did not see the same markup:
+//! [`crate::inspect`] resolves markup compatibility first, and this walked the raw tree. The
+//! generated tables name no `mc:AlternateContent` slot, so `child_order::audit_tree` stepped over
+//! every such element without entering it — and what that costs depends only on where the element
+//! sits:
+//!
+//! * **as a root's only child**, the walk recognises nothing and visits one element, which
+//!   [`MINIMUM_ELEMENTS_VISITED`] catches. A red is a working alarm;
+//! * **as one root child among several**, the walk descends into the siblings, reports a count that
+//!   looks exactly like a healthy one, and audits the `mc:` subtree not at all. **No floor can see
+//!   this** — the number it reads is the number a healthy audit of the siblings produces.
+//!
+//! So this module resolves too, through the one function that produces that view, and the case that
+//! holds it up is `tests/ordering_under_markup_compatibility.rs` — written against *what was
+//! visited* rather than against a total, because a total is precisely what the quiet shape leaves
+//! looking right.
+//!
+//! It is the **same** view down to the [wildcard slot](crate::wildcard_slots) rule, not a second one
+//! shaped for walking. That rule drops an element resolution emptied, and a walk does not need it
+//! the way `xmllint` does — but two views assembled for two arms is the arrangement MJXOFF-196
+//! refused, and an emptied slot has no children left to put in any order, so nothing is given up by
+//! sharing. What the arms report about a part is a fact about one piece of markup.
+//!
 //! [`TreeAudit::elements_visited`]: mjx_ooxml_types::child_order::TreeAudit::elements_visited
 
 use mjx_ooxml_types::child_order;
@@ -33,7 +58,9 @@ use mjx_opc::{Package, PartName};
 // than restated. It stood here as a second copy of the same three lines until MJXOFF-221 found
 // both copies matching `vmlDrawing` case-sensitively; two copies of a string-literal guard are two
 // places for the next one to go wrong.
-use crate::inspect::is_xml_content_type;
+use crate::inspect::{
+    carries_markup_compatibility, is_xml_content_type, markup_compatibility_resolved_tree,
+};
 
 use crate::categories::{categorise, NamespaceCategory, OrderingCoverage};
 
@@ -66,6 +93,11 @@ pub struct AuditedPart {
     /// How many element children the root has — the structure the walk had available to descend
     /// into, which is what makes [`MINIMUM_ELEMENTS_VISITED`] a statement about the walk rather
     /// than about the part's size.
+    ///
+    /// Counted on the **resolved** root, like everything else here: a part whose whole content sat
+    /// inside a losing `mc:Choice` really does present a conforming consumer with an empty root, and
+    /// reporting the raw child it no longer has would make the floor read a structure the walk was
+    /// never going to enter.
     pub root_child_elements: usize,
 }
 
@@ -201,6 +233,25 @@ fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, report: &mut Ord
         let Ok(document) = package.part_tree(&part) else {
             continue;
         };
+        // The **same view [`crate::inspect`] validates** (MJXOFF-272). A part is re-serialized only
+        // when it really carries markup compatibility, so the common path still walks the tree the
+        // package holds.
+        let resolved = if carries_markup_compatibility(&document.root, &document.interner) {
+            match markup_compatibility_resolved_tree(document) {
+                Ok(resolved) => Some(resolved),
+                Err(error) => {
+                    report.defects.push(format!(
+                        "{label}: {prefix}{} carries markup compatibility that will not resolve, \
+                         so its child order could not be audited at all — {error}",
+                        part.as_str()
+                    ));
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
+        let document = resolved.as_ref().unwrap_or(document);
         let interner = &document.interner;
         let root = &document.root;
         let Some(namespace) = root.name.namespace.map(|symbol| interner.resolve(symbol)) else {
