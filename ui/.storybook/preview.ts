@@ -24,6 +24,8 @@ import { surfaceDocumentCss } from '../src/surfaces/surface-model.ts';
 import { defineFeedback } from '../src/feedback/index.ts';
 import { defineFurniture } from '../src/furniture/index.ts';
 import { defineNavigators } from '../src/navigators/index.ts';
+import { defineFormulaChrome } from '../src/formula/index.ts';
+import { formulaDocumentCss } from '../src/formula/formula-sheets.ts';
 import { furnitureDocumentCss } from '../src/furniture/furniture-model.ts';
 import { feedbackDocumentCss } from '../src/feedback/feedback-model.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
@@ -78,6 +80,11 @@ defineFurniture();
 // empty box with no rows in it -- which reads as a document with nothing in it rather than as a
 // missing registration, and is the one failure mode a story cannot show by looking at it.
 defineNavigators();
+// MJXOFF-192's Excel chrome. Registered here for the reason above and one of its own: an
+// unregistered <mjx-name-box> is an inert element with no field in it at all, so a formula bar
+// would render with an empty gap where the address goes -- which reads as a workbook with no
+// selection rather than as a missing registration.
+defineFormulaChrome();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -119,6 +126,15 @@ document.head.append(feedbackRule);
 const furnitureRule = document.createElement('style');
 furnitureRule.textContent = furnitureDocumentCss;
 document.head.append(furnitureRule);
+
+// MJXOFF-192's, and this one is load-bearing rather than cosmetic, for the reason the surfaces'
+// rule is: it carries the FOUR SCHEME-KEYED reference colours, which can only be declared on
+// :root because which token spells a slot is a different answer in the two schemes. A catalogue
+// without it renders a formula bar whose references are all the inherited text colour -- a bar
+// that has stopped colouring anything, which is exactly what the contract exists to prevent.
+const formulaRule = document.createElement('style');
+formulaRule.textContent = formulaDocumentCss;
+document.head.append(formulaRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
