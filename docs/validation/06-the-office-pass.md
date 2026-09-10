@@ -156,13 +156,25 @@ cargo run -p xtask -- validation-artefacts --format xlsx --area 2
 
 ### Reading the report
 
-Each check reports one of `held`, `reported` or `FAILED`, and the difference is the whole design.
-**`FAILED` is about this library** — byte identity across an edit-free save, every XML part through
-the fidelity tree, the same round-trip through the facade, and the child-order audit against our
-generated `xsd:sequence` tables. **`reported` is about the file** — a package defect it arrived with,
-or markup its producer wrote that the ECMA-376 XSDs reject. A third-party file is not necessarily
-schema-valid: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which
-`dml-chart.xsd` rejects outright, and reddening a build over that would teach nobody anything.
+Each check reports one of `held`, `reported`, `skipped` or `FAILED`, and the difference is the whole
+design. **`FAILED` is about this library** — byte identity across an edit-free save, every XML part
+through the fidelity tree, the same round-trip through the facade, the child-order audit against our
+generated `xsd:sequence` tables, an address the typed model could not read, and an edit that moved
+more than the text leaf it was aimed at. **`reported` is about the file** — a package defect it
+arrived with, markup its producer wrote that the ECMA-376 XSDs reject, or a reference the file makes
+that resolves to nothing inside it. A third-party file is not necessarily schema-valid: Apache POI
+5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which `dml-chart.xsd` rejects outright,
+and reddening a build over that would teach nobody anything.
+
+Two of the rows are not about bytes at all, and they are the only ones that build a typed element
+(MJXOFF-278). **`model`** opens the file as a `Deck`, a `Document` or a `Workbook` and walks all of
+it — every surface, shape, table cell, paragraph and run, and the `effective_*` inheritance ladders
+over each — then prints its counts and asserts that the whole package still saves byte-identically,
+because *reading must not dirty a part*. **`edit`** replaces one text leaf through the model (one run
+per slide, one run in a document body, one numeric cell per sheet) and asserts that the bytes the
+save inserted are exactly the bytes that were set. A count of zero in the `model` row, or a `skipped`
+in the `edit` row, is the honest report that there was nothing there to read or to edit — never a
+pass.
 
 ### The first real report, and what it did and did not retire
 
@@ -173,11 +185,12 @@ owner and handed over in conversation. **It is not committed and R2 stands**: th
 still empty, `MJX_REQUIRE_OFFICE_CORPUS=1` still turns every area into a skip, and a measurement
 taken outside the repository is not a test inside it.
 
-What it reported, verbatim in the verdict vocabulary above: **seven checks `held` and none `FAILED`.**
+What it reported, verbatim in the verdict vocabulary above: **nine checks `held` and none `FAILED`.**
 135 entries re-saved with every payload byte-identical; all 106 XML parts through the fidelity tree
 byte-identical; the facade's own open-and-re-save leaving all 135 unchanged; every OPC invariant
-holding before and after; 52 of the 52 parts the category tables require audited clean for child
-order; 102 parts schema-valid against the ECMA-376 XSDs.
+holding before and after; the typed model reading the whole deck and editing it (below); 52 of the 52
+parts the category tables require audited clean for child order; 102 parts schema-valid against the
+ECMA-376 XSDs.
 
 The one `reported` row is worth reading closely, because it is **not** a file that failed a schema.
 All 23 of its rows are `UNCATEGORISED` — 19 `image/svg+xml` pictures in `ppt/media/`, two modern
@@ -185,17 +198,29 @@ comment parts, an authors part and a revision-info part, in three namespaces the
 tables have no arm for. That is a gap in the instrument rather than a deviation in the markup, and
 only a real Office file could ever have shown it: **MJXOFF-277**.
 
-**What the report does not establish is that we can *read* what Office writes.** Part-level laziness
-re-emits an unedited part from its raw bytes, so the `facade` check — `open` then `save_unchecked`
-with no edit between — never builds a typed element, and would pass on a file every `FromXml`
-implementation would refuse. **MJXOFF-278** is the missing eighth check. A throwaway probe measured
-what it would have said: 45 surfaces, 243 shapes, 310 paragraphs, 240 runs, 240 `effective_run_properties`
-and 243 `effective_shape_fill` resolutions — the R1 and R5 ladders over markup nobody here wrote —
-with **0 errors** and no part dirtied by reading. Then one run's text replaced on each of the 12
-slides: **exactly 12 of the 135 entries changed**, and across 377,690 bytes of PowerPoint-authored
-slide markup each of them differs from Office's own bytes in **exactly one contiguous region**, which
-is the text that was set. The edited file re-ingests with 0 failing checks and the same 102 parts
-schema-valid.
+**Two of those nine rows are MJXOFF-278's, and at 0.0.165 they did not exist.** Until then every
+check was byte identity or laziness — including `facade`, which never builds a typed element — so the
+report established that the container survived and said nothing about whether we can *read* what
+Office writes. The two checks now say it, and this is what they said about that deck:
+
+- **45 surfaces** (12 slides, 10 notes slides, 20 layouts, 2 masters, 1 notes master) and **252
+  shapes**, 203 of them carrying a text body, reached by descending into **3 groups**; **4 tables**
+  of 151 cells.
+- **323 paragraphs, 253 runs, 9,891 characters** in the shapes themselves, and a further **142 runs
+  of 1,644 characters** inside those table cells.
+- **253 `effective_run_properties` and 252 `effective_shape_fill` resolutions** — the R1 and R5
+  ladders, run over markup nobody here wrote — with **no address the model refused**, and all 135
+  entries still byte-identical afterwards, so **reading dirtied no part**.
+- Then one run's text replaced on each of the 12 slides and a `save()`: **exactly 12 of the 135
+  entries changed**, and across **377,690 bytes** of PowerPoint-authored slide markup each of them
+  differs from Office's own bytes in **exactly one contiguous region holding exactly the bytes that
+  were set**. Nothing else in the deck moved.
+
+The throwaway probe MJXOFF-278 was filed with had reported 243 shapes, 310 paragraphs, 240 runs and
+9,855 characters over the same file. The difference is entirely **the three groups**: the probe
+counted a group as one shape and stopped there, and the shipped walk descends into it, which adds 9
+member shapes, 6 more text bodies, 13 paragraphs, 13 runs and 36 characters. The two numbers that had
+to agree — 12 of 135 entries changed, over 377,690 bytes — agree exactly.
 
 ### What the gate does not tell you about an extension
 

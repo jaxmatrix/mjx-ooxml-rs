@@ -156,9 +156,19 @@ cargo run -p xtask -- validation-artefacts --ingest <a file saved out of Office>
 ```
 
 It reports which entry the file answers, whether it round-trips at the container and through the
-facade, whether the package invariants hold, whether its child order matches our generated tables,
-whether it validates, and where it would be committed — and it copies nothing, because committing a
-file is a decision taken against the redistribution rule in `tests/office-authored/README.md`.
+facade, **whether the typed model can read it and what an edit through that model moves**, whether
+the package invariants hold, whether its child order matches our generated tables, whether it
+validates, and where it would be committed — and it copies nothing, because committing a file is a
+decision taken against the redistribution rule in `tests/office-authored/README.md`.
+
+The two model checks are the ones a byte comparison cannot make (MJXOFF-278). Part-level laziness
+re-emits an unedited part from its raw bytes, so `open` then `save_unchecked` with nothing in between
+never builds a typed element and would report `held` on a file every `FromXml` implementation would
+refuse. `model` walks every surface, paragraph and run through the format model, resolves the
+inheritance ladders, prints its counts, and establishes that reading dirtied no part; `edit` replaces
+one text leaf and asserts that the bytes the save inserted are exactly the bytes that were set. Both
+run everywhere — neither needs `References/` or a tool — and `xtask/tests/office_corpus.rs` proves
+they discriminate on every run, over a deck all six byte checks hold and the model refuses.
 `docs/validation/06-the-office-pass.md` §5 is the whole loop.
 
 The same artefacts are produced a second time by `bindings/mjx-python/tests/test_validation_artefacts.py`

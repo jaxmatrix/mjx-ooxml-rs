@@ -273,9 +273,11 @@ cargo run -p xtask -- validation-artefacts --list
 cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
 
 # The other direction (MJXOFF-130): hand it a file saved out of Office and it reports which entry the
-# file answers, whether it round-trips at the container and through the facade, whether the package
-# invariants hold, whether its child order matches ours, whether it validates, and where it would be
-# committed. It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
+# file answers, whether it round-trips at the container and through the facade, whether the typed
+# model can read it and what an edit through that model moves (MJXOFF-278 — the two checks that are
+# not byte identity, and the only ones that ever call a `FromXml`), whether the package invariants
+# hold, whether its child order matches ours, whether it validates, and where it would be committed.
+# It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
 # it: a file's value there is entirely its provenance. docs/validation/06-the-office-pass.md is the
 # hand-off that says how a person does.
 cargo run -p xtask -- validation-artefacts --ingest <file> --area 2
