@@ -74,6 +74,36 @@ pub enum PartOutcome {
     },
     /// Not XML at all (an image, an OLE object, a printer-settings blob).
     SkippedBinary(String),
+    /// A ZIP **directory entry** — a container name ending in `/`, which is not a part at all.
+    ///
+    /// `zip -r` without `-D` writes one for every folder it walks, which is a legal archive real
+    /// producers emit; OPC simply has no content type for a directory. This is a *skip*, never a
+    /// failure, and it carries its own row so the skip is not silent (MJXOFF-284).
+    SkippedDirectoryEntry,
+    /// A **file** entry that no content type covers — a genuine package defect, always a failure.
+    ///
+    /// ECMA-376 Part 2 §10.1.2 gives every part exactly one content type, so an entry that is not a
+    /// directory and that neither an `<Override>` names nor a `<Default>` extension rule covers is
+    /// markup nothing can be resolved for. This is the half a fix that skipped every untyped entry
+    /// would have lost, which is why it is a separate variant rather than a second spelling of
+    /// [`SkippedDirectoryEntry`](Self::SkippedDirectoryEntry).
+    WithoutContentType {
+        /// Why nothing types it: either the entry name is not a valid OPC part name, or it is and
+        /// the content-types stream still says nothing about it.
+        reason: String,
+    },
+    /// A part whose content type declares XML and whose bytes do not parse as XML.
+    ///
+    /// A deck this library authors never produces one — but `validation-artefacts --ingest` is
+    /// pointed at files this library did not write, and refusing one of those with a bare panic is
+    /// the failure shape MJXOFF-284 closed.
+    NotWellFormedXml(String),
+    /// The package — the outer one, or one embedded in it — could not be opened at all.
+    ///
+    /// The outer case is unreachable through `--ingest`, which opens the file before it reports on
+    /// it; an **embedded** workbook whose bytes are not a container is not, and
+    /// [`crate::audit_order_report`] already reports that rather than raising it.
+    PackageWouldNotOpen(String),
     /// Category 1b: every child of a [wrapper root](crate::categories::WrapperRoot) validated clean
     /// against the named schema. The wrapper itself is asserted nothing about, which is why the
     /// count is carried: a wrapper the splitter found no children in is
@@ -141,6 +171,20 @@ impl PartOutcome {
             Self::SkippedBinary(content_type) => {
                 format!("skipped — not XML (content type {content_type})")
             }
+            Self::SkippedDirectoryEntry => {
+                "skipped — a ZIP directory entry, which is not a part and has no content type"
+                    .to_owned()
+            }
+            Self::WithoutContentType { reason } => format!(
+                "NO CONTENT TYPE — this entry is a file, not a directory, and nothing types it: \
+                 {reason}"
+            ),
+            Self::NotWellFormedXml(error) => {
+                format!("NOT WELL-FORMED — declared XML by its content type, but: {error}")
+            }
+            Self::PackageWouldNotOpen(error) => {
+                format!("WOULD NOT OPEN — the package could not be read at all: {error}")
+            }
             Self::SkippedPreservedForeign {
                 namespace,
                 label,
@@ -170,6 +214,11 @@ impl PartOutcome {
                 | Self::Uncategorised { .. }
                 | Self::UnresolvableMarkupCompatibility(_)
                 | Self::WrapperHeldNothing { .. }
+                // A directory entry is deliberately **not** here: it is a legal container feature,
+                // not a defect. Everything else this list gained with MJXOFF-284 is one.
+                | Self::WithoutContentType { .. }
+                | Self::NotWellFormedXml(_)
+                | Self::PackageWouldNotOpen(_)
         )
     }
 
@@ -382,9 +431,14 @@ fn rename(name: &RawName, source: &Interner, interner: &mut Interner) -> RawName
 ///
 /// `tolerances` is empty for a deck this library authors: nothing it writes is ever excused.
 ///
-/// # Panics
-/// If the package cannot be opened, or a part declared XML does not parse — both are harness faults
-/// rather than schema deviations.
+/// # This reports; it does not raise
+///
+/// Every refusal is a [`PartRow`], including the ones that used to be a `panic!`: a package that
+/// will not open, an entry nothing types, a part declared XML whose bytes are not. `inspect_deck` is
+/// reached from `validation-artefacts --ingest`, which a person points at an arbitrary file they
+/// have just saved out of Office, and a bare stack trace there costs the reviewer the report the
+/// pass exists to produce (MJXOFF-284). A test suite that wants those rows to *fail* calls
+/// [`assert_rows_are_valid`], which they do — see [`PartOutcome::is_failure`].
 #[must_use]
 pub fn inspect_deck(
     harness: &Harness,
@@ -411,20 +465,77 @@ fn inspect_package(
     prefix: &str,
     rows: &mut Vec<PartRow>,
 ) {
-    let package = Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
+    let package = match Package::open(bytes) {
+        Ok(package) => package,
+        Err(error) => {
+            // The embedded case is the live one: a chart workbook whose bytes are not a container
+            // arrives here from a file this library did not write. `audit_order_report` reports the
+            // same fact the same way, and the two halves of the gate must not disagree about it.
+            rows.push(PartRow {
+                name: if prefix.is_empty() {
+                    label.to_owned()
+                } else {
+                    prefix.to_owned()
+                },
+                root_element: None,
+                namespace: None,
+                outcome: PartOutcome::PackageWouldNotOpen(error.to_string()),
+            });
+            return;
+        }
+    };
     let work = WorkDir::new(&format!("{label}{prefix}").replace(['.', '/', ' ', '!'], "_"));
 
     // Every ZIP entry, not just the addressable parts: `[Content_Types].xml` is markup `mjx-opc`
     // writes on every save and is exactly the kind of stream a bug would break silently.
     for entry in package.entries() {
         let name = format!("{prefix}/{}", entry.name);
+
+        // A **directory entry** — the container's marker for a folder, written by `zip -r` without
+        // `-D` and by real producers. It is not a part, so OPC has no content type for it and none
+        // is missing. The discriminator is the trailing `/`, and it is not this crate's invention:
+        // `mjx_opc::PartName::new` refuses such a name outright ("part name must not end with
+        // '/'"), which is exactly why `Package::part_names`, `Package::validate`'s content-type
+        // check and `authored_xml_parts` all pass it over. Testing the name rather than the payload
+        // matters: a directory entry is empty, but so is a zero-byte *part*, and only one of the
+        // two is excused.
+        if entry.name.ends_with('/') {
+            rows.push(PartRow {
+                name,
+                root_element: None,
+                namespace: None,
+                outcome: PartOutcome::SkippedDirectoryEntry,
+            });
+            continue;
+        }
+
+        // Unreachable rather than tolerated: `bytes` was opened above, so every body is `Raw` and
+        // only an `Edited` one — which needs a mutation this function never performs — yields
+        // `None`. It stays an assertion because a `None` here would mean the copy-on-write
+        // invariant had broken, which is a fault in this harness and not a verdict about the file.
         let Some(payload) = entry.bytes() else {
             panic!("{label}: {name} has no materialized bytes in a freshly opened package");
         };
+
         // The content-types stream describes every other part and has no content type of its own.
-        let content_type = PartName::from_zip_name(&entry.name)
-            .ok()
-            .and_then(|part| package.content_type_of(&part).map(str::to_owned));
+        // Everything else that reaches this point is a file, so "nothing types it" is a defect —
+        // whether because the name cannot be addressed as a part at all, or because it can and the
+        // stream is silent about it. Those two are distinguished in the reason, never in the
+        // verdict.
+        let content_type = match PartName::from_zip_name(&entry.name) {
+            Ok(part) => package.content_type_of(&part).map(str::to_owned),
+            Err(error) => {
+                rows.push(PartRow {
+                    name,
+                    root_element: None,
+                    namespace: None,
+                    outcome: PartOutcome::WithoutContentType {
+                        reason: format!("its name is not a valid OPC part name — {error}"),
+                    },
+                });
+                continue;
+            }
+        };
 
         if let Some(content_type) = content_type {
             if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
@@ -442,11 +553,33 @@ fn inspect_package(
                 continue;
             }
         } else if entry.name != CONTENT_TYPES_ZIP_NAME {
-            panic!("{label}: no content type for {name}");
+            rows.push(PartRow {
+                name,
+                root_element: None,
+                namespace: None,
+                outcome: PartOutcome::WithoutContentType {
+                    // The *rule* is not restated: `content_type_of` above is mjx-opc's own answer,
+                    // the same one `Package::validate` reads to raise `PartWithoutContentType`.
+                    // Only the sentence explaining it is written twice, and it is written to match.
+                    reason: "no <Override> names it and no <Default> covers its extension"
+                        .to_owned(),
+                },
+            });
+            continue;
         }
 
-        let document = fidelity::parse(payload)
-            .unwrap_or_else(|e| panic!("{label}: {name} is declared XML but does not parse: {e}"));
+        let document = match fidelity::parse(payload) {
+            Ok(document) => document,
+            Err(error) => {
+                rows.push(PartRow {
+                    name,
+                    root_element: None,
+                    namespace: None,
+                    outcome: PartOutcome::NotWellFormedXml(error.to_string()),
+                });
+                continue;
+            }
+        };
         let interner = &document.interner;
         let root_element = Some(qualified_name(&document.root, interner));
         let namespace = document
