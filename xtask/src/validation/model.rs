@@ -25,7 +25,7 @@
 //! # Three outcomes for a read, not two
 //!
 //! A model read that **errors** is this library's, and fails. But a file is allowed to carry markup
-//! this project deliberately does not model, and the gaps pages — `crates/mjx-pptx/docs/gaps.md` and
+//! this project deliberately does not model, and the gaps pages — `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` and
 //! its two siblings — are what decide which. Turning a documented non-goal into a red build teaches
 //! nobody anything, so the walk splits an error three ways by its
 //! [`ErrorCode`](mjx_ooxml::ErrorCode) and says which it saw:
