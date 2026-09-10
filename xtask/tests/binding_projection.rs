@@ -57,7 +57,7 @@
 //!   reads the committed `.pyi` instead — a declaration that already exists and is parity-checked
 //!   against the compiled module — and parses nothing.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use xtask::binding_surface;
@@ -260,6 +260,248 @@ const FORCED_NAMES: &[(&str, &str)] = &[("to_display_string", "toString")];
 /// How many exported functions the ledger above accounts for. Exact, so a new hand-written
 /// `js_name` cannot hide behind it.
 const FORCED_SITES: usize = 7;
+
+/// **The complement of the rule above: a data *token* is not a name, and does not get camelCased.**
+///
+/// The wasm binding wrote this rule for itself, in `bindings/mjx-wasm/src/geometry.rs`'s comment on
+/// `ShapeGeometry::of`:
+///
+/// > The keys are the adjustment names, which stay `snake_case`: they are data — the names
+/// > ECMA-376's prose gives each `a:gd` — rather than method names, and renaming data would make
+/// > `adjustmentNames` disagree with the record it describes.
+///
+/// It lived in prose and was checked by nothing, and it drifted: `ChartWrap.kind` answered
+/// `"topAndBottom"` in JavaScript against `"top_and_bottom"` in Python, so a caller who ported a
+/// comparison from one binding to the other got a comparison that silently stopped matching. The
+/// sweep that fixed it found no second instance, which is a claim this test is what preserves
+/// (MJXOFF-268).
+///
+/// # What this compares, and why it cannot condemn the binding's names
+///
+/// A method name and a returned token are told apart by **where they are written**, not by how they
+/// are spelled. A JavaScript name is only ever a `js_name` inside an attribute or a Rust
+/// identifier; a Python one is only ever a `#[pyo3(name = …)]` or an identifier. Neither is ever a
+/// string literal in a function body. So [`binding_surface::wasm_source_literals`] drops every
+/// attribute line and every comment line, and what survives is data by construction. `ChartWrap` is
+/// the case that shows it: the constructor's `js_name = "topAndBottom"` and the token
+/// `"topAndBottom"` its `kind` used to return were the same word in the same `impl` block, and only
+/// the second of them is visible here.
+///
+/// The rule is stated over **both** bindings rather than only the JavaScript one. Python is correct
+/// today by construction rather than by check, and a rule that only ever looks at one side is a
+/// rule that has picked a reference implementation by accident.
+///
+/// # The one thing this must never be read as asking for
+///
+/// **A wire token is not renamed, ever** — `CLAUDE.md` says so, and a camelCase one is not a defect.
+/// `ExternalLinkInfo.kind` answers `"oleObject"` in both bindings, which is `CT_ExternalLink`'s own
+/// spelling and must stay exactly that. It does not appear here because neither binding *writes*
+/// it: the token comes up from `mjx_ooxml`, and the binding hands it straight on. That is the
+/// general shape — a binding invents the tokens it spells and preserves the ones it forwards — so
+/// every literal this test sees is a binding's own invention. If a wire token ever does need to be
+/// written out in one of these crates, the answer is a ledger entry naming the schema it comes
+/// from, never a rename.
+///
+/// The second escape is a **structural key of a JavaScript object** — the `"kind"` and `"index"`
+/// `read_surface` reads, the `"code"` and `"detail"` an `OoxmlError` carries. Those are names, and
+/// a multi-word one would rightly be camelCase. Every one of them is a single word today, so the
+/// rule and the escape do not yet collide; when they do, the fix is a ledger here, and the thing to
+/// decide first is which kind of key it is. `ShapeGeometry.adjustments` is the case that shows a
+/// key can go either way: its keys are the ECMA-376 adjustment names, and the comment quoted above
+/// is the workspace deciding, in writing, that those are data and stay `snake_case`.
+#[test]
+fn no_data_token_is_spelled_in_camel_case() {
+    let root = repository_root();
+    let mut offenders = Vec::new();
+    let mut underscored = 0usize;
+    let mut scanned = 0usize;
+    for (binding, literals) in [
+        ("wasm", binding_surface::wasm_source_literals(&root)),
+        ("python", binding_surface::python_source_literals(&root)),
+    ] {
+        for literal in literals {
+            scanned += 1;
+            if literal.produced && literal.value.contains('_') {
+                underscored += 1;
+            }
+            if is_camel_case(&literal.value) {
+                offenders.push(format!(
+                    "bindings/mjx-{binding}/src/{}:{}: {}::{} spells the data token `\"{}\"` in \
+                     camel case; a token is data and stays snake_case",
+                    literal.file, literal.line, literal.owner, literal.member, literal.value
+                ));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "a data token is spelled like a method name:\n  {}",
+        offenders.join("\n  ")
+    );
+    // Anti-vacuity, both halves. The first says the literal scan still sees the sources; the second
+    // says it still sees *multi-word* tokens, which are the only ones the casing rule can be broken
+    // on — a scan that had stopped matching those would pass this test while asking nothing.
+    assert!(
+        scanned > 400 && underscored > 25,
+        "{scanned} literal(s) and {underscored} multi-word produced token(s) found — the scan has \
+         stopped matching"
+    );
+    println!(
+        "data-token casing: {scanned} literal(s) across both bindings, {underscored} of them \
+         multi-word tokens, 0 in camel case"
+    );
+}
+
+/// Every data token both bindings produce for the same member, they spell the same way.
+///
+/// The check above is one-sided by design: it asks whether a token is camelCase, which is the shape
+/// the drift took. This one asks the question underneath it — *does a caller who ported a
+/// comparison from Python to TypeScript get the same string?* — and it would catch a divergence
+/// that is not a casing difference at all.
+///
+/// **"Produced" is narrower than "written".** A literal counts only where a value is *made*: on
+/// either side of a `match` arm's `=>`, or immediately before `.to_owned()`. That is what a caller
+/// receives. A message handed to `expect` or to `invalid_argument` is written in a body too and is
+/// not comparable — the two bindings raise through different error models, which
+/// `xtask/tests/binding_doc_parity.rs`'s `DIVERGENT` ledger already records at length. Restricting
+/// to produced literals is what lets this test carry **no ledger at all**: every member the two
+/// bindings share agrees, with nothing excused.
+///
+/// Members are paired by `(owner, name)`, which is exact rather than approximate — Rust has no
+/// overloading, so a type has at most one `fn` of a given name, and the false-pair trap
+/// `binding_doc_parity.rs` disposes of with an argument count cannot arise.
+///
+/// # The way a comparison could quietly stop happening, and what stops it
+///
+/// A member that produces tokens in one binding and none in the other is not compared, and that is
+/// how this check could decay without ever failing: rewrite one side to delegate to the facade —
+/// `Surface::kind` already does, in both bindings, which is the healthier shape — and the other
+/// side's hand-written tokens become unpaired and unwatched. So the second assertion below asks
+/// exactly that: for every member that produces tokens in one binding, if the **other binding
+/// declares a member of the same name on the same owner**, it must produce tokens too. The two
+/// declaration readers this file already uses answer it — `wasm_exports` for JavaScript, the
+/// committed stub for Python — so a free function like `read_surface`, which is plumbing rather
+/// than surface, is excluded because neither binding declares it, not because it was excused.
+#[test]
+fn the_two_bindings_produce_the_same_data_tokens() {
+    let root = repository_root();
+    let wasm = produced_tokens(&binding_surface::wasm_source_literals(&root));
+    let python = produced_tokens(&binding_surface::python_source_literals(&root));
+    let mut divergent = Vec::new();
+    let mut paired = 0usize;
+    let mut tokens = 0usize;
+    for (member, javascript) in &wasm {
+        let Some(rust) = python.get(member) else {
+            continue;
+        };
+        paired += 1;
+        tokens += javascript.len();
+        if javascript != rust {
+            divergent.push(format!(
+                "{}::{} answers {javascript:?} in JavaScript and {rust:?} in Python",
+                member.0, member.1
+            ));
+        }
+    }
+    assert!(
+        divergent.is_empty(),
+        "the two bindings hand a caller different strings for the same value:\n  {}",
+        divergent.join("\n  ")
+    );
+    let declared_by_javascript: BTreeSet<(String, String)> = binding_surface::wasm_exports(&root)
+        .into_iter()
+        .map(|export| (export.owner, export.rust_name))
+        .collect();
+    let declared_by_python: BTreeSet<(String, String)> = binding_surface::python_members(&root)
+        .into_iter()
+        .map(|member| (member.owner, member.name))
+        .collect();
+    let mut unwatched = Vec::new();
+    for (producers, counterpart, declared_by_counterpart) in [
+        (&wasm, &python, &declared_by_python),
+        (&python, &wasm, &declared_by_javascript),
+    ] {
+        for member in producers.keys() {
+            if declared_by_counterpart.contains(member) && !counterpart.contains_key(member) {
+                unwatched.push(format!("{}::{}", member.0, member.1));
+            }
+        }
+    }
+    assert!(
+        unwatched.is_empty(),
+        "a member produces a token in one binding and none in the other, which both bindings \
+         declare — the comparison above has stopped covering it:\n  {}",
+        unwatched.join("\n  ")
+    );
+    assert!(
+        paired > 15 && tokens > 60,
+        "only {paired} shared member(s) producing {tokens} token(s) compared — the scan has \
+         stopped matching"
+    );
+    println!(
+        "data-token parity: {paired} member(s) declared by both bindings produce {tokens} token(s), \
+         all spelled identically"
+    );
+}
+
+/// The produced literals of each member that produces any, keyed by `(owner, member)`.
+fn produced_tokens(
+    literals: &[binding_surface::SourceLiteral],
+) -> BTreeMap<(String, String), Vec<String>> {
+    let mut found: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    for literal in literals.iter().filter(|literal| literal.produced) {
+        found
+            .entry((literal.owner.clone(), literal.member.clone()))
+            .or_default()
+            .push(literal.value.clone());
+    }
+    found
+}
+
+/// No delimiter this crate's brace and bracket matching cares about is ever written as a character
+/// literal in either binding's sources.
+///
+/// `binding_surface::balance` skips string literals and not character ones, because skipping the
+/// latter means telling `'{'` apart from the lifetime in `impl<'a>` — a lexer's job. The shortcut
+/// is safe exactly as long as this holds, so it is asked rather than assumed.
+#[test]
+fn a_delimiter_is_never_written_as_a_character_literal() {
+    let root = repository_root();
+    let mut offenders = Vec::new();
+    for directory in ["bindings/mjx-wasm/src", "bindings/mjx-python/src"] {
+        for (file, text) in binding_surface::sources(&root.join(directory), "rs") {
+            for (number, line) in text.lines().enumerate() {
+                for delimiter in ['{', '}', '[', ']'] {
+                    if line.contains(&format!("'{delimiter}'")) {
+                        offenders.push(format!("{directory}/{file}:{}", number + 1));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "a delimiter is written as a character literal, which the brace matching in \
+         `xtask/src/binding_surface.rs` does not skip:\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+/// Whether `value` is a single camelCase word: it begins with a lower-case letter, is made only of
+/// letters and digits, and carries at least one capital.
+///
+/// Deliberately whole-literal. `"SectionLocation.body()"` is a display string that happens to name
+/// a method and is not a token; `"topAndBottom"` was a token spelled like a name. Requiring the
+/// *entire* literal to be one camelCase word is what separates them.
+fn is_camel_case(value: &str) -> bool {
+    value.starts_with(|character: char| character.is_ascii_lowercase())
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
+        && value
+            .chars()
+            .any(|character| character.is_ascii_uppercase())
+}
 
 /// `some_name` as `someName`.
 fn camel_case(name: &str) -> String {

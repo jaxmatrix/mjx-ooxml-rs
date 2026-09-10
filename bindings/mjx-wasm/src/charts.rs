@@ -861,13 +861,13 @@ impl ChartWrap {
         Self(ooxml::ChartWrap::TopAndBottom)
     }
 
-    /// Which wrap this is: `"none"`, `"square"` or `"topAndBottom"`.
+    /// Which wrap this is: `"none"`, `"square"` or `"top_and_bottom"`.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         match self.0 {
             ooxml::ChartWrap::None => "none",
             ooxml::ChartWrap::Square(_) => "square",
-            ooxml::ChartWrap::TopAndBottom => "topAndBottom",
+            ooxml::ChartWrap::TopAndBottom => "top_and_bottom",
         }
         .to_owned()
     }

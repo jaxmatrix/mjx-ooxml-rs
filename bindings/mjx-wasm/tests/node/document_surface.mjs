@@ -415,6 +415,17 @@ test("a floating Word chart takes each of the three wraps", () => {
   const none = ChartWrap.none();
   assert.equal(none.wrapText, undefined);
   none.free();
+  // `kind` is a data token, not a method name, so it stays snake_case and Python spells it the
+  // same way. `xtask/tests/binding_projection.rs` holds the rule for the whole surface; this is
+  // the one member that ever broke it (MJXOFF-268).
+  for (const [wrap, kind] of [
+    [ChartWrap.none(), "none"],
+    [ChartWrap.square(WrapText.BothSides), "square"],
+    [ChartWrap.topAndBottom(), "top_and_bottom"],
+  ]) {
+    assert.equal(wrap.kind, kind);
+    wrap.free();
+  }
 });
 
 test("a Word chart refusal carries the same code the Deck surface uses", () => {

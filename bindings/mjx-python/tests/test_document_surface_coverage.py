@@ -297,6 +297,10 @@ def test_a_floating_word_chart_takes_each_of_the_three_wraps(document: Document)
     assert ChartWrap.square(WrapText.Left).kind == "square"
     assert ChartWrap.square(WrapText.Left).wrap_text == WrapText.Left
     assert ChartWrap.none().wrap_text is None
+    # The same three tokens the JavaScript suite asserts, spelled the same way: `kind` is data,
+    # not a method name (MJXOFF-268).
+    assert ChartWrap.none().kind == "none"
+    assert ChartWrap.top_and_bottom().kind == "top_and_bottom"
 
 
 def test_a_word_chart_refusal_carries_the_same_code_the_deck_surface_uses(
