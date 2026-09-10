@@ -1893,6 +1893,14 @@ contiguous rows — which packed cards cannot honour, since a packed card sits a
 with a gap of its own. U13 found the right route can be transitive; this is the mirror case, where
 the transitive route is the wrong one and the foundation is the right one.
 
+### A card that moves is animated, and cannot overshoot
+
+`annotationMotionClass` is the `documentObject` role and the pane puts it on every card it places;
+`.slot` names the property (`inset-block-start`) the role's duration and easing then apply to. A card
+that sprang past its new position and came back would be telling a reader their comment moved. The
+consequence for the browser tier is stated in its own `settle()`: a box read two frames after a
+selection is a box in mid-flight, so the gate waits the transition out rather than switching it off.
+
 ### The sheet
 
 Below `reviewSheetAtOrBelow` (an alias of `phoneShellAtOrBelow`, asserted) the pane becomes a sheet

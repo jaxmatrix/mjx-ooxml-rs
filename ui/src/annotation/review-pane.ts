@@ -62,7 +62,7 @@ import {
   type ReviewPresentation,
   type TrackedChangeKind,
 } from './annotation-model.ts';
-import { annotationTypeRoles, reviewPaneCss } from './annotation-sheets.ts';
+import { annotationMotionClass, annotationTypeRoles, reviewPaneCss } from './annotation-sheets.ts';
 import { assignAuthorColours, authorColourFor } from './author-colour.ts';
 import { MjxAnnotationCard } from './comment-card.ts';
 import type { CommentReply } from './comment-thread.ts';
@@ -407,7 +407,7 @@ export class MjxReviewPane extends HTMLElement {
     const roster = assignAuthorColours(this.#annotations.map((each) => each.author));
     const slot = authorColourFor(entry.author, roster);
     const element = this.#createCard(entry, slot, roster);
-    element.classList.add('slot');
+    element.classList.add('slot', annotationMotionClass);
     this.#sizer?.append(element);
     this.#built.set(id, element);
     return element;

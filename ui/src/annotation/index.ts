@@ -38,7 +38,6 @@ export {
   annotationTypeRoles,
   commentCardCss,
   commentThreadCss,
-  connectorInsetLength,
   reviewPaneCss,
   trackedChangeCardCss,
 } from './annotation-sheets.ts';

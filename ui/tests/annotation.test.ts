@@ -50,6 +50,8 @@ import { generatedDefault } from '../src/tokens/resolver.ts';
 import { phoneShellAtOrBelow } from '../src/harness/presets.ts';
 import { iconGlyphs } from '../src/icons/generated.ts';
 import { iconId } from '../src/icons/manifest.ts';
+import { motionRoleClass, motionRoles } from '../src/foundations/motion.ts';
+import { annotationMotionClass } from '../src/annotation/annotation-sheets.ts';
 import { rowsInWindow } from '../src/foundations/virtual-list.ts';
 import { tokens } from '../tokens/tokens.ts';
 
@@ -533,6 +535,16 @@ describe('tracked changes', () => {
     for (const name of ['comment', 'checkmark', 'delete', 'dismiss', 'chevron-down', 'chevron-up']) {
       expect(Object.keys(iconGlyphs), name).toContain(iconId(name, annotationIconSize, 'regular'));
     }
+  });
+});
+
+describe('a card that moves', () => {
+  it('uses a document-attached motion role, so it cannot overshoot its anchor', () => {
+    // A card that sprang past its new position and came back would be telling a reader that their
+    // comment moved. `tests/foundations.test.ts` forbids `ease.spring` on any document-attached
+    // role; this ties this component to one of them by name.
+    expect(annotationMotionClass).toBe(motionRoleClass('documentObject'));
+    expect(motionRoles.documentObject.attachedToDocumentObject).toBe(true);
   });
 });
 

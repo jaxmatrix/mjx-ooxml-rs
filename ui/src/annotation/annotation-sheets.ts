@@ -35,7 +35,6 @@ import {
 } from './author-colour.ts';
 import {
   annotationTags,
-  connectorInsetUnits,
   reviewPresentationProperty,
   reviewSheetAtOrBelow,
 } from './annotation-model.ts';
@@ -441,9 +440,15 @@ export const reviewPaneCss = `
     inline-size: 100%;
   }
 
+  /* A card that jumps to a new packed offset the instant a selection changes reads as the column
+   * redrawing itself. The motion role is documentObject: attached to something in the user's
+   * document, so it decelerates and never overshoots -- a card that sprang past its anchor and came
+   * back would be telling a reader their comment moved. The role class supplies the duration and
+   * the easing; the property is this component's to name. */
   .slot {
     position: absolute;
     inset-inline: 0;
+    transition-property: inset-block-start;
   }
 
   .empty {
@@ -505,13 +510,12 @@ export const annotationTypeRoles = {
   action: typeRoleClass('control'),
 } as const;
 
-/** The motion role a card uses when it moves to a new packed position. */
-export const annotationMotionClass = motionRoleClass('documentObject');
-
 /**
- * How far down the card the connector lands, as a length.
+ * The motion role a card uses when it moves to a new packed position.
  *
- * The units live in the model so a gate can reason about them without a browser; the length is
- * derived here so the value itself stays in the stylesheet tier.
+ * ⚠ **Read by the component, not only exported.** `<mjx-review-pane>` puts this class on every card
+ * it places, and `.slot` above names the property it transitions. A motion role that is exported and
+ * never applied is the shape of thing CLAUDE.md calls worse than none: it looks like a decision and
+ * changes nothing.
  */
-export const connectorInsetLength = spacingMultiple(connectorInsetUnits);
+export const annotationMotionClass = motionRoleClass('documentObject');

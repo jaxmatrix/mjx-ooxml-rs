@@ -51,11 +51,27 @@ async function open(
   await settle(page);
 }
 
+/**
+ * Two frames, and then the packing transition.
+ *
+ * ⚠ A card moving to a new packed offset is animated — the `documentObject` motion role, whose
+ * duration is `--duration-transition` — so a box read two frames after a selection is a box in
+ * mid-flight, and every packing assertion below would be measuring an intermediate position. This
+ * waits the transition out rather than disabling it, because what the gate is about is where the
+ * cards *end up* and the animation is part of the component under test.
+ */
 async function settle(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   });
+  await page.waitForTimeout(transitionSettleMilliseconds);
+  await page.evaluate(async () => {
+    await new Promise((done) => requestAnimationFrame(done));
+  });
 }
+
+/** `--duration-transition` is 150ms; this is that plus room for the frame it starts on. */
+const transitionSettleMilliseconds = 240;
 
 /** Where every card ended up, as the browser laid it out. */
 interface CardBox {
