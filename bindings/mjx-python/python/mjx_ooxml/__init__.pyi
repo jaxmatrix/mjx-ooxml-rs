@@ -6474,7 +6474,7 @@ class GeometrySource:
 class CellData:
     """One cell's value, as the file states it — **stored, not displayed**."""
     kind: str
-    """`"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`."""
+    """`"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`."""
     is_blank: bool
     """Whether the cell is not populated, or holds no value element."""
     number: float | None
@@ -6487,6 +6487,10 @@ class CellData:
     """The boolean this cell holds, or `None` for every other kind."""
     error_code: str | None
     """The error code this cell holds, or `None` for every other kind."""
+    unreadable_text: str | None
+    """The text of a value this library could not read as the kind its cell declares, or `None` for
+    every other kind — including a blank, which is a cell that states no value at all.
+    """
     value: object
     """The value as one of Python's own types: `None`, `float`, `str` or `bool`."""
 

@@ -160,8 +160,8 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   equality could never have been the gate, and building it found twenty-three members where the
   TypeScript reader was told strictly less than the Python one.
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are
-  **camelCase**, because a `snake_case` API is an immediate smell to a TypeScript consumer: 1,629 of
-  the 1,767 exported functions carry an explicit `js_name`, and the 138 that do not are single words
+  **camelCase**, because a `snake_case` API is an immediate smell to a TypeScript consumer: 1,630 of
+  the 1,768 exported functions carry an explicit `js_name`, and the 138 that do not are single words
   where the two cases coincide. `xtask/tests/binding_projection.rs` is what makes that a rule rather
   than a habit — every `js_name` must equal the camel case of the Rust name it sits on, and every
   name without one must be a single word, with a ledger of the seven JavaScript itself forces
