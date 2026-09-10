@@ -322,6 +322,106 @@ export function insetRect(rect: Rect, inset: number): Rect {
   };
 }
 
+/** The area of the overlap between two rectangles. Zero when they do not touch. */
+export function overlapArea(first: Rect, second: Rect): number {
+  const overlap = intersectRects(first, second);
+  return overlap.width * overlap.height;
+}
+
+/**
+ * What `placeClearOfAnchor` returns: a placement, and whether it actually cleared the anchor.
+ *
+ * `overlap` is reported rather than thrown away, because *"it did not fit"* and *"it fitted"* are
+ * both answers a caller has to render differently.
+ */
+export interface ClearPlacement {
+  readonly placement: Placement;
+  /** The logical side that produced it — the caller's word, not the flipped physical one. */
+  readonly requested: LogicalSide;
+  /** The area, in square pixels, by which it still covers the anchor. Zero when it is clear. */
+  readonly overlap: number;
+  /** Whether a genuinely clear side was found. */
+  readonly clear: boolean;
+  /**
+   * How many sides were tried, so a gate can say what it compared rather than that it compared.
+   *
+   * When a clear side was found this is **its position in the order** — one for the first choice.
+   * When none was, it is the **whole** order, which is what distinguishes a genuine four-sided
+   * failure from a caller who passed no sides at all.
+   */
+  readonly tried: number;
+}
+
+/**
+ * **Place a box so that it does not cover the thing it is about.**
+ *
+ * `placeFloating` puts a box beside its anchor with a gap, and that is *usually* enough. It is not
+ * always enough, and the exception is not exotic: the last step of the arithmetic **clamps** the
+ * box inside the boundary, so a box that fits on neither side of its anchor is pushed back over
+ * the anchor rather than off the screen. For a menu hanging off a button that is the right answer
+ * — a menu covering its own button is a menu you can still read. For two of MJXOFF-189's five
+ * components it is the defect itself:
+ *
+ * * a **mini toolbar** exists to act on a selection, and a toolbar sitting on top of the selection
+ *   hides the thing a person is deciding about;
+ * * a **screentip** describes the control under the pointer, and one drawn over that control
+ *   describes something the reader can no longer see.
+ *
+ * So this asks `placeFloating` the same question once per side, in the caller's order of
+ * preference, and returns **the first placement that overlaps the anchor by nothing at all**.
+ *
+ * ⚠ **It reports failure rather than hiding it.** When the anchor fills its boundary there is no
+ * clear side and no arithmetic can invent one; the least-overlapping placement comes back with
+ * `clear: false` and the area beside it, and the caller decides what to say. A function that
+ * silently returned its least-bad answer would satisfy every *"the toolbar never covers the
+ * selection"* assertion by making that assertion unfalsifiable — MJXOFF-269's defect in a
+ * geometric costume. `stories/feedback/mini-toolbar.stories.ts` ships a selection that fills its
+ * room precisely so the `false` branch is reachable, and the gates assert both branches.
+ *
+ * Nothing is re-derived here: every candidate is a `placeFloating` call and the overlap is
+ * `intersectRects`. A second placement arithmetic is what this module exists to prevent.
+ *
+ * @param request the same request `placeFloating` takes, minus `side`: the preference is stated
+ *   once, in `order`, so two statements of it cannot disagree.
+ * @param order the sides to try, most-wanted first.
+ */
+export function placeClearOfAnchor(
+  request: Omit<PlacementRequest, 'side'>,
+  order: readonly LogicalSide[],
+): ClearPlacement {
+  let best: Omit<ClearPlacement, 'tried'> | undefined;
+  let tried = 0;
+  for (const side of order) {
+    tried += 1;
+    const placement = placeFloating({ ...request, side });
+    const box: Rect = {
+      x: placement.x,
+      y: placement.y,
+      width: request.floating.width,
+      height: request.floating.height,
+    };
+    const overlap = overlapArea(box, request.anchor);
+    if (overlap === 0) return { placement, requested: side, overlap, clear: true, tried };
+    if (best === undefined || overlap < best.overlap) {
+      best = { placement, requested: side, overlap, clear: false };
+    }
+  }
+  // ⚠ `tried` is the **whole** order here, not the index the best candidate happened to sit at.
+  // A failure report that named the position of its least-bad answer would be indistinguishable
+  // from a search that stopped early, which is the one thing this field exists to tell apart.
+  if (best !== undefined) return { ...best, tried };
+  // An empty `order` is a programming error rather than a geometry this can answer. Falling back
+  // to the block-start placement keeps the return type honest without inventing a preference: the
+  // `tried: 0` is what a gate reads to tell this apart from a genuine four-sided failure.
+  return {
+    placement: placeFloating({ ...request, side: 'blockStart' }),
+    requested: 'blockStart',
+    overlap: Number.POSITIVE_INFINITY,
+    clear: false,
+    tried: 0,
+  };
+}
+
 /**
  * The flat-tree parent: through an assigned slot, and out of a shadow root by its host.
  *

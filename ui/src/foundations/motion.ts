@@ -17,9 +17,25 @@
  * out of a browser and compares it to the generated token's own cubic-bezier, so a role that names
  * the right token in this file and resolves to the wrong curve in the cascade is caught as well.
  *
+ * ## The one duration token, and how a *delay* is expressed in it (MJXOFF-189)
+ *
+ * The generated table declares exactly one duration, `--duration-transition`. U10 needs four more
+ * spans of time — a screentip's appearance delay, its warm-up window, a toast's dwell and an
+ * indeterminate bar's cycle — and the honest options were the two `typography.ts` faced over its
+ * two type sizes: invent tokens, or derive.
+ *
+ * **Deriving wins here for a second reason on top of that one.** A delay written as `600ms` in a
+ * component is a literal the lint would refuse, and a delay written as `calc(var(--duration-transition) * 4)`
+ * is a *ratio* — so a host that slows the platform down for a person who needs longer to read
+ * slows the screentip down with it, and a re-seed of the token moves all five together.
+ * `durationMultiple` is the spelling; `resolveDurationMilliseconds` is how a component gets a
+ * **number** back out of the cascade so a `setTimeout` can use it.
+ *
  * ## Node-importable
  *
- * Data and strings only.
+ * Data and strings, plus one function that reads a computed style. The DOM is touched **inside a
+ * function body, never at module scope** — the rule `overlay/floating.ts` states for the same
+ * arrangement — so `tests/foundations.test.ts` still imports this file from Node.
  */
 
 /** The roles, in the order the catalogue shows them. */
@@ -96,6 +112,54 @@ export const overshootingEasingToken = 'ease.spring';
 /** `panelEnter` → `.mjx-motion-panel-enter`. */
 export function motionRoleClass(role: MotionRole): string {
   return `mjx-motion-${role.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`)}`;
+}
+
+/** The one duration token, as its dotted path, so nothing spells the variable twice. */
+export const transitionDurationToken = 'duration.transition';
+
+/** The `var()` every derived span of time is a multiple of. */
+export const transitionDurationVariable = 'var(--duration-transition)';
+
+/**
+ * `4` → `calc(var(--duration-transition) * 4)`. One multiple is the variable on its own.
+ *
+ * The mirror of `spacingMultiple` in `density.ts`, and written the same way for the same reason: a
+ * span of time expressed as a ratio of the platform's one duration follows a re-seed and follows a
+ * host that retunes it, and a span of time expressed as a number does neither.
+ */
+export function durationMultiple(units: number): string {
+  return units === 1 ? transitionDurationVariable : `calc(${transitionDurationVariable} * ${String(units)})`;
+}
+
+/**
+ * One **registered** `<time>` custom property, in milliseconds, or `undefined` when it is not one.
+ *
+ * The exact counterpart of `resolveLength` in `overlay/floating.ts`, and it exists for the same
+ * measured reason: `getComputedStyle().getPropertyValue()` on an *unregistered* custom property
+ * returns the substituted text — `calc(150ms * 4)` — and `Number.parseFloat` on that returns `150`,
+ * which is a delay four times too short and looks like nothing at all in a diff. Registering the
+ * property with `syntax: '<time>'` is what makes the browser evaluate the `calc()` and hand back a
+ * single time.
+ *
+ * ⚠ **`undefined`, never a stand-in number.** U07's lesson is that a helper whose failure mode is a
+ * plausible answer makes every assertion above it pass; a caller here is required to say what it
+ * wants to happen when the registration is missing, and the callers in `src/feedback/` fall back to
+ * the *generated token value* rather than to zero — because a zero delay would turn the screentip's
+ * whole contract into a tautology.
+ *
+ * Chromium serialises a registered `<time>` in seconds and other engines may not, so both units
+ * are read rather than one assumed.
+ */
+export function resolveDurationMilliseconds(
+  element: Element,
+  property: string,
+): number | undefined {
+  const raw = getComputedStyle(element).getPropertyValue(property).trim();
+  const match = /^(-?\d+(?:\.\d+)?)(ms|s)$/.exec(raw);
+  if (match === null) return undefined;
+  const value = Number.parseFloat(match[1] ?? '');
+  if (!Number.isFinite(value)) return undefined;
+  return match[2] === 's' ? value * 1000 : value;
 }
 
 export const motionCss = `

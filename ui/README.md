@@ -1141,6 +1141,227 @@ is the shape people report as a hung page — and `dismissals` makes it a one-li
 and **the popover/flyout split is decided by tab-stop count rather than by Fluent's own taxonomy**,
 which is this catalogue's rule applied consistently rather than Office's naming reproduced.
 
+## Selection and feedback (MJXOFF-189)
+
+`src/feedback/` holds **five components across six elements** — the mini toolbar that appears beside
+a selection, the enhanced screentip, the toast queue and its declarative descriptor, the two kinds of
+progress bar, and the empty state. They are one child because they share one property, and it is the
+property everything below is arranged around:
+
+> **Every one of them is invisible in a still.**
+
+A screenshot of a screentip cannot say whether it waited. A screenshot of a toast cannot say whether
+it was announced, or to whom. A screenshot of a progress bar cannot tell a task that is working from
+a task that has stopped. So this family has almost no visual gates and a great many temporal and
+accessibility-tree ones.
+
+```html
+<mjx-mini-toolbar label="Formatting" for="selected-run" open></mjx-mini-toolbar>
+
+<mjx-screentip heading="Bold" description="Make the selected text bold." shortcut="Ctrl + B">
+  <button slot="trigger">Bold</button>
+</mjx-screentip>
+
+<mjx-toast-region label="Notifications">
+  <mjx-toast tone="error" message="Could not reach the server."></mjx-toast>
+</mjx-toast-region>
+
+<mjx-progress label="Uploading files" value="3" max="7" readout></mjx-progress>
+<mjx-progress label="Contacting the server" indeterminate></mjx-progress>
+
+<mjx-empty-state heading="No comments yet" description="…"
+                 action-label="Add a comment" action-command="comment.add"></mjx-empty-state>
+```
+
+### A span of time is a multiple of the one duration token
+
+The generated table declares exactly one duration. This child needs five more — a screentip's appear
+delay, its warm-up window, its leave grace, a toast's dwell and an indeterminate bar's cycle — and
+every one of them is `calc(var(--duration-transition) * n)` rather than a number. That is the same
+answer `typography.ts` gave to a two-size type scale, plus one reason of its own: a delay written as
+a **ratio** follows a host that slows the platform down for someone who needs longer to read, and a
+delay written as a number does not.
+
+Getting a number back out needs the property to be **registered**. `getComputedStyle` on an
+*unregistered* custom property returns the substituted text `calc(150ms * 4)`, and `parseFloat` on
+that returns `150` — a delay four times too short that looks like nothing in a diff. So
+`feedbackTimingCss` registers all six with `syntax: '<time>'`, and `resolveDurationMilliseconds` in
+`foundations/motion.ts` checks the unit rather than trusting `parseFloat` and returns **`undefined`**
+rather than a plausible number when it cannot read one. Every caller falls back to the *generated
+token value* and never to zero, because a zero delay would turn this child's central contract into a
+claim that cannot fail.
+
+### `placeClearOfAnchor`: the thing `placeFloating` does not give you
+
+`overlay/floating.ts` grew one function, and the reason is worth stating because it looks at first
+like the primitive already covered it. `placeFloating` puts a box beside its anchor with a gap and
+then **clamps it inside the boundary** — so a box that fits on neither side of its anchor is pushed
+back *onto* the anchor rather than off the frame. For a menu hanging off a button that is the right
+answer; a menu covering its own button is a menu you can still read. For a **mini toolbar**, whose
+entire purpose is to act on the thing underneath it, and for a **screentip**, which describes the
+control it would be drawn over, it is the defect itself.
+
+So `placeClearOfAnchor` asks the primitive once per side, in the caller's order, and returns the
+first placement that overlaps the anchor by **nothing at all**. No second placement arithmetic: every
+candidate is a `placeFloating` call and the overlap is `intersectRects`.
+
+⚠ **And it reports failure rather than hiding it.** A selection that fills its room has no clear side
+and no arithmetic can invent one, so the least-overlapping placement comes back with `clear: false`
+and the area beside it. `<mjx-mini-toolbar>` writes that on its host as `data-covering="true"`, and
+`Feedback/Mini Toolbar → A Selection With No Room` exists **so a gate can watch it happen**. A
+function that silently returned its least-bad answer would satisfy every *"the toolbar never covers
+the selection"* assertion by making that assertion unfalsifiable.
+
+### A tone is never carried by colour alone, and the palette is why
+
+This brand has one alarm colour and no red. Adding one would override the palette of whoever opens
+the editor, which is the project's standing rule about deferring to the user's own document applied
+to its chrome. So a toast's tone is carried by **four** signals — the glyph, its variant, the
+politeness and the dwell — and the colour is the weakest of them.
+
+That is measured rather than asserted, and the measurement is the argument: `theme.light.accent` and
+`theme.light.secondaryAccent` differ in hue and are within **1.03 : 1** of each other in *luminance*.
+A contrast ratio sees luminance and nothing else, so those two colours are **identical to a contrast
+gate** — and to a reader with a colour deficiency they may be close to identical too.
+`tests/feedback.test.ts` asserts the separation is *below* the non-text floor, which is the honest
+way round: it records the fact the design is built on, and it will fail loudly if a re-seed ever
+makes colour a usable signal.
+
+`warning` and `error` therefore share that one colour deliberately, and are told apart by the drawing
+(regular against filled), by the politeness, and by the fact that an error does not dismiss itself.
+
+### Two live regions, never one whose politeness is rewritten
+
+A live region's politeness is settled when it enters the accessibility tree. Rewriting `aria-live` on
+one region per message produces — depending on the screen reader — either an announcement nobody
+hears or a polite message that interrupts, and both are invisible on screen. So `<mjx-toast-region>`
+builds **two** visually-hidden regions that never change, `role="status"`/`polite` and
+`role="alert"`/`assertive`, and routes by tone.
+
+The gate is a single sample of both: the polite region **has** the message and the assertive one is
+**empty**. Both halves are needed — *"the assertive region is empty"* on its own is satisfied by a
+component that announces nothing at all.
+
+The two regions live **outside** the popover that draws the stack, because a popover that is not
+showing is `display: none` and a live region inside one would work exactly until the stack emptied
+once.
+
+### The queue is pure and the region wires a clock to it
+
+Everything that can go wrong with a stack of timers — a second toast cancelling the first one's
+timer, an error being pushed off by three confirmations, the order reversing — is a property of a
+*sequence of instants*. `ToastQueue` takes `now` as an argument and is swept in Node over a dozen of
+them; the browser proves only the one thing Node cannot, that real time reaches it.
+
+⚠ **One `setTimeout` for the whole queue, armed at `nextExpiry()`, and not one per toast.** Not an
+optimisation: a timer per entry is the shape in which *"showing a second toast restarted the first
+one's clock"* hides, because the bug is then a missing `clearTimeout` rather than an arithmetic
+error — and the arithmetic is the part a test can see.
+
+⚠ **A card already on screen is kept, never rebuilt**, and the same rule holds for the mini
+toolbar's buttons and the empty state's glyph. The obvious `replaceChildren(...entries.map(card))`
+is one line shorter and wrong in a way neither tier would catch: every card carries an entry
+animation, so rebuilding the list on each push makes *every* toast fade in again whenever a new one
+arrives — with the counts, the order, the announcements and the timers all still right. The mini
+toolbar's version of it is worse than cosmetic: rebuilding the row destroys the button the keyboard
+is on, so a toolbar retitled while a person was using it would silently lose focus.
+
+The ceiling retires **the oldest entry that leaves on its own** before it touches a persistent one.
+An error a person has not read must not be shunted off the screen by three “Saved” messages, and a
+ceiling that simply took the head of the queue would pass a size assertion and lose the only message
+that mattered.
+
+### An indeterminate bar is told from a stalled one three ways, because one of the three is optional
+
+| Instrument | Determinate | Indeterminate |
+|---|---|---|
+| the accessibility tree | `aria-valuenow`, and a percentage in `aria-valuetext` | **no** `aria-valuenow` at all; the text says *working* |
+| geometry | the indicator's width **is** the value | a fixed span of the track, which is no value |
+| time | still | its position differs between two samples |
+
+`Feedback/Progress → Told Apart From A Stalled Bar` parks a determinate bar at *exactly* the fraction
+the indeterminate indicator spans, so the two are the same width and a width comparison decides
+nothing about either. The browser gate then samples both indicators at two instants a quarter of a
+cycle apart — and runs the whole thing again under an emulated `prefers-reduced-motion`, where
+**neither moves** and only the accessibility tree is left. That is why the missing `aria-valuenow` is
+removed rather than set to `0`: a bar reporting zero would announce a task that has made no progress,
+which is a different and false claim.
+
+The determinate half is the identity-value trap. `progressFraction` has six branches — two clamps, a
+non-unit maximum, a zero maximum and two non-finite cases — and *any single value visits at most one
+of them*, so the unit tier drives a table of twelve and the browser measures five painted bars,
+each against **its own track** rather than against the bar above it.
+
+### A screentip's description is announced whether or not the tip is drawn
+
+⚠ **And that is why the description lives in the light DOM.** An IDREF resolves within its own tree,
+so `aria-describedby` on a *slotted* trigger cannot name an element inside the shadow root of the
+component that slotted it — the trigger is in the document's tree and the tip is in a descendant
+tree, which is the one direction ARIA element reflection does not reach either. A tip whose text
+existed only in the shadow root would be perfectly visible and **completely unannounced**, with every
+visual assertion green.
+
+So the component writes one `<span>` as its own light-DOM child, assigned to no slot — which is what
+hides it, because a node **directly referenced** by `aria-describedby` still contributes its text
+even when it is not rendered — and points the trigger at it. It is there the whole time, which is
+also what WAI's tooltip pattern asks for: the delay exists for eyes and costs a screen-reader user
+nothing. The drawn tip is `aria-hidden`, so nothing is announced twice.
+
+The pointer waits and the keyboard does not: a pointer crosses a toolbar on its way somewhere, and a
+keyboard arrives on a control because a person put it there. The warm-up window then removes the wait
+for the *next* trigger, which is what makes a row of icon commands readable rather than a row of
+things that will not tell you what they are. Escape hides the tip and **moves no focus at all**.
+
+### An empty state is the easiest thing to ship wrong
+
+It renders perfectly with no data by definition, so every visual check passes on one whose action
+does nothing. `Feedback/Empty State → The Action Does The Thing` wires the button to the real list
+rather than to a counter, and the gate presses it and counts what appeared. A story whose action only
+recorded that it had been pressed would prove the event fires and nothing about whether pressing it
+achieves anything.
+
+It is `role="status"` with `aria-live="polite"`, and that is a decision rather than a default: an
+empty state is what a region *becomes* when a filter, a search or a delete emptied it, so its
+appearance is an update and a person who cannot see it is otherwise told nothing. The art is
+`aria-hidden`, the heading is real text, and the heading is the **one** place in this platform the
+serif is allowed — `typography.ts` §4, enforced by a sweep of `src/` that allows exactly two files to
+name `typeRoleClass('display')`.
+
+### Four defects the gates found
+
+1. **`hidden` did not hide.** `<mjx-empty-state>` hides its action when there is no action to offer.
+   The attribute was set, the accessibility tree was right, and the button was on screen — because
+   the UA's `[hidden] { display: none }` lives in the *user-agent* origin and **any author rule at
+   all beats it**, so `.action { display: inline-flex }` had silently switched `hidden` off for every
+   element wearing that class. An assertion on the attribute would have passed; only asking the
+   browser whether the thing is *visible* caught it. Every sheet now restates `[hidden]` at the same
+   (0,1,0) the class rules score and **last**, which is the only thing that decides a tie at equal
+   specificity — and `tests/feedback.test.ts` asserts the position, because this is U09's `@container`
+   defect wearing a different costume.
+2. **`ClearPlacement.tried` reported the wrong number on failure.** It named the position of the
+   least-bad candidate rather than the whole order, which made a genuine four-sided failure
+   indistinguishable from a search that stopped early — the one thing the field exists to tell apart.
+3. **Escape had nothing to give the keyboard back to.** The mini toolbar captured its invoker when it
+   *opened*, and a toolbar rendered with `open` in its markup opens while focus is on `<body>`. It now
+   captures on the way **in**, from `focusin`'s `relatedTarget`, which is both simpler and the honest
+   rule: a person who never Tabbed into the toolbar has not moved, so there is nothing to return.
+4. **`aria-valuenow` announced `0.9999999999999999`.** `<mjx-progress>` recovered the value from the
+   fraction it had just computed — `fraction * max`, which is the obvious spelling — and
+   floating-point division does not always give it back. One of forty-nine is such a pair, and an
+   assistive technology reads that number out in full. Every value in the catalogue's own stories
+   divided exactly, which is precisely how it would have survived the suite; the story now carries a
+   `value="1" max="49"` bar for no other reason.
+
+### `GUESS:` where this diverges from Office
+
+Three, marked at their sites. **The mini toolbar's commands are data rather than slotted controls** —
+Office's is a fixed set and ours is a property, because a toolbar built out of slotted `<mjx-button>`s
+cannot hold a roving tab stop: sequential focus descends into a shadow tree whatever `tabindex` the
+host carries, so every command would have been a tab stop with no way to fix it. **`warning` and
+`error` share one colour**, because this palette has one alarm colour and inventing a red would
+override the branding of whoever opens the file. And **an error toast is persistent while the other
+three dwell**, which is Fluent's behaviour rather than a rule anyone has written down about Office.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -1200,6 +1421,23 @@ which is this catalogue's rule applied consistently rather than Office's naming 
 * **Nothing in `src/surfaces/` may declare a colour, and its own gate is stronger than the lint's**:
   a grep for a hex over the whole file, comments included. The two sRGB-cube extremes the scrim
   arithmetic needs are built from their channels instead.
+* **The UA's `[hidden] { display: none }` loses to any author rule at all**, because it is in the
+  user-agent origin. A component that writes `display: inline-flex` on a class has switched `hidden`
+  off for every element wearing it — with the attribute set, the accessibility tree correct and the
+  element on screen. Restate `[hidden]` last in the sheet, and assert the position; MJXOFF-189 found
+  this with a `toBeHidden()` where an attribute assertion would have passed.
+* **`getComputedStyle` on an unregistered custom property returns the substituted text.**
+  `calc(150ms * 4)` parses as `150`, and `0.25rem` parses as `0.25`. Register the property
+  (`@property … syntax: '<time>'` or `'<length>'`) and check the unit rather than trusting
+  `parseFloat`; `resolveDurationMilliseconds` and `resolveLength` both return a refusal rather than a
+  plausible number.
+* **Sequential focus descends into a shadow tree whatever `tabindex` the host carries.** A container
+  that needs a roving tab stop over its children must own those children — a group of slotted
+  `<mjx-button>`s has one tab stop per command and no way to fix it from outside.
+* **A node directly referenced by `aria-describedby` contributes its text even when it is not
+  rendered**, which is what makes an unslotted light-DOM `<span>` the way to describe a *slotted*
+  trigger. An IDREF does not cross a shadow boundary in either direction, so a description that lived
+  in the component's own shadow root would be visible and completely unannounced.
 * **A tab-stop helper whose failure mode is "found nothing" makes every ceiling assertion pass.**
   MJXOFF-186's first version broke its walk on a landing at `<body>` and reported *zero* stops for a
   pane that has two, which read as a passing filter rather than as a broken helper.

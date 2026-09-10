@@ -21,6 +21,8 @@ import { defineInputs, inputDocumentCss } from '../src/inputs/index.ts';
 import { definePickers } from '../src/pickers/index.ts';
 import { defineSurfaces } from '../src/surfaces/index.ts';
 import { surfaceDocumentCss } from '../src/surfaces/surface-model.ts';
+import { defineFeedback } from '../src/feedback/index.ts';
+import { feedbackDocumentCss } from '../src/feedback/feedback-model.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
 import type { StoryConventions } from '../src/story/conventions.ts';
@@ -58,6 +60,11 @@ definePickers();
 // third of the workspace lays out as a run of text beside the document — which reads as a broken
 // layout rather than as a missing registration.
 defineSurfaces();
+// MJXOFF-189's five feedback components. Registered here for the reason above and one of their
+// own: an unregistered <mjx-toast> is a descriptor whose attributes have nowhere to go, so a
+// catalogue that had not defined it would render a story with an empty notification stack — which
+// reads as a queue that dropped its messages rather than as a missing registration.
+defineFeedback();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -84,6 +91,15 @@ document.head.append(inputDescriptorRule);
 const surfaceRule = document.createElement('style');
 surfaceRule.textContent = surfaceDocumentCss;
 document.head.append(surfaceRule);
+
+// MJXOFF-189's, and this one is load-bearing for the same class of reason: it carries the
+// `@property` registrations for the six `<time>` spans. Without them a screentip's delay resolves
+// to the un-substituted text `calc(150ms * 4)` rather than to a time, `resolveDurationMilliseconds`
+// reports it cannot read one, and every component falls back to its generated default — which works
+// and silently ignores anything a host set.
+const feedbackRule = document.createElement('style');
+feedbackRule.textContent = feedbackDocumentCss;
+document.head.append(feedbackRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.
