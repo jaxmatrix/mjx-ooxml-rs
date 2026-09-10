@@ -61,6 +61,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.166] - 2026-09-10
+
+### The first file Microsoft Office wrote, read end to end
+
+#### What the ingest reported (MJXOFF-130)
+
+`cargo run -p xtask -- validation-artefacts --ingest` was built for a file this project cannot
+produce for itself, and until now nothing had been handed to it. A 12-slide PowerPoint deck —
+`<Application>Microsoft Office PowerPoint</Application>`, `AppVersion 16.0000`, 3,927,263 bytes,
+135 ZIP entries — was saved out of PowerPoint by the repository's owner and pointed at it.
+
+**Seven checks held and none failed.** 135 entries re-saved with every payload byte-identical; all
+106 XML parts through the fidelity tree byte-identical; the facade's open-and-re-save leaving all
+135 unchanged; every OPC invariant holding before and after; 52 of the 52 parts the category tables
+require audited clean for child order; 102 parts schema-valid against the ECMA-376 XSDs.
+
+**No code changed and R2 is not retired.** The file is not committed — the corpus at
+`tests/office-authored/` is still empty, because a file's value there is entirely its provenance and
+committing one is a person's decision. What is committed is the record, in
+`docs/validation/06-the-office-pass.md` §5, so the next reader does not have to take the measurement
+again to know it was taken.
+
+#### Two findings, both filed rather than fixed
+
+**MJXOFF-277 — the gate has no category for four content types Office writes.** The single
+`reported` row is 23 parts, and not one of them failed a schema: all 23 are `UNCATEGORISED`. They are
+19 `image/svg+xml` pictures in `ppt/media/`, two modern-comment parts, an authors part and a
+revision-info part. An SVG beside the `.png` that is its raster fallback is a picture, and it reaches
+the categoriser only because `is_xml_content_type` tests for a `+xml` suffix that says nothing about
+whether a payload is OOXML markup. The other three are Microsoft extension vocabularies with no XSD,
+the shape `PRESERVED_FOREIGN_MARKUP` already holds — and no committed fixture reaches any of them, so
+`the_allowlist_has_no_dead_entries` refuses the entries until fixtures exist. That is a unit, not a
+line, and doing half of it would leave the finding half-closed.
+
+**MJXOFF-278 — nothing in the ingest reads the file through the typed model.** Part-level laziness
+re-emits an unedited part from its raw bytes, so the `facade` check — `open` then `save_unchecked`
+with no edit between — never builds a typed element and would pass on a file every `FromXml`
+implementation would refuse. The corpus suite runs the same engine and inherits the blind spot, so a
+committed file would not have closed it either. A throwaway probe measured what the missing check
+would say: 45 surfaces, 243 shapes, 310 paragraphs, 240 runs, 240 `effective_run_properties` and 243
+`effective_shape_fill` resolutions over markup nobody here wrote, **0 errors**, and no part dirtied
+by reading. Then one run's text replaced on each of the 12 slides: **exactly 12 of 135 entries
+changed**, and across 377,690 bytes of PowerPoint-authored slide markup each differs from Office's
+own bytes in **exactly one contiguous region** — the text that was set.
+
+#### MJXOFF-237's markup is no longer unverified
+
+The deck carries three sections, and the shape that ticket described from knowledge of the format is
+now confirmed from a file: `p:extLst` → `p:ext uri="{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"` →
+`p14:sectionLst` → `p14:section name= id={GUID}` → `p14:sldIdLst` → `p14:sldId id="383"`. A
+`p14:sldId` carries `id` and nothing else, and its twelve numbers are exactly the deck's own
+`p:sldId@id` values in order — so a section entry is not a relationship reference and MJXOFF-212's
+sweep cannot see it. What PowerPoint does with a *stale* entry is still open, and is a person's
+measurement to take.
+
 ## [0.0.165] - 2026-09-10
 
 ### A token is not a name, and now nothing has to remember that
