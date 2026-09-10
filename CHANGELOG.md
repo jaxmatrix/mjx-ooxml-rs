@@ -61,6 +61,80 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.168] - 2026-09-10
+
+### The ingest check that reaches the typed model
+
+#### `model` and `edit`: the two checks that build a typed element (MJXOFF-278)
+
+Every check `validation-artefacts --ingest` performed was byte identity or laziness. `opens`,
+`round-trip` and `package` are the OPC container; `xml tree` is the untyped fidelity tree; `child
+order` and `schema` are `mjx-schema-gate` over that same tree. And **`facade` — the one that looked
+like it read the document — opened a `Deck`, a `Document` or a `Workbook` and saved it back with no
+edit in between**, so part-level laziness re-emitted every part from the raw bytes it still held and
+not one `FromXml` implementation ever ran. It reported `held` on a file every reader in this
+workspace would refuse. `xtask/tests/office_corpus.rs` runs the same engine, so committing an
+Office-authored file would not have closed it either.
+
+Two checks now cannot pass that way:
+
+- **`model`** opens the file through its format model and walks all of it — every surface, group
+  member, table cell, paragraph and run, with `effective_shape_fill`, `effective_run_properties` and
+  `effective_paragraph_properties` resolved over each — then **prints its counts** and asserts that
+  the whole package still saves byte-identically, because *reading must not dirty a part*. A model
+  check that reads nothing passes trivially, which is why the counts are in the report every run.
+- **`edit`** replaces one text leaf through the model — one run per slide, one run in a document
+  body, one numeric cell per sheet — and asserts that the bytes the save inserted are **exactly the
+  bytes that were set**. A writer that re-serialized the part wholesale, moved a child, renormalized
+  an attribute or re-indented changes that one number, and nothing else has to be asserted to catch
+  it.
+
+#### A read error splits four ways, not two
+
+An address the model refuses is not one kind of finding. `NothingToRead` (a picture with no text
+body, a slide with no notes) is counted and holds; `UnsupportedContent` is named and holds, because a
+documented non-goal is a gaps-page row rather than a red build; **`NotFound` is `reported`** — a
+`numId` the file's own `word/numbering.xml` does not define is the file's defect, and
+`paragraph_properties.docx` and `effective_properties.docx` are committed proof that such files
+exist; everything else fails, and names the address.
+
+#### The granularity a format actually has, stated rather than assumed
+
+`.pptx` and `.docx` are held to byte equality with the text that was set: a `p:txBody` and a `w:p` are
+`RawElement` trees, so replacing a text leaf denies the verbatim source range to that leaf's ancestors
+and to nothing else. **A worksheet is different and the check says so** — `mjx-sml`'s cells live in a
+packed store, so writing one re-serializes that whole cell (`t="n"`, the schema default `sample.xlsx`
+spells out, is not written back). The `Cell` granularity holds the change to *one `<c>`*, crossing no
+cell or row boundary, and proves the value itself by reading the saved cell back through the model.
+A workbook's edit is a **number** for the same reason: `SharedText` would touch
+`xl/sharedStrings.xml` too, and `InlineText` rewrites the whole `<c>` when it lands on a
+shared-string cell.
+
+#### Proving it discriminates, on every run
+
+`a_corruption_the_byte_checks_hold_is_caught_by_the_model` renames one `a:tbl` inside a graphic frame
+that still declares the table URI, and asserts that **all six byte checks hold** on the result and
+that `model` alone fails. That is MJXOFF-278's thesis turned into an assertion rather than a claim.
+`the_model_and_edit_checks_read_and_write_something_on_every_format` is the anti-vacuity floor, one
+fixture per format. `the_typed_model_has_never_run_against_a_file_office_wrote` is the absence, said
+in a test name that `cargo test` prints without `--nocapture`; `MJX_REQUIRE_OFFICE_CORPUS=1` turns it
+into a failure the day the corpus has files.
+
+#### What the deck Office wrote reported
+
+Re-measured with the shipped checks rather than with the throwaway probe MJXOFF-278 was filed with:
+**45 surfaces, 252 shapes** (203 with a text body, reached by descending into **3 groups**), 4 tables
+of 151 cells, **323 paragraphs, 253 runs, 9,891 characters**, plus 142 runs of 1,644 characters inside
+those cells; **253 `effective_run_properties` and 252 `effective_shape_fill` resolutions**, no address
+refused, and all 135 entries byte-identical after the walk. Then one run's text replaced per slide:
+**exactly 12 of 135 entries changed**, and across **377,690 bytes** of PowerPoint-authored slide
+markup each differs from Office's own bytes in exactly one contiguous region holding exactly the bytes
+that were set.
+
+The probe's 243 shapes / 310 paragraphs / 240 runs / 9,855 characters differ for one reason: it
+counted a group as one shape and stopped there. The two numbers that had to agree — 12 of 135
+entries, 377,690 bytes — agree exactly. `docs/validation/06-the-office-pass.md` carries both.
+
 ## [0.0.167] - 2026-09-10
 
 ### The user guide, for the two languages that could not read it
