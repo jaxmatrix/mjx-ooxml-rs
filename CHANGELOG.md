@@ -62,6 +62,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.173] - 2026-09-10
+
+### Every raise in both bindings is a registered class
+
+#### `ShapeGeometry.preset` raised outside the error model, in both languages (MJXOFF-275)
+
+The same branch of `ShapeGeometry.preset` — `parts()` answering `None` for a geometry that is not
+`Unmodeled` — was handled two ways. Python raised `PyRuntimeError::new_err("unreachable")`, which
+`bindings/mjx-python/src/errors.rs` does not register, so a caller writing
+`except mjx_ooxml.OoxmlError` did not catch it. JavaScript raised
+`invalid_argument("this geometry names no preset")`, which reads like the typed half of the pair and
+is not one: `invalid_argument` builds a bare `js_sys::RangeError`, with no `name = "OoxmlError"`, no
+`code` and no `detail`, so `catch (failure) { failure.code === "InvalidArgument" }` never matched it
+either.
+
+Both now raise `unsupported_content`. That is what the arm would mean if it were reachable — a
+`ShapeGeometry` this build's `parts()` cannot take apart is content the model can express and the
+binding cannot project — and it is a class Python registers and a real `OoxmlError` in JavaScript,
+so the two bindings answer the same `code` for the same branch. The arm **is** unreachable, and by
+the compiler rather than by a comment: `parts()` matches every variant with no wildcard, so `None`
+means `Unmodeled`, which the arm above it already matched.
+
+#### The sweep that finds it is asked rather than repeated
+
+An unreachable arm is exactly where an error model stops being total without anything failing, and
+neither the token gates nor `xtask/tests/binding_doc_parity.rs` could see this one: a raised message
+is not a data token, and doc-comment parity reads prose rather than runtime behaviour. So
+`xtask/src/binding_surface.rs` grows a raise scan over both binding trees, and
+`xtask/tests/binding_projection.rs` asks three questions of it.
+
+The first is the ticket's: every one of the Python binding's **22** hand-written raises is a class
+`errors.rs` registers, or Python's own vocabulary for a mistake in the call, or a ledgered site.
+That vocabulary — `TypeError`, `ValueError`, `KeyError` — is on the ledger with a reason rather than
+being routed through `OoxmlError`, because it is the exact mirror of the wasm binding's
+`RangeError` and because PyO3 raises `TypeError` for every argument conversion it generates: a
+hand-written `FromPyObject` that raised something else would be the one member of the surface a
+caller could not guard the ordinary way. One site is ledgered by the message it carries, and it is
+forced — it is raised while the exception hierarchy is being *built*, so it cannot be reported
+through a hierarchy that does not yet exist.
+
+The second is the mirror, which the ticket did not ask for and which the two bindings being held to
+each other everywhere else demands: every `Error` the wasm binding constructs sits in one of its two
+factory files, and its **25** hand-written raises all reach one.
+
+The third is the rule underneath both, and it is what caught the JavaScript half: over the **1,852**
+no-argument members of the two bindings, **a member that takes no argument never raises the argument
+vocabulary**, because there is no call for the caller to have got wrong. Neither of the first two
+could see that defect — `invalid_argument` is a factory, and it was being called from the wrong kind
+of place rather than written in the wrong file.
+
+Each of the three is floored over the population it does see, and prints its count, so a scanner
+that has stopped matching fails instead of passing vacuously — which is the failure mode a sweep
+over an *absence* has, and the only one that makes it indistinguishable from the thing it is
+looking for.
+
 ## [0.0.172] - 2026-09-10
 
 ### The gates see a file before the commit that adds it
