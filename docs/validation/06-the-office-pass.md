@@ -164,6 +164,39 @@ or markup its producer wrote that the ECMA-376 XSDs reject. A third-party file i
 schema-valid: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which
 `dml-chart.xsd` rejects outright, and reddening a build over that would teach nobody anything.
 
+### The first real report, and what it did and did not retire
+
+**A file Microsoft Office wrote has now been through this command, once, at 0.0.165.** It was a
+12-slide PowerPoint deck — `<Application>Microsoft Office PowerPoint</Application>`,
+`AppVersion 16.0000`, 3,927,263 bytes, 135 ZIP entries — saved out of PowerPoint by the repository's
+owner and handed over in conversation. **It is not committed and R2 stands**: the corpus below is
+still empty, `MJX_REQUIRE_OFFICE_CORPUS=1` still turns every area into a skip, and a measurement
+taken outside the repository is not a test inside it.
+
+What it reported, verbatim in the verdict vocabulary above: **seven checks `held` and none `FAILED`.**
+135 entries re-saved with every payload byte-identical; all 106 XML parts through the fidelity tree
+byte-identical; the facade's own open-and-re-save leaving all 135 unchanged; every OPC invariant
+holding before and after; 52 of the 52 parts the category tables require audited clean for child
+order; 102 parts schema-valid against the ECMA-376 XSDs.
+
+The one `reported` row is worth reading closely, because it is **not** a file that failed a schema.
+All 23 of its rows are `UNCATEGORISED` — 19 `image/svg+xml` pictures in `ppt/media/`, two modern
+comment parts, an authors part and a revision-info part, in three namespaces the gate's category
+tables have no arm for. That is a gap in the instrument rather than a deviation in the markup, and
+only a real Office file could ever have shown it: **MJXOFF-277**.
+
+**What the report does not establish is that we can *read* what Office writes.** Part-level laziness
+re-emits an unedited part from its raw bytes, so the `facade` check — `open` then `save_unchecked`
+with no edit between — never builds a typed element, and would pass on a file every `FromXml`
+implementation would refuse. **MJXOFF-278** is the missing eighth check. A throwaway probe measured
+what it would have said: 45 surfaces, 243 shapes, 310 paragraphs, 240 runs, 240 `effective_run_properties`
+and 243 `effective_shape_fill` resolutions — the R1 and R5 ladders over markup nobody here wrote —
+with **0 errors** and no part dirtied by reading. Then one run's text replaced on each of the 12
+slides: **exactly 12 of the 135 entries changed**, and across 377,690 bytes of PowerPoint-authored
+slide markup each of them differs from Office's own bytes in **exactly one contiguous region**, which
+is the text that was set. The edited file re-ingests with 0 failing checks and the same 102 parts
+schema-valid.
+
 ### What the gate does not tell you about an extension
 
 **An `<ext>` carrying markup in a namespace the file declares `mc:Ignorable` reports nothing at all,
