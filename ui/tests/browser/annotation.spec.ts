@@ -396,6 +396,32 @@ test.describe('ARIA: a conversation, not a flat list', () => {
   });
 });
 
+test.describe('an empty column', () => {
+  test('is not a feed at all, because an empty feed is invalid', async ({ page }) => {
+    const empty = { title: annotationStoryTitles.reviewPane, name: 'Nothing To Review' } as const;
+    await open(page, empty);
+    const state = await page.evaluate(() => {
+      const pane = document.getElementById('pane-empty');
+      const column = pane?.shadowRoot?.querySelector('[part="column"]') ?? null;
+      const message = pane?.shadowRoot?.querySelector('.empty') ?? null;
+      return {
+        role: column === null ? 'gone' : column.getAttribute('role'),
+        hidden: column === null ? true : column.hasAttribute('hidden'),
+        display: column === null ? 'none' : getComputedStyle(column).display,
+        tabindex: column === null ? null : column.getAttribute('tabindex'),
+        message: message === null ? '' : (message as HTMLElement).textContent ?? '',
+      };
+    });
+    // ⚠ `role="feed"` requires owned `article` children; a feed with none is an announcement that
+    // there is a list, followed by nothing in it. axe names it `aria-required-children`.
+    expect(state.role).toBeNull();
+    expect(state.tabindex).toBeNull();
+    expect(state.hidden).toBe(true);
+    expect(state.display).toBe('none');
+    expect(state.message).toContain('No comments');
+  });
+});
+
 test.describe('author colours reach the paint', () => {
   test('the eight slots are declared on the document and differ from each other', async ({ page }) => {
     await open(page, models);

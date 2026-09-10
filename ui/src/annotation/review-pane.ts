@@ -286,13 +286,15 @@ export class MjxReviewPane extends HTMLElement {
     metric.style.setProperty('inline-size', '0');
     metric.style.setProperty('block-size', 'var(--mjx-density-step)');
 
-    column.append(sizer, metric);
+    column.append(sizer);
 
     const live = document.createElement('span');
     live.className = 'live';
     live.setAttribute('aria-live', 'polite');
 
-    pane.append(handle, title, column, empty, live);
+    // The metric probe lives on the pane rather than in the column: an empty column is hidden,
+    // and a hidden probe measures nothing.
+    pane.append(handle, title, column, empty, metric, live);
     root.append(pane);
 
     this.#column = column;
@@ -339,8 +341,23 @@ export class MjxReviewPane extends HTMLElement {
       this.#count.textContent = total === 1 ? '1 item' : `${String(total)} items`;
     }
     if (this.#empty !== undefined) this.#empty.hidden = total > 0;
+    // ⚠ **An empty feed is not a feed.** `role="feed"` requires owned `article` children, so a
+    // document with nothing to review would publish an invalid role rather than an empty list —
+    // axe says so by name (`aria-required-children`), and a reader would be told there is a feed
+    // and then find nothing in it. With no annotations the column is not rendered at all and the
+    // empty message beside it is what is announced.
+    column.hidden = total === 0;
+    if (total === 0) {
+      column.removeAttribute('role');
+      column.removeAttribute('aria-label');
+      column.removeAttribute('tabindex');
+    } else {
+      column.setAttribute('role', reviewAriaPattern.container);
+      column.tabIndex = 0;
+    }
 
-    this.#stepPixels = Math.max(1, this.#metric?.getBoundingClientRect().height ?? this.#stepPixels);
+    const step = this.#metric?.getBoundingClientRect().height ?? 0;
+    if (step > 0) this.#stepPixels = step;
 
     const cards: MarginCard[] = this.#annotations.map((entry) => ({
       id: entry.id,

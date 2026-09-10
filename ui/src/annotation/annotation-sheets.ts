@@ -456,6 +456,12 @@ export const reviewPaneCss = `
     color: ${themeVariable('textSecondary')};
   }
 
+  /* Restated because every display declaration above is an author rule, and the user agent's own
+   * hidden rule lives in the user-agent origin where any author rule beats it. */
+  .column[hidden] {
+    display: none;
+  }
+
   /* THE SHEET. A margin column has no room on a phone, so below the shell threshold the pane stops
    * being a column beside the document and becomes a sheet listing the annotations: full width,
    * anchored to the block end, with a handle, and with the cards in a plain flow. Packing is

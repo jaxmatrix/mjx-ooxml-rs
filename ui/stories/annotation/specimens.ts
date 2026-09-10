@@ -66,11 +66,19 @@ export function stage(...content: TemplateResult[]): TemplateResult {
   `;
 }
 
-/** The live readout every review story carries. */
+/**
+ * The live readout every review story carries.
+ *
+ * ⚠ `tabindex="0"`, and it is required rather than decorative. The readout has a maximum height and
+ * scrolls, and a scroll container a keyboard cannot reach fails axe's `scrollable-region-focusable`
+ * — which a three-hundred-annotation story is the first one here long enough to trip. The harness
+ * stage carries the same attribute for the same reason.
+ */
 export function readout(id: string): TemplateResult {
   return html`
     <output
       id=${id}
+      tabindex="0"
       class=${typeRoleClass('dense')}
       style="display:block;white-space:pre-wrap;font-family:var(--font-mono);
              color:var(--theme-text-primary);background:var(--theme-surface-raised);

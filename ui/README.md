@@ -1893,6 +1893,13 @@ contiguous rows — which packed cards cannot honour, since a packed card sits a
 with a gap of its own. U13 found the right route can be transitive; this is the mirror case, where
 the transitive route is the wrong one and the foundation is the right one.
 
+### An empty column is not a feed
+
+`role="feed"` requires owned `article` children, so a document with nothing to review would publish
+an invalid role — axe says so by name (`aria-required-children`) and a reader would be told there is
+a list and then find nothing in it. With no annotations the column is `hidden`, carries no role, no
+name and no tab stop, and the message beside it is what is announced. There is a gate for it.
+
 ### A card that moves is animated, and cannot overshoot
 
 `annotationMotionClass` is the `documentObject` role and the pane puts it on every card it places;
@@ -2027,3 +2034,12 @@ the handle's `display`, and the built-card count.
 * **The browser tier runs against `storybook-static/`, so a source fix is invisible until you
   rebuild.** MJXOFF-193 spent a cycle debugging an `aria-label` that was already in the source and
   not yet in the bundle, and the failure reads as a component defect rather than as a stale build.
+* **`role="feed"` with no `article` children is an axe violation**, not merely an empty list —
+  `aria-required-children`. A virtualised feed hits this the moment its data is empty, which is the
+  one state a story is most likely to have and a gate least likely to cover. Drop the role rather
+  than shipping an empty one.
+* **A story's own readout can fail the a11y sweep before the component does.** MJXOFF-193's packing
+  readout has a `max-block-size` and `overflow: auto`, and at three hundred annotations it became a
+  scroll container a keyboard could not reach: `scrollable-region-focusable`, reported against the
+  story, in a sweep everyone reads as being about the component. The harness stage carries
+  `tabindex="0"` for exactly this reason; anything scrollable a story writes needs it too.
