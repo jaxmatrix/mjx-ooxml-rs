@@ -61,6 +61,84 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.169] - 2026-09-10
+
+### The gate stopped crashing on a container it was never asked about
+
+#### An entry with no content type is a row, not a stack trace (MJXOFF-284)
+
+`crates/mjx-schema-gate/src/inspect.rs` panicked when a package entry had no content type:
+
+```
+thread 'main' panicked at crates/mjx-schema-gate/src/inspect.rs:445:13:
+a_sz.pptx: no content type for /_rels/
+```
+
+The input was an ordinary `.pptx` rebuilt with `zip -r` **without** `-D`, so the archive carries a
+directory entry for every folder the walk passed through — `ppt/`, `_rels/`, `ppt/slides/_rels/`.
+That is a legal ZIP that real producers write, and OPC has no content type for a directory because a
+directory is not a part. `mjx-opc` opens such a package without complaint, so the panic was the
+gate's alone.
+
+**`mjx-schema-gate` is test-only, but it is a plain dependency of `xtask`,** and
+`validation-artefacts --ingest` is a command a person points at an arbitrary file they have just
+saved out of Office. It aborted with a bare stack trace and no report — which is precisely the shape
+of failure `docs/validation/06-the-office-pass.md` tells a reviewer they will not meet, because
+every other refusal on that path is a `Finding`. The report that command now prints for the same
+file has all eleven of its checks in it.
+
+##### The discriminator is the packaging layer's, not a second rule
+
+A fix that skipped every untyped entry would have traded a crash for a blind spot: **a file with no
+`<Override>` and no `<Default>` covering its extension is a genuine package defect** (ECMA-376
+Part 2 §10.1.2 gives every part exactly one content type) and has to stay one. Telling the two apart
+was the work, and the answer was already written down one layer down: `mjx_opc::PartName::new`
+refuses a name ending in `/` — *part name must not end with `/`* — which is exactly why
+`Package::part_names`, `Package::validate`'s own content-type check and `authored_xml_parts` all
+pass such an entry over. The gate reads that same signal, off the **name** rather than the payload:
+a directory entry is empty, but so is a zero-byte part, and only one of the two is excused.
+
+`PartOutcome` therefore gains two verdicts rather than one:
+
+| Verdict | When | Fails the gate |
+|---|---|---|
+| `SkippedDirectoryEntry` | the entry name ends in `/` | no — it is a legal container feature |
+| `WithoutContentType { reason }` | a **file** nothing types, or a name that is not an addressable part name at all | **yes** |
+
+A directory entry still gets a row of its own, because this gate prints one line per entry so that
+no skip is silent.
+
+##### And the two siblings on the same path
+
+`--ingest` makes this path untrusted by design, so the sweep for other panics reachable from an
+arbitrary file ran over the whole crate. Two more were live, and both are now rows:
+`NotWellFormedXml` (a part whose content type declares XML and whose bytes do not parse) and
+`PackageWouldNotOpen` (the live case being an **embedded** workbook, which `--ingest` opens here for
+the first time — the outer package it has already opened). `audit_order_report` reported both rather
+than raising them; the two halves of the gate now agree about it.
+
+Two panics are deliberately kept, neither reachable from an input file: the `entry.bytes()`
+assertion, because a freshly opened package has no `Edited` body and that is the only body yielding
+`None`, and the wrapper part's re-parse of the markup-compatibility-resolved view, whose bytes are
+this workspace's own serializer's over a tree that already parsed.
+
+##### The gate
+
+`crates/mjx-schema-gate/tests/entries_that_are_not_parts.rs` builds the input the way it was found —
+the fixture's parts read back through `mjx_opc::Package` and re-zipped with the directory entries
+`zip -r` would have written — and holds both halves at once, including **one package carrying both**
+in which exactly one row fails and it is the file. `mjx_opc_already_takes_this_position` pins the
+discriminator to the packaging layer so the two cannot drift, and needs no schemas, so it runs in
+every job.
+
+#### `validation/model.rs` named a gaps page that does not exist (MJXOFF-287)
+
+Found while running the gate set, and not this unit's: `doc_gate` has been red on `main` since
+0.0.168, because `xtask/src/validation/model.rs` named `crates/mjx-pptx/docs/gaps.md`. The page is
+`crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`; the other spelling has never existed. That gate is
+a named CI step *and* sits inside `cargo test --workspace`, so every unit branching from `main` was
+inheriting a red workspace gate and having to work out whether the red was its own.
+
 ## [0.0.168] - 2026-09-10
 
 ### The ingest check that reaches the typed model
