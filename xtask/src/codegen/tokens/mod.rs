@@ -1,6 +1,6 @@
 //! `cargo run -p xtask -- tokens` — the design-token pipeline (MJXOFF-156).
 //!
-//! # Why there are three artefacts and not one
+//! # Why there are four artefacts and not one
 //!
 //! The chrome is HTML and the document canvas is Rust, and **a canvas cannot inherit a CSS custom
 //! property**. A token system that stopped at a stylesheet would leave the in-canvas UI — selection
@@ -8,6 +8,20 @@
 //! So one source reaches three consumers that share nothing: `ui/tokens/tokens.css` for the
 //! Web-Component chrome, `ui/tokens/tokens.ts` for the shell's own logic, and
 //! `crates/mjx-tokens/src/generated.rs` for the renderer.
+//!
+//! The fourth is `ui/tokens/derivations.css` (MJXOFF-271), and it exists because the source has two
+//! tiers. Every artefact above carries the **resolved** colour, which is what a canvas, a typed
+//! constant and a contrast gate all need — but resolving at generation time freezes it, so a host
+//! that sets `--theme-midground` would re-theme nothing. `derivations.css` restates the derived
+//! tier as the `color-mix(in srgb, …)` it came from, in terms of the scheme-relative aliases a host
+//! actually overrides. Import it after `tokens.css` and the cascade re-derives; the Rust side does
+//! the same through `mjx_tokens::Tokens::rederive`, and `ui/tokens/chromium-agreement.mjs` asserts
+//! the browser and that one implementation agree about every derived token in both schemes.
+//!
+//! It is a separate file rather than a second block inside `tokens.css` for two reasons that point
+//! the same way: a second declaration of the same property would be a duplicate the drift gates
+//! read as a defect, and it would hand every consumer of `tokens.css` a `color-mix()` where it
+//! expects a colour.
 //!
 //! # Why the output is committed
 //!
@@ -18,13 +32,17 @@
 //!
 //! # The trap this pipeline is written against
 //!
-//! *"The three artefacts are generated and committed"* is satisfied by three files nothing reads.
-//! Both of the real gates are therefore **divergence** gates, and neither lives here alone:
+//! *"The artefacts are generated and committed"* is satisfied by four files nothing reads. All of
+//! the real gates are therefore **divergence** gates, and none of them lives here alone:
 //!
 //! - **Derived, not hand-written** — `--check`, above, plus the emitters' own tests, which add a
-//!   token to a source and watch it appear in all three.
+//!   token to a source and watch it appear in all of them.
 //! - **Equal to each other** — `crates/mjx-tokens/tests/artefacts_agree.rs`, which parses the
-//!   emitted CSS and TypeScript and compares every value against the Rust table.
+//!   emitted CSS and TypeScript and compares every value against the Rust table, and separately
+//!   checks that `derivations.css` and `mjx_tokens::DERIVATIONS` describe the same expressions.
+//! - **Right about `color-mix()`** — `ui/tokens/chromium-agreement.mjs`, which is the only one that
+//!   can tell a correct implementation from a self-consistent one, because the other party to the
+//!   comparison is Chromium.
 
 mod emit;
 mod model;
@@ -36,14 +54,18 @@ use anyhow::{bail, Context, Result};
 /// The one hand-edited file in the pipeline.
 const SOURCE: &str = "docs/client-platform/data/tokens.json";
 
-/// The three artefacts, relative to the workspace root, in emission order.
+/// The four artefacts, relative to the workspace root, in emission order.
 const CSS: &str = "ui/tokens/tokens.css";
+const DERIVATIONS: &str = "ui/tokens/derivations.css";
 const TYPESCRIPT: &str = "ui/tokens/tokens.ts";
 const RUST: &str = "crates/mjx-tokens/src/generated.rs";
 
-/// The three rendered artefacts, before anything touches the disk.
+/// The four rendered artefacts, before anything touches the disk.
 pub(crate) struct Artefacts {
     pub(crate) css: String,
+    /// The derived tier as `color-mix()` expressions (MJXOFF-271) — the layer that makes a host's
+    /// seed override reach every colour mixed from it, through the cascade and with no code.
+    pub(crate) derivations: String,
     pub(crate) typescript: String,
     pub(crate) rust: String,
 }
@@ -53,6 +75,7 @@ pub(crate) fn generate(source: &str) -> Result<Artefacts> {
     let set = model::read(source)?;
     Ok(Artefacts {
         css: emit::css(&set),
+        derivations: emit::derivations_css(&set),
         typescript: emit::typescript(&set),
         rust: emit::rust(&set),
     })
@@ -107,6 +130,7 @@ pub fn run(arguments: &[String]) -> Result<()> {
 
     let files = [
         (CSS, artefacts.css),
+        (DERIVATIONS, artefacts.derivations),
         (TYPESCRIPT, artefacts.typescript),
         (RUST, rust),
     ];
@@ -140,7 +164,7 @@ pub fn run(arguments: &[String]) -> Result<()> {
         }
         super::write_plain(&path, contents)?;
     }
-    println!("tokens: wrote {CSS}, {TYPESCRIPT}, {RUST}");
+    println!("tokens: wrote {CSS}, {DERIVATIONS}, {TYPESCRIPT}, {RUST}");
     Ok(())
 }
 

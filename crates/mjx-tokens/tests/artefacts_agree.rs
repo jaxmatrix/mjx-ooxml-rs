@@ -20,7 +20,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mjx_tokens::{Tokens, TOKENS};
+use mjx_tokens::{DerivedFrom, MixPercentage, MixTerm, Tokens, DERIVATIONS, TOKENS};
 
 /// `ui/tokens/`, from this crate's manifest directory.
 fn ui_tokens_dir() -> PathBuf {
@@ -327,6 +327,205 @@ fn the_typescript_custom_property_map_matches_the_rust_table() {
         map.len(),
         TOKENS.len()
     );
+}
+
+/// **There is one `color-mix(in srgb, …)` implementation, and TypeScript is not a second one.**
+///
+/// The ticket's own words: *two implementations that merely agree today is precisely the divergence
+/// this pipeline exists to prevent.* Two evaluators is the minimum — ours and the browser's — and
+/// the way to keep it at two is for `tokens.ts` to carry **values and no arithmetic**: a shell that
+/// mixed colours in JavaScript would be a third answer, and it would agree with the other two right
+/// up to the day somebody changed one of them.
+///
+/// So the TypeScript artefact must contain no mixing at all, and `derivations.css` must be the only
+/// file under `ui/tokens/` that states an expression. `ui/tokens/chromium-agreement.mjs` is the
+/// gate that then compares the two that remain.
+#[test]
+fn the_typescript_artefact_carries_values_and_no_arithmetic() {
+    // ⚠ **Comments first.** Every token's generated documentation explains where its value came
+    // from, and for a derived one that explanation says `color-mix(in srgb, …)` — so a scan of the
+    // raw file finds the words and reports prose as code. That is the same defect the `ui/`
+    // lint rule has, and the reason this strips before it looks.
+    let typescript = strip_typescript_comments(&read("tokens.ts"));
+    for forbidden in ["color-mix", "colorMix", "function ", "=>"] {
+        assert!(
+            !typescript.contains(forbidden),
+            "tokens.ts contains `{forbidden}` outside a comment. It is a table of values; an \
+             algorithm in it would be a second implementation of something, and the only thing it \
+             could be an implementation of is the derivation."
+        );
+    }
+    // The check has to be able to see one, or it proves nothing about the stripping either.
+    assert!(
+        strip_typescript_comments("/** a color-mix in prose */\nconst a = 1;\n")
+            .contains("const a"),
+        "stripping must keep the code"
+    );
+    assert!(
+        !strip_typescript_comments("/** a color-mix in prose */\nconst a = 1;\n")
+            .contains("color-mix"),
+        "stripping must remove the prose"
+    );
+    assert!(
+        strip_typescript_comments("const mix = () => 'color-mix(in srgb, a, b)';\n")
+            .contains("color-mix"),
+        "…and must still see one written in code"
+    );
+
+    assert!(
+        !strip_css_comments(&read("tokens.css")).contains("color-mix"),
+        "tokens.css must carry resolved colours: a canvas cannot paint an expression, and neither \
+         can a contrast gate measure one"
+    );
+    assert!(
+        strip_css_comments(&read("derivations.css")).contains("color-mix(in srgb, "),
+        "derivations.css is the one artefact that states the expressions"
+    );
+}
+
+/// TypeScript with its `/** … */` and `// …` comments removed.
+fn strip_typescript_comments(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut rest = source;
+    loop {
+        let block = rest.find("/*");
+        let line = rest.find("//");
+        let (at, close, skip) = match (block, line) {
+            (None, None) => {
+                out.push_str(rest);
+                return out;
+            }
+            (Some(block), Some(line)) if line < block => (line, "\n", 0),
+            (Some(block), _) => (block, "*/", 2),
+            (None, Some(line)) => (line, "\n", 0),
+        };
+        out.push_str(&rest[..at]);
+        let after = &rest[at + 2..];
+        match after.find(close) {
+            // Newlines are kept so the line-oriented readers above still see one declaration a line.
+            Some(end) => {
+                out.extend(after[..end].chars().filter(|it| *it == '\n'));
+                rest = &after[end + skip..];
+            }
+            None => return out,
+        }
+    }
+}
+
+/// The **fourth** artefact says the same thing as the Rust derivation table (MJXOFF-271).
+///
+/// `ui/tokens/derivations.css` is the layer that lets a host's seed override re-theme the chrome
+/// through the cascade, and `mjx_tokens::DERIVATIONS` is what re-themes the canvas. They are two
+/// statements of one set of expressions, in two languages, and the failure they can have is that
+/// one of them was regenerated and the other was not — after which chrome and canvas would drift
+/// apart exactly where they meet.
+///
+/// So every derived member is checked to be *declared* in the stylesheet, and every token it names
+/// is checked to be a name the stylesheet can resolve. What this does **not** do is re-evaluate the
+/// expression: that is `ui/tokens/chromium-agreement.mjs`'s job, and doing it here in Rust would
+/// only compare `mjx_tokens::color_mix` with itself.
+#[test]
+fn the_derivation_layer_declares_every_derived_token_and_names_only_real_ones() {
+    let css = read("derivations.css");
+    let declared: BTreeMap<String, String> = css
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            let rest = line.strip_prefix("--")?;
+            let (name, value) = rest.split_once(':')?;
+            let value = value.trim().strip_suffix(';')?;
+            Some((format!("--{}", name.trim()), value.trim().to_owned()))
+        })
+        .collect();
+
+    assert!(
+        !DERIVATIONS.is_empty(),
+        "the Rust table declares no derived tokens at all"
+    );
+
+    // The stylesheet writes one declaration per *member*, under the scheme-relative alias, because
+    // one declaration has to be right in whichever scheme is in force. So the Rust table's
+    // per-scheme properties are folded onto their aliases before the two are compared.
+    let alias_of = |custom_property: &str| -> String {
+        for scheme in ["-light-", "-dark-"] {
+            if let Some(at) = custom_property.find(scheme) {
+                return format!(
+                    "{}-{}",
+                    &custom_property[..at],
+                    &custom_property[at + scheme.len()..]
+                );
+            }
+        }
+        custom_property.to_owned()
+    };
+
+    let mut expected: Vec<String> = DERIVATIONS
+        .iter()
+        .map(|derivation| alias_of(derivation.custom_property))
+        .collect();
+    expected.sort();
+    expected.dedup();
+    let mut actual: Vec<String> = declared.keys().cloned().collect();
+    actual.sort();
+    assert_eq!(
+        actual, expected,
+        "derivations.css and the Rust derivation table describe different tokens"
+    );
+
+    // Every name either stylesheet reaches for has to exist, or a host would override something
+    // nothing reads and the two halves would silently stop agreeing.
+    let tokens_css = read("tokens.css");
+    let token_properties: BTreeMap<String, String> = css_declarations(&tokens_css);
+    let scheme_aliases: Vec<String> = css_scheme_references(&tokens_css)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    let resolvable = |name: &str| {
+        token_properties.contains_key(name)
+            || scheme_aliases.iter().any(|alias| alias == name)
+            || declared.contains_key(name)
+    };
+    for (name, value) in &declared {
+        for reference in value.split("var(").skip(1) {
+            let referenced = reference
+                .split(')')
+                .next()
+                .expect("a split always yields one part")
+                .trim();
+            assert!(
+                resolvable(referenced),
+                "derivations.css writes {name} in terms of {referenced}, which nothing declares"
+            );
+        }
+    }
+
+    for derivation in DERIVATIONS {
+        let mut named: Vec<&str> = Vec::new();
+        match derivation.source {
+            DerivedFrom::Token(custom_property) => named.push(custom_property),
+            DerivedFrom::Mix(nodes) => {
+                for node in nodes {
+                    for term in [node.first, node.second] {
+                        if let MixTerm::Token(custom_property) = term {
+                            named.push(custom_property);
+                        }
+                    }
+                    for percentage in [node.first_percentage, node.second_percentage] {
+                        if let Some(MixPercentage::Token(custom_property)) = percentage {
+                            named.push(custom_property);
+                        }
+                    }
+                }
+            }
+        }
+        for custom_property in named {
+            assert!(
+                token_properties.contains_key(custom_property),
+                "`{}` is derived from `{custom_property}`, which tokens.css does not declare",
+                derivation.custom_property
+            );
+        }
+    }
 }
 
 /// The scheme layer is the only part of the stylesheet with no counterpart in the Rust table — the

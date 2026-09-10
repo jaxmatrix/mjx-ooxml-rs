@@ -285,10 +285,21 @@ fn a_token_written_through_the_endpoint_reaches_the_file_and_the_running_tokens(
         after.contains("\"#c02a5f\""),
         "the new value is not in the file"
     );
+    // ⚠ The previous value is read out of the answer rather than written down here. It used to be
+    // the literal `"{color.green-deep}"`, and MJXOFF-271 re-pointed the handle at
+    // `{theme.light.accent-pressed}` — the accent role rather than one ramp step — which is a longer
+    // string and made this arithmetic fail while the property it checks still held. A length
+    // identity that bakes in one token's committed value is a gate that breaks on a re-seed instead
+    // of on a defect; reading `previous` makes it check the *span*, which is what it says it checks.
+    let previous = answer
+        .split("\"previous\":\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("the answer names the previous value");
     assert_eq!(
-        before.len() + "\"#c02a5f\"".len() - "\"{color.green-deep}\"".len(),
+        before.len() + "\"#c02a5f\"".len() - (previous.len() + 2),
         after.len(),
-        "the edit changed more than one span"
+        "the edit changed more than one span (the previous value was `{previous}`)"
     );
 
     // The running tokens moved with it, which is what makes the canvas redraw in the new colour.

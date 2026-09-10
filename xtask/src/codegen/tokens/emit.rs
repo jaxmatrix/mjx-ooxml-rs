@@ -1,22 +1,26 @@
-//! The three artefacts, rendered from one checked [`TokenSet`].
+//! The four artefacts, rendered from one checked [`TokenSet`].
 //!
 //! Each renderer is pure — `&TokenSet -> String` — which is what lets the `--check` mode compare
 //! what the source *would* produce against what is committed without writing anything, and what
 //! lets the tests below generate from a synthetic source in memory.
 //!
-//! The three files are written for three consumers that share nothing: a stylesheet the
-//! Web-Component chrome imports, a module the shell's TypeScript imports, and a Rust table the
-//! document canvas reads. Every value therefore has to survive three spellings of the same name and
-//! one spelling of the same value; `crates/mjx-tokens/tests/artefacts_agree.rs` is what proves it
-//! did.
+//! Three of them are written for consumers that share nothing: a stylesheet the Web-Component
+//! chrome imports, a module the shell's TypeScript imports, and a Rust table the document canvas
+//! reads. Every value therefore has to survive three spellings of the same name and one spelling of
+//! the same value; `crates/mjx-tokens/tests/artefacts_agree.rs` is what proves it did.
+//!
+//! The fourth, [`derivations_css`], is written for the *cascade* rather than for a consumer: it
+//! restates the derived tier as the `color-mix()` it came from, so that a host overriding a seed
+//! re-themes everything mixed from it. See that function's documentation for why it is a separate
+//! file.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use crate::codegen::tokens::model::{
-    custom_property, dotted, number, rust_field, scheme_aliases, typescript_path,
-    typescript_property, Entry, Group, Length, Rgba, SchemeAlias, Shadow, Token, TokenSet, Usage,
-    Value,
+    custom_property, derivation_reference, dotted, number, rust_field, scheme_aliases,
+    typescript_path, typescript_property, Derivation, Entry, Group, Length, MixNode, MixPercentage,
+    MixTerm, Rgba, SchemeAlias, Shadow, Token, TokenSet, Usage, Value,
 };
 
 /// The line every artefact opens with, so a reader who lands in one of them knows in the first line
@@ -365,9 +369,10 @@ pub(crate) fn rust(set: &TokenSet) -> String {
         let _ = writeln!(out, "//! {line}");
     }
 
-    let mut imports: BTreeSet<&'static str> = ["TokenError", "TokenIdentity", "TokenValue"]
-        .into_iter()
-        .collect();
+    let mut imports: BTreeSet<&'static str> =
+        ["Derivation", "TokenError", "TokenIdentity", "TokenValue"]
+            .into_iter()
+            .collect();
     imports.insert("parse_token");
     for token in &tokens {
         for name in rust_imports(&token.value) {
@@ -377,6 +382,34 @@ pub(crate) fn rust(set: &TokenSet) -> String {
         // that still compiles rather than one with an unused import.
         if token.usage.is_some() {
             imports.insert("ColorUsage");
+        }
+        let Some(derivation) = &token.derivation else {
+            continue;
+        };
+        imports.insert("DerivedFrom");
+        let Derivation::Mix(nodes) = derivation else {
+            continue;
+        };
+        imports.insert("MixNode");
+        imports.insert("MixTerm");
+        for node in nodes {
+            if matches!(node.first, MixTerm::Literal(_))
+                || matches!(node.second, MixTerm::Literal(_))
+            {
+                imports.insert("Color");
+            }
+            for percentage in [&node.first_percentage, &node.second_percentage] {
+                match percentage {
+                    None => {}
+                    Some(MixPercentage::Fixed(_)) => {
+                        imports.insert("MixPercentage");
+                        imports.insert("Percentage");
+                    }
+                    Some(MixPercentage::Token(_)) => {
+                        imports.insert("MixPercentage");
+                    }
+                }
+            }
         }
     }
     let _ = writeln!(
@@ -523,7 +556,208 @@ pub const TOKENS: &[TokenIdentity] = &[
         );
     }
     out.push_str("];\n");
+
+    rust_derivations(set, &mut out);
     out
+}
+
+/// The derived tier, as the table `mjx_tokens::Tokens::rederive` walks.
+///
+/// Emitted in token order, which [`crate::codegen::tokens::model`] has already checked is a
+/// topological order — so one forward pass is enough and the runtime needs no scheduler.
+fn rust_derivations(set: &TokenSet, out: &mut String) {
+    let derived: Vec<&Token> = set
+        .tokens()
+        .into_iter()
+        .filter(|token| token.derivation.is_some())
+        .collect();
+
+    out.push_str(
+        "
+/// Every derived colour, and the `color-mix(in srgb, …)` expression it comes from.
+///
+/// The committed value of a derived token is what this expression evaluated to for the seeds and
+/// knobs the source ships with. `Tokens::rederive` re-evaluates it for whichever seeds actually
+/// won, which is the fourth step of the resolution order and the reason a host can re-theme the
+/// whole platform by setting one custom property.
+///
+/// `ui/tokens/derivations.css` states the same expressions for the browser, so the chrome
+/// re-derives through the cascade with no code at all;
+/// `ui/tokens/chromium-agreement.mjs` asserts the two evaluators agree.
+pub const DERIVATIONS: &[Derivation] = &[
+",
+    );
+    for token in derived {
+        let derivation = token
+            .derivation
+            .as_ref()
+            .expect("filtered to the derived tokens");
+        let _ = writeln!(
+            out,
+            "    // {}\n    Derivation {{ custom_property: {:?}, source: ",
+            dotted(&token.path),
+            custom_property(&token.path)
+        );
+        match derivation {
+            Derivation::Alias(path) => {
+                let _ = writeln!(
+                    out,
+                    "        DerivedFrom::Token({:?}),",
+                    rust_reference(path)
+                );
+            }
+            Derivation::Mix(nodes) => {
+                out.push_str("        DerivedFrom::Mix(&[\n");
+                for node in nodes {
+                    let _ = writeln!(out, "            {},", rust_mix_node(set, node));
+                }
+                out.push_str("        ]),\n");
+            }
+        }
+        out.push_str("    },\n");
+    }
+    out.push_str("];\n");
+}
+
+/// A dotted token path as the custom property the Rust table names it by — the token's **own**
+/// property, never the scheme alias, for the reason `mjx_tokens::MixTerm::Token` documents.
+fn rust_reference(path: &str) -> String {
+    custom_property(&path.split('.').map(str::to_owned).collect::<Vec<_>>())
+}
+
+fn rust_mix_node(set: &TokenSet, node: &MixNode) -> String {
+    format!(
+        "MixNode {{ first: {}, first_percentage: {}, second: {}, second_percentage: {} }}",
+        rust_mix_term(set, &node.first),
+        rust_mix_percentage(set, &node.first_percentage),
+        rust_mix_term(set, &node.second),
+        rust_mix_percentage(set, &node.second_percentage),
+    )
+}
+
+fn rust_mix_term(set: &TokenSet, term: &MixTerm) -> String {
+    match term {
+        MixTerm::Literal(colour) => format!("MixTerm::Literal({})", rust_colour(*colour)),
+        MixTerm::Transparent => "MixTerm::Transparent".to_owned(),
+        MixTerm::Nested(at) => format!("MixTerm::Nested({at})"),
+        // The token's OWN property, never the scheme alias: this table is read by a renderer that
+        // already knows which scheme it is painting. `derivations.css` is where the alias goes.
+        MixTerm::Token(path) => {
+            let _ = set;
+            format!("MixTerm::Token({:?})", rust_reference(path))
+        }
+    }
+}
+
+fn rust_mix_percentage(set: &TokenSet, percentage: &Option<MixPercentage>) -> String {
+    match percentage {
+        None => "None".to_owned(),
+        Some(MixPercentage::Fixed(value)) => format!(
+            "Some(MixPercentage::Fixed(Percentage {{ value: {} }}))",
+            rust_float(*value)
+        ),
+        Some(MixPercentage::Token(path)) => {
+            let _ = set;
+            format!("Some(MixPercentage::Token({:?}))", rust_reference(path))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ui/tokens/derivations.css
+// ---------------------------------------------------------------------------------------------
+
+/// Renders `ui/tokens/derivations.css` — the layer that makes a host's seed override propagate.
+///
+/// `tokens.css` declares every token as the **resolved** colour, which is what the Rust canvas, the
+/// TypeScript shell and every contrast gate need. That resolution is fixed at generation time, so
+/// on its own a host that sets `--theme-midground` re-themes nothing.
+///
+/// This file is the answer, and it is a separate stylesheet on purpose: a second declaration of the
+/// same property inside `tokens.css` would be a duplicate the drift gates read as a defect, and it
+/// would also force every consumer of `tokens.css` to cope with a `color-mix()` where it expects a
+/// colour. Import it *after* `tokens.css` and every derived colour becomes an expression again,
+/// resolved by the browser from whichever seeds are in force.
+///
+/// One declaration per derived **member**, written in terms of the scheme-relative aliases, which
+/// is why the model refuses two schemes that derive a member differently: the alias is the name a
+/// host sets, and it is the only name that is correct in both schemes.
+pub(crate) fn derivations_css(set: &TokenSet) -> String {
+    let mut out = String::new();
+    out.push_str("/*\n");
+    let _ = writeln!(out, " * {GENERATED_BY}");
+    out.push_str(" * DO NOT EDIT. Edit the source and regenerate.\n *\n");
+    for line in wrap(
+        "The derived tier. `tokens.css` carries every token as the colour it resolved to for the \
+         seeds this platform ships with; this file restates the derived ones as the \
+         `color-mix(in srgb, …)` they came from, in terms of the scheme-relative aliases. Import it \
+         AFTER tokens.css and a host that overrides one seed — `--theme-midground`, \
+         `--theme-background-seed`, `--theme-mix-chrome` — re-themes every colour mixed from it \
+         through the cascade, with no code. The Rust canvas cannot inherit a custom property, so it \
+         evaluates the same expressions through `mjx_tokens::Tokens::rederive`; \
+         ui/tokens/chromium-agreement.mjs asserts that the browser and that one implementation \
+         agree, for every derived token, in both schemes.",
+        COMMENT_WIDTH,
+    ) {
+        let _ = writeln!(out, " * {line}");
+    }
+    out.push_str(" */\n\n:root {\n");
+
+    let mut written: BTreeSet<String> = BTreeSet::new();
+    for token in set.tokens() {
+        let Some(derivation) = &token.derivation else {
+            continue;
+        };
+        let name = derivation_reference(set, &dotted(&token.path));
+        if !written.insert(name.clone()) {
+            // The other scheme's copy of the same member, which the model has already proved is
+            // the same expression.
+            continue;
+        }
+        if let Some(description) = &token.description {
+            for line in wrap(description, COMMENT_WIDTH - 5) {
+                let _ = writeln!(out, "  /* {line} */");
+            }
+        }
+        let value = match derivation {
+            Derivation::Alias(path) => format!("var({})", derivation_reference(set, path)),
+            Derivation::Mix(nodes) => css_mix(set, nodes, nodes.len() - 1),
+        };
+        let _ = writeln!(out, "  {name}: {value};");
+    }
+    out.push_str("}\n");
+    out
+}
+
+/// One `color-mix()` expression as CSS.
+fn css_mix(set: &TokenSet, nodes: &[MixNode], at: usize) -> String {
+    let node = &nodes[at];
+    format!(
+        "color-mix(in srgb, {}{}, {}{})",
+        css_mix_term(set, nodes, &node.first),
+        css_mix_percentage(set, &node.first_percentage),
+        css_mix_term(set, nodes, &node.second),
+        css_mix_percentage(set, &node.second_percentage),
+    )
+}
+
+fn css_mix_term(set: &TokenSet, nodes: &[MixNode], term: &MixTerm) -> String {
+    match term {
+        MixTerm::Literal(colour) => colour.css(),
+        MixTerm::Transparent => "transparent".to_owned(),
+        MixTerm::Nested(at) => css_mix(set, nodes, *at),
+        MixTerm::Token(path) => format!("var({})", derivation_reference(set, path)),
+    }
+}
+
+fn css_mix_percentage(set: &TokenSet, percentage: &Option<MixPercentage>) -> String {
+    match percentage {
+        None => String::new(),
+        Some(MixPercentage::Fixed(value)) => format!(" {}%", number(*value)),
+        Some(MixPercentage::Token(path)) => {
+            format!(" var({})", derivation_reference(set, path))
+        }
+    }
 }
 
 /// The `mjx-tokens` types one value kind needs in scope.
@@ -536,6 +770,7 @@ fn rust_imports(value: &Value) -> &'static [&'static str] {
         Value::FontStack(_) => &["FontStack"],
         Value::CubicBezier(_) => &["CubicBezier"],
         Value::Shadow(_) => &["Color", "Dimension", "LengthUnit", "Shadow"],
+        Value::Percentage(_) => &["Percentage"],
     }
 }
 
@@ -562,6 +797,7 @@ fn rust_type_of(value: &Value) -> &'static str {
         Value::FontStack(_) => "FontStack",
         Value::CubicBezier(_) => "CubicBezier",
         Value::Shadow(_) => "Shadow",
+        Value::Percentage(_) => "Percentage",
     }
 }
 
@@ -575,6 +811,7 @@ fn rust_token_value_variant(value: &Value) -> &'static str {
         Value::FontStack(_) => "FontStack",
         Value::CubicBezier(_) => "CubicBezier",
         Value::Shadow(_) => "Shadow",
+        Value::Percentage(_) => "Percentage",
     }
 }
 
@@ -641,6 +878,7 @@ fn rust_literal(value: &Value) -> String {
             rust_float(*y2)
         ),
         Value::Shadow(shadow) => rust_shadow(*shadow),
+        Value::Percentage(value) => format!("Percentage {{ value: {} }}", rust_float(*value)),
     }
 }
 
@@ -889,6 +1127,81 @@ mod tests {
         assert!(
             css.contains(":root:not([data-theme=\"light\"])"),
             "a host that asked for light must not be overridden by the system preference"
+        );
+    }
+
+    /// A two-tier source: the derived tier reaches the resolved colour in three artefacts and the
+    /// *expression* in the fourth, under the scheme-relative alias.
+    const DERIVED_SOURCE: &str = r##"{
+      "$description": "a test source",
+      "theme": {
+        "$type": "color",
+        "$extensions": { "mjx": { "rustType": "Themes", "schemes": true } },
+        "light": {
+          "$extensions": { "mjx": { "rustType": "ThemeColors" } },
+          "seed": { "$value": "#000000", "$extensions": { "mjx": { "usage": "fill-only" } } },
+          "knob": { "$type": "percentage", "$value": "20%" },
+          "surface": {
+            "$value": { "mix": [
+              { "color": "{theme.light.seed}", "percentage": "{theme.light.knob}" },
+              { "color": "#ffffff" }
+            ] },
+            "$extensions": { "mjx": { "usage": "fill-only" } }
+          }
+        },
+        "dark": {
+          "$extensions": { "mjx": { "rustType": "ThemeColors" } },
+          "seed": { "$value": "#ffffff", "$extensions": { "mjx": { "usage": "fill-only" } } },
+          "knob": { "$type": "percentage", "$value": "40%" },
+          "surface": {
+            "$value": { "mix": [
+              { "color": "{theme.dark.seed}", "percentage": "{theme.dark.knob}" },
+              { "color": "#ffffff" }
+            ] },
+            "$extensions": { "mjx": { "usage": "fill-only" } }
+          }
+        }
+      }
+    }"##;
+
+    #[test]
+    fn the_derived_tier_is_a_colour_in_three_artefacts_and_an_expression_in_the_fourth() {
+        let set = read(DERIVED_SOURCE).expect("valid");
+
+        // Resolved everywhere a consumer needs a colour — a canvas cannot paint an expression, and
+        // a contrast gate cannot measure one.
+        assert!(
+            css(&set).contains("--theme-light-surface: #cccccc;"),
+            "{}",
+            css(&set)
+        );
+        assert!(typescript(&set).contains("surface: '#cccccc',"));
+        assert!(rust(&set)
+            .contains("surface: Color { red: 0xcc, green: 0xcc, blue: 0xcc, alpha: 0xff }"));
+
+        // …and the expression exactly once, under the alias a host overrides through.
+        let derivations = derivations_css(&set);
+        assert!(
+            derivations.contains(
+                "--theme-surface: color-mix(in srgb, var(--theme-seed) var(--theme-knob), #ffffff);"
+            ),
+            "{derivations}"
+        );
+        assert!(
+            !derivations.contains("--theme-light-surface"),
+            "one declaration per member, not one per scheme: {derivations}"
+        );
+
+        // The Rust table names the per-scheme properties instead, because a renderer already knows
+        // which scheme it is painting.
+        let rust = rust(&set);
+        assert!(
+            rust.contains("MixTerm::Token(\"--theme-light-seed\")"),
+            "{rust}"
+        );
+        assert!(
+            rust.contains("MixPercentage::Token(\"--theme-dark-knob\")"),
+            "{rust}"
         );
     }
 

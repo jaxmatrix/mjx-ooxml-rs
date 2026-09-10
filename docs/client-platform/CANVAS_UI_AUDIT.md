@@ -14,7 +14,7 @@ Open the address it prints. The scene list is on the left, the state panel on th
 2. Step the **interaction** toggle through default, hover, active, focused and disabled. An element whose toggle does nothing is either finished or wrong, and the harness's own gate says which — see the `responds to` column.
 3. Turn on the **hit-test overlay** and judge the grab region. Then set **input** to touch and judge it again.
 4. For the eleven touch elements, **open the harness on a phone** (`serve --host 0.0.0.0`, then the machine's address on the same network) and use a thumb. A touch target judged with a mouse has not been judged.
-5. Tweak whatever is wrong in the **token editor**. It writes back to `docs/client-platform/data/tokens.json`; run `cargo run -p xtask -- tokens` afterwards to carry the change into the three generated artefacts.
+5. Tweak whatever is wrong in the **token editor**. It writes back to `docs/client-platform/data/tokens.json`; run `cargo run -p xtask -- tokens` afterwards to carry the change into the generated artefacts. A *derived* colour has no value of its own to type into: adjust the seed or knob it is mixed from, and everything mixed from that follows.
 6. When an element is right, tick its box here, and record the approval against its plate:
 
 ```sh

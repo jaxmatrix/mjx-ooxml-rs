@@ -182,10 +182,15 @@ token system that stops at CSS leaves the document surface visually detached fro
 - **Generated, committed outputs** (the project's existing codegen doctrine — `xtask`, never a
   `build.rs`): CSS custom properties, a TypeScript `Tokens` type plus defaults, and a Rust `Tokens`
   struct with a `const` default table.
+- **Two tiers, and a fourth artefact** (MJXOFF-271). The source is seeds and knobs plus a tier
+  *derived* from them by `color-mix(in srgb, …)`, because the application this platform embeds into
+  is built that way and a hex copy would have thrown its structure away. Every artefact above
+  carries the resolved colour; `ui/tokens/derivations.css` restates the expressions so the cascade
+  re-derives them, and `mjx_tokens::Tokens::rederive` does the same for the canvas.
 - **Runtime resolution order**: explicit host configuration → CSS custom properties read off the host
-  element → built-in defaults. The shell observes changes (`MutationObserver`,
-  `prefers-color-scheme`) and pushes a resolved token snapshot across the bridge, so a theme change
-  repaints the canvas in the same frame as the chrome.
+  element → derivation from whichever seeds won → built-in defaults. The shell observes changes
+  (`MutationObserver`, `prefers-color-scheme`) and pushes a resolved token snapshot across the
+  bridge, so a theme change repaints the canvas in the same frame as the chrome.
 
 ### L-1 · `mjx-session` — the resident document
 

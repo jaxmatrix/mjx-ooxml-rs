@@ -438,15 +438,34 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 - Hand-written de/serialization via `mjx-derive` (not serde).
 - Generated `mjx-ooxml-types` (simple types + constant tables) via `xtask`; **output is committed**,
   never a `build.rs`. Regenerate with `cargo run -p xtask -- codegen` (needs local `References/`).
-- **One design-token source, three generated consumers** (MJXOFF-156). The chrome is HTML and the
-  document canvas is Rust, and *a canvas cannot inherit a CSS custom property*, so
+- **One design-token source, four generated artefacts** (MJXOFF-156, MJXOFF-271). The chrome is HTML
+  and the document canvas is Rust, and *a canvas cannot inherit a CSS custom property*, so
   `docs/client-platform/data/tokens.json` is generated into `ui/tokens/tokens.css`,
-  `ui/tokens/tokens.ts` and `crates/mjx-tokens/src/generated.rs` by `cargo run -p xtask -- tokens` —
-  committed output, same doctrine. Two divergence gates hold it together: `xtask/tests/tokens.rs`
-  proves the artefacts are *derived* from the source, and `mjx-tokens`'s `artefacts_agree` suite
-  proves they are *equal to each other*. **The contrast rule of `DESIGN_TOKENS.md` §2.2 is enforced,
-  not documented:** every colour token declares its usage, and a token tagged for text that does not
-  reach 4.5 : 1 against its declared background is refused.
+  `ui/tokens/derivations.css`, `ui/tokens/tokens.ts` and `crates/mjx-tokens/src/generated.rs` by
+  `cargo run -p xtask -- tokens` — committed output, same doctrine. Two divergence gates hold it
+  together: `xtask/tests/tokens.rs` proves the artefacts are *derived* from the source, and
+  `mjx-tokens`'s `artefacts_agree` suite proves they are *equal to each other*. **The contrast rule
+  of `DESIGN_TOKENS.md` §2.2 is enforced, not documented:** every colour token declares its usage,
+  and a token tagged for text that does not reach 4.5 : 1 against its declared background is
+  refused.
+
+  **The source is two tiers, and there is exactly one `color-mix(in srgb, …)`** (MJXOFF-271). It was
+  re-seeded from `allr-agent/apps/hermes-universal`, the application this platform embeds into,
+  whose token system is layered rather than flat: seeds and mix knobs, and ~250 surfaces derived
+  from them — *dark mode is the same seeds with different knobs, not a second palette*, and a hex
+  copy would have destroyed that. So a derived token's `$value` is a `{ "mix": [ … ] }`, and the
+  seeds' and knobs' custom properties **are that application's own names** (`--theme-foreground`,
+  `--theme-midground`, `--theme-mix-chrome`), so dropping the editor into it re-themes with no code.
+  All four artefacts carry the *resolved* colour, because a canvas cannot paint an expression;
+  `derivations.css` restates the expressions for the cascade and `mjx_tokens::Tokens::rederive` for
+  the renderer. **`mjx_tokens::color_mix` is the only implementation this project owns** — `tokens.ts`
+  carries values and no algorithm — and `ui/tokens/chromium-agreement.mjs` asserts it agrees with
+  **Chromium's own** for every derived token in both schemes. That gate is not decoration: it caught
+  us quantising to eight bits at every token boundary where a browser evaluates the whole expression
+  in floating point, which had put `--theme-border` and `--document-page-border` one step away from
+  the chrome around them. Two behaviours are easy to get wrong and both are load-bearing:
+  `color-mix(in srgb, C p%, transparent)` is an **alpha** operation, not a blend toward black, and
+  percentages that do not sum to 100% **renormalise**.
 
   **That rule lives in `mjx-tokens`, and the generator *calls* it** (audit pass 10). It used to be a
   private `check_usage` inside `xtask/src/codegen/tokens/model.rs`, which made the generator the only

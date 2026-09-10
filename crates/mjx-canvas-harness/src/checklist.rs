@@ -48,7 +48,7 @@ pub fn render(store: &Baselines) -> String {
             thumb. A touch target judged with a mouse has not been judged.\n\
          5. Tweak whatever is wrong in the **token editor**. It writes back to \
             `docs/client-platform/data/tokens.json`; run `cargo run -p xtask -- tokens` afterwards \
-            to carry the change into the three generated artefacts.\n\
+            to carry the change into the generated artefacts.\n\
          6. When an element is right, tick its box here, and record the approval against its \
             plate:\n\n\
          ```sh\nMJX_ORACLE_APPROVED_BY='Your Name' \\\n  cargo run -p mjx-canvas-harness -- \

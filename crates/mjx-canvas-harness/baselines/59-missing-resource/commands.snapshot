@@ -3,14 +3,14 @@ section commands count=11
 section paints count=5
 section strokes count=4
 section geometries count=9
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
-0002 fill rect[53.333336,66.66667,192,170.66667] with pattern[LightUpwardDiagonal #e9a83e on #e9a83e]
-0003 stroke rect[53.333336,66.66667,192,170.66667] with width=1.3333334 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#e9a83eff
-0004 fill rect[216,66.66667,354.6667,170.66667] with pattern[LightDownwardDiagonal #e9a83e on #e9a83e]
-0005 stroke rect[216,66.66667,354.6667,170.66667] with width=1.3333334 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#e9a83eff
-0006 stroke rect[82.66667,96,162.66667,141.33334] with width=1.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
-0007 stroke outline[0x1 at 81.333336,110.53333,164,142.66667] with width=1.3333334 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
-0008 fill outline[0x2 at 148,102.66667,156,110.66667] with #e9a83eff
-0009 fill outline[0x3 at 273.33334,104,300,133.33334] with #e9a83eff
-0010 stroke outline[0x4 at 262.6667,98.66667,308,138.66667] with width=2.3333335 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0002 fill rect[53.333336,66.66667,192,170.66667] with pattern[LightUpwardDiagonal #b77e1f on #b77e1f]
+0003 stroke rect[53.333336,66.66667,192,170.66667] with width=1.3333334 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#b77e1fff
+0004 fill rect[216,66.66667,354.6667,170.66667] with pattern[LightDownwardDiagonal #b77e1f on #b77e1f]
+0005 stroke rect[216,66.66667,354.6667,170.66667] with width=1.3333334 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#b77e1fff
+0006 stroke rect[82.66667,96,162.66667,141.33334] with width=1.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
+0007 stroke outline[0x1 at 81.333336,110.53333,164,142.66667] with width=1.3333334 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
+0008 fill outline[0x2 at 148,102.66667,156,110.66667] with #b77e1fff
+0009 fill outline[0x3 at 273.33334,104,300,133.33334] with #b77e1fff
+0010 stroke outline[0x4 at 262.6667,98.66667,308,138.66667] with width=2.3333335 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff

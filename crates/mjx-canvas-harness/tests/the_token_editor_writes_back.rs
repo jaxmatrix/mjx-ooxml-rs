@@ -44,8 +44,8 @@ fn the_write_back_changes_one_span_and_nothing_else() {
 
     let (start, end) = tokens_source::value_span(&before, "document.light.selection-handle")
         .expect("the token is in the source");
-    // The span is the **whole JSON value**, quotes included — `"{color.green-deep}"` — and what
-    // replaces it is `"#c02a5f"`, nine bytes.
+    // The span is the **whole JSON value**, quotes included — here a `"{token.path}"` alias — and
+    // what replaces it is `"#c02a5f"`, nine bytes.
     let written = "\"#c02a5f\"";
     assert_eq!(
         &before[..start],
@@ -59,9 +59,16 @@ fn the_write_back_changes_one_span_and_nothing_else() {
     );
     assert_eq!(&after[start..start + written.len()], written);
     // **The alias warning is live, and this token is the one that proves it.** Its committed value
-    // is `{color.green-deep}` — a statement that the selection handle follows the accent, not a
-    // colour — so a write-back here changes the token *system* and the harness has to say so.
-    assert_eq!(rewritten.previous, "{color.green-deep}");
+    // is an alias — a statement that the selection handle follows the accent, not a colour — so a
+    // write-back here changes the token *system* and the harness has to say so. Which alias it is
+    // is not written down: it was `{color.green-deep}` and MJXOFF-271 re-pointed it at
+    // `{theme.light.accent-pressed}`, the accent role rather than one ramp step, and a test that
+    // named the target broke on a re-seed rather than on a defect.
+    assert!(
+        rewritten.previous.starts_with('{') && rewritten.previous.ends_with('}'),
+        "the previous value should be a token reference, and it reads `{}`",
+        rewritten.previous
+    );
     assert!(
         rewritten.previous_was_alias,
         "`document.light.selection-handle` is committed as an alias, and a write-back that did not \
@@ -102,16 +109,39 @@ fn a_written_token_is_the_one_that_was_asked_for() {
         theme, document,
         "two different tokens resolved to the same span in the source"
     );
-    // What the span actually holds is `{color.paper}` — an **alias**, not a colour. That is not an
-    // accident of this token: about a third of the source is written in the W3C alias form, which
-    // is the whole reason `Rewritten::previous_was_alias` exists and the reason the harness warns
-    // when a write-back flattens one. A test that asserted every span begins with `#` would have
-    // been asserting something false about the file it reads.
-    let span = tokens_source::value_text(&before, "theme.light.background")
+    // What the span holds is one of **three** things, and none of them is a colour. About a third
+    // of the source is written in the W3C alias form (`{color.paper}`) — the reason
+    // `Rewritten::previous_was_alias` exists and the reason the harness warns when a write-back
+    // flattens one — and since MJXOFF-271 the surfaces, text colours and strokes are `mix`
+    // *derivations*, whose `$value` is a whole nested object. A test that asserted every span begins
+    // with `#` would have been asserting something false about the file it reads.
+    let background = tokens_source::value_text(&before, "theme.light.background")
         .expect("`theme.light.background` is in the source");
     assert!(
-        span.starts_with('#') || (span.starts_with('{') && span.ends_with('}')),
-        "`theme.light.background`'s value is `{span}`, which is neither a colour nor an alias"
+        background.contains("\"mix\""),
+        "`theme.light.background` is derived, so its `$value` is a mix; it reads `{background}`"
+    );
+    assert!(
+        background.ends_with('}'),
+        "the span must cover the whole nested object, not stop at the first brace: `{background}`"
+    );
+    let paper = tokens_source::value_text(&before, "theme.light.background-seed")
+        .expect("`theme.light.background-seed` is in the source");
+    assert!(
+        paper.starts_with('{') && paper.ends_with('}') && !paper.contains("\"mix\""),
+        "`theme.light.background-seed` is an alias to the palette; it reads `{paper}`"
+    );
+
+    // And a derived colour is **refused** rather than flattened. Replacing the expression with a
+    // literal would take the token out of the theme silently: the colour would stop following its
+    // seed, and every later skin change would miss it.
+    let refusal = tokens_source::rewrite(&before, "--theme-light-background", "#ff0000")
+        .expect_err("a derived colour has no literal to replace");
+    let message = refusal.to_string();
+    assert!(message.contains("derived"), "{message}");
+    assert!(
+        message.contains("--theme-light-background-seed"),
+        "the refusal must name a seed to adjust instead: {message}"
     );
 
     // Every token the generated table names must be findable in the source, or the editor would
@@ -141,7 +171,7 @@ fn a_value_is_written_in_the_shape_its_own_type_calls_for() {
     // **The ten tokens the first version of this editor could not write, and the reason it could
     // not.** `$value` is a quoted string for a colour, a dimension, a duration, a font stack and an
     // alias — and a *bare number* for `font-weight` and `leading`, and an *array* for `ease`. An
-    // editor that only knew about strings would offer ninety-two controls and commit eighty-two,
+    // editor that only knew about strings would offer a control for every token and commit only
     // silently, which is precisely the shape of hole this phase keeps finding. The suite found it
     // rather than a reader.
     let before = source();

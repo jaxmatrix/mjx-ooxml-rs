@@ -3,15 +3,15 @@ section commands count=24
 section paints count=6
 section strokes count=3
 section geometries count=21
-0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0000 fill rect[0,0,400,266.6667] with #fbf7f1ff
 0001 fill rect[24,16,376,250.66667] with #ffffffff
-0002 fill rect[69.333336,61.333336,330.6667,205.33334] with #fbefd8ff
-0003 stroke rect[69.333336,61.333336,330.6667,205.33334] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
-0004 fill rect[82.66667,80,117.333336,186.66667] with #e9a83e77
-0005 fill rect[130.66667,80,165.33334,170.66667] with #e9a83e77
-0006 fill rect[178.66667,80,213.33334,154.66667] with #e9a83e77
-0007 fill rect[226.66667,80,261.33334,138.66667] with #e9a83e77
-0008 fill rect[274.6667,80,309.33334,122.66667] with #e9a83e77
+0002 fill rect[69.333336,61.333336,330.6667,205.33334] with #f9f3e9ff
+0003 stroke rect[69.333336,61.333336,330.6667,205.33334] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#b77e1fff
+0004 fill rect[82.66667,80,117.333336,186.66667] with #b77e1f77
+0005 fill rect[130.66667,80,165.33334,170.66667] with #b77e1f77
+0006 fill rect[178.66667,80,213.33334,154.66667] with #b77e1f77
+0007 fill rect[226.66667,80,261.33334,138.66667] with #b77e1f77
+0008 fill rect[274.6667,80,309.33334,122.66667] with #b77e1f77
 0009 push-opacity 0.55
 0010 fill rect[69.333336,61.333336,330.6667,85.333336] with #223b33ff
 0011 fill rect[69.333336,178.66667,330.6667,205.33334] with #223b33ff

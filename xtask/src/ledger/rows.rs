@@ -1430,7 +1430,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     behaviour(
         "design-tokens",
         Section::ThirdAxis,
-        "One design-token source reaching three generated consumers, which agree with each other",
+        "One two-tier design-token source reaching four generated artefacts, which agree with each other",
         &["crates/mjx-tokens/tests/artefacts_agree.rs"],
     ),
     behaviour(
