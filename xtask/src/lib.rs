@@ -43,11 +43,19 @@
 //! unregistered roster. A second `Package::open` and a second `<Application>` reader would be two
 //! derivations of one fact with no way to say which was wrong.
 //!
+//! [`docs_site`] joined it with MJXOFF-281, and for the sixth: `xtask/tests/docs_site.rs` asks
+//! whether generating the user guide's site from the committed sources produces one page per guide
+//! page, one tab group per example, no rustdoc scaffolding and no dead intra-doc link — and the
+//! output is git-ignored, so there is nothing committed for the gate to compare against. It has to
+//! run the generator itself, which means reaching [`docs_site::render`] rather than a rendering of
+//! it.
+//!
 //! Nothing depends on this crate — `xtask/tests/layering.rs` asserts it — and it is excluded from
 //! the cross-build matrix, so a library target here widens nothing.
 
 pub mod binding_surface;
 pub mod codegen;
+pub mod docs_site;
 pub mod facade_surface;
 pub mod fixture_corpus;
 pub mod guide_examples;

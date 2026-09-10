@@ -238,6 +238,22 @@ machine-checked in both directions — a page committed without a row there fail
 does a row naming a page that does not exist — along with every file path and crate-qualified symbol
 those pages name (`xtask/tests/doc_gate.rs`).
 
+### The user guide's site
+
+The facade's guide renders a second time as a **Docusaurus site**, where every example is tabbed
+Rust / Python / TypeScript — which is what puts the tri-language guarantee in front of a reader who
+installed the wheel or the npm package rather than the crate. It is local for now: there is no
+deployment and no CI job.
+
+```sh
+cd site && npm install && npm run start
+```
+
+Nothing under it is written by hand. `cargo run -p xtask -- docs-site` renders the content out of
+the committed guide markdown and the tree it writes is git-ignored, the same arrangement the npm
+package's generated README has. [`site/README.md`](site/README.md) says how, and
+`xtask/tests/docs_site.rs` is the gate over it.
+
 ### The guides
 
 Longer-form prose lives beside the code, and renders as its own pages under `cargo doc`. Every code

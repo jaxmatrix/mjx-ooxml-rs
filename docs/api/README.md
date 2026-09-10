@@ -27,6 +27,7 @@ plus clippy's `-D warnings`), and intra-doc links are denied on CI, so `cargo do
 | [CLAUDE.md](../../CLAUDE.md) | — | The architecture rules, layering ranks and naming convention this project is held to |
 | [AGENTS.md](../../AGENTS.md) | — | The same rules addressed to a coding agent rather than a person |
 | [Pull request template](../../.github/pull_request_template.md) | — | The checks a pull request states it has run |
+| [The user guide's site](../../site/README.md) | — | The Docusaurus site that renders the facade guide in Rust, Python and TypeScript |
 
 ## PowerPoint — `mjx-pptx`
 

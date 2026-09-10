@@ -432,10 +432,14 @@ fn between(source: &str, path: &str, start: &str, end: &str) -> Result<Option<St
 
 /// The marker one line opens, if it opens one.
 ///
+/// Public since MJXOFF-281 so that `docs-site` reads a page with the *same* parser this command
+/// does. A second marker syntax — even one that agreed today — would be the second parser this
+/// workspace keeps refusing, and the two would disagree with no way to say which was wrong.
+///
 /// A line that begins like a marker and is then malformed — no closing `-->`, no language, a
 /// language that is not one of the three — is an error rather than a line quietly treated as prose.
 /// Silence there is how a marker becomes a block nothing regenerates.
-fn parse_marker_line(line: &str, page: &str, number: usize) -> Result<Option<Marker>> {
+pub fn parse_marker_line(line: &str, page: &str, number: usize) -> Result<Option<Marker>> {
     let Some(rest) = line.trim_end().strip_prefix(MARKER_PREFIX) else {
         return Ok(None);
     };
