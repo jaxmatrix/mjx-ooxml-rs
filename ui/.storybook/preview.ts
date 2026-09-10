@@ -23,6 +23,7 @@ import { defineSurfaces } from '../src/surfaces/index.ts';
 import { surfaceDocumentCss } from '../src/surfaces/surface-model.ts';
 import { defineFeedback } from '../src/feedback/index.ts';
 import { defineFurniture } from '../src/furniture/index.ts';
+import { defineNavigators } from '../src/navigators/index.ts';
 import { furnitureDocumentCss } from '../src/furniture/furniture-model.ts';
 import { feedbackDocumentCss } from '../src/feedback/feedback-model.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
@@ -72,6 +73,11 @@ defineFeedback();
 // not defined it would flash a row of mark labels into the page beside a scrollbar with an empty
 // channel -- which reads as a document with no search hits rather than as a missing registration.
 defineFurniture();
+// MJXOFF-191's four navigators. Registered here for the reason above and one of their own: all
+// four take their contents from a PROPERTY rather than from markup, so an unregistered one is an
+// empty box with no rows in it -- which reads as a document with nothing in it rather than as a
+// missing registration, and is the one failure mode a story cannot show by looking at it.
+defineNavigators();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;

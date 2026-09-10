@@ -42,11 +42,22 @@
  * Data and pure functions. No DOM, no tokens, no CSS.
  */
 
-/** Whether a figure came from laying something out, or from an estimate. R13's `ExtentPrecision`. */
-export const extentPrecisionNames = ['estimated', 'exact'] as const;
+import {
+  ExtentTable,
+  extentPrecisionNames,
+  type ExtentPrecision,
+} from '../foundations/extent-table.ts';
 
-/** One of the two. */
-export type ExtentPrecision = (typeof extentPrecisionNames)[number];
+/**
+ * Whether a figure came from laying something out, or from an estimate. R13's `ExtentPrecision`.
+ *
+ * ⚠ **Re-exported rather than declared.** MJXOFF-191 lifted the prefix-sum table this file was
+ * built around into `src/foundations/extent-table.ts`, so a virtual list of five thousand slides
+ * and a scrollbar over five hundred pages share one implementation of *rows of different heights,
+ * some measured and some guessed*. The names here are unchanged and every caller still compiles.
+ */
+export { extentPrecisionNames };
+export type { ExtentPrecision };
 
 /** Where a reader is, in terms that survive a correction. R13's `ScrollAnchor`. */
 export interface ScrollAnchor {
@@ -80,39 +91,41 @@ export interface Extent {
  *
  * The state is the page table; every offset is derived from it. Nothing here knows what a pixel
  * is: heights are in whatever unit the caller supplies, exactly as R13 works in `Emu`.
+ *
+ * ## What is left of it after MJXOFF-191's lift
+ *
+ * The arithmetic — the lazily rebuilt prefix sums, the binary search from an offset to an anchor,
+ * `offsetOfAnchor` back again, and *measured heights survive a re-estimate* — is
+ * [`ExtentTable`], in the foundations. What stayed here is what a **scrollbar** has and a list does
+ * not: the word *page*, the floor of one page, and a precision for the page **count** as opposed to
+ * each page's height.
+ *
+ * `tests/navigators.test.ts` sweeps random operation sequences through this and through a bare
+ * `ExtentTable` and requires them to agree, which is MJXOFF-190's own rule for a lift: *if a binding
+ * ever drifts, the two callers disagree about what the same operation does, which is exactly the
+ * defect two copies would have had.*
  */
 export class ScrollbarModel {
-  #pages: PageMetric[];
-  readonly #estimatedHeight: number;
+  readonly #table: ExtentTable;
   #countPrecision: ExtentPrecision;
-  /**
-   * Prefix sums, rebuilt lazily: `offsets[n]` is the top of page `n`, and the last entry is the
-   * whole document's height. Rebuilt rather than patched, because a patch that missed one page is
-   * a scrollbar that is wrong by exactly the amount nobody notices until they scroll to the end.
-   */
-  #offsets: number[] = [];
-  #stale = true;
 
-  private constructor(pages: PageMetric[], estimatedHeight: number, precision: ExtentPrecision) {
-    this.#pages = pages;
-    this.#estimatedHeight = estimatedHeight;
+  private constructor(table: ExtentTable, precision: ExtentPrecision) {
+    this.#table = table;
     this.#countPrecision = precision;
   }
 
   /** A model drawn from an estimate. Every page starts at the guessed height, marked estimated. */
   static fromExtent(extent: Extent): ScrollbarModel {
     const count = Math.max(1, Math.floor(extent.pages));
-    const height = Math.max(0, extent.pageHeight);
-    const pages: PageMetric[] = Array.from({ length: count }, () => ({
-      height,
-      precision: 'estimated' as const,
-    }));
-    return new ScrollbarModel(pages, height, extent.precision);
+    return new ScrollbarModel(
+      new ExtentTable(count, Math.max(0, extent.pageHeight)),
+      extent.precision,
+    );
   }
 
   /** How many pages the model believes there are. */
   get pageCount(): number {
-    return this.#pages.length;
+    return this.#table.count;
   }
 
   /** Whether the page **count** is known rather than guessed. */
@@ -129,18 +142,19 @@ export class ScrollbarModel {
    * correction, so every such assertion in this catalogue reads this beside it.
    */
   get measuredPages(): number {
-    return this.#pages.filter((page) => page.precision === 'exact').length;
+    return this.#table.measuredCount;
   }
 
   /** One page's metric, or `undefined` past the end. */
   metric(page: number): PageMetric | undefined {
-    return this.#pages[page];
+    const row = this.#table.metric(page);
+    if (row === undefined) return undefined;
+    return { height: row.extent, precision: row.precision };
   }
 
   /** How tall the whole document is. */
   get totalHeight(): number {
-    this.#rebuild();
-    return this.#offsets[this.#offsets.length - 1] ?? 0;
+    return this.#table.total;
   }
 
   /**
@@ -150,9 +164,7 @@ export class ScrollbarModel {
    * that has just been removed is placed at the end rather than at zero.
    */
   offsetOf(page: number): number {
-    this.#rebuild();
-    const index = Math.max(0, Math.floor(page));
-    return this.#offsets[index] ?? this.totalHeight;
+    return this.#table.offsetOf(page);
   }
 
   /**
@@ -163,25 +175,13 @@ export class ScrollbarModel {
    * offset back in charge and undo the whole design.
    */
   anchorAt(offset: number): ScrollAnchor {
-    this.#rebuild();
-    if (!Number.isFinite(offset) || offset <= 0 || this.#pages.length === 0) return scrollOrigin;
-    // A binary search over the prefix sums rather than a walk: a hundred-thousand-page document is
-    // a spreadsheet, and this runs on the scroll path.
-    const tops = this.#offsets.slice(0, this.#pages.length);
-    let low = 0;
-    let high = tops.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if ((tops[middle] ?? 0) <= offset) low = middle + 1;
-      else high = middle;
-    }
-    const index = Math.max(0, low - 1);
-    return { page: index, within: offset - (tops[index] ?? 0) };
+    const anchor = this.#table.anchorAt(offset);
+    return { page: anchor.index, within: anchor.within };
   }
 
   /** The document offset an anchor names. */
   offsetOfAnchor(anchor: ScrollAnchor): number {
-    return this.offsetOf(anchor.page) + anchor.within;
+    return this.#table.offsetOfAnchor({ index: anchor.page, within: anchor.within });
   }
 
   /**
@@ -191,24 +191,18 @@ export class ScrollbarModel {
    * still marks the page exact but leaves the prefix sums alone.
    */
   recordMeasuredHeight(page: number, height: number): void {
-    const index = Math.floor(page);
-    const metric = this.#pages[index];
-    if (metric === undefined) return;
-    const changed = metric.height !== height;
-    this.#pages[index] = { height, precision: 'exact' };
-    if (changed) this.#stale = true;
+    this.#table.recordMeasured(page, height);
   }
 
   /** The document turned out to have exactly this many pages. */
   recordExactPageCount(pages: number): void {
-    this.#resize(Math.max(1, Math.floor(pages)));
+    this.#table.setCount(Math.max(1, Math.floor(pages)));
     this.#countPrecision = 'exact';
   }
 
   /** The document turned out to be at least this long. Never shrinks. */
   extendToAtLeast(pages: number): void {
-    const wanted = Math.max(1, Math.floor(pages));
-    if (this.#pages.length < wanted) this.#resize(wanted);
+    this.#table.extendToAtLeast(Math.max(1, Math.floor(pages)));
   }
 
   /**
@@ -220,32 +214,8 @@ export class ScrollbarModel {
    * estimate for a one-character edit.
    */
   reEstimate(extent: Extent): void {
-    this.#resize(Math.max(1, Math.floor(extent.pages)));
+    this.#table.setCount(Math.max(1, Math.floor(extent.pages)));
     this.#countPrecision = extent.precision;
-  }
-
-  #resize(wanted: number): void {
-    if (this.#pages.length === wanted) return;
-    if (this.#pages.length > wanted) this.#pages = this.#pages.slice(0, wanted);
-    else {
-      while (this.#pages.length < wanted) {
-        this.#pages.push({ height: this.#estimatedHeight, precision: 'estimated' });
-      }
-    }
-    this.#stale = true;
-  }
-
-  #rebuild(): void {
-    if (!this.#stale) return;
-    const offsets: number[] = [];
-    let running = 0;
-    for (const metric of this.#pages) {
-      offsets.push(running);
-      running += metric.height;
-    }
-    offsets.push(running);
-    this.#offsets = offsets;
-    this.#stale = false;
   }
 }
 

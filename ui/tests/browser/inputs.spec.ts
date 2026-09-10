@@ -373,8 +373,25 @@ test.describe('an option', () => {
   test('the fifth state is reachable, and it is the one with two indicators', async ({ page }) => {
     await open(page, optionStatesStory);
     await settlePaint(page);
+    /*
+     * ⚠ **The precondition, asserted rather than assumed** — added by MJXOFF-191, which broke this
+     * test without touching a line of it.
+     *
+     * The story opens its own list from a `requestAnimationFrame`, and the two presses below only
+     * mean *move the cursor* while that list is open: on a **closed** dropdown an arrow key changes
+     * the value instead. So a page that took a little longer to reach that frame — U12 added four
+     * elements to `preview.ts` and twelve stories to the catalogue — turned this into two presses
+     * that edited a value and a locator that then matched nothing. The failure named a row count and
+     * said nothing at all about the list being shut.
+     *
+     * Waiting for the state the presses require is not a retry: it is the sentence the test's own
+     * comment already assumed, made checkable.
+     */
+    const field = page.locator('#option-states button[role="combobox"]');
+    await expect(field).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#option-states [role="option"][data-active]')).toHaveCount(1);
     // Arrow the cursor onto the row that is already chosen.
-    await page.locator('#option-states button[role="combobox"]').focus();
+    await field.focus();
     // The story opens with the chosen row at index 1 and the cursor at 3, so two presses bring
     // them together. Stated as a number rather than looped until they coincide: a loop that ran
     // until the assertion held would be a loop that could never fail.

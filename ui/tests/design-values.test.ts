@@ -295,6 +295,11 @@ describe('the literal-colour exemption outside src/, named rather than implied',
       'stories/gates/contrast.stories.ts',
       // `#ff00ff` and `#00ffff` as *wrong answers*, so the token resolver's gate can fail.
       'stories/gates/token-resolution.stories.ts',
+      // The slide-rail plates are pictures of a DOCUMENT, and a document's colours are the user's.
+      // Painting a sample slide out of `--theme-*` would be this project's standing rule inverted:
+      // the chrome imposing its palette on the page it is a thumbnail of. The picture is data, and
+      // it is inline rather than fetched so the placeholder story controls its own timing.
+      'stories/navigators/specimens.ts',
       // A colour picker takes its palettes as data, because they belong to the document.
       'stories/pickers/color-picker.stories.ts',
       'stories/pickers/specimens.ts',
