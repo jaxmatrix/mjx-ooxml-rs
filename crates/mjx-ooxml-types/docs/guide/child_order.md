@@ -95,6 +95,15 @@ order, and three separate rules keep it that way:
 `ChildOrder::first_out_of_order` and `audit_tree` exist to *report* on a tree, for a gate, and they
 still change nothing. `mjx-schema-gate` is what holds output to the XSD; this is what makes it pass.
 
+The first rule has a consequence for the reporting side, and MJXOFF-272 is what it cost: because
+`mc:AlternateContent` is a child the tables do not name, **`audit_tree` steps over one without
+entering it**, so whatever a caller put inside is neither faulted nor counted. That is right here —
+this module models the base schemas and nothing else — and it makes resolving markup compatibility
+the *caller's* job before it walks. `mjx-schema-gate`'s ordering arm does exactly that now, over the
+same resolved view its schema arm validates; the shape to watch for is the quiet one, where the
+`mc:` element is a sibling rather than an only child, and the count the walk reports stays perfectly
+plausible while a whole subtree goes unaudited.
+
 ## Cost
 
 A `ChildOrder` is a `&'static` slice of a handful of names — the median complex type in these schemas
