@@ -61,6 +61,52 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.167] - 2026-09-10
+
+### The user guide, for the two languages that could not read it
+
+#### One site, every example tabbed Rust / Python / TypeScript (MJXOFF-281)
+
+Every code block in the facade's guide is already a byte-for-byte copy of a file `cargo`, `pytest`
+and `node --test` execute — `xtask/tests/guide_examples.rs` makes that a test failure rather than a
+habit. **The guarantee reached nobody outside Rust**, because the guide rendered only in rustdoc,
+which is the one place a `pip install` or an `npm install` user never looks.
+
+`cargo run -p xtask -- docs-site` now renders it a second time, as a Docusaurus site under `site/`,
+with each example's three halves as three tabs and the two blocks that are Rust-only by decision
+under an admonition that names the symbols making the claim true. Run it with
+`cd site && npm install && npm run start`. There is no deployment and no CI job.
+
+**The content tree is generated and git-ignored**, the arrangement `bindings/mjx-wasm/npm/README.md`
+already has: generated and ignored, its `package.json` committed. A committed copy of a derived tree
+is a second source of truth, and this repository has none.
+
+The generator is Rust rather than the site's own JavaScript because two of the things it must do
+need facts only Rust source states — the page set and its reading order come from the `include_str!`
+graph in `crates/mjx-ooxml/src/guide.rs`, and the vocabulary an intra-doc link may resolve against
+comes from that file's `guide_vocabulary!` macro. It reads markers with
+`guide_examples::parse_marker_line` itself rather than defining a second marker syntax.
+
+#### The gate, and why it compares nothing
+
+`xtask/tests/docs_site.rs` cannot compare against a committed rendering, because there is not one.
+It asserts **properties of the generation from committed sources** instead: every facade guide page
+produces exactly one site page in both directions, every example produces one tab group of the size
+its markers say, no `#`-hidden rustdoc line survives into an emitted block, no rustdoc item path
+survives as a link target, and no Cargo manifest exists under `site/` — which is the condition that
+keeps a JavaScript project out of the graph `xtask/tests/layering.rs` ranks.
+
+The page set is derived twice and from different places: the generator reads the `include_str!`
+graph, and the gate reads `crates/mjx-ooxml/docs/guide/` on disk. A test that compared the graph
+against itself would prove nothing.
+
+#### What the site cannot show yet
+
+**Feature-level instructions** — add a chart to a slide, style a range, build a table — live in the
+format-crate guides, whose examples are Rust-only because the bindings depend on `mjx-ooxml` alone.
+Those pages cannot be tri-language by the layering rule, and closing the gap means writing new
+tri-language examples through the facade rather than importing Rust-only pages. MJXOFF-280 owns it.
+
 ## [0.0.166] - 2026-09-10
 
 ### The first file Microsoft Office wrote, read end to end
