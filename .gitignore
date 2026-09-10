@@ -32,3 +32,9 @@
 **/__pycache__
 *.egg-info
 *.whl
+
+# The local agent directory: session state, scheduled-task locks and the per-session git worktrees
+# other Claude Code sessions check this repository out into. Nothing here is tracked, and since
+# MJXOFF-290 the derived gates sweep the *working tree* rather than the Git index — so a directory
+# that is not part of this repository has to say so where every tool already reads it.
+/.claude/

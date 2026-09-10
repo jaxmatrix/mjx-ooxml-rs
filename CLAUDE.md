@@ -310,11 +310,20 @@ wasm-pack test --node bindings/mjx-wasm              # the Rust side, in a wasm 
 
 - **Project-setup commits go on `main`;** once features start, **branch per feature + open a PR**.
 - **Atomic commits** (one self-contained change, easy rollback/cherry-pick); commit only when
-  `cargo build` + `cargo test --workspace` are green.
+  `cargo build` + `cargo test --workspace` are green. That rule was **unsatisfiable for the commit
+  that adds a file** until MJXOFF-290: four gates derived their corpus from the Git *index*, so a
+  file a unit had just written was judged for the first time by the run *after* the commit that
+  added it — which is how `xtask/src/validation/model.rs` reached `main` naming a page that has
+  never existed and left `doc_gate` red from 0.0.168. `xtask/src/repository_files.rs` is the one
+  corpus all four now read, and it is the **working tree**: tracked plus untracked-and-not-ignored,
+  so `.gitignore` is the only skip list. `xtask/tests/working_tree_corpus.rs` provokes the property
+  rather than observing it — CI's checkout is clean, so it writes a file it never commits — and
+  sweeps every `.rs` file so a fifth gate cannot go back to asking Git what is committed.
 - **A release commit bumps every file that states the version**, not just `Cargo.toml`: the lock,
   `CHANGELOG.md`'s newest heading and `bindings/mjx-wasm/npm/package.json` — which 0.0.167 forgot,
   leaving the npm package unbuildable from `main` for two versions. `xtask/tests/release_versions.rs`
-  holds the four together and derives the set of carriers from `git ls-files`, so a fifth file that
-  starts restating the version fails rather than being missed (MJXOFF-286).
+  holds the four together and derives the set of carriers from the working tree, so a fifth file
+  that starts restating the version fails rather than being missed (MJXOFF-286) — and fails before
+  the commit that adds it, not after (MJXOFF-290).
 - **Do NOT add `Co-Authored-By` or any AI-attribution trailer** to commits.
 - `References/` is git-ignored — never stage it; put test inputs under `tests/fixtures/`.

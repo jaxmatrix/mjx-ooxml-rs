@@ -135,12 +135,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
-use std::process::Command;
 
 use xtask::codegen::{CHILD_ORDER_SCHEMAS, SIMPLE_TYPE_MODULES};
 use xtask::facade_surface;
 use xtask::fixture_corpus;
 use xtask::guide_examples;
+use xtask::repository_files::WorkingTree;
 use xtask::validation::{ArtefactFormat, AREAS};
 
 // ===============================================================================================
@@ -162,28 +162,21 @@ fn read(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
 }
 
-/// Every tracked `.rs` file, repository-relative.
+/// Every `.rs` file this working tree holds, repository-relative.
 ///
-/// Derived from `git ls-files` rather than from a walk, so an untracked scratch file cannot join
-/// the corpus and a `target/` tree cannot flood it. A `git` failure is fatal, never a skip.
-fn tracked_rust_files() -> Vec<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repository_root())
-        .arg("ls-files")
-        .arg("*.rs")
-        .output()
-        .expect("running `git ls-files` — the corpus this file sweeps is derived from it");
-    assert!(
-        output.status.success(),
-        "`git ls-files` failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8(output.stdout)
-        .expect("git ls-files output is utf-8")
-        .lines()
-        .map(str::to_owned)
-        .collect()
+/// Derived from Git rather than from a directory walk, so a `target/` tree cannot flood the corpus
+/// and the git-ignored `References/` tree stays out of it without a skip list here. A `git` failure
+/// is fatal, never a skip.
+///
+/// **The working tree and not the index** (MJXOFF-290). The earlier spelling asked Git what was
+/// *committed*, which kept an untracked scratch file out — and kept a brand-new source file out
+/// with it, so a roster written today was swept for the first time by the run *after* the commit
+/// that added it. What keeps scratch files out now is `.gitignore`, which is where this repository
+/// says what is none of its business anyway; see `xtask/src/repository_files.rs`.
+fn rust_files() -> Vec<String> {
+    let tree = WorkingTree::read(&repository_root());
+    println!("{}", tree.census());
+    tree.with_extension("rs").cloned().collect()
 }
 
 // ===============================================================================================
@@ -989,7 +982,7 @@ fn derived_populations() -> BTreeMap<BasePopulation, BTreeSet<String>> {
         .collect()
 }
 
-/// This file, as `git ls-files` spells it.
+/// This file, as the corpus spells it.
 const THIS_FILE: &str = "xtask/tests/derived_rosters.rs";
 
 /// Every roster in the workspace.
@@ -1009,14 +1002,14 @@ const THIS_FILE: &str = "xtask/tests/derived_rosters.rs";
 /// hand-written lists this gate cannot check either.
 fn workspace_rosters() -> Vec<Found> {
     let populations = derived_populations();
-    let tracked = tracked_rust_files();
+    let sources = rust_files();
     assert!(
-        tracked.iter().any(|path| path == THIS_FILE),
-        "`{THIS_FILE}` is not in `git ls-files`, so the exclusion below is excluding nothing. \
+        sources.iter().any(|path| path == THIS_FILE),
+        "`{THIS_FILE}` is not in the corpus, so the exclusion below is excluding nothing. \
          Either this file moved and the constant did not, or the corpus walk has stopped matching."
     );
     let mut found = Vec::new();
-    for path in tracked {
+    for path in sources {
         if path == THIS_FILE {
             continue;
         }

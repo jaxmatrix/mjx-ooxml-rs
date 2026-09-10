@@ -31,8 +31,12 @@ jobs:
       # names still resolves, and `docs/api/README.md` names every committed page and only those.
       #
       # It needs nothing this job does not already have — no `References/`, no LibreOffice, no
-      # Python — but it *does* need a real git checkout, because it derives its corpus from
-      # `git ls-files` rather than from a hand-maintained list. `actions/checkout@v4` gives it one.
+      # Python — but it *does* need a real git checkout, because it derives its corpus from Git
+      # rather than from a hand-maintained list. `actions/checkout@v4` gives it one. Since
+      # MJXOFF-290 that corpus is the working tree (tracked plus untracked-and-not-ignored) and no
+      # longer the index, which changes nothing here — a fresh checkout has no untracked files —
+      # and changes everything on the branch, where the file a commit is about to add is the one
+      # file the gate most needs to see.
       #
       # The `test` step below already runs it as part of `--workspace`, and so does the
       # `all-features` job: verified with `cargo test --workspace --no-run`, which lists

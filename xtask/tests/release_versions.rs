@@ -1,5 +1,5 @@
-//! **A release states the version once, and every committed file that repeats it agrees**
-//! (MJXOFF-286).
+//! **A release states the version once, and every file in the tree that repeats it agrees**
+//! (MJXOFF-286, MJXOFF-290).
 //!
 //! # The hole this closes
 //!
@@ -20,10 +20,10 @@
 //! * [`the_newest_changelog_entry_is_the_workspace_version`] — the other file a release edits by
 //!   hand. A bump with no entry, or an entry with no bump, is the same mistake in the other
 //!   direction.
-//! * [`every_committed_file_that_states_the_version_is_one_this_file_knows_about`] — the sweep,
-//!   and the reason the two checks above cannot quietly become incomplete. The set of files
-//!   carrying the version is **derived** from the tree rather than listed, so a fifth one added
-//!   tomorrow fails here and forces a decision instead of being bumped by whoever notices first.
+//! * [`every_file_that_states_the_version_is_one_this_file_knows_about`] — the sweep, and the
+//!   reason the two checks above cannot quietly become incomplete. The set of files carrying the
+//!   version is **derived** from the tree rather than listed, so a fifth one added tomorrow fails
+//!   here and forces a decision instead of being bumped by whoever notices first.
 //! * [`every_carrier_row_still_names_a_file_that_states_the_version`] — and the ledger cannot rot
 //!   the other way either.
 //!
@@ -37,12 +37,19 @@
 //!   number. `xtask/tests/layering.rs` is what holds the membership itself.
 //! * **`tests/fixtures/` and every non-UTF-8 file.** The corpus is real Office packages, whose
 //!   bytes are not ours to reason about. Nothing else is excluded: the sweep's corpus is
-//!   `git ls-files`, so build output, the git-ignored schema tree and the Python virtualenv are
-//!   absent by being untracked rather than by being listed. Stated here rather than left silent, because
-//!   an unstated exclusion is how a sweep becomes vacuous without anyone deciding it should.
+//!   `xtask::repository_files::WorkingTree`, so build output, the git-ignored schema tree and the
+//!   Python virtualenv are absent by being **ignored** rather than by being listed. Stated here
+//!   rather than left silent, because an unstated exclusion is how a sweep becomes vacuous without
+//!   anyone deciding it should.
+//! * **Nothing at all on the grounds of being uncommitted** (MJXOFF-290). The corpus was the Git
+//!   index until then, which made the one file this sweep most needs to see — a *new* fifth carrier,
+//!   written minutes ago — the one file it could not. A hazard a release commit introduces has to be
+//!   reportable before that commit exists.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+
+use xtask::repository_files::WorkingTree;
 
 /// The workspace root — `xtask/`'s parent.
 fn repository_root() -> PathBuf {
@@ -52,7 +59,7 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// One committed file that states the workspace version, and why it does.
+/// One file in this tree that states the workspace version, and why it does.
 struct Carrier {
     /// Its path from the repository root, in `/` form.
     path: &'static str,
@@ -157,43 +164,28 @@ fn the_newest_changelog_entry_is_the_workspace_version() {
     println!("the newest changelog entry and the workspace both state {expected}");
 }
 
-/// The one tracked tree this sweep will not read, and which the module docs gives a reason for.
+/// The one tree this sweep will not read, and which the module docs gives a reason for.
 const UNSWEPT: &str = "tests/fixtures/";
 
-/// Every committed file stating the workspace version verbatim, derived from the tree.
+/// Every file in this tree stating the workspace version verbatim, derived from the tree.
 ///
-/// The corpus is `git ls-files` rather than a directory walk, because "committed" is what this
-/// file claims and Git is the only thing that actually knows. A walk would also have to read
-/// `bindings/mjx-python/.venv` — ninety-four megabytes of git-ignored virtualenv — to answer a
-/// question about four files.
+/// The corpus comes from Git rather than from a directory walk, because Git is the only thing that
+/// knows which files are ours: a walk would have to read `bindings/mjx-python/.venv` — ninety-four
+/// megabytes of git-ignored virtualenv — to answer a question about four files.
+///
+/// It is the **working tree** and not the index (MJXOFF-290). A fifth carrier is a release hazard
+/// from the moment somebody writes it, and until this changed the sweep could not see the file
+/// until the commit that shipped the hazard already existed.
 ///
 /// # Panics
 /// If `git` cannot be run, or reports a failure.
 fn carriers(root: &Path) -> BTreeSet<String> {
     let version = workspace_version(root);
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["ls-files", "-z"])
-        .output()
-        .expect("running `git ls-files`");
-    assert!(
-        output.status.success(),
-        "`git ls-files` failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let listing = String::from_utf8(output.stdout).expect("`git ls-files` emits UTF-8 paths here");
-    let tracked: Vec<&str> = listing
-        .split('\0')
-        .filter(|path| !path.is_empty())
-        .collect();
-    assert!(
-        tracked.len() > 500,
-        "`git ls-files` reported {} file(s), which cannot be this repository",
-        tracked.len()
-    );
-    tracked
-        .into_iter()
+    let tree = WorkingTree::read(root);
+    println!("{}", tree.census());
+    tree.paths()
+        .iter()
+        .map(String::as_str)
         .filter(|path| !path.starts_with(UNSWEPT))
         .filter(|path| {
             std::fs::read(root.join(path))
@@ -205,22 +197,22 @@ fn carriers(root: &Path) -> BTreeSet<String> {
         .collect()
 }
 
-/// **The sweep**: no committed file states the version except the four that are supposed to.
+/// **The sweep**: no file in this tree states the version except the four that are supposed to.
 ///
 /// This is what keeps the two equalities above from going quietly incomplete. The day a fifth file
 /// repeats the version — a README installation snippet, a second package manifest, a generated
 /// header — it fails here, and somebody decides whether it belongs on [`CARRIERS`] with a check
 /// beside it or should be reading the version instead of restating it.
 #[test]
-fn every_committed_file_that_states_the_version_is_one_this_file_knows_about() {
+fn every_file_that_states_the_version_is_one_this_file_knows_about() {
     let root = repository_root();
     let known: BTreeSet<String> = CARRIERS.iter().map(|row| row.path.to_owned()).collect();
     let found = carriers(&root);
     let unknown: Vec<&String> = found.difference(&known).collect();
     assert!(
         unknown.is_empty(),
-        "a committed file states the workspace version {} and is on no `CARRIERS` row, so nothing \
-         holds it to the release: {unknown:?}",
+        "a file in this tree states the workspace version {} and is on no `CARRIERS` row, so \
+         nothing holds it to the release: {unknown:?}",
         workspace_version(&root)
     );
     assert!(
