@@ -75,6 +75,13 @@ import {
   type SurfaceLevel,
 } from '../foundations/surfaces.ts';
 import { typeRoleClass } from '../foundations/typography.ts';
+import {
+  clampToBounds,
+  dragFraction,
+  keyFraction,
+  splitterStep,
+  type SplitterBounds,
+} from '../foundations/splitter.ts';
 import { containerName, phoneShellAtOrBelow } from '../harness/presets.ts';
 import { focusManagementPatterns } from '../menus/menu-model.ts';
 import { floatingProperties, type Align, type LogicalSide } from '../overlay/floating.ts';
@@ -298,28 +305,45 @@ export const sheetBoundaryFraction = 0.7;
 export const taskPaneDefaultFraction = 0.32;
 
 /** The narrowest and widest a task pane may be dragged, as fractions of its boundary. */
-export const taskPaneFractionBounds = { min: 0.2, max: 0.6 } as const;
-
-/** One press of an arrow key on the splitter, as a fraction of the boundary. */
-export const taskPaneResizeStep = 0.02;
+export const taskPaneFractionBounds: SplitterBounds = { min: 0.2, max: 0.6 };
 
 /**
- * How a pointer drag is turned into a fraction. Pure, so a Node test can drive a whole drag. */
+ * One press of an arrow key on the splitter, as a fraction of the boundary.
+ *
+ * An alias of the shared primitive's step rather than a second `0.02`, on the rule
+ * `src/harness/presets.ts` states: two numbers that must agree and are written twice are two
+ * numbers that will not agree.
+ */
+export const taskPaneResizeStep = splitterStep;
+
+/**
+ * The three functions below are **bindings, not implementations** (MJXOFF-190).
+ *
+ * The arithmetic they used to hold moved to `src/foundations/splitter.ts` when `<mjx-splitter>`
+ * needed the same keyboard contract with different bounds. A second copy would have been two
+ * implementations of one promise, and the first defect would have been an arrow key that grew the
+ * region in one component and shrank it in the other. Every caller here is unchanged, and
+ * `tests/furniture.test.ts` asserts the equivalence over a sweep rather than leaving it as a claim.
+ */
+
+/** How a pointer drag is turned into a fraction. Pure, so a Node test can drive a whole drag. */
 export function fractionFromDrag(
   pointerInline: number,
   boundary: { readonly start: number; readonly size: number },
   side: 'left' | 'right',
 ): number {
-  if (boundary.size <= 0) return taskPaneDefaultFraction;
-  const fromStart = (pointerInline - boundary.start) / boundary.size;
-  const raw = side === 'right' ? 1 - fromStart : fromStart;
-  return clampFraction(raw);
+  return dragFraction(
+    pointerInline,
+    boundary,
+    side,
+    taskPaneFractionBounds,
+    taskPaneDefaultFraction,
+  );
 }
 
 /** Keep a fraction inside the bounds a pane may take. */
 export function clampFraction(value: number): number {
-  if (!Number.isFinite(value)) return taskPaneDefaultFraction;
-  return Math.min(Math.max(value, taskPaneFractionBounds.min), taskPaneFractionBounds.max);
+  return clampToBounds(value, taskPaneFractionBounds, taskPaneDefaultFraction);
 }
 
 /**
@@ -336,20 +360,14 @@ export function fractionFromKey(
   current: number,
   side: 'left' | 'right',
 ): number | undefined {
-  const grow = side === 'right' ? 'ArrowLeft' : 'ArrowRight';
-  const shrink = side === 'right' ? 'ArrowRight' : 'ArrowLeft';
-  switch (key) {
-    case grow:
-      return clampFraction(current + taskPaneResizeStep);
-    case shrink:
-      return clampFraction(current - taskPaneResizeStep);
-    case 'Home':
-      return taskPaneFractionBounds.min;
-    case 'End':
-      return taskPaneFractionBounds.max;
-    default:
-      return undefined;
-  }
+  return keyFraction(
+    key,
+    current,
+    side,
+    taskPaneFractionBounds,
+    taskPaneResizeStep,
+    taskPaneDefaultFraction,
+  );
 }
 
 /** Which edge a task pane docks to. Logical, so RTL is `physicalSide()` and not a second path. */
@@ -1235,7 +1253,10 @@ export function closeButtonLabel(label: string): string {
   return label === '' ? 'Close' : `Close ${label}`;
 }
 
-/** The accessible name of a task pane's splitter. */
-export function splitterLabel(label: string): string {
-  return label === '' ? 'Resize pane' : `Resize ${label}`;
-}
+/**
+ * The accessible name of a task pane's splitter.
+ *
+ * Re-exported from the shared primitive (MJXOFF-190) rather than restated: two components whose
+ * separators announced themselves differently would be one contract with two spellings.
+ */
+export { splitterLabel } from '../foundations/splitter.ts';

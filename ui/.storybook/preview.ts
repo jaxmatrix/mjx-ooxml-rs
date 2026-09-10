@@ -22,6 +22,8 @@ import { definePickers } from '../src/pickers/index.ts';
 import { defineSurfaces } from '../src/surfaces/index.ts';
 import { surfaceDocumentCss } from '../src/surfaces/surface-model.ts';
 import { defineFeedback } from '../src/feedback/index.ts';
+import { defineFurniture } from '../src/furniture/index.ts';
+import { furnitureDocumentCss } from '../src/furniture/furniture-model.ts';
 import { feedbackDocumentCss } from '../src/feedback/feedback-model.ts';
 import { galleryDocumentCss } from '../src/gallery/gallery-model.ts';
 import { installFoundations } from '../src/foundations/stylesheet.ts';
@@ -65,6 +67,11 @@ defineSurfaces();
 // catalogue that had not defined it would render a story with an empty notification stack — which
 // reads as a queue that dropped its messages rather than as a missing registration.
 defineFeedback();
+// MJXOFF-190's document furniture. Registered here for the reason above and one of its own: an
+// <mjx-scroll-mark> is a descriptor whose attributes have nowhere to go, so a catalogue that had
+// not defined it would flash a row of mark labels into the page beside a scrollbar with an empty
+// channel -- which reads as a document with no search hits rather than as a missing registration.
+defineFurniture();
 
 // The foundations on the *document*, because the typography, surface, density and focus classes an
 // author writes land in the light DOM. Each component installs them on its own shadow root too;
@@ -100,6 +107,12 @@ document.head.append(surfaceRule);
 const feedbackRule = document.createElement('style');
 feedbackRule.textContent = feedbackDocumentCss;
 document.head.append(feedbackRule);
+
+// MJXOFF-190's, and the same arrangement again: <mjx-scroll-mark> is data written as markup and
+// must not flash its attributes into the layout in the moment between parsing and upgrading.
+const furnitureRule = document.createElement('style');
+furnitureRule.textContent = furnitureDocumentCss;
+document.head.append(furnitureRule);
 
 /**
  * The attribute the a11y sweep reads to learn what a story expects of itself.

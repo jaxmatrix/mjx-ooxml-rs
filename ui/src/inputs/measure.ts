@@ -156,6 +156,48 @@ export interface Measure {
  */
 const grammar = /^([+-]?)(\d+(?:[.,]\d+)?|[.,]\d+)\s*(.*)$/;
 
+/** What `readTypedNumber` found: a number, and whatever followed it. */
+export interface TypedNumber {
+  readonly magnitude: number;
+  /** Everything after the number, trimmed. A unit, a `%`, or the empty string. */
+  readonly tail: string;
+}
+
+/**
+ * Read a number out of what a person typed, and hand back whatever followed it.
+ *
+ * ⚠ **The one grammar, and MJXOFF-190 is why it is exported.** `<mjx-zoom-control>`'s readout takes
+ * a percentage rather than a length, so it cannot be an `<mjx-measure-input>` — there is no `%`
+ * among the six units and a percentage has no value in points. What it *must* share is how a number
+ * is read: both decimal separators accepted, no thousands separator, and `-`, `.` and `1.2.3`
+ * each landing in the invalid path with the text preserved rather than being read as something
+ * adjacent. A second regex somewhere else would have been a second answer to *"is `1.2.3` a
+ * number"*, and the first defect would have been one field accepting what the other refused.
+ *
+ * The failure vocabulary is shared for the same reason: `empty` and `notANumber` mean exactly what
+ * they mean here, and a caller that wants a third meaning for the tail says so with `unknownUnit`.
+ */
+export function readTypedNumber(
+  text: string,
+): { readonly ok: true; readonly value: TypedNumber } | { readonly ok: false; readonly error: MeasureParseError } {
+  const trimmed = text.trim();
+  if (trimmed === '') return { ok: false, error: { failure: 'empty', offending: text } };
+
+  const match = grammar.exec(trimmed);
+  if (match === null) {
+    return { ok: false, error: { failure: 'notANumber', offending: trimmed } };
+  }
+  const [, sign = '', digits = '', tail = ''] = match;
+
+  // Both separators, always. The grammar has no thousands separator, so there is nothing for a
+  // comma to be ambiguous *with*.
+  const magnitude = Number.parseFloat(`${sign}${digits.replace(',', '.')}`);
+  if (!Number.isFinite(magnitude)) {
+    return { ok: false, error: { failure: 'notANumber', offending: trimmed } };
+  }
+  return { ok: true, value: { magnitude, tail: tail.trim() } };
+}
+
 /**
  * What a person is told, per failure. One sentence each, and each says what to do.
  *
@@ -202,23 +244,10 @@ export function parseMeasure(
   text: string,
   defaultUnit: MeasureUnit = defaultMeasureUnit,
 ): MeasureParse {
-  const trimmed = text.trim();
-  if (trimmed === '') return { ok: false, error: { failure: 'empty', offending: text } };
+  const read = readTypedNumber(text);
+  if (!read.ok) return { ok: false, error: read.error };
+  const { magnitude, tail: spelling } = read.value;
 
-  const match = grammar.exec(trimmed);
-  if (match === null) {
-    return { ok: false, error: { failure: 'notANumber', offending: trimmed } };
-  }
-  const [, sign = '', digits = '', tail = ''] = match;
-
-  // Both separators, always. The grammar has no thousands separator, so there is nothing for a
-  // comma to be ambiguous *with*.
-  const magnitude = Number.parseFloat(`${sign}${digits.replace(',', '.')}`);
-  if (!Number.isFinite(magnitude)) {
-    return { ok: false, error: { failure: 'notANumber', offending: trimmed } };
-  }
-
-  const spelling = tail.trim();
   if (spelling === '') {
     return {
       ok: true,
