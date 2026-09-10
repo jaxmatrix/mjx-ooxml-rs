@@ -205,6 +205,8 @@ ui/
     furniture/       the chrome around the document: status bar, zoom control, scrollbar, splitter
     navigators/      the four ways through a long document: virtual list, tree, thumbnail rail,
                      sheet tab bar — all four on one windowed scroller
+    formula/         Excel's formula bar and name box, and the caret-relative model under them:
+                     the tokeniser, the reference-colouring contract and the argument tooltip
     ribbon/          the containers those controls live in: ribbon, tab, group, contextual tab set
     menus/           menu, menu item, separator, section and the context menu
     gallery/         the in-ribbon strip, the expanded flyout, and the live-preview protocol
@@ -1687,6 +1689,94 @@ nobody has checked; that is the project's standing rule about deferring to the u
 applied to a colour. **Hidden sheets are shown, marked and named** rather than omitted from the
 strip. And **a section is a heading row rather than a `role="group"`**, above.
 
+## The Excel chrome (MJXOFF-192)
+
+`src/formula/` holds `<mjx-formula-bar>` and `<mjx-name-box>` — **the most-used control in Excel,
+which appears in no ribbon census** because it is not a ribbon control, and the most textually
+complex thing in this catalogue. Open `Excel Chrome/Formula Bar → The Argument Tooltip Tracks The
+Caret` first, **and move the caret with the arrow keys**; a screenshot of that story proves nothing
+at all, which is the ticket's own trap stated as a viewing instruction.
+
+```html
+<mjx-formula-bar label="Formula" value="=SUM(A1:A9)">
+  <mjx-name-box slot="name-box" label="Name box" address="B7"></mjx-name-box>
+</mjx-formula-bar>
+```
+
+### Everything hard here is caret-relative, so the gate is a table and not a story
+
+`tests/formula.test.ts` drives **fourteen caret offsets** over one formula with nested calls and two
+quoted strings containing commas:
+
+```
+=IF(COUNTIF(A1:A9,">5")>0,TEXT(B2,"#,##0"),"none, really")
+```
+
+and asserts the active argument at each. The half that matters is the other one:
+`naiveActiveArgument` is **shipped beside** the real implementation as a positive control — a
+character-by-character comma count — and the suite asserts that the two **disagree** at exactly the
+two offsets a quoted comma moves, and **agree** everywhere else. Without that, the table is fourteen
+assertions that a correct implementation satisfies and so does any other. `naiveBracketReport` is the
+same arrangement for bracket matching.
+
+### What `mjx-sml` owns, and what it deliberately does not
+
+`crates/mjx-sml/src/formula/mod.rs` says it in its own words: *"There is no expression tree, **no
+tokeniser** and no dependency graph."* That is settled scope (`PLAN.md`, MJXOFF-21), not a gap — so
+this child's tokeniser duplicates nothing. `crates/mjx-sml/src/address.rs` is the opposite case: it
+owns a complete address grammar, and `formula-model.ts` **mirrors** it — the same two grid limits
+(restated as literals in the suite, so a drift is a failing line), the same four range shapes, the
+same anchoring vocabulary, the same *ordering happens in `normalizedBounds` and nowhere else* rule,
+and one problem name per `AddressError` variant.
+
+The **one** deliberate difference is the UI's rather than the grammar's: `address.rs` refuses `"a1"`,
+because folding case in a *file reader* would accept bytes Excel would not have written. A person
+typing into a name box expects `a1` to work, so `normaliseTypedAddress` up-cases before the grammar
+sees the text and the grammar stays as strict as the Rust one. Both directions are asserted.
+
+### The reference-colouring contract
+
+`referenceHighlights()` reports every reference in source order with its offsets, its ordered
+`GridBounds`, its sheet and its **colour slot** — and the same value rides the
+`mjx-formula-references` event. That is the whole point: the in-canvas grid highlight is loop 2's,
+and a grid that had to re-tokenise the formula to find the ranges would be a second tokeniser whose
+first defect would be disagreeing about a comma inside a string.
+
+⚠ **A slot is two tokens, not one, and four slots rather than Excel's seven.** This palette is warm
+and small: a colour that clears 4.5 : 1 on the light surface is usually the one that fails on the
+dark one (`color.clay` is 5.23 : 1 and 2.27 : 1). So a slot is an *identity* — first reference,
+second — and each scheme spells it with the token that is legible there, declared on `:root` by
+`formulaDocumentCss` because that is the only selector that can say so. Four is what the palette can
+spell in both schemes at once; a fifth distinct range wraps to the first slot and the contract says
+so. Two references naming the same cells share a slot however they were spelled, because anchoring
+changes what a *copy* does and not which cells are named.
+
+### Two layers, and the invariant that keeps the caret on its glyph
+
+The editor is a `<textarea>` with **transparent** glyphs over a `<div>` that draws the same text in
+colour. The `contenteditable` alternative was rejected because the caret, the selection, undo, redo
+and IME composition are then all re-implementations — and above all because a `contenteditable`
+caret inside a shadow root needs `ShadowRoot.getSelection()`, **which is not a standard**, and every
+caret-relative behaviour in this child would have rested on it.
+
+The cost is an alignment invariant, and it is a list rather than a hope: `alignedTextProperties`
+names the nineteen properties both boxes must agree about, both CSS rules are written from that one
+list, and `tests/browser/formula.spec.ts` compares them through `getComputedStyle` — with an
+anti-vacuity check, because two properties that both resolved to nothing would compare equal.
+
+### `GUESS:` where this diverges from Office
+
+Three, marked at their sites. **Point mode is shown whenever the caret sits where an arrow key
+*would* name a range** — Excel enters it when an arrow key or a click actually names one, and this
+bar has no grid to point at, so it reports the thing a person needs to know. **The reference ring is
+four colours**, above. And **the function catalogue is a starter set of twenty-three with our own
+summaries**, exposed as a `functions` property a host replaces wholesale: transcribing five hundred
+of somebody else's reference entries into a component library would be a large, stale copy.
+
+**No formula is ever evaluated.** There is no calculation engine in this loop, and
+`tests/formula.test.ts` asserts the *shape* of a signature rather than describing it, so a `compute`
+or an `evaluate` appearing on one is a failing test.
+
 ## Things a later child should know
 
 * **The scheme layer is `:root`-scoped.** `tokens.css` keys its three rules off `:root`, so
@@ -1780,3 +1870,15 @@ strip. And **a section is a heading row rather than a `role="group"`**, above.
 * **A tab-stop helper whose failure mode is "found nothing" makes every ceiling assertion pass.**
   MJXOFF-186's first version broke its walk on a landing at `<body>` and reported *zero* stops for a
   pane that has two, which read as a passing filter rather than as a broken helper.
+* **`<textarea role="combobox">` fails axe's `aria-allowed-role`, and `aria-expanded` on a textbox
+  fails `aria-allowed-attr`.** Both were confirmed against axe-core *before* MJXOFF-192's
+  autocomplete was written, rather than after the sweep went red. What a textarea *may* carry is
+  `aria-controls` and **`aria-activedescendant`**, which is enough for the active option to be
+  announced; that the list opened at all then has to be said in words, through a live region.
+* **axe reports the contrast of a transparent foreground over a positioned sibling as `incomplete`,
+  not as a violation.** So a two-layer editor passes the sweep and its colours are *not measured by
+  it*. MJXOFF-192 measures them in the unit tier instead, against both schemes' surfaces — which is
+  the stronger check anyway, because the sweep only ever runs in light.
+* **A backtick inside a CSS comment ends the template literal it is in.** `surface-model.ts` records
+  this having cost it a build; it has now cost two, in the same way, in a paragraph explaining a
+  colour choice.
