@@ -130,7 +130,7 @@ export const iconRequests: readonly IconRequest[] = [
   },
   { name: 'arrow-redo', sizes: [20, 24], variants: ['regular'], why: 'History.' },
   { name: 'save', sizes: [20], variants: ['regular'], why: 'File verb.' },
-  { name: 'folder-open', sizes: [20], variants: ['regular'], why: 'File verb.' },
+  { name: 'folder-open', sizes: [20, 24], variants: ['regular'], why: 'File verb.' },
   {
     name: 'add',
     sizes: [16, 20],

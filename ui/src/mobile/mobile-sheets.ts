@@ -28,7 +28,6 @@ import { typeRoleClass } from '../foundations/typography.ts';
 import { gestureRegions } from './gesture-map.ts';
 import {
   mobilePresentationCss,
-  mobileRowUnitsProperty,
   mobileTags,
   safeAreaProperties,
   safeAreaSources,
@@ -135,13 +134,11 @@ const barCss = `
     background: ${themeVariable('surface')};
     color: ${themeVariable('textPrimary')};
     border-block-start: 1px solid ${themeVariable('borderSubtle')};
-    /* The block-end padding carries the safe-area inset ON TOP of the gutter, so a notched phone
-     * moves the commands clear of the home indicator without changing the space above them. */
-    padding-inline: calc(var(${densityProperties.step}) + var(${safeAreaProperties.inlineStart}));
-    padding-block-start: calc(var(--spacing) * var(${mobileRowUnitsProperty}));
-    padding-block-end: calc(
-      calc(var(--spacing) * var(${mobileRowUnitsProperty})) + var(${safeAreaProperties.blockEnd})
-    );
+    /* No padding of its own: the commands are already at their hit-target size, so the only space
+     * left is the safe-area inset, which a notched phone still needs to clear the home indicator. */
+    padding-inline: var(${safeAreaProperties.inlineStart});
+    padding-block-start: 0;
+    padding-block-end: var(${safeAreaProperties.blockEnd});
   }
 
   /* A bar that spans its container has square corners and a full-bleed edge; one that floats clear

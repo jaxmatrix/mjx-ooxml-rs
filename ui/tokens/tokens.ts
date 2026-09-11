@@ -903,12 +903,12 @@ export const tokens: Tokens = {
     tight: '-0.025em',
   },
   radius: {
-    chip: '8px',
-    control: '10px',
-    card: '16px',
-    panel: '20px',
-    frame: '22px',
-    phone: '36px',
+    chip: '4px',
+    control: '6px',
+    card: '10px',
+    panel: '12px',
+    frame: '14px',
+    phone: '24px',
   },
   spacing: '0.25rem',
   shadow: {

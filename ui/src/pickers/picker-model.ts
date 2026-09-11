@@ -1229,7 +1229,7 @@ export const colorPickerCss = `
       var(${pickerBoxProperties.swatchColumns}, ${String(swatchGridColumns)}),
       minmax(var(${pickerBoxProperties.swatchCellSize}), 1fr)
     );
-    gap: var(${densityProperties.step});
+    gap: 0;
     padding-inline: var(${densityProperties.gutter});
     overflow-x: auto;
   }
@@ -1240,11 +1240,11 @@ export const colorPickerCss = `
     box-sizing: border-box;
     color: inherit;
     margin: 0;
-    padding: var(${densityProperties.step});
+    padding: 0;
     min-inline-size: var(${pickerBoxProperties.swatchCellSize});
     min-block-size: var(${pickerBoxProperties.swatchCellSize});
     border-width: 1px;
-    border-radius: ${radiusVariable('chip')};
+    border-radius: 0;
     appearance: none;
     -webkit-appearance: none;
     background: transparent;
@@ -1263,7 +1263,7 @@ export const colorPickerCss = `
     box-sizing: border-box;
     inline-size: 100%;
     block-size: 100%;
-    border-radius: ${radiusVariable('chip')};
+    border-radius: 0;
     background: var(${swatchPaintProperty}, transparent);
     /* The hairline, measured against **the popup** rather than against the swatch: a swatch the
      * colour of the popup is told from it by its edge, and a swatch nothing like the popup is told

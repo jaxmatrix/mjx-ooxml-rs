@@ -706,7 +706,7 @@ export const controlSizeCss = controlSizeNames
       size === 'large'
         ? `  min-inline-size: var(${controlLevers.minInline}, ${spacingMultiple(largeControlWidthUnits.min)});\n` +
           `  max-inline-size: var(${controlLevers.maxInline}, ${spacingMultiple(largeControlWidthUnits.max)});\n` +
-          `  padding-block: var(--mjx-density-step);\n`
+          `  padding-block: 0;\n`
         : '';
     return (
       `.control[data-size='${size}'] {\n` +

@@ -32,6 +32,11 @@ import { installFoundations } from '../foundations/stylesheet.ts';
 const styles = `
   :host {
     display: block;
+    /* The panel below scrolls, and it can only do that if this flex item is allowed to be narrower
+     * than its own content. A flex item's min-inline-size is auto, which is the content size, so
+     * without this the tab is as wide as every group and the ribbon overflows the screen. */
+    flex: 1 1 auto;
+    min-inline-size: 0;
   }
   /* The unselected tabs are not merely invisible — display: none takes them out of the
    * accessibility tree and out of the tab order, which is what makes the ribbon have one panel
@@ -41,10 +46,16 @@ const styles = `
   }
   .panel {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-wrap: nowrap;
+    align-items: stretch;
     gap: var(--mjx-density-step);
+    overflow-x: auto;
+    overflow-y: clip;
   }
+  /* The groups are slotted, so the slot itself would be the one flex item and they would lay out
+   * as inline content inside it, wrapping whatever the container says. display:contents makes each
+   * group a flex item of the panel, which is what nowrap is about to be asked about. */
+  .panel > slot { display: contents; }
 `;
 
 export class MjxRibbonTab extends HTMLElement {

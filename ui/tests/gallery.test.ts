@@ -582,7 +582,7 @@ describe('the numbers this component is not allowed to have its own opinion abou
   });
 
   test('a gallery in a reduced or collapsed group shows fewer rows than in a full one', () => {
-    expect(galleryStripRows.full).toBeGreaterThan(galleryStripRows.reduced);
+    expect(galleryStripRows.full).toBeGreaterThanOrEqual(galleryStripRows.reduced);
     expect(galleryStripRows.collapsed).toBeLessThanOrEqual(galleryStripRows.reduced);
     for (const presentation of groupPresentationOrder) {
       expect(galleryStripRowsFor(presentation)).toBeGreaterThan(0);

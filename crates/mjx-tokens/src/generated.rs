@@ -714,12 +714,12 @@ impl Tokens {
             tight: Dimension { magnitude: -0.025, unit: LengthUnit::Em },
         },
         radius: Radii {
-            chip: Dimension { magnitude: 8.0, unit: LengthUnit::Pixels },
-            control: Dimension { magnitude: 10.0, unit: LengthUnit::Pixels },
-            card: Dimension { magnitude: 16.0, unit: LengthUnit::Pixels },
-            panel: Dimension { magnitude: 20.0, unit: LengthUnit::Pixels },
-            frame: Dimension { magnitude: 22.0, unit: LengthUnit::Pixels },
-            phone: Dimension { magnitude: 36.0, unit: LengthUnit::Pixels },
+            chip: Dimension { magnitude: 4.0, unit: LengthUnit::Pixels },
+            control: Dimension { magnitude: 6.0, unit: LengthUnit::Pixels },
+            card: Dimension { magnitude: 10.0, unit: LengthUnit::Pixels },
+            panel: Dimension { magnitude: 12.0, unit: LengthUnit::Pixels },
+            frame: Dimension { magnitude: 14.0, unit: LengthUnit::Pixels },
+            phone: Dimension { magnitude: 24.0, unit: LengthUnit::Pixels },
         },
         spacing: Dimension { magnitude: 0.25, unit: LengthUnit::Rem },
         shadow: Shadows {

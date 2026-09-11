@@ -449,6 +449,8 @@ export const menuBoxProperties = {
   minInlineSize: '--mjx-menu-min-inline-size',
   maxInlineSize: '--mjx-menu-max-inline-size',
   maxBlockSize: '--mjx-menu-max-block-size',
+  /** `clip` for a floating menu, which never scrolls; `auto` for a sheet, which is capped. */
+  blockOverflow: '--mjx-menu-block-overflow',
   radiusBlockStart: '--mjx-menu-radius-block-start',
   radiusBlockEnd: '--mjx-menu-radius-block-end',
   enterTranslate: '--mjx-menu-enter-translate',
@@ -485,7 +487,7 @@ const glyphColumn = `calc(${spacingMultiple(menuGlyphColumnUnits)} + var(${densi
  * would resolve against the containing block instead of the boundary — which, measured, is the
  * window rather than the frame. `pinFloating` multiplies it out.
  */
-export const sheetBoundaryFraction = 0.7;
+export const sheetBoundaryFraction = 0.75;
 
 function presentationDeclarations(presentation: MenuPresentation, indent: string): string {
   const spec = menuPresentations[presentation];
@@ -514,8 +516,9 @@ function presentationDeclarations(presentation: MenuPresentation, indent: string
       popup ? `var(${floatingProperties.maxInlineSize}, none)` : '100%'
     };`,
     `${indent}${menuBoxProperties.maxBlockSize}: ${
-      popup ? `var(${floatingProperties.maxBlockSize}, none)` : 'none'
+      sheet ? `var(${floatingProperties.maxBlockSize}, none)` : 'none'
     };`,
+    `${indent}${menuBoxProperties.blockOverflow}: ${sheet ? 'auto' : 'clip'};`,
     `${indent}${menuBoxProperties.radiusBlockStart}: ${radiusVariable(spec.radius)};`,
     // A sheet's bottom corners are square: it is pinned to an edge, and rounding away from an edge
     // there is nothing behind is how a sheet ends up looking like a floating card that slipped.
@@ -909,9 +912,9 @@ export const menuCss = `
     min-inline-size: var(${menuBoxProperties.minInlineSize});
     max-inline-size: var(${menuBoxProperties.maxInlineSize});
     max-block-size: var(${menuBoxProperties.maxBlockSize});
+    overflow-y: var(${menuBoxProperties.blockOverflow});
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
     /* Deliberately clip rather than hidden, and it is the difference between a working submenu
      * and a menu that jumps sideways when one opens. An overflow of hidden still makes a box a
      * *scroll container*, so when focus moves into a submenu — which is fixed-positioned beside
@@ -921,7 +924,7 @@ export const menuCss = `
      * Clip is the value that says *do not scroll, ever*, which is what a menu means. */
     overflow-x: clip;
     overscroll-behavior: contain;
-    padding-block: var(${densityProperties.step});
+    padding-block: 0;
     background: ${overlay.background};
     border: ${overlay.border};
     box-shadow: ${overlay.shadow};
@@ -937,6 +940,17 @@ export const menuCss = `
   /* A popup that is not open is not drawn. An inline menu has no closed state at all, which is why
    * the selector names the floating attribute rather than only the open one. */
   .menu[${floatingAttribute}][${openAttribute}='false'] { display: none; }
+
+  /* An accordion submenu: expanded inside its parent's list, so it is rows rather than a card. */
+  .menu[data-accordion][${openAttribute}='false'] { display: none; }
+  .menu[data-accordion] {
+    inline-size: 100%;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+    padding-inline-start: var(${densityProperties.gutter});
+  }
 
   /* One frame of entry, removed on the next. Only the sheet travels: a floating list appears where
    * it was aimed, and a list that slid into place would be a list a pointer arrives before. */
@@ -1015,6 +1029,12 @@ export const menuItemCss = `
     display: inline-flex;
     align-items: center;
     padding-inline-start: var(${densityProperties.step});
+  }
+
+  /* At sheet widths a submenu expands inside the list, so its arrow points at what it opened
+   * rather than off the side of a screen the submenu never goes to. */
+  @container ${containerName} (width <= ${String(menuSheetAtOrBelow)}px) {
+    .item[data-submenu-open] .arrow { rotate: 90deg; }
   }
 
   .visually-hidden {

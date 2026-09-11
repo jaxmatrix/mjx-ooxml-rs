@@ -741,6 +741,9 @@ export const ribbonGroupCss = [
   :host {
     display: inline-flex;
     vertical-align: top;
+    /* A group keeps its width: the ribbon scrolls rather than wrapping, and a flex item's default
+     * shrink would squeeze the commands instead of letting the row run off the end. */
+    flex: 0 0 auto;
   }
   :host([hidden]) { display: none; }
 
@@ -750,7 +753,7 @@ export const ribbonGroupCss = [
     flex-direction: column;
     gap: var(--mjx-density-step);
     padding-inline: var(--mjx-density-gutter);
-    padding-block: var(--mjx-density-step);
+    padding-block: 0;
     border-inline-end: 1px solid var(--theme-border-subtle);
   }
 
@@ -758,6 +761,9 @@ export const ribbonGroupCss = [
     display: flex;
     align-items: flex-start;
     gap: var(--mjx-density-step);
+    /* Grows so the footer is pushed to the block end. Every group is the height of the tallest, so
+     * without this a short group's name floats mid-air with a band of nothing beneath it. */
+    flex: 1 1 auto;
   }
 
   /* Paint comes from controlStatesCss('.trigger'). This rule owns the box and nothing else. */
@@ -827,13 +833,24 @@ export const ribbonGroupCss = [
   }
 
   .footer {
+    position: relative;
     display: var(--mjx-group-footer-display, flex);
     align-items: center;
     justify-content: center;
     gap: var(--mjx-density-step);
   }
 
+  /* Out of flow, so the launcher's hit target does not set the footer's height: the footer is as
+   * tall as the group's name and the launcher overlays the band beside it, keeping its own size. */
+  .footer ::slotted([slot='dialog-launcher']) {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-end: 0;
+  }
+
   .label {
+    flex: 1 1 auto;
+    text-align: center;
     color: var(--theme-text-secondary);
     white-space: nowrap;
   }
@@ -947,11 +964,16 @@ export const ribbonCss = [
 
   .body {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-wrap: nowrap;
+    align-items: stretch;
     padding-inline: var(--mjx-density-gutter);
-    padding-block: var(--mjx-density-step);
+    padding-block: 0;
   }
+
+  /* The groups are slotted, so the slot itself would be the one flex item and they would lay out
+   * as inline content inside it — which wraps whatever the container says. display:contents makes
+   * each group a flex item of .body, which is what nowrap is about to be asked about. */
+  .body > slot { display: contents; }
   :host([state='tabs']) .body,
   :host([state='hidden']) .body { display: none; }
 

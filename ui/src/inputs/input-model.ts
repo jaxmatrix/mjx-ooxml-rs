@@ -1258,6 +1258,10 @@ export const listCss = `
     border-radius: ${radiusVariable(overlay.radius)};
     color: ${themeVariable('textPrimary')};
     z-index: 1;
+    /* A named property rather than the default of all: the motion class supplies a duration, and
+     * a transitioned top/left makes applyPlacement measure a box mid-flight and correct against a
+     * position the browser is still leaving. */
+    transition-property: opacity, translate, scale;
   }
 
   .list[data-open='false'] { display: none; }
@@ -1387,16 +1391,16 @@ export const sliderCss = `
 
   .slider {
     display: grid;
-    gap: var(${densityProperties.step});
+    gap: 0;
   }
 
   .track {
     position: relative;
     display: flex;
-    align-items: center;
+    align-items: end;
     box-sizing: border-box;
     min-block-size: max(var(${densityProperties.hitTarget}), var(${inputBoxProperties.sliderThumbSize}));
-    padding-inline: calc(var(${inputBoxProperties.sliderThumbSize}) / 2);
+    padding-inline: 0;
     cursor: pointer;
     touch-action: none;
   }
@@ -1405,6 +1409,7 @@ export const sliderCss = `
 
   .rail {
     position: relative;
+    margin-block-end: calc(var(--spacing) * 2);
     inline-size: 100%;
     block-size: var(${inputBoxProperties.sliderTrackSize});
     border-radius: ${radiusVariable('chip')};

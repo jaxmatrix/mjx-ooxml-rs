@@ -230,14 +230,11 @@ export const ribbonColourFieldStyle = 'inline-size:9rem;flex:0 0 auto';
 /**
  * **How tall a gallery is when it is in a ribbon**, and this one is a finding wearing a fix.
  *
- * Left alone, `<mjx-gallery>` in a ribbon group asks for **266 px** — which at 1440 is half the
- * ribbon and twice what the row beside it needs. Office's Styles gallery is about a quarter of that
- * and shows one row with a scroll pair, which is exactly what the component does when it is given
- * the height. So the shell gives it one.
- *
- * It is written here rather than sprinkled into three stories because it is one decision about one
- * component, and because it is the number `ui/README.md` names when it says the gallery's intrinsic
- * height in a ribbon is a thing MJXOFF-195 should look at.
+ * Left alone, `<mjx-gallery>` in a ribbon group used to ask for **266 px** — half the ribbon at
+ * 1440 and twice what the row beside it needs — so the shell pinned it to 6 rem (96 px). It no
+ * longer needs to: the in-ribbon strip is one row, and the component's own natural height is now
+ * **69 px**, the same as the large button beside it. A pinned 96 px is 27 px of nothing inside the
+ * group's row, so the height is the component's own again and only the clipping is the shell's.
  *
  * ⚠ **`overflow:hidden` is part of the number and not tidiness.** Given a height, the gallery lays
  * its cells out past it: the second row of styles rendered *below the ribbon*, over the navigation
@@ -245,7 +242,7 @@ export const ribbonColourFieldStyle = 'inline-size:9rem;flex:0 0 auto';
  * the box and works; what does not happen is the clipping. That is a component finding, recorded in
  * `ui/README.md`, and this is the shell holding the line until it is decided.
  */
-export const ribbonGalleryStyle = 'block-size:6rem;overflow:hidden';
+export const ribbonGalleryStyle = 'overflow:hidden';
 
 /** A toggle that starts on, so the ribbon shows a pressed state without a pointer. */
 export function toggle(label: string, icon: string, pressed = false): TemplateResult {

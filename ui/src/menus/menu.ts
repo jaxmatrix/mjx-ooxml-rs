@@ -134,6 +134,14 @@ export class MjxMenu extends HTMLElement {
   #placement: Placement | undefined;
   #natural: { width: number; height: number } | undefined;
   #openSubmenuItem: MjxMenuItem | undefined;
+  /**
+   * Whether this submenu is expanded **inside** its parent's list rather than beside it.
+   *
+   * A sheet is pinned to the edge of the screen at full width, so there is no "beside" for a
+   * submenu to open into: the parent sets this before opening, and the submenu then presents
+   * inline — an accordion — with the parent's own scrolling carrying both levels.
+   */
+  #accordion = false;
   #hoverOpenTimer: Timer | undefined;
   #hoverCloseTimer: Timer | undefined;
   #typeaheadTimer: Timer | undefined;
@@ -188,7 +196,13 @@ export class MjxMenu extends HTMLElement {
 
   /** Whether this menu is acting as a popup rather than sitting in flow. */
   get floating(): boolean {
+    if (this.#accordion) return false;
     return this.isSubmenu || this.hasAttribute('floating');
+  }
+
+  /** Whether this submenu is expanded inside its parent's list. */
+  get accordion(): boolean {
+    return this.#accordion;
   }
 
   /**
@@ -320,7 +334,12 @@ export class MjxMenu extends HTMLElement {
     const floating = this.floating;
     if (floating) menu.setAttribute(floatingAttribute, '');
     else menu.removeAttribute(floatingAttribute);
-    menu.setAttribute(openAttribute, floating && this.open ? 'true' : 'false');
+    if (this.#accordion) menu.dataset['accordion'] = '';
+    else delete menu.dataset['accordion'];
+    menu.setAttribute(
+      openAttribute,
+      (floating || this.#accordion) && this.open ? 'true' : 'false',
+    );
     this.#syncTopLayer(menu, floating);
 
     this.#syncGutters();
@@ -654,6 +673,10 @@ export class MjxMenu extends HTMLElement {
     }
 
     this.#clearHoverTimers();
+    // A sheet's submenu is an accordion, and an accordion that expanded under a thumb passing over
+    // it would expand on the way to something else. On a sheet a submenu opens on a tap and on
+    // nothing else; the click handler is the only path.
+    if (this.presentation === 'sheet') return;
     const open = this.#openSubmenuItem;
     if (open !== undefined && open !== item) {
       this.#hoverCloseTimer = setTimeout(() => {
@@ -683,7 +706,7 @@ export class MjxMenu extends HTMLElement {
     this.#clearHoverTimers();
     this.#openSubmenuItem = item;
     item.submenuOpen = true;
-    submenu.openFrom(item, { focus: options.focus });
+    submenu.openFrom(item, { focus: options.focus, accordion: this.presentation === 'sheet' });
     this.dispatchEvent(
       new CustomEvent(menuEvents.submenuToggle, {
         bubbles: true,
@@ -712,7 +735,8 @@ export class MjxMenu extends HTMLElement {
   // ── opening and closing ────────────────────────────────────────────────────
 
   /** Open beside an element, and remember it as the thing focus goes back to. */
-  openFrom(invoker: HTMLElement, options: { focus?: boolean } = {}): void {
+  openFrom(invoker: HTMLElement, options: { focus?: boolean; accordion?: boolean } = {}): void {
+    this.#accordion = options.accordion === true;
     this.#invoker = invoker;
     this.#anchor = rectOf(invoker);
     this.#anchorFollowsInvoker = true;

@@ -178,12 +178,12 @@
      Toolbars and inspectors keep that softness rather than reverting to the 2–4px corners
      Office uses.
   */
-  --radius-chip: 8px;
-  --radius-control: 10px;
-  --radius-card: 16px;
-  --radius-panel: 20px;
-  --radius-frame: 22px;
-  --radius-phone: 36px;
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-panel: 12px;
+  --radius-frame: 14px;
+  --radius-phone: 24px;
   /* The base spacing step, from which the site's spacing scale is multiplied. It is a token in */
   /* its own right rather than a group so that its custom property is `--spacing`, exactly as */
   /* the site declares it. */

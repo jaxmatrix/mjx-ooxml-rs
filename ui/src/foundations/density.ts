@@ -73,14 +73,14 @@ export interface DensitySpec {
  */
 export const densityModes: Readonly<Record<DensityMode, DensitySpec>> = {
   comfortable: {
-    stepUnits: 2,
-    gutterUnits: 3,
-    hitTargetUnits: 10,
+    stepUnits: 1,
+    gutterUnits: 2,
+    hitTargetUnits: 8,
     use: 'The default. A ribbon, a dialog, a task pane — anywhere a pointer is the primary input.',
   },
   compact: {
-    stepUnits: 1,
-    gutterUnits: 2,
+    stepUnits: 0.5,
+    gutterUnits: 1,
     hitTargetUnits: 8,
     use: 'A formula bar, a cell grid, a properties inspector: surfaces where vertical room is the scarce resource.',
   },

@@ -284,7 +284,7 @@ export type GallerySurface = (typeof gallerySurfaceNames)[number];
  * that pushed the commands beside it off the popup.
  */
 export const galleryStripRows: Readonly<Record<GroupPresentation, number>> = {
-  full: 2,
+  full: 1,
   reduced: 1,
   collapsed: 1,
 };
@@ -1105,15 +1105,18 @@ export const galleryCss = `
     overflow-y: auto;
     overflow-x: clip;
     overscroll-behavior: contain;
-    padding: var(${densityProperties.step});
+    padding: 0;
+    scrollbar-width: none;
   }
+
+  .viewport::-webkit-scrollbar { display: none; }
 
   .surface[${gallerySurfaceAttribute}='strip'] .viewport {
     /* Exactly as many rows as the group we are in can afford, and not one pixel more: the strip is
      * a window and the scrollbar is what says there is more behind it. */
     block-size: calc(
       var(${galleryBoxProperties.rowPitch}, var(${galleryBoxProperties.cellArtBlock})) *
-        var(${galleryBoxProperties.stripRows}, 2) + var(${densityProperties.step}) * 2
+        var(${galleryBoxProperties.stripRows}, 2)
     );
     scroll-snap-type: y mandatory;
   }
@@ -1161,7 +1164,11 @@ export const galleryCss = `
     flex-direction: column;
     justify-content: space-between;
     gap: var(${densityProperties.step});
-    padding-block: var(${densityProperties.step});
+    padding-block: 0;
+    block-size: calc(
+      var(${galleryBoxProperties.rowPitch}, var(${galleryBoxProperties.cellArtBlock})) *
+        var(${galleryBoxProperties.stripRows}, 1)
+    );
   }
 
   .affordance {
@@ -1176,7 +1183,8 @@ export const galleryCss = `
     appearance: none;
     -webkit-appearance: none;
     cursor: pointer;
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-block-size: 0;
     transition-property: background, border-color, color, box-shadow, opacity;
   }
 
@@ -1203,6 +1211,7 @@ export const galleryCss = `
     box-sizing: border-box;
     margin: 0;
     padding: var(${densityProperties.step});
+    padding-block-start: 0;
     border-width: 1px;
     border-radius: var(--radius-control);
     text-align: center;

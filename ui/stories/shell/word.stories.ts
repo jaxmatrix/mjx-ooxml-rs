@@ -417,7 +417,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
             side="inlineStart"
             selected="a3"
             style="display:block;block-size:100%;border:1px solid var(--theme-border);
-                   border-radius:var(--radius-panel)"
+                   border-radius:var(--radius-control)"
             .annotations=${annotations}
           ></mjx-review-pane>
         </div>
@@ -530,7 +530,7 @@ export const Mobile: Story = {
           side="inlineStart"
           selected="a2"
           style="display:block;flex:0 0 auto;block-size:16rem;
-                 border:1px solid var(--theme-border);border-radius:var(--radius-panel)"
+                 border:1px solid var(--theme-border);border-radius:var(--radius-control)"
           .annotations=${annotations}
         ></mjx-review-pane>`,
       ),

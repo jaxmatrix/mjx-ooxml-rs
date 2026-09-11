@@ -256,7 +256,13 @@ export function placeFloating(request: PlacementRequest): Placement {
     low = boundary.x;
     high = boundaryRight - floating.width;
     x = clamp(rawCross, low, high);
-    y = clamp(y, boundary.y, Math.max(boundary.y, boundaryBottom - floating.height));
+    // The caller applies `maxBlockSize`, so a box that will be capped must be clamped at the height
+    // it will HAVE and not at the height it asked for — otherwise a long list is pushed up over the
+    // field it belongs to. Where there is no room at all, `available` is negative and there is
+    // nothing to cap to: the full height is the honest number, and the clamp keeps the box inside
+    // the boundary so a clearance search can see that it is not clear.
+    const used = available > 0 ? Math.min(floating.height, available) : floating.height;
+    y = clamp(y, boundary.y, Math.max(boundary.y, boundaryBottom - used));
   } else {
     x = side === 'right' ? anchorRight + gap : anchor.x - gap - floating.width;
     rawCross =
@@ -642,10 +648,25 @@ export function applyPlacement(element: HTMLElement, placement: Placement): void
   );
   write(placement.x, placement.y);
 
+  // ⚠ The correction MUST measure a box that has finished moving. A surface whose sheet declares
+  // no `transition-property` inherits the default of `all`, and every one of them wears a motion
+  // class that supplies a duration — so the rect read here is the box's OLD position, the delta is
+  // the whole journey rather than the containing-block offset, and the correction writes roughly
+  // double it. That is how a combo box list and a colour palette both opened a field's width away
+  // from their field. Suppressing the transition for the measurement fixes the class of defect
+  // rather than one component's sheet; the value is restored immediately, and restoring it cannot
+  // animate anything because the coordinate is already where it is going.
+  const declared = element.style.transitionProperty;
+  element.style.transitionProperty = 'none';
   const actual = element.getBoundingClientRect();
-  const dx = placement.x - actual.left;
-  const dy = placement.y - actual.top;
-  if (dx !== 0 || dy !== 0) write(placement.x + dx, placement.y + dy);
+  // A box with no width and no height is not laid out yet, and correcting against it would write
+  // twice the offset rather than none.
+  if (actual.width !== 0 || actual.height !== 0) {
+    const dx = placement.x - actual.left;
+    const dy = placement.y - actual.top;
+    if (dx !== 0 || dy !== 0) write(placement.x + dx, placement.y + dy);
+  }
+  element.style.transitionProperty = declared;
 }
 
 /** Remove every coordinate this module wrote, so the stylesheet is back in charge. */

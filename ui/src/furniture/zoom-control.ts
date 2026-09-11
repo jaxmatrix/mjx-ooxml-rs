@@ -226,6 +226,7 @@ export class MjxZoomControl extends HTMLElement {
     slider.setAttribute('step', '1');
     slider.setAttribute('suffix', '%');
     slider.setAttribute('ticks', zoomSteps.join(','));
+    slider.setAttribute('tick-labels', '');
     slider.addEventListener(inputEvents.preview, this.#onSlider as EventListener);
     slider.addEventListener(inputEvents.change, this.#onSlider as EventListener);
     this.#slider = slider;

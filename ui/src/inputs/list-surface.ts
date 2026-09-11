@@ -134,6 +134,8 @@ export class ListSurface implements PopupSurface {
   #selected: string | undefined;
   #active = -1;
   #built: BuiltRow[] = [];
+  /** The headings built for the current window. They carry no index, so `#built` cannot hold them. */
+  #headings: HTMLElement[] = [];
   #rowHeight = accessibleHitTargetMinimum;
   #open = false;
   #placement: Placement | undefined;
@@ -375,6 +377,8 @@ export class ListSurface implements PopupSurface {
 
     for (const row of this.#built) row.element.remove();
     this.#built = [];
+    for (const heading of this.#headings) heading.remove();
+    this.#headings = [];
 
     const built: BuiltRow[] = [];
     const fragment = document.createDocumentFragment();
@@ -382,7 +386,9 @@ export class ListSurface implements PopupSurface {
       const entry = rows[row];
       if (entry === undefined) continue;
       if (entry.kind === 'heading') {
-        fragment.append(this.#buildHeading(entry.category));
+        const heading = this.#buildHeading(entry.category);
+        this.#headings.push(heading);
+        fragment.append(heading);
         continue;
       }
       for (let index = entry.start; index < entry.end; index += 1) {

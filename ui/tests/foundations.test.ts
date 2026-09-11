@@ -328,7 +328,7 @@ describe('density', () => {
     for (const mode of densityModeNames) {
       for (const units of Object.values(densityModes[mode])) {
         if (typeof units !== 'number') continue;
-        expect(Number.isInteger(units)).toBe(true);
+        expect(Number.isInteger(units * 2)).toBe(true);
       }
     }
   });

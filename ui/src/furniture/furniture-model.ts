@@ -563,8 +563,8 @@ export const furnitureBoxProperties = {
   splitCollapsed: '--mjx-split-collapsed',
 } as const;
 
-/** How thick a scrollbar is, in spacing units, before the hit-target floor is applied. */
-export const scrollbarThicknessUnits = 3;
+/** How thick a scrollbar is, in spacing units. */
+export const scrollbarThicknessUnits = 1.5;
 
 /** How tall a mark is, in spacing units. */
 export const scrollMarkBlockUnits = 1;
@@ -744,13 +744,14 @@ export const zoomControlCss = [
   :host([hidden]) { display: none; }
 
   .slider {
-    inline-size: ${spacingMultiple(24)};
+    inline-size: ${spacingMultiple(21.5)};
+    margin-block-start: calc(var(--spacing) * -1.5);
     flex: 0 1 auto;
   }
 
   .readout {
-    inline-size: ${spacingMultiple(14)};
-    min-inline-size: ${spacingMultiple(14)};
+    inline-size: ${spacingMultiple(16.5)};
+    min-inline-size: ${spacingMultiple(16.5)};
     flex: 0 0 auto;
   }
 
@@ -786,9 +787,8 @@ export const scrollbarCss = `
   :host {
     display: block;
     box-sizing: border-box;
-    ${furnitureBoxProperties.scrollbarThickness}: max(
-      calc(var(${densityProperties.step}) * ${String(scrollbarThicknessUnits)}),
-      ${String(accessibleHitTargetMinimum)}px
+    ${furnitureBoxProperties.scrollbarThickness}: calc(
+      var(${densityProperties.step}) * ${String(scrollbarThicknessUnits)}
     );
     inline-size: var(${furnitureBoxProperties.scrollbarThickness});
     block-size: 100%;
@@ -816,7 +816,6 @@ export const scrollbarCss = `
     position: relative;
     inline-size: 100%;
     block-size: 100%;
-    overflow: hidden;
   }
 
   .thumb {
@@ -837,8 +836,19 @@ export const scrollbarCss = `
 
   .marks {
     position: absolute;
-    inset: 0;
+    inset-block: 0;
+    inset-inline-end: 100%;
+    inline-size: calc(var(${furnitureBoxProperties.scrollbarThickness}) * 3);
+    opacity: 0.5;
     pointer-events: none;
+  }
+
+  :host([orientation='horizontal']) .marks {
+    inset-inline: 0;
+    inset-block-start: auto;
+    inset-block-end: 100%;
+    inline-size: auto;
+    block-size: calc(var(${furnitureBoxProperties.scrollbarThickness}) * 3);
   }
 
   .mark {
@@ -897,7 +907,7 @@ export const splitterCss = `
     justify-content: center;
     flex: 0 0 auto;
     align-self: stretch;
-    inline-size: max(var(${densityProperties.step}), ${String(accessibleHitTargetMinimum)}px);
+    inline-size: calc(var(${densityProperties.step}) * 2);
     cursor: col-resize;
     touch-action: none;
     background: transparent;
@@ -907,7 +917,7 @@ export const splitterCss = `
 
   :host([orientation='horizontal']) {
     inline-size: auto;
-    block-size: max(var(${densityProperties.step}), ${String(accessibleHitTargetMinimum)}px);
+    block-size: calc(var(${densityProperties.step}) * 2);
     cursor: row-resize;
   }
 
@@ -923,6 +933,13 @@ export const splitterCss = `
   :host([orientation='horizontal']) .line {
     inline-size: 100%;
     block-size: 1px;
+  }
+
+  :host(:hover) .line { inline-size: calc(var(--spacing) * 0.75); }
+
+  :host([orientation='horizontal']:hover) .line {
+    inline-size: 100%;
+    block-size: calc(var(--spacing) * 0.75);
   }
 
   :host([data-collapsed]) .line {

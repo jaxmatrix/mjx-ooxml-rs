@@ -82,6 +82,7 @@ export class MjxSlider extends HTMLElement {
     'step',
     'page-step',
     'ticks',
+    'tick-labels',
     'suffix',
     'orientation',
     'disabled',
@@ -176,6 +177,17 @@ export class MjxSlider extends HTMLElement {
   get ticks(): number[] {
     const declared = this.getAttribute('ticks');
     if (declared === null || declared.trim() === '') return [];
+    return declared
+      .split(',')
+      .map((piece) => Number.parseFloat(piece.trim()))
+      .filter((number) => Number.isFinite(number));
+  }
+
+  /** Which ticks carry a number. Every tick when the attribute is absent. */
+  get labelledTicks(): number[] {
+    const declared = this.getAttribute('tick-labels');
+    if (declared === null) return this.ticks;
+    if (declared.trim() === '') return [];
     return declared
       .split(',')
       .map((piece) => Number.parseFloat(piece.trim()))
@@ -398,10 +410,11 @@ export class MjxSlider extends HTMLElement {
 
   #renderTicks(ticks: HTMLElement, labels: HTMLElement, range: SliderRange): void {
     const wanted = this.ticks;
+    const labelled = new Set(this.labelledTicks);
     ticks.replaceChildren();
     labels.replaceChildren();
     ticks.hidden = wanted.length === 0;
-    labels.hidden = wanted.length === 0;
+    labels.hidden = labelled.size === 0;
     for (const at of wanted) {
       const fraction = sliderFraction(at, range.min, range.max);
       const mark = document.createElement('span');
@@ -409,6 +422,7 @@ export class MjxSlider extends HTMLElement {
       mark.style.insetInlineStart = `${String(fraction * 100)}%`;
       ticks.append(mark);
 
+      if (!labelled.has(at)) continue;
       const label = document.createElement('span');
       label.className = 'tick-label';
       label.style.insetInlineStart = `${String(fraction * 100)}%`;
