@@ -216,7 +216,14 @@ export class MjxRibbonGroup extends HTMLElement {
     panelLabel.setAttribute('part', 'panel-label');
     panel.append(commands, panelLabel);
 
-    row.append(trigger, essential, panel);
+    // ⚠ **The essential row comes LAST**, and that is a fidelity decision rather than an ordering
+    // accident. An essential command is one that survives a collapse; it is not one Office draws
+    // first. Built the other way round, Bold/Italic/Underline drew ahead of the font name and size
+    // in Word's Font group, and Browse drew ahead of Recent on the File tab — in both cases the
+    // reverse of what Office shows. Drawing the survivors after the panel puts them where Office
+    // puts them in every group the ribbon programme has authored so far, and costs nothing in the
+    // collapsed presentation, where the panel is hidden and the row holds the survivors alone.
+    row.append(trigger, panel, essential);
 
     const footer = document.createElement('div');
     footer.className = 'footer';
