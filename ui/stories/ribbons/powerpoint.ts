@@ -15,9 +15,9 @@
  * **File** is the ribbon programme's unit 1 and is authored; see `powerpointFileTab` for what
  * PowerPoint's own two lists are.
  *
- * **Home** carries the commands migrated out of `stories/shell/powerpoint.stories.ts`, unchanged.
- * The census's `GroupSlides` is declared there and not rendered here, because it is not on the
- * shell's Home today and authoring it is unit 2's work.
+ * **Home** is unit 2: all six in-scope groups — Clipboard, Slides, Font, Paragraph, Drawing and
+ * Editing — carrying every command Office's Home tab shows. `GroupSlides` arrives with it, having
+ * been declared in the census since unit 0 and rendered by nothing.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -64,7 +64,15 @@ export function powerpointFileTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-/** Home: Clipboard, Font, Paragraph, Drawing, Editing — in Office's order. */
+/**
+ * Home: Clipboard, Slides, Font, Paragraph, Drawing, Editing — the ribbon programme's unit 2, in
+ * Office's order.
+ *
+ * **Slides is the second group and unit 2 is where it arrives**, declared in the census since unit
+ * 0 and rendered by nothing until now — which meant a PowerPoint ribbon in this catalogue had no
+ * way to add a slide. It sits between Clipboard and Font because that is where Office puts it: the
+ * deck's own structure before anything about the text on a slide.
+ */
 export function powerpointHomeTab(options: TabOptions = {}): TemplateResult {
   const home = entry('home');
   const controls = options.controls ?? {};
@@ -72,6 +80,7 @@ export function powerpointHomeTab(options: TabOptions = {}): TemplateResult {
     home.id,
     home.label,
     censusGroup(home, 'GroupClipboard', { launcher: 'Clipboard settings' }, controls),
+    censusGroup(home, 'GroupSlides', {}, controls),
     censusGroup(home, 'GroupFont', { launcher: 'Font settings' }, controls),
     censusGroup(home, 'GroupParagraph', { launcher: 'Paragraph settings' }, controls),
     censusGroup(home, 'GroupDrawing', { launcher: 'Shape settings' }, controls),

@@ -169,8 +169,25 @@ function ribbon(selected: string): TemplateResult {
 export const File: Story = { render: () => ribbon('file') };
 
 /**
- * **Home, and the one tab that is real.** Six groups, migrated out of `Shell/Excel` unchanged. The
- * census declares eight in scope; `GroupCells` and `GroupHomePowerOptions` are unit 2's work.
+ * **Home** — all eight in-scope groups, and the ribbon programme's unit 2. See `Ribbons/Word →
+ * Home` for the two rules that shape every Home tab. What is Excel's own:
+ *
+ * 1. **Cells arrives with this unit** — Insert, Delete, Format — declared since unit 0 and rendered
+ *    by nothing, which meant this catalogue's Excel could not insert a row.
+ * 2. **Power Options arrives too, and it is the one group in this catalogue whose content is
+ *    honestly unknown.** The census gives an id, a count of one and an in-scope flag, and names no
+ *    control; every Office command it might be is a guess. So the command takes the group's own
+ *    label and no icon, and `dev/ribbons/census.ts` says so at length — including that the census
+ *    marks Excel's *Analyze Data* out of scope two rows away, which is the best evidence available
+ *    that this is not that.
+ * 3. **Alignment is eleven commands and three of them can draw pressed.** Left, Centre and Right
+ *    take the group's essential slots; Top, Middle and Bottom are states in Office and are drawn as
+ *    icon buttons here. That is the ceiling described in `Ribbons/Word → Home`, at its sharpest.
+ * 4. **Underline arrived with this unit.** The migrated shell set had Bold and Italic alone, which
+ *    made Excel the one application whose Font group could not underline a cell.
+ * 5. **Three commands in Number carry no icon** — Comma Style, Increase Decimal, Decrease Decimal.
+ *    The last two were drawn with a plus and a minus, which is what *insert* and *delete* mean
+ *    everywhere else on this tab; Office draws `.00` with an arrow and Fluent draws no such thing.
  */
 export const Home: Story = { render: () => ribbon('home') };
 

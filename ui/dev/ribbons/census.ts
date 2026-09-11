@@ -74,9 +74,12 @@
  * **File and Home.** Unit 0 was the scaffold: the three Home tabs held the commands migrated out of
  * `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1 authored
  * File in all three applications — see the *commands File shows* section below, which is also where
- * the reasoning about the census's control counts lives. Every remaining tab is still a placeholder
- * until its own unit. That is why `commands` is optional rather than required — an empty array
- * would claim a tab had been authored and found to hold nothing.
+ * the reasoning about the census's control counts lives. Unit 2 authored **Home**, replacing that
+ * migrated set with every command Office's Home tab shows and filling in the three groups the
+ * shells had never carried: Word's Editor, PowerPoint's Slides, and Excel's Cells and Power
+ * Options. Every remaining tab is still a placeholder until its own unit. That is why `commands`
+ * is optional rather than required — an empty array would claim a tab had been authored and found
+ * to hold nothing.
  *
  * ## Node-importable
  *
@@ -186,116 +189,351 @@ export const ribbonCensusSource = {
 
 // ── the commands Home shows ──────────────────────────────────────────────────
 //
-// Migrated out of `stories/shell/*.stories.ts` unchanged, in the order the shells rendered them.
-// Anything absent from a list below is absent from the shell today too — Word's Editor group,
-// PowerPoint's Slides, Excel's Cells — and belongs to unit 2, which authors Home properly.
+// The ribbon programme's **unit 2**, and the tab a person spends their day on. Unit 0 migrated four
+// to seven commands per group out of `stories/shell/*.stories.ts`; what is below is every command
+// Office's Home tab actually *shows*, in Office's own order, in all three applications.
+//
+// ## Why this is a fraction of what the census counts, again
+//
+// Excel's Home counts **233** controls and Word's 165, because the census counts every entry inside
+// every gallery and every menu: Word's Font group alone is 43, which is the fifteen commands on its
+// face plus the change-case menu, the underline-style menu, the highlight palette and the font
+// colour palette. Decision 3 of the approved plan is the rule — **name what the tab shows; menus
+// stay shallow** — so Font is fifteen commands and `controls: 43` stays beside it as checked data.
+// `dev/word-tab-home.ts` remains the artefact that pads to the census count, and
+// `tests/ribbons.test.ts` says so at the assertion.
+//
+// ## ⚠ Three toggles per group is a ceiling, and Office needs more than three
+//
+// `shell-parts.ts`'s `toggle()` emits `slot="essential"` unconditionally, and
+// `essentialCommandLimit` is **3** — so a group may declare at most three toggles, ever. Office's
+// Home tab exceeds that in four places:
+//
+// | Group | What Office toggles | What is drawn here |
+// |---|---|---|
+// | Word Font | Bold, Italic, Underline, Strikethrough, Subscript, Superscript | three toggles, three icon buttons |
+// | Word Paragraph | Left, Centre, Right, Justify, Show/Hide ¶ | three toggles, two icon buttons |
+// | PowerPoint Font | Bold, Italic, Underline, Text Shadow, Strikethrough | three toggles, two buttons |
+// | Excel Alignment | Left, Centre, Right and Top, Middle, Bottom | three toggles, three icon buttons |
+//
+// The commands are all present and all reachable; what the fourth and later ones cannot do is
+// **draw pressed**. That is a real loss — a person reading a ribbon learns the paragraph's
+// alignment from which mark is filled, and Justify will never fill — and it is recorded here rather
+// than smoothed over, because the fix is a change to `<mjx-ribbon-group>`'s ceiling or to
+// `toggle()`'s unconditional slot, and neither is unit 2's to make. Which three a group spends its
+// slots on is the same rule everywhere: **the three Office draws pressed most often**.
+//
+// ## `size: 'icon'` is the tab's default, which is new
+//
+// Unit 1's File tab was a column of labelled `small` buttons, because a backstage page is a list of
+// destinations. Home is not: Office draws Word's Font group as two fields and eleven unlabelled
+// glyphs, and Excel's Alignment group as eleven unlabelled glyphs and two labelled buttons. So a
+// command here is `icon` when Office draws it icon-only and `small` when Office draws its name, and
+// the accessible name is the label either way — `controlSizes.icon` draws it off-screen rather than
+// dropping it.
+//
+// ## The commands that carry no icon, and why that is not an omission
+//
+// Unit 1's rule, unchanged: a wrong icon is worse than a missing one, because a person acts on it.
+// PowerPoint's **Text Shadow** has no drawing in Fluent that is not either a square or a sparkle;
+// Excel's **Comma Style**, **Increase Decimal** and **Decrease Decimal** are typographic marks
+// (`,` and `.00`) that no icon set draws; and Excel's **Power Options** is discussed below. All
+// five are `small`, so the label carries the whole command.
 
 const wordHomeClipboard: readonly RibbonCommand[] = [
   { id: 'word.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
   { id: 'word.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'word.home.clipboard.copy', label: 'Copy', icon: 'copy' },
-  { id: 'word.home.clipboard.format-painter', label: 'Format Painter', icon: 'settings' },
+  { id: 'word.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
 ];
 
+/**
+ * Word's Font group: the two fields, the four size-and-case verbs, and the nine character formats.
+ *
+ * Bold, Italic and Underline take the group's three essential slots — they are what Office draws
+ * pressed, and a collapsed Font group that kept anything else would be a Font group nobody could
+ * read. Strikethrough, Subscript and Superscript are states too and are drawn as icon buttons; see
+ * this section's header.
+ */
 const wordHomeFont: readonly RibbonCommand[] = [
   { id: 'word.home.font.name', label: 'Font' },
   { id: 'word.home.font.size', label: 'Font size' },
+  { id: 'word.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
+  { id: 'word.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
+  { id: 'word.home.font.change-case', label: 'Change Case', icon: 'text-change-case', size: 'icon' },
+  { id: 'word.home.font.clear-formatting', label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
   { id: 'word.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true },
   { id: 'word.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true, pressed: true },
   { id: 'word.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
+  { id: 'word.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon' },
+  { id: 'word.home.font.subscript', label: 'Subscript', icon: 'text-subscript', size: 'icon' },
+  { id: 'word.home.font.superscript', label: 'Superscript', icon: 'text-superscript', size: 'icon' },
+  { id: 'word.home.font.text-effects', label: 'Text Effects and Typography', icon: 'text-effects', size: 'icon' },
+  { id: 'word.home.font.highlight', label: 'Text Highlight Colour', icon: 'highlight', size: 'icon' },
   { id: 'word.home.font.colour', label: 'Font colour' },
 ];
 
+/**
+ * Word's Paragraph group: the three lists, the two indents, Sort and Show/Hide, then the four
+ * alignments, line spacing, Shading and Borders.
+ *
+ * Office lays this out as two rows of seven and this is that reading order. The alignment marks take
+ * the three essential slots, and Justify is the fourth member that cannot — see the header.
+ */
 const wordHomeParagraph: readonly RibbonCommand[] = [
+  { id: 'word.home.paragraph.bullets', label: 'Bullets', icon: 'text-bullet-list-ltr', size: 'icon' },
+  { id: 'word.home.paragraph.numbering', label: 'Numbering', icon: 'text-number-list-ltr', size: 'icon' },
+  { id: 'word.home.paragraph.multilevel-list', label: 'Multilevel List', icon: 'text-bullet-list-tree', size: 'icon' },
+  { id: 'word.home.paragraph.decrease-indent', label: 'Decrease Indent', icon: 'text-indent-decrease', size: 'icon' },
+  { id: 'word.home.paragraph.increase-indent', label: 'Increase Indent', icon: 'text-indent-increase', size: 'icon' },
+  { id: 'word.home.paragraph.sort', label: 'Sort', icon: 'arrow-sort', size: 'icon' },
+  { id: 'word.home.paragraph.show-marks', label: 'Show/Hide ¶', icon: 'text-paragraph', size: 'icon' },
   { id: 'word.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', toggle: true, pressed: true },
   { id: 'word.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', toggle: true },
   { id: 'word.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
-  { id: 'word.home.paragraph.bullets', label: 'Bullets', icon: 'add' },
-  { id: 'word.home.paragraph.numbering', label: 'Numbering', icon: 'subtract' },
-  { id: 'word.home.paragraph.borders', label: 'Borders', icon: 'table' },
+  { id: 'word.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon' },
+  { id: 'word.home.paragraph.line-spacing', label: 'Line and Paragraph Spacing', icon: 'text-line-spacing', size: 'icon' },
+  { id: 'word.home.paragraph.shading', label: 'Shading', icon: 'color-fill', size: 'icon' },
+  { id: 'word.home.paragraph.borders', label: 'Borders', icon: 'border-all', size: 'icon' },
 ];
 
+/**
+ * Word's Styles group is **one control**, and that is Office's own shape rather than a shortfall.
+ *
+ * The census counts five, which is the gallery plus the four commands inside its own menu — Create
+ * a Style, Clear Formatting, Apply Styles, and the pane the dialog launcher opens. What Office
+ * *draws* is the gallery and the launcher beside it, and the launcher is not a command: it is the
+ * `launcher` option `stories/ribbons/word.ts` passes to `censusGroup`.
+ */
 const wordHomeStyles: readonly RibbonCommand[] = [
   { id: 'word.home.styles.gallery', label: 'Styles' },
 ];
 
 const wordHomeEditing: readonly RibbonCommand[] = [
   { id: 'word.home.editing.find', label: 'Find', icon: 'search', essential: true },
-  { id: 'word.home.editing.replace', label: 'Replace', icon: 'arrow-redo' },
-  { id: 'word.home.editing.select', label: 'Select', icon: 'checkmark' },
+  { id: 'word.home.editing.replace', label: 'Replace', icon: 'arrow-swap' },
+  { id: 'word.home.editing.select', label: 'Select', icon: 'select-all-on' },
+];
+
+/**
+ * Word's Editor group: one command, which is what the census counts and what Office draws.
+ *
+ * Declared since unit 0 and rendered by nothing until unit 2, because the shells never carried it.
+ * A group whose label and whose only command are the same word looks like a mistake and is not:
+ * Office does exactly this wherever a group holds one button.
+ */
+const wordHomeEditor: readonly RibbonCommand[] = [
+  { id: 'word.home.editor.editor', label: 'Editor', icon: 'text-proofing-tools' },
 ];
 
 const powerpointHomeClipboard: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
   { id: 'powerpoint.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'powerpoint.home.clipboard.copy', label: 'Copy', icon: 'copy' },
-  { id: 'powerpoint.home.clipboard.format-painter', label: 'Format Painter', icon: 'settings' },
+  { id: 'powerpoint.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
 ];
 
+/**
+ * PowerPoint's Slides group — declared since unit 0, rendered by nothing until now.
+ *
+ * New Slide is the only `size: 'large'` command unit 2 adds. Section is drawn with
+ * `slide-multiple`, which is a judgement: a section *is* a run of slides taken together, and
+ * Fluent draws no divider-between-slides at twenty pixels.
+ */
+const powerpointHomeSlides: readonly RibbonCommand[] = [
+  { id: 'powerpoint.home.slides.new-slide', label: 'New Slide', icon: 'slide-add', size: 'large', essential: true },
+  { id: 'powerpoint.home.slides.layout', label: 'Layout', icon: 'slide-layout' },
+  { id: 'powerpoint.home.slides.reset', label: 'Reset', icon: 'arrow-reset' },
+  { id: 'powerpoint.home.slides.section', label: 'Section', icon: 'slide-multiple' },
+];
+
+/**
+ * PowerPoint's Font group, which is Word's minus the scripts and plus Text Shadow and Character
+ * Spacing — the two commands a deck needs and a document does not.
+ *
+ * **Text Shadow carries no icon**, and it is `small` for that reason: Fluent draws no shadowed
+ * letter, and every candidate (`square-shadow`, `text-effects`) already names a different command
+ * in this same subset.
+ */
 const powerpointHomeFont: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.font.name', label: 'Font' },
   { id: 'powerpoint.home.font.size', label: 'Font size' },
+  { id: 'powerpoint.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
+  { id: 'powerpoint.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
+  { id: 'powerpoint.home.font.clear-formatting', label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
   { id: 'powerpoint.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true, pressed: true },
   { id: 'powerpoint.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true },
   { id: 'powerpoint.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
+  { id: 'powerpoint.home.font.text-shadow', label: 'Text Shadow' },
+  { id: 'powerpoint.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon' },
+  { id: 'powerpoint.home.font.character-spacing', label: 'Character Spacing', icon: 'font-space-tracking-out', size: 'icon' },
+  { id: 'powerpoint.home.font.change-case', label: 'Change Case', icon: 'text-change-case', size: 'icon' },
   { id: 'powerpoint.home.font.colour', label: 'Font colour' },
 ];
 
+/**
+ * PowerPoint's Paragraph group. The list *levels* rather than Word's indents — in a deck an indent
+ * is an outline level, and Office names the command accordingly even though the glyph is the same.
+ *
+ * The last three are the ones a document has no equivalent of: Text Direction rotates a
+ * placeholder's text, Align Text is vertical alignment *inside* the placeholder, and Convert to
+ * SmartArt turns a bullet list into a diagram.
+ */
 const powerpointHomeParagraph: readonly RibbonCommand[] = [
+  { id: 'powerpoint.home.paragraph.bullets', label: 'Bullets', icon: 'text-bullet-list-ltr', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.numbering', label: 'Numbering', icon: 'text-number-list-ltr', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.decrease-list-level', label: 'Decrease List Level', icon: 'text-indent-decrease', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.increase-list-level', label: 'Increase List Level', icon: 'text-indent-increase', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.line-spacing', label: 'Line Spacing', icon: 'text-line-spacing', size: 'icon' },
   { id: 'powerpoint.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', toggle: true, pressed: true },
   { id: 'powerpoint.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', toggle: true },
   { id: 'powerpoint.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
-  { id: 'powerpoint.home.paragraph.bullets', label: 'Bullets', icon: 'add' },
-  { id: 'powerpoint.home.paragraph.numbering', label: 'Numbering', icon: 'subtract' },
-  { id: 'powerpoint.home.paragraph.smart-art', label: 'Convert to SmartArt', icon: 'table' },
+  { id: 'powerpoint.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.columns', label: 'Columns', icon: 'text-column-two', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right' },
+  { id: 'powerpoint.home.paragraph.align-text', label: 'Align Text', icon: 'align-center-vertical' },
+  { id: 'powerpoint.home.paragraph.smart-art', label: 'Convert to SmartArt', icon: 'diagram' },
 ];
 
+/**
+ * PowerPoint's Drawing group — the census's largest Home group at 63 controls, and six commands on
+ * its face.
+ *
+ * Sixty-three is the shapes gallery's entire catalogue plus three effect menus and the Arrange
+ * menu's fourteen entries. What Office draws is the gallery, Arrange, Quick Styles and the three
+ * shape formats. **Shapes is the group's survivor**: a collapsed Drawing group has room for one
+ * verb, and *put something on the slide* is the one.
+ *
+ * `drawing.styles` keeps the label *Shape styles* rather than Office's *Quick Styles* because both
+ * hosts bind a `<mjx-gallery>` over it and the gallery's own label is what a reader sees; renaming
+ * the census entry would change nothing visible and would make the two disagree.
+ */
 const powerpointHomeDrawing: readonly RibbonCommand[] = [
+  { id: 'powerpoint.home.drawing.shapes', label: 'Shapes', icon: 'shapes', essential: true },
+  { id: 'powerpoint.home.drawing.arrange', label: 'Arrange', icon: 'layer' },
   { id: 'powerpoint.home.drawing.styles', label: 'Shape styles' },
-  { id: 'powerpoint.home.drawing.arrange', label: 'Arrange', icon: 'slide-layout' },
+  { id: 'powerpoint.home.drawing.fill', label: 'Shape Fill', icon: 'color-fill' },
+  { id: 'powerpoint.home.drawing.outline', label: 'Shape Outline', icon: 'color-line' },
+  { id: 'powerpoint.home.drawing.effects', label: 'Shape Effects', icon: 'square-shadow' },
 ];
 
 const powerpointHomeEditing: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.editing.find', label: 'Find', icon: 'search', essential: true },
-  { id: 'powerpoint.home.editing.select', label: 'Select', icon: 'checkmark' },
+  { id: 'powerpoint.home.editing.replace', label: 'Replace', icon: 'arrow-swap' },
+  { id: 'powerpoint.home.editing.select', label: 'Select', icon: 'select-all-on' },
 ];
 
 const excelHomeClipboard: readonly RibbonCommand[] = [
   { id: 'excel.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
   { id: 'excel.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'excel.home.clipboard.copy', label: 'Copy', icon: 'copy' },
+  { id: 'excel.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
 ];
 
+/**
+ * Excel's Font group, which is the shortest of the three and the only one carrying **Borders**.
+ *
+ * A cell has an edge and a paragraph does not, which is why Word keeps Borders on Paragraph and
+ * Excel keeps it here. Underline arrives in unit 2: the shell's migrated list had Bold and Italic
+ * alone, which left Excel the one application whose Font group could not underline anything.
+ */
 const excelHomeFont: readonly RibbonCommand[] = [
   { id: 'excel.home.font.name', label: 'Font' },
   { id: 'excel.home.font.size', label: 'Font size' },
+  { id: 'excel.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
+  { id: 'excel.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
   { id: 'excel.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true },
   { id: 'excel.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true },
+  { id: 'excel.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
+  { id: 'excel.home.font.borders', label: 'Borders', icon: 'border-all', size: 'icon' },
   { id: 'excel.home.font.fill', label: 'Fill colour' },
+  { id: 'excel.home.font.font-colour', label: 'Font Colour', icon: 'text-color', size: 'icon' },
 ];
 
+/**
+ * Excel's Alignment group — eleven commands, three of which can be toggles.
+ *
+ * Office draws two rows: the three vertical alignments and Orientation above, the three horizontal
+ * alignments, the two indents, Wrap Text and Merge & Centre below. The horizontal three take the
+ * essential slots because they are the pair a person reads a sheet by; see this section's header on
+ * what that costs Top, Middle and Bottom.
+ */
 const excelHomeAlignment: readonly RibbonCommand[] = [
+  { id: 'excel.home.alignment.align-top', label: 'Top Align', icon: 'align-top', size: 'icon' },
+  { id: 'excel.home.alignment.align-middle', label: 'Middle Align', icon: 'align-center-vertical', size: 'icon' },
+  { id: 'excel.home.alignment.align-bottom', label: 'Bottom Align', icon: 'align-bottom', size: 'icon' },
+  { id: 'excel.home.alignment.orientation', label: 'Orientation', icon: 'text-direction-rotate-90-right', size: 'icon' },
   { id: 'excel.home.alignment.align-left', label: 'Align left', icon: 'text-align-left', toggle: true },
   { id: 'excel.home.alignment.centre', label: 'Centre', icon: 'text-align-center', toggle: true, pressed: true },
   { id: 'excel.home.alignment.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
-  { id: 'excel.home.alignment.merge', label: 'Merge & Centre', icon: 'table' },
-  { id: 'excel.home.alignment.wrap', label: 'Wrap Text', icon: 'arrow-down-right' },
+  { id: 'excel.home.alignment.decrease-indent', label: 'Decrease Indent', icon: 'text-indent-decrease', size: 'icon' },
+  { id: 'excel.home.alignment.increase-indent', label: 'Increase Indent', icon: 'text-indent-increase', size: 'icon' },
+  { id: 'excel.home.alignment.wrap', label: 'Wrap Text', icon: 'text-wrap' },
+  { id: 'excel.home.alignment.merge', label: 'Merge & Centre', icon: 'table-cells-merge' },
 ];
 
+/**
+ * Excel's Number group: the format dropdown and the five one-press formats beside it.
+ *
+ * **Three of the six carry no icon, and two of those lost one in unit 2.** Increase Decimal and
+ * Decrease Decimal were drawn with `add` and `subtract` — a plus and a minus sign, which is what
+ * *insert* and *delete* mean everywhere else on this tab. Office draws them as `.00` with an arrow
+ * and Fluent draws no such thing, so the label is the command. Comma Style is the same problem with
+ * one character instead of three.
+ */
 const excelHomeNumber: readonly RibbonCommand[] = [
   { id: 'excel.home.number.format', label: 'Number format' },
-  { id: 'excel.home.number.increase-decimal', label: 'Increase decimal', icon: 'add' },
-  { id: 'excel.home.number.decrease-decimal', label: 'Decrease decimal', icon: 'subtract' },
+  { id: 'excel.home.number.accounting', label: 'Accounting Number Format', icon: 'currency-dollar-euro', size: 'icon' },
+  { id: 'excel.home.number.percent', label: 'Percent Style', icon: 'text-percent', size: 'icon' },
+  { id: 'excel.home.number.comma', label: 'Comma Style' },
+  { id: 'excel.home.number.increase-decimal', label: 'Increase Decimal' },
+  { id: 'excel.home.number.decrease-decimal', label: 'Decrease Decimal' },
 ];
 
 const excelHomeStyles: readonly RibbonCommand[] = [
+  { id: 'excel.home.styles.conditional-formatting', label: 'Conditional Formatting', icon: 'table-lightning' },
+  { id: 'excel.home.styles.format-as-table', label: 'Format as Table', icon: 'table-checker' },
   { id: 'excel.home.styles.gallery', label: 'Cell styles' },
 ];
 
+/**
+ * Excel's Cells group — declared since unit 0, rendered by nothing until now.
+ *
+ * Three split buttons covering thirty-nine census controls between them: Insert and Delete each
+ * offer cells, rows, columns and a sheet, and Format offers row height, column width, visibility,
+ * tab colour, protection and the Format Cells dialog. The faces are the three verbs.
+ */
+const excelHomeCells: readonly RibbonCommand[] = [
+  { id: 'excel.home.cells.insert', label: 'Insert', icon: 'table-add' },
+  { id: 'excel.home.cells.delete', label: 'Delete', icon: 'table-dismiss' },
+  { id: 'excel.home.cells.format', label: 'Format', icon: 'table-settings' },
+];
+
 const excelHomeEditing: readonly RibbonCommand[] = [
-  { id: 'excel.home.editing.autosum', label: 'AutoSum', icon: 'add', essential: true },
-  { id: 'excel.home.editing.sort-filter', label: 'Sort & Filter', icon: 'arrow-down-right' },
+  { id: 'excel.home.editing.autosum', label: 'AutoSum', icon: 'autosum', essential: true },
+  { id: 'excel.home.editing.fill', label: 'Fill', icon: 'arrow-down' },
+  { id: 'excel.home.editing.clear', label: 'Clear', icon: 'eraser' },
+  { id: 'excel.home.editing.sort-filter', label: 'Sort & Filter', icon: 'arrow-sort' },
   { id: 'excel.home.editing.find-select', label: 'Find & Select', icon: 'search' },
+];
+
+/**
+ * ⚠ **`GroupHomePowerOptions` is one control the census names and does not describe**, and this is
+ * the honest reading of it.
+ *
+ * The TSV gives an id, a count of 1 and an in-scope flag; it carries no control names, and no
+ * public Office documentation says what a group called *Power Options* on Excel's Home tab holds.
+ * Every candidate — Analyze Data, Power Pivot, a sensitivity label — is a guess, and a guessed
+ * command name on a ribbon face is exactly the drift the whole transcription exists to prevent. So
+ * the command takes the group's own census-derived label and carries **no icon**, which is the same
+ * decision `wordHomeEditor` records for a group that genuinely is one button with its group's name
+ * on it. When somebody can say what Office puts here, this is a one-line change.
+ *
+ * Note that the census marks `GroupIdeas` — Excel's Analyze Data — **out of scope** two rows away,
+ * which is the strongest available evidence that this group is *not* that one.
+ */
+const excelHomePowerOptions: readonly RibbonCommand[] = [
+  { id: 'excel.home.power-options.power-options', label: 'Power Options' },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -515,7 +753,7 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
       { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 56, inScope: true, commands: wordHomeParagraph },
       { id: 'GroupStyles', label: 'Styles', priority: 'standard', controls: 5, inScope: true, commands: wordHomeStyles },
       { id: 'GroupEditing', label: 'Editing', priority: 'ancillary', controls: 23, inScope: true, commands: wordHomeEditing },
-      { id: 'GroupEditor', label: 'Editor', priority: 'secondary', controls: 1, inScope: true },
+      { id: 'GroupEditor', label: 'Editor', priority: 'secondary', controls: 1, inScope: true, commands: wordHomeEditor },
     ],
   },
   {
@@ -693,7 +931,7 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     source: { kind: 'core', tab: 'TabHome' },
     groups: [
       { id: 'GroupClipboard', label: 'Clipboard', priority: 'secondary', controls: 10, inScope: true, commands: powerpointHomeClipboard },
-      { id: 'GroupSlides', label: 'Slides', priority: 'standard', controls: 16, inScope: true },
+      { id: 'GroupSlides', label: 'Slides', priority: 'standard', controls: 16, inScope: true, commands: powerpointHomeSlides },
       { id: 'GroupFont', label: 'Font', priority: 'primary', controls: 18, inScope: true, commands: powerpointHomeFont },
       { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 27, inScope: true, commands: powerpointHomeParagraph },
       { id: 'GroupDrawing', label: 'Drawing', priority: 'standard', controls: 63, inScope: true, commands: powerpointHomeDrawing },
@@ -968,9 +1206,9 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
       { id: 'GroupAlignmentExcel', label: 'Alignment', priority: 'primary', controls: 27, inScope: true, commands: excelHomeAlignment },
       { id: 'GroupNumber', label: 'Number', priority: 'standard', controls: 11, inScope: true, commands: excelHomeNumber },
       { id: 'GroupStyles', label: 'Styles', priority: 'standard', controls: 37, inScope: true, commands: excelHomeStyles },
-      { id: 'GroupCells', label: 'Cells', priority: 'standard', controls: 39, inScope: true },
+      { id: 'GroupCells', label: 'Cells', priority: 'standard', controls: 39, inScope: true, commands: excelHomeCells },
       { id: 'GroupEditingExcel', label: 'Editing', priority: 'ancillary', controls: 45, inScope: true, commands: excelHomeEditing },
-      { id: 'GroupHomePowerOptions', label: 'Power Options', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupHomePowerOptions', label: 'Power Options', priority: 'ancillary', controls: 1, inScope: true, commands: excelHomePowerOptions },
     ],
   },
   {

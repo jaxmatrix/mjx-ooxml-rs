@@ -203,11 +203,28 @@ function ribbon(selected: string): TemplateResult {
 export const File: Story = { render: () => ribbon('file') };
 
 /**
- * **Home, and the one tab that is real.** Five groups, migrated out of `Shell/Word` unchanged, so
- * the catalogue and the assembly are the same markup rather than two drawings of it.
+ * **Home** — the tab a person spends their day on, and the ribbon programme's unit 2. Six groups:
+ * Clipboard, Font, Paragraph, Styles, Editing and Editor, carrying every command Office's Home tab
+ * shows. What to look at:
  *
- * The census declares a sixth in-scope group here — `GroupEditor` — which the shell has never
- * carried and which unit 2 authors along with the rest of Home.
+ * 1. **Most of this tab is unlabelled, and that is Office's layout rather than a shortcut.** Font
+ *    draws two fields and eleven glyphs; Paragraph draws fourteen glyphs and nothing else. A
+ *    `size="icon"` control keeps its label as the accessible name — it is drawn off-screen, never
+ *    dropped — so every one of them is still reachable by a screen reader and by a tooltip.
+ * 2. **Only three commands per group can draw pressed.** Bold, Italic and Underline are toggles and
+ *    Strikethrough, Subscript and Superscript are not; Left, Centre and Right are toggles and
+ *    Justify is not. `essentialCommandLimit` is 3 and `shell-parts.ts`'s `toggle()` always claims
+ *    an essential slot, so a fourth state command in one group is impossible today. The commands
+ *    are all there and all work; what the fourth cannot do is show you the paragraph is justified.
+ *    `dev/ribbons/census.ts` names all four groups this bites.
+ * 3. **Editor is new here.** The census has declared Word's one-command Editor group since unit 0
+ *    and nothing rendered it, so this catalogue's Word could not open the proofing pane.
+ * 4. **Three icons changed meaning rather than appearing.** Format Painter was a cog, Bullets was a
+ *    plus, Numbering was a minus, Borders was a table and Select was a tick — five stand-ins from
+ *    the migrated shell set, each replaced by the glyph Office actually draws.
+ *
+ * Drag the container in and Font and Paragraph are the last two groups standing, each down to its
+ * three toggles; Editor and Editing give way first.
  */
 export const Home: Story = { render: () => ribbon('home') };
 

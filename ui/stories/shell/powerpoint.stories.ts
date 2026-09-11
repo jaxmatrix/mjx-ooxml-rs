@@ -243,7 +243,7 @@ function ribbon(): TemplateResult {
               description="Change how the selected shapes overlap one another, and how they line up."
               shortcut="Alt + J D A"
             >
-              <mjx-button label="Arrange" icon="slide-layout"></mjx-button>
+              <mjx-button label="Arrange" icon="layer"></mjx-button>
             </mjx-screentip>`,
           },
         })}

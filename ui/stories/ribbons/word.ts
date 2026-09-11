@@ -12,15 +12,13 @@
  * Help — built from the census's *backstage* rows, because decision 1 of the approved plan makes
  * File an ordinary tab rather than a separate screen.
  *
- * **Home** carries the commands migrated out of `stories/shell/word.stories.ts` — unchanged, in the
- * order the shell rendered them, so the assembled shell looks exactly as it did before this file
- * existed. Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority
- * the census declares, holding one honest button. Units 2 onward replace them one tab at a time,
+ * **Home** is unit 2: all **six** of the groups the census marks in scope — Clipboard, Font,
+ * Paragraph, Styles, Editing and Editor — carrying every command Office's Home tab shows. The
+ * migrated set this file held after unit 0 is gone; what replaced it is roughly four times as
+ * many commands, in Office's own order, mostly drawn icon-only because that is how Office draws
+ * them. Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority
+ * the census declares, holding one honest button. Units 3 onward replace them one tab at a time,
  * and each of those is a small diff against a file that already has the right shape.
- *
- * Word's Home has **six** in-scope groups in the census and this renders five: `GroupEditor` is
- * declared in `dev/ribbons/census.ts` and is not on the shell's Home today, so authoring it is
- * unit 2's work rather than something this file invents.
  *
  * ## The three view tabs
  *
@@ -77,11 +75,21 @@ export function wordFileTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
- * Home: Clipboard, Font, Paragraph, Styles, Editing.
+ * Home: Clipboard, Font, Paragraph, Styles, Editing, Editor — the ribbon programme's unit 2.
  *
  * The group *order* is Office's and is this module's decision — the census has no column for it.
  * The labels, priorities and commands are the census's, so a group cannot quietly acquire a
  * different priority here from the one three gates read.
+ *
+ * **Editor is the sixth group and unit 2 is where it arrives.** The census has carried it since
+ * unit 0 and the shells never had it, so a Word ribbon in this catalogue could not open the
+ * proofing pane at all.
+ *
+ * **Four dialog launchers and no fifth.** Clipboard, Font and Paragraph each open a real Office
+ * dialog, Styles opens the Styles pane, and Editor and Editing open neither — the first is a pane
+ * the button itself opens, the second is a set of three commands with no property sheet behind
+ * them. A launcher on either would promise a surface that does not exist, which is the argument
+ * `wordFileTab` makes about Print.
  */
 export function wordHomeTab(options: TabOptions = {}): TemplateResult {
   const home = entry('home');
@@ -94,6 +102,7 @@ export function wordHomeTab(options: TabOptions = {}): TemplateResult {
     censusGroup(home, 'GroupParagraph', { launcher: 'Paragraph settings' }, controls),
     censusGroup(home, 'GroupStyles', { launcher: 'Styles pane' }, controls),
     censusGroup(home, 'GroupEditing', {}, controls),
+    censusGroup(home, 'GroupEditor', {}, controls),
   );
 }
 

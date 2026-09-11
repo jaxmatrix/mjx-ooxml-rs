@@ -8,9 +8,11 @@
  *    a fact about Excel, and `dev/ribbons/census.ts` records it where a reader will meet it. The
  *    tab itself is authored — the ribbon programme's unit 1 — so the difference is now visible
  *    rather than described.
- * 2. **Home carries eight in-scope groups and this renders six.** `GroupCells` and
- *    `GroupHomePowerOptions` are declared in the census and are not on the shell's Home today, so
- *    authoring them is unit 2's work rather than something this file invents.
+ * 2. **Home carries eight in-scope groups and unit 2 renders all eight.** `GroupCells` and
+ *    `GroupHomePowerOptions` had been declared in the census since unit 0 and rendered by nothing;
+ *    they arrive with the rest of Home. The second of them is the one group on this tab whose
+ *    single control the census names only by the group's own id, and `dev/ribbons/census.ts`
+ *    records that rather than inventing an Office command to fill it.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -64,7 +66,19 @@ export function excelFileTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-/** Home: Clipboard, Font, Alignment, Number, Styles, Editing — in Office's order. */
+/**
+ * Home: Clipboard, Font, Alignment, Number, Styles, Cells, Editing, Power Options — the ribbon
+ * programme's unit 2, and **all eight** of the groups the census marks in scope.
+ *
+ * Two of them arrive here. `GroupCells` has been declared since unit 0 and rendered by nothing,
+ * which meant an Excel ribbon in this catalogue could not insert a row. `GroupHomePowerOptions` is
+ * the one group in this whole tab whose contents the census does not describe at all — see
+ * `dev/ribbons/census.ts`, which records what is known and refuses to guess the rest.
+ *
+ * **Three launchers, and Styles, Cells, Editing and Power Options have none.** Office's Format
+ * Cells dialog has a Font tab, an Alignment tab and a Number tab, and the three launchers open
+ * exactly those; the other four groups open menus rather than property sheets.
+ */
 export function excelHomeTab(options: TabOptions = {}): TemplateResult {
   const home = entry('home');
   const controls = options.controls ?? {};
@@ -76,7 +90,9 @@ export function excelHomeTab(options: TabOptions = {}): TemplateResult {
     censusGroup(home, 'GroupAlignmentExcel', { launcher: 'Format cells: alignment' }, controls),
     censusGroup(home, 'GroupNumber', { launcher: 'Format cells: number' }, controls),
     censusGroup(home, 'GroupStyles', {}, controls),
+    censusGroup(home, 'GroupCells', {}, controls),
     censusGroup(home, 'GroupEditingExcel', {}, controls),
+    censusGroup(home, 'GroupHomePowerOptions', {}, controls),
   );
 }
 

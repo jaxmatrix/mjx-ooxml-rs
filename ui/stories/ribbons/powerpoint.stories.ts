@@ -140,7 +140,7 @@ const bindings: ControlOverrides = {
     description="Change how the selected shapes overlap one another, and how they line up."
     shortcut="Alt + J D A"
   >
-    <mjx-button label="Arrange" icon="slide-layout"></mjx-button>
+    <mjx-button label="Arrange" icon="layer"></mjx-button>
   </mjx-screentip>`,
 };
 
@@ -186,8 +186,21 @@ function ribbon(selected: string): TemplateResult {
 export const File: Story = { render: () => ribbon('file') };
 
 /**
- * **Home, and the one tab that is real.** Five groups, migrated out of `Shell/PowerPoint`
- * unchanged. The census declares a sixth in-scope group — `GroupSlides` — which unit 2 authors.
+ * **Home** — six groups, and the ribbon programme's unit 2. See `Ribbons/Word → Home` for the two
+ * rules that shape every Home tab: most of it is drawn icon-only because Office draws it that way,
+ * and only three commands per group can draw pressed. What is PowerPoint's own:
+ *
+ * 1. **Slides arrives with this unit** — New Slide, Layout, Reset, Section — declared in the census
+ *    since unit 0 and rendered by nothing, which meant this catalogue's PowerPoint had no way to
+ *    add a slide. New Slide is the only `size="large"` command unit 2 adds anywhere.
+ * 2. **Drawing is the census's largest Home group at 63 controls and draws six commands.** Sixty
+ *    three is the shapes gallery's whole catalogue plus three effect menus and Arrange's fourteen
+ *    entries; the face is Shapes, Arrange, the style gallery and the three shape formats. Shapes is
+ *    the group's survivor, because a collapsed Drawing group has room for one verb.
+ * 3. **Arrange is drawn with `layer` now, not `slide-layout`** — which was the *Layout* command's
+ *    icon, one group to the left, on a button that means something else entirely.
+ * 4. **Text Shadow carries no icon**, so it is the one labelled button in a row of glyphs. Fluent
+ *    draws no shadowed letter, and both candidates already name other commands in this subset.
  */
 export const Home: Story = { render: () => ribbon('home') };
 
