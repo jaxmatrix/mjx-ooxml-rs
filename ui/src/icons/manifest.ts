@@ -129,7 +129,12 @@ export const iconRequests: readonly IconRequest[] = [
     why: 'History. A one-shot command is never in a selected state, so it needs no filled drawing.',
   },
   { name: 'arrow-redo', sizes: [20, 24], variants: ['regular'], why: 'History.' },
-  { name: 'save', sizes: [20], variants: ['regular'], why: 'File verb.' },
+  {
+    name: 'save',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "File verb. ⚠ **24 was added by the ribbon programme's unit 1**, which made Save the headline command of the File tab's Save group and therefore a `size=\"large\"` button. A large button draws at 24 and this row carried 20 alone, so it would have been the blank square `tests/ribbons.test.ts` exists to refuse — and did refuse, before a pixel was rendered.",
+  },
   { name: 'folder-open', sizes: [20, 24], variants: ['regular'], why: 'File verb.' },
   {
     name: 'add',
@@ -243,6 +248,171 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [16, 20],
     variants: ['regular'],
     why: "The dialog launcher's corner mark — Office's own glyph for *this group has a full dialog*, drawn at 16 because it is a mark rather than a command's icon. ⚠ **20 was added by the ribbon programme's unit 0, for the same reason `subtract` gained one**: Excel's Wrap Text and Sort & Filter are small ribbon buttons naming this icon, and a small button draws at 20, so both were blank squares.",
+  },
+
+  // ── File (Word, PowerPoint, Excel) ──────────────────────────────────────────
+  //
+  // The ribbon programme's unit 1: the File tab of all three applications, which decision 1 of the
+  // approved plan makes an ordinary ribbon tab whose groups are the backstage destinations — Info,
+  // Open, Save, Print, Share, Export, Help.
+  //
+  // Two rules shaped every row below and both are worth stating once here rather than twenty-five
+  // times underneath. **A size nothing draws is dead bytes**, so a command's icon asks for 20 and
+  // only a `size="large"` command additionally asks for 24; the seven that do are the headline of
+  // their group. And **a near-miss is worse than nothing**, which is `<mjx-icon>`'s own argument —
+  // a person acts on a glyph — so four commands on the File tab carry no icon at all: Properties,
+  // Package Presentation for CD, Create Handouts and Publish to Power BI. Fluent has no honest
+  // drawing for any of them, and the alternative was a picture that would send somebody to the
+  // wrong page.
+  {
+    name: 'document-lock',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Protect Document / Presentation / Workbook — the Info group's first command in all three applications. A document with a padlock rather than a bare `shield`: a shield says *this is defended*, and what the command actually does is put a lock on this one file. ⚠ **20 alone, and that is a rendering finding rather than a preference.** It was `size=\"large\"` and asked for 24 until the tab was looked at: a large button is bounded by `largeControlWidthUnits` so its label wraps to two lines inside about eighty pixels, and *Protect Document* came out as `Protect Docume…`. A truncated command is a command nobody can read, so the three Protect verbs are small — and the 24-pixel drawing nothing would have used went with them.",
+  },
+  {
+    name: 'document-search',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Check for Issues — Office's Inspect Document, which is a magnifier over a document in Office's own icon language too. Distinct from the bare `search` this subset already carries, and deliberately: `search` is *find text in this document*, which is a different command on a different tab.",
+  },
+  {
+    name: 'history',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Two commands, and they are the same idea twice rather than a collision. Open's **Recent** is `size=\"large\"` and needs 24; Info's **Manage Document** — Office's recover-unsaved-versions command — is small and needs 20. Both are a clock in Office as well, because both mean *what this file was before now*.",
+  },
+  {
+    name: 'people',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'Shared with Me, on the Open group. Two figures rather than one: the place is defined by there being somebody else in it.',
+  },
+  {
+    name: 'cloud',
+    sizes: [20],
+    variants: ['regular'],
+    why: "OneDrive, on the Open group. The plain cloud and not `cloud-arrow-up`: this is a *place to open from*, and an upload arrow would say the button sends something.",
+  },
+  {
+    name: 'desktop',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'This PC, on the Open group — the other half of the pair with `cloud`, and the pair is the whole point of both rows: a person reads *here* against *there*.',
+  },
+  {
+    name: 'save-edit',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Save As. The save glyph with a pencil on it, which is Fluent's own way of saying *save under a name you choose* — and the reason Save, Save As and Save a Copy can sit in one group without becoming three identical squares.",
+  },
+  {
+    name: 'save-copy',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'Save a Copy. Fluent draws it as the save glyph doubled, which is exactly what the command means and exactly how it differs from Save As.',
+  },
+  {
+    name: 'arrow-sync',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "AutoSave — the File tab's one toggle, so both variants: a toggle draws filled when it is pressed, and a regular-only request is a control that goes blank the moment somebody turns it on. The circular arrows are Office's own AutoSave mark.",
+  },
+  {
+    name: 'print',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Print — the headline of the Print group in Word and PowerPoint, `size=\"large\"`, hence 24 as well as 20. Excel has no Print group here; see `dev/ribbons/census.ts` on the census's missing `TabPrint` row.",
+  },
+  {
+    name: 'share',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Share — the headline of the Share group in all three applications, `size=\"large\"`.",
+  },
+  {
+    name: 'mail',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'Email, on the Share group. The envelope, which is the one glyph in this block nobody has to learn.',
+  },
+  {
+    name: 'link',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'Get a Link, on the Share group — the command that produces a URL rather than sending a file, and the chain is what distinguishes the two.',
+  },
+  {
+    name: 'presenter',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Present Online, on Word's and PowerPoint's Share group. A figure beside a screen, which is what the command does and what Office draws for it.",
+  },
+  {
+    name: 'slide-multiple',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Publish Slides — PowerPoint's own Share command, which uploads individual slides to a library rather than the deck as a file. Slides in the plural is the distinction the glyph carries.",
+  },
+  {
+    name: 'document-pdf',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Create PDF/XPS Document — the Export group's first command in all three applications. Fluent draws the format's own name on the page, which is the one case where a glyph can say a file format without ambiguity. 20 alone for the reason `document-lock` gives at length: a four-word label cannot be drawn inside a large button's width, so the command is small and nothing draws it at 24.",
+  },
+  {
+    name: 'arrow-swap',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Change File Type, on the Export group. Two arrows exchanging: the command does not move the document anywhere, it exchanges one format for another, and `document-arrow-right` would have said *send this somewhere*.",
+  },
+  {
+    name: 'video',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Create a Video — PowerPoint's Export group, and one of the two places PowerPoint's File tab genuinely differs from Word's.",
+  },
+  {
+    name: 'question-circle',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Help — the headline of the Help group in all three applications, `size=\"large\"`. ⚠ **The 24-pixel drawing does not render anywhere in the catalogue, and it is still not dead bytes.** The Help group is `ancillary`, and `groupPriorities.ancillary.reduceAtOrBelow` is 1600 — the harness's own widest container — so inside Storybook that group is reduced at every width and draws its icons at 20. A shell on a real 2560-pixel monitor is not inside the harness, the group is full there, and a 20-only request would be a blank square nobody could reproduce in the catalogue. This row is what stops that, and this sentence is why a reader who greps for the 24 and finds it unused should leave it alone.",
+  },
+  {
+    name: 'person-support',
+    sizes: [20],
+    variants: ['regular'],
+    why: 'Contact Support, on the Help group. A person with a headset — the command reaches a human, which is exactly what separates it from Help.',
+  },
+  {
+    name: 'person-feedback',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Feedback, on the Help group. Fluent's own pairing with `person-support`, and the pair is what keeps *ask for help* and *tell us something* from being one picture.",
+  },
+  {
+    name: 'megaphone',
+    sizes: [20],
+    variants: ['regular'],
+    why: "What’s New, on the Help group. An announcement, which is what the page is. Deliberately **not** `sparkle` or `star-emphasis`: Fluent's sparkle has become the industry's mark for *this is generated by a model*, and a person who pressed it expecting Copilot would have been sent to a release-notes page.",
+  },
+  {
+    name: 'arrow-upload',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Upload Workbook — Excel's Publish group, which exists because the census gives Excel a `Publish2Tab` the other two applications do not have.",
+  },
+  {
+    name: 'arrow-export',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Export Workbook Data, beside it. The arrow leaving a box, against `arrow-upload`'s arrow entering one — the two commands on that page send different things in different directions, and drawing them alike would hide that.",
+  },
+  {
+    name: 'data-histogram',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Workbook Statistics — Excel's own addition to the Info group. A histogram is the plainest thing Fluent draws for *statistics*; `document-data` was the alternative and says *a document with numbers in it*, which is every workbook rather than this command.",
   },
 ];
 

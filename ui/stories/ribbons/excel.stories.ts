@@ -32,8 +32,9 @@ import { excelContextualSets, excelTabs } from './excel.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **Home** is the only authored tab; the rest are placeholders at the census's own priorities. See
- * `Ribbons/Word` for why that is the whole of unit 0.
+ * **File and Home** are authored; the rest are placeholders at the census's own priorities. See
+ * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
+ * of differences rather than three tabs.
  */
 
 const conventions = storyConventions({
@@ -51,7 +52,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'Home is authored; the rest are placeholders carrying the census’s priorities.',
+          'File and Home are authored; the rest are placeholders carrying the census’s priorities.',
       },
     },
     mjx: conventions,
@@ -148,7 +149,23 @@ function ribbon(selected: string): TemplateResult {
   `;
 }
 
-/** Unit 1, and the tab with no Print group — see this file's header. */
+/**
+ * **File** — seven groups, and the only one of the three that has no Print and does have a Publish.
+ *
+ * Both differences are the census's rather than this catalogue's, and this file's header is where
+ * they are recorded. What they look like here:
+ *
+ * 1. **No Print group at all.** The strip goes Info, Open, Save, Share, Export, Publish, Help, and
+ *    the Print group the other two collapse second simply is not there to collapse.
+ * 2. **Publish is Excel's Power BI page**, three controls, which is the one group on any of the
+ *    three File tabs where what Office shows and what the census counts agree exactly. Its headline
+ *    carries no icon: Fluent draws no Power BI mark, and every generic candidate already means one
+ *    of the two commands underneath it.
+ * 3. **Info carries a fifth command**, Workbook Statistics, which Word and PowerPoint have no
+ *    equivalent of.
+ *
+ * See `Ribbons/Word → File` for the collapse order and for the rest of the reasoning.
+ */
 export const File: Story = { render: () => ribbon('file') };
 
 /**

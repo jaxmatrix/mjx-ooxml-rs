@@ -42,6 +42,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
+import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -211,6 +212,33 @@ function ribbon(): TemplateResult {
       <mjx-ribbon label="Word" selected="home" @mjx-activate=${openDeclaredSurface}>
         ${wordTabs({
           controls: {
+            // The File tab's Print group. *Which printers* is this machine's business and a ribbon
+            // module has no way to know it, so the census declares Printer and Copies as commands
+            // with no icon and the host binds a real control over each. The lists are
+            // `stories/ribbons/ribbon-parts.ts`'s, shared with the catalogue, because four copies
+            // of one list is four places for one of them to drift.
+            'word.file.print.printer': html`<mjx-dropdown
+              id="word-printer"
+              label="Printer"
+              value="pdf"
+              style=${ribbonFieldStyle}
+            >
+              ${printerList.map(
+                (printer) =>
+                  html`<mjx-option value=${printer.value} label=${printer.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.file.print.copies': html`<mjx-combo-box
+              id="word-copies"
+              label="Copies"
+              value="1"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${copyCounts.map(
+                (count) => html`<mjx-option value=${count} label=${count}></mjx-option>`,
+              )}
+            </mjx-combo-box>`,
             'word.home.clipboard.paste': html`<mjx-split-button
               slot="essential"
               label="Paste"

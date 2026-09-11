@@ -10,7 +10,9 @@ import {
   standardColors,
 } from '../pickers/specimens.ts';
 import {
+  copyCounts,
   openDeclaredSurface,
+  printerList,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
   ribbonGalleryStyle,
@@ -34,10 +36,10 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **Home** is real. Every other tab is a placeholder — one group carrying the tab's name, at the
- * priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is unit 0
- * of the ribbon programme: the scaffold, with the census transcribed, the ladder already right and
- * every tab present, so each later unit is a small diff rather than a new file.
+ * **File and Home** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
+ * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
+ * right and every tab present, so each later unit is a small diff rather than a new file.
  *
  * The placeholder button says *Not yet authored* rather than naming a plausible command, for the
  * reason `dev/word-tab-home.ts` gives about its own filler: a made-up command name is a worse lie
@@ -63,7 +65,8 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'Home is authored; the rest are placeholders carrying the census’s own priorities.',
+          'File and Home are authored; the rest are placeholders carrying the census’s own ' +
+          'priorities.',
       },
     },
     mjx: conventions,
@@ -83,6 +86,25 @@ type Story = StoryObj;
  * nothing else, which is exactly the seam `stories/ribbons/ribbon-parts.ts` exists to draw.
  */
 const bindings: ControlOverrides = {
+  'word.file.print.printer': html`<mjx-dropdown
+    id="ribbons-word-printer"
+    label="Printer"
+    value="pdf"
+    style=${ribbonFieldStyle}
+  >
+    ${printerList.map(
+      (printer) => html`<mjx-option value=${printer.value} label=${printer.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'word.file.print.copies': html`<mjx-combo-box
+    id="ribbons-word-copies"
+    label="Copies"
+    value="1"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${copyCounts.map((count) => html`<mjx-option value=${count} label=${count}></mjx-option>`)}
+  </mjx-combo-box>`,
   'word.home.clipboard.paste': html`<mjx-split-button
     slot="essential"
     label="Paste"
@@ -155,7 +177,29 @@ function ribbon(selected: string): TemplateResult {
   `;
 }
 
-/** The backstage destinations as an ordinary tab — decision 1 of the plan. Unit 1 authors it. */
+/**
+ * **File** — the backstage destinations as an ordinary ribbon tab, which is decision 1 of the
+ * approved plan and the ribbon programme's unit 1.
+ *
+ * Seven groups: Info, Open, Save, Print, Share, Export, Help, in the order Office lists them down
+ * the left of its backstage screen. What to look at:
+ *
+ * 1. **The two primary groups are Open and Save**, which is the census's own reading of what a File
+ *    tab is for, and it is what decides the collapse order. Drag the container in and Help goes
+ *    first, then Print, then Info, Share and Export; Open and Save are still there at a phone's
+ *    width, each down to its one essential command — *Browse* and *Save*.
+ * 2. **Browse survives the Open group's collapse and Recent does not.** Recent is the page's
+ *    headline and the group's `large` button; a collapsed group has room for a verb rather than for
+ *    a list, and the verb is *go and find one*.
+ * 3. **Properties has no icon**, deliberately, and neither do three commands on PowerPoint's and
+ *    Excel's File tabs. Fluent draws nothing honest for them, and `<mjx-icon>`'s own rule is that a
+ *    wrong icon is worse than a missing one because a person acts on it.
+ * 4. **AutoSave is the only toggle on the whole tab**, and it is drawn pressed, because that is
+ *    what Office ships for a cloud document.
+ *
+ * Printer and Copies are bound here rather than declared in the census: *which printer* is this
+ * machine's business and no ribbon data can know it. See `stories/ribbons/ribbon-parts.ts`.
+ */
 export const File: Story = { render: () => ribbon('file') };
 
 /**

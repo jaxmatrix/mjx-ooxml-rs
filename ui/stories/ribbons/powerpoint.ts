@@ -12,6 +12,9 @@
  * story that renders every tab at once is the one place they collide, and the collision is the
  * catalogue's artefact rather than a transcription slip — see `dev/ribbons/census.ts`.
  *
+ * **File** is the ribbon programme's unit 1 and is authored; see `powerpointFileTab` for what
+ * PowerPoint's own two lists are.
+ *
  * **Home** carries the commands migrated out of `stories/shell/powerpoint.stories.ts`, unchanged.
  * The census's `GroupSlides` is declared there and not rendered here, because it is not on the
  * shell's Home today and authoring it is unit 2's work.
@@ -35,6 +38,32 @@ const entry = (id: string) => ribbonTab('powerpoint', id);
 
 // ── the authored tabs ────────────────────────────────────────────────────────
 
+/**
+ * File: Info, Open, Save, Print, Share, Export, Help.
+ *
+ * The shape and the reasoning are `stories/ribbons/word.ts`'s — the groups are the census's
+ * backstage *destinations*, and Print is the one group with a real dialog behind it. What is
+ * PowerPoint's own is in the two lists the census carries: **Share** has *Publish Slides*, which
+ * uploads slides one at a time to a library, and **Export** has *Create a Video*, *Package
+ * Presentation for CD* and *Create Handouts*. A deck is the only document with a second shape to be
+ * printed in and the only one that can be played, which is why this tab is longer than Word's.
+ */
+export function powerpointFileTab(options: TabOptions = {}): TemplateResult {
+  const file = entry('file');
+  const controls = options.controls ?? {};
+  return tab(
+    file.id,
+    file.label,
+    censusGroup(file, 'TabInfo', {}, controls),
+    censusGroup(file, 'TabRecent', {}, controls),
+    censusGroup(file, 'TabSave', {}, controls),
+    censusGroup(file, 'TabPrint', { launcher: 'Page setup' }, controls),
+    censusGroup(file, 'TabShare', {}, controls),
+    censusGroup(file, 'TabPublish', {}, controls),
+    censusGroup(file, 'TabHelp', {}, controls),
+  );
+}
+
 /** Home: Clipboard, Font, Paragraph, Drawing, Editing — in Office's order. */
 export function powerpointHomeTab(options: TabOptions = {}): TemplateResult {
   const home = entry('home');
@@ -51,10 +80,6 @@ export function powerpointHomeTab(options: TabOptions = {}): TemplateResult {
 }
 
 // ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointFileTab(): TemplateResult {
-  return placeholderTab(entry('file'));
-}
 
 export function powerpointInsertTab(): TemplateResult {
   return placeholderTab(entry('insert'));

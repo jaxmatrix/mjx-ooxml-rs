@@ -69,12 +69,14 @@
  * and a catalogue story can bind the same command two different ways without either of them
  * knowing what the other did.
  *
- * ## Only Home carries commands yet
+ * ## Which tabs carry commands yet
  *
- * Unit 0 is the scaffold. The three Home tabs hold the commands migrated out of
- * `stories/shell/*.stories.ts`, unchanged; every other tab is a placeholder until its own unit.
- * That is why `commands` is optional rather than required — an empty array would claim a tab had
- * been authored and found to hold nothing.
+ * **File and Home.** Unit 0 was the scaffold: the three Home tabs held the commands migrated out of
+ * `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1 authored
+ * File in all three applications — see the *commands File shows* section below, which is also where
+ * the reasoning about the census's control counts lives. Every remaining tab is still a placeholder
+ * until its own unit. That is why `commands` is optional rather than required — an empty array
+ * would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
  *
@@ -296,6 +298,194 @@ const excelHomeEditing: readonly RibbonCommand[] = [
   { id: 'excel.home.editing.find-select', label: 'Find & Select', icon: 'search' },
 ];
 
+// ── the commands File shows ──────────────────────────────────────────────────
+//
+// The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
+// approved plan makes File an **ordinary ribbon tab**: its groups are the backstage destinations,
+// so `TabRecent` is the Open group and `TabPublish` is the Export group, and a person reaches them
+// the way they reach Bold.
+//
+// ## Why this is a fraction of what the census counts, and why that is the design
+//
+// The census counts Open at 67 controls and Save at 60, and neither number is a number of things a
+// person sees. `ButtonTaskDynamicServiceProvider`, `CloudSkyDriveUpsellGroup` and their forty-odd
+// relatives are the cloud-provider plumbing behind *Add a Place* — real controls in Office's own
+// manifest, and no more part of the Open page's face than a file dialog's COM registration is.
+// Decision 3 of the plan is the rule: **name what the tab shows; menus stay shallow.** So Open is
+// the five destinations Office lists down the left of its Open page, and `controls: 67` stays
+// beside it as *data* — checked against the TSV by `tests/ribbons.test.ts`, rendered by nothing.
+// `dev/word-tab-home.ts` remains the artefact that pads to the census count, because a stress
+// specimen is what a count is for.
+//
+// ## Four pages are the same page three times, so they are written once
+//
+// Office's Open, Save, Print and Help pages are identical in Word, PowerPoint and Excel — same
+// destinations, same verbs, same order — and the only thing that differs is the id prefix a host
+// binds an override to. Three copies of an identical list is three places for one of them to drift,
+// which is the argument the whole census is written under, so these are functions of the
+// application rather than transcribed three times. Info, Share and Export **are** transcribed per
+// application, because those three genuinely differ: Office renames the noun (Protect *Document* /
+// *Presentation* / *Workbook*), PowerPoint's Export carries video and packaging commands nothing
+// else has, and Excel's Share is short because Excel has a Publish page beside it.
+//
+// ## The commands that carry no icon, and why that is not an omission
+//
+// Properties, Package Presentation for CD, Create Handouts and Publish to Power BI are drawn as
+// `size="small"` with no `icon` at all. `<mjx-icon>`'s own rule is that a wrong icon is worse than
+// a missing one because a person acts on it, and Fluent has no honest drawing for any of the four
+// — there is no CD in the set at 20px, and a handout is not a landscape page. Properties is the
+// one of them Office agrees with outright: it is a panel heading on the Info page rather than a
+// picture button, so a glyph here would be an invention rather than a translation.
+
+/**
+ * Open, as Office lists it: the five places a document comes from.
+ *
+ * **Browse** is the group's survivor rather than Recent, and that is a deliberate reading of what
+ * a collapsed group is for. Recent is the page's headline and is therefore the `large` button; but
+ * a collapsed group has room for a verb, not for a list, and the verb here is *go and find one*.
+ */
+function fileOpenCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.file.open.recent`, label: 'Recent', icon: 'history', size: 'large' },
+    { id: `${application}.file.open.shared-with-me`, label: 'Shared with Me', icon: 'people' },
+    { id: `${application}.file.open.onedrive`, label: 'OneDrive', icon: 'cloud' },
+    { id: `${application}.file.open.this-pc`, label: 'This PC', icon: 'desktop' },
+    { id: `${application}.file.open.browse`, label: 'Browse', icon: 'folder-open', essential: true },
+  ];
+}
+
+/**
+ * Save, Save As, Save a Copy and AutoSave.
+ *
+ * **AutoSave is the File tab's only toggle**, in any of the three applications, and it is the
+ * reason `arrow-sync` is requested in both variants: a toggle draws filled when it is pressed, and
+ * a control that vanished the moment somebody turned it on would be the same defect as a blank
+ * square arriving from the other direction. It is declared `pressed` because that is what Office
+ * ships for a cloud document, and a resting state nobody has seen is a state nobody has audited.
+ */
+function fileSaveCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.file.save.save`, label: 'Save', icon: 'save', size: 'large', essential: true },
+    { id: `${application}.file.save.save-as`, label: 'Save As', icon: 'save-edit' },
+    { id: `${application}.file.save.save-a-copy`, label: 'Save a Copy', icon: 'save-copy' },
+    { id: `${application}.file.save.autosave`, label: 'AutoSave', icon: 'arrow-sync', toggle: true, pressed: true },
+  ];
+}
+
+/**
+ * Print, and the two controls Office puts beside it.
+ *
+ * Printer and Copies carry **no icon** here and are not meant to render as buttons at all: they are
+ * a dropdown and a number field, which `RibbonCommand` deliberately cannot express, so each host
+ * binds them as a `TemplateResult` keyed by the id below. That is the seam
+ * `stories/ribbons/ribbon-parts.ts` exists to draw, and Print is the first group in the census that
+ * actually needs it for something other than a font list — *which printer* is this machine's
+ * business, and a ribbon module has no way to know.
+ */
+function filePrintCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.file.print.print`, label: 'Print', icon: 'print', size: 'large', essential: true },
+    { id: `${application}.file.print.printer`, label: 'Printer' },
+    { id: `${application}.file.print.copies`, label: 'Copies' },
+    { id: `${application}.file.print.settings`, label: 'Settings', icon: 'settings' },
+  ];
+}
+
+/** Help, and the four places Office's Help page actually goes. */
+function fileHelpCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.file.help.help`, label: 'Help', icon: 'question-circle', size: 'large', essential: true },
+    { id: `${application}.file.help.contact-support`, label: 'Contact Support', icon: 'person-support' },
+    { id: `${application}.file.help.feedback`, label: 'Feedback', icon: 'person-feedback' },
+    { id: `${application}.file.help.whats-new`, label: 'What’s New', icon: 'megaphone' },
+    { id: `${application}.file.help.about`, label: 'About', icon: 'info' },
+  ];
+}
+
+/**
+ * Info, whose four commands are one shape with the application's own noun in them.
+ *
+ * Office renames all three of the verbs — *Protect Document*, *Protect Presentation*, *Protect
+ * Workbook* — and renaming them here rather than writing a generic *Protect* is the point: a
+ * command whose label is not the one on the screen is a command a reviewer cannot check.
+ * `additional` is Excel's Workbook Statistics, which the other two applications have no equivalent
+ * of at all.
+ */
+function fileInfoCommands(
+  application: RibbonApplication,
+  noun: string,
+  additional: readonly RibbonCommand[] = [],
+): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.file.info.protect`, label: `Protect ${noun}`, icon: 'document-lock', essential: true },
+    { id: `${application}.file.info.check-for-issues`, label: 'Check for Issues', icon: 'document-search' },
+    { id: `${application}.file.info.manage`, label: `Manage ${noun}`, icon: 'history' },
+    ...additional,
+    { id: `${application}.file.info.properties`, label: 'Properties' },
+  ];
+}
+
+const wordFileShare: readonly RibbonCommand[] = [
+  { id: 'word.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'word.file.share.email', label: 'Email', icon: 'mail' },
+  { id: 'word.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
+  { id: 'word.file.share.present-online', label: 'Present Online', icon: 'presenter' },
+];
+
+const wordFileExport: readonly RibbonCommand[] = [
+  { id: 'word.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'word.file.export.change-file-type', label: 'Change File Type', icon: 'arrow-swap' },
+];
+
+const powerpointFileShare: readonly RibbonCommand[] = [
+  { id: 'powerpoint.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'powerpoint.file.share.email', label: 'Email', icon: 'mail' },
+  { id: 'powerpoint.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
+  { id: 'powerpoint.file.share.present-online', label: 'Present Online', icon: 'presenter' },
+  { id: 'powerpoint.file.share.publish-slides', label: 'Publish Slides', icon: 'slide-multiple' },
+];
+
+/**
+ * PowerPoint's Export page, which is the one place the three File tabs visibly diverge.
+ *
+ * Create a Video and Package Presentation for CD exist in no other application, and Create Handouts
+ * exists because a deck is the only document that has a second shape to be printed in. The last two
+ * carry no icon: see this section's header.
+ */
+const powerpointFileExport: readonly RibbonCommand[] = [
+  { id: 'powerpoint.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'powerpoint.file.export.video', label: 'Create a Video', icon: 'video' },
+  { id: 'powerpoint.file.export.package-for-cd', label: 'Package Presentation for CD' },
+  { id: 'powerpoint.file.export.handouts', label: 'Create Handouts' },
+  { id: 'powerpoint.file.export.change-file-type', label: 'Change File Type', icon: 'arrow-swap' },
+];
+
+/** Excel's Share page is short because Excel has a Publish page beside it. See `excelFilePublish`. */
+const excelFileShare: readonly RibbonCommand[] = [
+  { id: 'excel.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'excel.file.share.email', label: 'Email', icon: 'mail' },
+  { id: 'excel.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
+];
+
+const excelFileExport: readonly RibbonCommand[] = [
+  { id: 'excel.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'excel.file.export.change-file-type', label: 'Change File Type', icon: 'arrow-swap' },
+];
+
+/**
+ * Excel's Publish page — the group the other two applications have no row for at all.
+ *
+ * `Publish2Tab` is the census's own id and carries three controls, which is the one place in this
+ * whole tab where what Office shows and what the census counts agree exactly. The headline carries
+ * no icon: Fluent draws no Power BI mark, and every generic candidate — a chart, an upload arrow —
+ * already means one of the two commands underneath it.
+ */
+const excelFilePublish: readonly RibbonCommand[] = [
+  { id: 'excel.file.publish.power-bi', label: 'Publish to Power BI' },
+  { id: 'excel.file.publish.upload-workbook', label: 'Upload Workbook', icon: 'arrow-upload' },
+  { id: 'excel.file.publish.export-data', label: 'Export Workbook Data', icon: 'arrow-export' },
+];
+
 // ── the tabs ─────────────────────────────────────────────────────────────────
 
 export const wordRibbonTabs: readonly RibbonTabEntry[] = [
@@ -305,13 +495,13 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'backstage' },
     groups: [
-      { id: 'TabInfo', label: 'Info', priority: 'standard', controls: 8, inScope: true },
-      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true },
-      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true },
-      { id: 'TabPrint', label: 'Print', priority: 'secondary', controls: 1, inScope: true },
-      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 21, inScope: true },
-      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 8, inScope: true },
-      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true },
+      { id: 'TabInfo', label: 'Info', priority: 'standard', controls: 8, inScope: true, commands: fileInfoCommands('word', 'Document') },
+      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true, commands: fileOpenCommands('word') },
+      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true, commands: fileSaveCommands('word') },
+      { id: 'TabPrint', label: 'Print', priority: 'secondary', controls: 1, inScope: true, commands: filePrintCommands('word') },
+      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 21, inScope: true, commands: wordFileShare },
+      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 8, inScope: true, commands: wordFileExport },
+      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true, commands: fileHelpCommands('word') },
     ],
   },
   {
@@ -487,13 +677,13 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'backstage' },
     groups: [
-      { id: 'TabInfo', label: 'Info', priority: 'standard', controls: 8, inScope: true },
-      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true },
-      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true },
-      { id: 'TabPrint', label: 'Print', priority: 'secondary', controls: 1, inScope: true },
-      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 22, inScope: true },
-      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 16, inScope: true },
-      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true },
+      { id: 'TabInfo', label: 'Info', priority: 'standard', controls: 8, inScope: true, commands: fileInfoCommands('powerpoint', 'Presentation') },
+      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true, commands: fileOpenCommands('powerpoint') },
+      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true, commands: fileSaveCommands('powerpoint') },
+      { id: 'TabPrint', label: 'Print', priority: 'secondary', controls: 1, inScope: true, commands: filePrintCommands('powerpoint') },
+      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 22, inScope: true, commands: powerpointFileShare },
+      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 16, inScope: true, commands: powerpointFileExport },
+      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true, commands: fileHelpCommands('powerpoint') },
     ],
   },
   {
@@ -749,13 +939,22 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'backstage' },
     groups: [
-      { id: 'TabInfo', label: 'Info', priority: 'standard', controls: 9, inScope: true },
-      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true },
-      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true },
-      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 19, inScope: true },
-      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 6, inScope: true },
-      { id: 'Publish2Tab', label: 'Publish', priority: 'secondary', controls: 3, inScope: true },
-      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true },
+      {
+        id: 'TabInfo',
+        label: 'Info',
+        priority: 'standard',
+        controls: 9,
+        inScope: true,
+        commands: fileInfoCommands('excel', 'Workbook', [
+          { id: 'excel.file.info.workbook-statistics', label: 'Workbook Statistics', icon: 'data-histogram' },
+        ]),
+      },
+      { id: 'TabRecent', label: 'Open', priority: 'primary', controls: 67, inScope: true, commands: fileOpenCommands('excel') },
+      { id: 'TabSave', label: 'Save', priority: 'primary', controls: 60, inScope: true, commands: fileSaveCommands('excel') },
+      { id: 'TabShare', label: 'Share', priority: 'standard', controls: 19, inScope: true, commands: excelFileShare },
+      { id: 'TabPublish', label: 'Export', priority: 'standard', controls: 6, inScope: true, commands: excelFileExport },
+      { id: 'Publish2Tab', label: 'Publish', priority: 'secondary', controls: 3, inScope: true, commands: excelFilePublish },
+      { id: 'TabHelp', label: 'Help', priority: 'ancillary', controls: 6, inScope: true, commands: fileHelpCommands('excel') },
     ],
   },
   {

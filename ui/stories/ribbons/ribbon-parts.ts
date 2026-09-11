@@ -75,6 +75,35 @@ export interface TabOptions {
   readonly controls?: ControlOverrides;
 }
 
+// ── what a host has to know that a census cannot ─────────────────────────────
+
+/**
+ * **This machine's printers**, and the counts a copies field offers.
+ *
+ * The File tab's Print group is the first group in the census whose bindings are not about a
+ * document at all. A font list is at least *arguably* the document's; which printers are attached
+ * to this computer is not, and no amount of ribbon data can say. So Printer and Copies are declared
+ * as commands with no icon — see `dev/ribbons/census.ts` — and each host binds a real control over
+ * them by id.
+ *
+ * The two lists live here rather than in each host because there are **four** of them for the same
+ * two commands: `Ribbons/Word`, `Ribbons/PowerPoint` and the Word and PowerPoint shells. Four
+ * copies of one list is four places for one of them to drift, which is the argument the census
+ * itself is written under, applied one level up.
+ *
+ * ⚠ The names are deliberately **not** a real product's. A specimen that named a printer somebody
+ * could buy would be a claim about what this platform has been tested against; these say *a machine
+ * with three printers on it* and nothing more.
+ */
+export const printerList: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'pdf', label: 'Print to PDF' },
+  { value: 'hallway', label: 'Hallway Colour (Network)' },
+  { value: 'studio', label: 'Studio Laser' },
+];
+
+/** What a copies field offers before somebody types their own. `allow-custom` is why it is short. */
+export const copyCounts: readonly string[] = ['1', '2', '3', '4', '5'];
+
 // ── the parts ────────────────────────────────────────────────────────────────
 
 /** One tab of a ribbon. */

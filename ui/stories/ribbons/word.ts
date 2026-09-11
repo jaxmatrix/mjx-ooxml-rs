@@ -8,10 +8,14 @@
  *
  * ## What is real and what is a placeholder, today
  *
+ * **File** is the ribbon programme's unit 1: seven groups — Info, Open, Save, Print, Share, Export,
+ * Help — built from the census's *backstage* rows, because decision 1 of the approved plan makes
+ * File an ordinary tab rather than a separate screen.
+ *
  * **Home** carries the commands migrated out of `stories/shell/word.stories.ts` — unchanged, in the
  * order the shell rendered them, so the assembled shell looks exactly as it did before this file
  * existed. Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority
- * the census declares, holding one honest button. Units 1 onward replace them one tab at a time,
+ * the census declares, holding one honest button. Units 2 onward replace them one tab at a time,
  * and each of those is a small diff against a file that already has the right shape.
  *
  * Word's Home has **six** in-scope groups in the census and this renders five: `GroupEditor` is
@@ -44,6 +48,35 @@ const entry = (id: string) => ribbonTab('word', id);
 // ── the authored tabs ────────────────────────────────────────────────────────
 
 /**
+ * File: Info, Open, Save, Print, Share, Export, Help — in the order Office lists them down the left
+ * of its backstage screen.
+ *
+ * Decision 1 of the approved plan makes this an **ordinary ribbon tab**, so the groups are the
+ * backstage *destinations* and `censusGroup` is handed a census tab id (`TabRecent`, `TabPublish`)
+ * rather than a group id. `dev/ribbons/census.ts`'s `RibbonTabSource` discriminant is what lets the
+ * gate assert a real equality for both shapes.
+ *
+ * **Only Print has a dialog launcher**, and it is the one group here where Office genuinely has a
+ * further surface to open: Page Setup. Info, Open, Save, Share, Export and Help are pages rather
+ * than property sheets, and a launcher on one of them would promise a dialog that does not exist.
+ */
+export function wordFileTab(options: TabOptions = {}): TemplateResult {
+  const file = entry('file');
+  const controls = options.controls ?? {};
+  return tab(
+    file.id,
+    file.label,
+    censusGroup(file, 'TabInfo', {}, controls),
+    censusGroup(file, 'TabRecent', {}, controls),
+    censusGroup(file, 'TabSave', {}, controls),
+    censusGroup(file, 'TabPrint', { launcher: 'Page setup' }, controls),
+    censusGroup(file, 'TabShare', {}, controls),
+    censusGroup(file, 'TabPublish', {}, controls),
+    censusGroup(file, 'TabHelp', {}, controls),
+  );
+}
+
+/**
  * Home: Clipboard, Font, Paragraph, Styles, Editing.
  *
  * The group *order* is Office's and is this module's decision — the census has no column for it.
@@ -65,10 +98,6 @@ export function wordHomeTab(options: TabOptions = {}): TemplateResult {
 }
 
 // ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordFileTab(): TemplateResult {
-  return placeholderTab(entry('file'));
-}
 
 export function wordInsertTab(): TemplateResult {
   return placeholderTab(entry('insert'));

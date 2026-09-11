@@ -5,7 +5,9 @@
  *
  * 1. **The File tab has no Print group**, because the census has no backstage `TabPrint` row for
  *    Excel and does have a `Publish2Tab` the other two lack. That is a gap in the dump rather than
- *    a fact about Excel, and `dev/ribbons/census.ts` records it where a reader will meet it.
+ *    a fact about Excel, and `dev/ribbons/census.ts` records it where a reader will meet it. The
+ *    tab itself is authored — the ribbon programme's unit 1 — so the difference is now visible
+ *    rather than described.
  * 2. **Home carries eight in-scope groups and this renders six.** `GroupCells` and
  *    `GroupHomePowerOptions` are declared in the census and are not on the shell's Home today, so
  *    authoring them is unit 2's work rather than something this file invents.
@@ -29,6 +31,39 @@ const entry = (id: string) => ribbonTab('excel', id);
 
 // ── the authored tabs ────────────────────────────────────────────────────────
 
+/**
+ * File: Info, Open, Save, Share, Export, Publish, Help — and **no Print group**.
+ *
+ * The shape and the reasoning are `stories/ribbons/word.ts`'s. Excel's two differences are both the
+ * census's rather than this module's, and both are recorded in `dev/ribbons/census.ts` rather than
+ * smoothed over here:
+ *
+ * 1. **There is no backstage `TabPrint` row for Excel**, so there is no Print group to author.
+ *    Excel obviously has a File → Print page, so this is a gap in the census dump — and inventing a
+ *    row would be exactly the drift the transcription exists to prevent.
+ * 2. **There is a `Publish2Tab` the other two lack**, which is Excel's Publish to Power BI page. Its
+ *    three controls are the one place on this whole tab where what Office shows and what the census
+ *    counts agree exactly.
+ *
+ * Info carries a fifth command the other two applications have no equivalent of: Workbook
+ * Statistics.
+ */
+export function excelFileTab(options: TabOptions = {}): TemplateResult {
+  const file = entry('file');
+  const controls = options.controls ?? {};
+  return tab(
+    file.id,
+    file.label,
+    censusGroup(file, 'TabInfo', {}, controls),
+    censusGroup(file, 'TabRecent', {}, controls),
+    censusGroup(file, 'TabSave', {}, controls),
+    censusGroup(file, 'TabShare', {}, controls),
+    censusGroup(file, 'TabPublish', {}, controls),
+    censusGroup(file, 'Publish2Tab', {}, controls),
+    censusGroup(file, 'TabHelp', {}, controls),
+  );
+}
+
 /** Home: Clipboard, Font, Alignment, Number, Styles, Editing — in Office's order. */
 export function excelHomeTab(options: TabOptions = {}): TemplateResult {
   const home = entry('home');
@@ -46,10 +81,6 @@ export function excelHomeTab(options: TabOptions = {}): TemplateResult {
 }
 
 // ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelFileTab(): TemplateResult {
-  return placeholderTab(entry('file'));
-}
 
 export function excelInsertTab(): TemplateResult {
   return placeholderTab(entry('insert'));

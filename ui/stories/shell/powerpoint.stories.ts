@@ -43,6 +43,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
+import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **PowerPoint, assembled** — the ribbon, the thumbnail rail, the slide surface, a task pane and
@@ -167,6 +168,33 @@ function ribbon(): TemplateResult {
       <mjx-ribbon label="PowerPoint" selected="home" @mjx-activate=${openDeclaredSurface}>
         ${powerpointTabs({
           controls: {
+            // The File tab's Print group. *Which printers* is this machine's business and a ribbon
+            // module has no way to know it, so the census declares Printer and Copies as commands
+            // with no icon and the host binds a real control over each. The lists are
+            // `stories/ribbons/ribbon-parts.ts`'s, shared with the catalogue, because four copies
+            // of one list is four places for one of them to drift.
+            'powerpoint.file.print.printer': html`<mjx-dropdown
+              id="powerpoint-printer"
+              label="Printer"
+              value="pdf"
+              style=${ribbonFieldStyle}
+            >
+              ${printerList.map(
+                (printer) =>
+                  html`<mjx-option value=${printer.value} label=${printer.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'powerpoint.file.print.copies': html`<mjx-combo-box
+              id="powerpoint-copies"
+              label="Copies"
+              value="1"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${copyCounts.map(
+                (count) => html`<mjx-option value=${count} label=${count}></mjx-option>`,
+              )}
+            </mjx-combo-box>`,
             'powerpoint.home.clipboard.paste': html`<mjx-split-button
               slot="essential"
               label="Paste"

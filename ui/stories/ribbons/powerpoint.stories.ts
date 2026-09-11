@@ -10,7 +10,9 @@ import {
   standardColors,
 } from '../pickers/specimens.ts';
 import {
+  copyCounts,
   openDeclaredSurface,
+  printerList,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
   ribbonGalleryStyle,
@@ -37,9 +39,9 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Home** is the only authored tab; the rest are placeholders at the census's own priorities.
- * See `Ribbons/Word` for why that is the whole of unit 0 and why the placeholders say so on their
- * face.
+ * **File and Home** are authored; the rest are placeholders at the census's own priorities. See
+ * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
+ * since the three are one tab with three sets of differences rather than three tabs.
  */
 
 const conventions = storyConventions({
@@ -57,7 +59,8 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. Home is authored; the rest are placeholders carrying the census’s priorities.',
+          'ribbon. File and Home are authored; the rest are placeholders carrying the census’s ' +
+          'priorities.',
       },
     },
     mjx: conventions,
@@ -70,6 +73,25 @@ type Story = StoryObj;
 
 /** The catalogue's own bindings. See `Ribbons/Word` on why these are not the shell's. */
 const bindings: ControlOverrides = {
+  'powerpoint.file.print.printer': html`<mjx-dropdown
+    id="ribbons-powerpoint-printer"
+    label="Printer"
+    value="pdf"
+    style=${ribbonFieldStyle}
+  >
+    ${printerList.map(
+      (printer) => html`<mjx-option value=${printer.value} label=${printer.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'powerpoint.file.print.copies': html`<mjx-combo-box
+    id="ribbons-powerpoint-copies"
+    label="Copies"
+    value="1"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${copyCounts.map((count) => html`<mjx-option value=${count} label=${count}></mjx-option>`)}
+  </mjx-combo-box>`,
   'powerpoint.home.clipboard.paste': html`<mjx-split-button
     slot="essential"
     label="Paste"
@@ -146,7 +168,21 @@ function ribbon(selected: string): TemplateResult {
   `;
 }
 
-/** Unit 1. */
+/**
+ * **File** — the same seven groups as Word's, and the one tab where PowerPoint's File page visibly
+ * differs from the other two.
+ *
+ * **Export** carries *Create a Video*, *Package Presentation for CD* and *Create Handouts*: a deck
+ * is the only document that can be played and the only one with a second shape to be printed in.
+ * **Share** carries *Publish Slides*, which sends slides to a library one at a time rather than the
+ * deck as a file.
+ *
+ * Two of those five carry **no icon** — Package Presentation for CD and Create Handouts — because
+ * Fluent draws no CD at 20px and a handout is not a landscape page. That is the rule rather than an
+ * oversight: a wrong icon is worse than a missing one, because a person acts on it.
+ *
+ * See `Ribbons/Word → File` for the collapse order, which is the same here.
+ */
 export const File: Story = { render: () => ribbon('file') };
 
 /**
