@@ -1,5 +1,9 @@
 //! `mjx-ooxml-types` — comprehensively-named OOXML simple types and namespace constants.
 //!
+//! **Start at [`guide`]** — what is generated, what is hand-written, where the line between them
+//! falls, and how much of a generated table to trust. It is written for someone who has to
+//! decide that, because the committed output is the only artefact anyone reads.
+//!
 //! Most of this crate is **generated** by `xtask` from the ECMA-376 XSD schemas (see the naming
 //! convention in `PLAN.md`): every cryptic `ST_*` symbol becomes a self-explanatory Rust name, each
 //! type carries wire (de)serialization, and the original symbol + wire token are documented on the
@@ -32,6 +36,7 @@
 
 pub mod child_order;
 pub mod drawingml;
+pub mod guide;
 pub mod presentationml;
 pub mod support;
 

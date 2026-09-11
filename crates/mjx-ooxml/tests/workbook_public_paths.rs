@@ -815,6 +815,10 @@ fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
     assert_eq!(workbooks[0].anchor, anchor);
     assert!(!workbooks[0].external);
     assert!(workbook.refresh_chart_workbook(0, anchor).expect("refresh"));
+    // MJXOFF-208's explicit opt-in, reachable from the facade beside the patching default.
+    assert!(workbook
+        .regenerate_chart_workbook(0, anchor)
+        .expect("regenerate"));
 
     workbook
         .set_chart_title(0, anchor, Some("Regional revenue"))
@@ -1110,4 +1114,42 @@ fn a_live_range_chart_and_its_resolver_are_reachable_naming_only_the_facade() {
     workbook
         .save()
         .expect("the edited workbook still validates");
+}
+
+/// A tab that cannot carry an edit answers [`ErrorCode::WrongKind`], naming the tab (MJXOFF-241).
+///
+/// The code is the one thing a Python or a JavaScript caller sees, so the facade's reading of the
+/// refusal *is* the refusal for two of the three languages. Before MJXOFF-241 `mjx-xlsx` reported
+/// this as a part missing from the package and the facade dutifully classified it
+/// `MalformedDocument` — telling every caller the file was broken when it was not.
+#[test]
+fn an_edit_aimed_at_a_tab_that_cannot_carry_it_is_a_wrong_kind_naming_the_tab() {
+    let mut workbook = Workbook::open(&fixture("print_and_sheet_kinds.xlsx")).expect("it opens");
+
+    // The premise: tab 1 is the dialogsheet this case is aimed at.
+    assert_eq!(workbook.sheets()[1].kind, Some(SheetKind::Dialogsheet));
+
+    let error = workbook
+        .add_cell_comment(1, "A1", "Reviewer", "a remark")
+        .expect_err("a dialogsheet has no cell to anchor a comment to");
+    assert_eq!(error.code(), ErrorCode::WrongKind);
+    assert_eq!(error.detail().index, Some(1));
+
+    // The **cell** surface answers differently on purpose, and MJXOFF-241 left that alone:
+    // `worksheet_or_refuse` never reported a missing part — it writes its own sentence and reads the
+    // same tab as `NothingToRead`, "there are no cells there", which is the same answer a *read* of
+    // that tab gets. Pinned here so that the two codes are a decision rather than an accident.
+    let error = workbook
+        .write_cells(1, &[CellWrite::new("A1", CellInput::Number(1.0))])
+        .expect_err("a dialogsheet has no cells");
+    assert_eq!(error.code(), ErrorCode::NothingToRead);
+    assert_eq!(error.detail().index, Some(1));
+
+    // The worksheet beside it still takes both, so the codes above are guards and not walls.
+    workbook
+        .write_cells(0, &[CellWrite::new("Z9", CellInput::Number(1.0))])
+        .expect("tab 0 is a worksheet");
+    workbook
+        .add_cell_comment(0, "A1", "Reviewer", "a remark")
+        .expect("tab 0 is a worksheet");
 }

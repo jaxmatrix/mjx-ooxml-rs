@@ -1,0 +1,241 @@
+# The round-trip contract
+
+**Open a file, edit one thing, save it: every part you did not touch comes back byte for byte.**
+
+That is the promise this project exists to keep, and this page is where it is stated precisely enough
+to be wrong. *"Preserves unknown content"* and *"round-trips faithfully"* are equally true of a
+library that silently drops half a file, so every guarantee below names the type, the function or the
+test that makes it true — and where nothing does, it says so.
+
+## What is promised
+
+**Per-part decompressed-payload byte identity, plus structural container identity.** Not identical
+ZIP bytes: the compression level and the entry encoding are the container's business, not the
+document's. What is fixed is the set of entries, their order, and the decompressed bytes of each.
+
+```
+use mjx_opc::Package;
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let original = mjx_fixtures::fixture("charts.pptx");
+let package = Package::open(&original)?;
+let reopened = Package::open(&package.save()?)?;
+
+// Structural identity: the same entries, in the same order.
+let before: Vec<&str> = package.entries().iter().map(|e| e.name.as_str()).collect();
+let after: Vec<&str> = reopened.entries().iter().map(|e| e.name.as_str()).collect();
+assert_eq!(before, after);
+
+// Payload identity: every part, byte for byte.
+for entry in package.entries() {
+    let name = mjx_opc::PartName::from_zip_name(&entry.name)?;
+    assert_eq!(reopened.part_bytes(&name), entry.bytes(), "{} changed", entry.name);
+}
+# Ok(())
+# }
+```
+
+`crates/mjx-opc/tests/roundtrip.rs`'s `round_trip_preserves_every_part_verbatim` is that over every
+committed fixture, and it reads the corpus from `mjx_fixtures::package_fixtures` rather than a list
+in the file — six of fifteen fixtures once sat outside the list that stood there.
+
+## `CLAUDE.md`'s four fidelity rules, answered one at a time
+
+The project's architecture document states four things about this tier. They are claims, and each
+has an answer.
+
+### 1 · "Parts stay raw bytes until first mutation; untouched parts re-emit verbatim; on first edit, serialize from the model and drop raw bytes"
+
+**True, with one word to correct and one to sharpen.**
+
+The word to correct is *lazy*. The laziness is in **parsing**, not in decompression:
+[`Package::open`](crate::Package::open) inflates every entry eagerly. The word to sharpen is *drop*:
+the whole-part buffer is dropped on first edit, but the tree keeps a source buffer of its own so that
+untouched subtrees are still copied rather than rebuilt. Both are laid out in
+[Laziness and copy-on-write](laziness_and_copy_on_write).
+
+**What would fail if it stopped being true:**
+`crates/mjx-opc/tests/edit_surface.rs`'s `reading_a_part_does_not_change_its_saved_bytes` (a read that
+dirtied a part), `edit_one_part_every_other_byte_identical` (an edit that reached a second part),
+`editing_one_attribute_leaves_the_other_subtrees_of_the_same_part_byte_identical` and
+`reading_a_vml_part_does_not_reflow_it` (subtree copy-on-write giving up), and
+`release_unused_part_sources_reclaims_only_a_fully_rewritten_part` (a buffer released while something
+still pointed into it).
+
+### 2 · "Every modeled complex type carries `extra: Vec<RawNode>` for unknown children, and preserves unknown attributes, attribute order, and namespace prefixes"
+
+**The guarantee is substantially real and strongly enforced. The sentence is not accurate, and
+"every" has exceptions.**
+
+*The field name is one idiom of three.* A type keeps what it did not model in one of these shapes, and
+searching the codebase for `extra` finds only the first:
+
+* **`extra: Vec<RawNode>`** — the children a type declared no accessor for
+  (`mjx_docx::SignedTwipsMeasureElement`).
+* **`children: Vec<RawNode>` holding *all* children**, with typed accessors reading out of it on
+  demand (`mjx_dml::Inline`). This preserves strictly more, because nothing was separated out in the
+  first place.
+* **A typed content vector with a `Raw(RawNode)` variant** (`mjx_docx::ParagraphContent`), so an
+  unmodelled child keeps its *position* among its modelled siblings rather than being collected at the
+  end.
+
+*What holds it up is stronger than a convention.* For the third idiom it is **codegen**:
+`mjx-derive`'s `#[xml(children, child(…))]` arm generates a `from_xml` that tries each declared
+`(namespace, local)` arm and, for every node matching none of them, pushes a `Raw` variant —
+unconditionally, with no way to invoke the arm without it. `#[derive(XmlAttributes)]` likewise never
+rebuilds the attribute vector; it rewrites one attribute in place, which is what keeps order, quoting
+and unknown attributes intact. **A single test failure therefore reaches every type that derives
+them**, which is the opposite of per-fixture coverage:
+`crates/mjx-derive/tests/derive.rs`'s `unknown_namespaced_child_preserved_as_raw` and
+`container_round_trips_typed_child_and_raw`, and
+`crates/mjx-derive/tests/attributes.rs`'s `markup_nobody_assigned_to_re_emits_byte_for_byte` and
+`setting_every_modeled_attribute_leaves_the_unknown_one_where_it_was`.
+
+*The exceptions, and they are the finding.* Three kinds of type sit outside all of that:
+
+1. **`#[xml(text)]` leaves.** The derive's text arm reads only text and CDATA nodes and drops any
+   other child, and writes a single minimally-escaped text node — so an entity spelling, a character
+   reference, a CDATA section or an interleaved comment does not survive a rebuild. This is a
+   **write-path** property of the derive, not of the reader: `mjx_xml::fidelity` never decodes text at
+   all, and an untouched part carrying `&#38;` round-trips byte for byte with no derive involved
+   (`crates/mjx-xml/tests/subtree_cow.rs`'s `an_untouched_document_round_trips_byte_for_byte`). Five
+   types decline the derive because of it and hand-write the pair instead — `mjx_sml::DefinedName`,
+   `mjx_sml::HeaderFooterText`, `mjx_sml::CommentAuthor` (the three `s:ST_Xstring` leaves, which share
+   `crates/mjx-sml/src/leaf.rs`'s macro) and `mjx_sml::FormulaElement`, `mjx_sml::TableFormula` (the
+   two formula ones). `crates/mjx-sml/tests/workbook_markup.rs`'s
+   `an_entity_spelling_in_a_definition_survives_an_edit_elsewhere` is what pins the escape hatch.
+   `mjx_dml::Text` — DrawingML's `a:t` — *does* use the derive and accepts the loss.
+2. **Read-only projections.** `mjx_dml::Theme`, `mjx_dml::ColorScheme` and
+   `mjx_dml::StyleMatrixReference` implement `FromXml` and **no** `ToXml`. They are views over an
+   element, not wrappers around one, so nothing is ever written back through them and nothing can be
+   lost — but each is a public type standing for a complex type with no bucket at all, so the claim's
+   *"every modeled complex type"* is only true if it is read as *"every type that can be written
+   back"*.
+3. **Hand-written pairs, which are inside no guarantee at all.** A type that writes its own
+   `FromXml`/`ToXml` is outside `mjx-derive`'s codegen guarantee *by definition*, and MJXOFF-216
+   found what that costs: `mjx_dml::Picture` and `mjx_dml::PictureNonVisual` read three children by
+   name, discarded every other one, and rebuilt with a synthesised element name and an empty
+   attribute vector, so an attribute on `<pic:pic>`, a foreign child beside the three and every
+   `xmlns` declaration on it were destroyed.
+
+   **MJXOFF-217 counted the class rather than fixing the instance.** Of the eight hand-written pairs
+   `mjx-dml` held at 0.0.137, **four** lost content — the two above plus `mjx_dml::Graphic` (any
+   child beside the `a:graphicData`) and `mjx_dml::GraphicData` (its own name and prefix, and any
+   node beside the payload) — and two more, `mjx_dml::wordprocessing_drawing::Inline` and its
+   `Anchor`, re-emitted a self-closing element as an open/close pair. All six are fixed at 0.0.138:
+   the four moved onto the derive, the two adopted the self-closing formula
+   `fidelity_element_impls!` already used. Every one of the six is pinned by a case in
+   `crates/mjx-dml/tests/in_context_roundtrip.rs` that fails against 0.0.137.
+
+   What keeps the seventh honest is `crates/mjx-dml/tests/serialization_ledger.rs`: it reads that
+   crate's own sources, and every hand-written `FromXml`/`ToXml` must be on a ledger declaring which
+   idiom keeps what the type does not model — and the idiom is **checked against the impl body**, so
+   a row claiming to preserve everything while handing `RawElement::rebuilt` a fresh `Vec::new()`
+   fails. The nine rows that remain are three read-only projections, three dispatchers on an element
+   name (`mjx_dml::Fill` and the two `xdr:` choices), and three wrappers holding their children raw.
+
+   **`mjx-sml` is inside a gate of its own as of MJXOFF-220**, and its shape is different because
+   the question there is different. Its hand-written impls are almost all `ToXml`-only — the reader
+   is the derive — and every one of the writers is the *same* three lines, handing the work to an
+   inherent `as_raw_element(&self)` that exists because a worksheet's writer takes `&self` and has
+   no mutable interner to lend. Classifying fifty-seven copies of one delegation would be a list
+   that passes once it is written, so `crates/mjx-sml/tests/serialization_ledger.rs` follows the
+   delegation instead: it requires every hand-written writer to *be* that delegation or to carry a
+   reason, and holds all sixty of the rebuilders behind them to the shape `Picture::to_xml` broke —
+   the element's own name, its own attributes, its own self-closing flag. Dropping `&self.attributes`
+   from one of the sixty leaves every other test in that crate green.
+
+   **`mjx-docx` closed MJXOFF-218's other half**, and its shape is a third thing again. All 158 of
+   its hand-written impls are *pairs*, and 146 of them are the same body typed out again — a reader
+   storing the element's `name`, `attributes`, bucket and self-closing flag, and a writer rebuilding
+   from exactly those four. Nothing is shared, so the risk there is not a design but a **mistyped
+   copy**, and a ledger with 146 rows would be the longest list in the workspace and would say
+   nothing about the one character that matters. `crates/mjx-docx/tests/serialization_ledger.rs`
+   therefore compares each body against the canonical text **character for character** and requires
+   the bucket field to agree across the pair; the twelve that are genuinely different carry a row
+   with one of three idioms, each checked against its own body.
+
+   That arm found three losses on its first run, all in `document/drawing.rs`. `mjx_docx::Control`
+   is MJXOFF-216's shape exactly: it stored **no children at all** — the struct had no field for
+   them — and rebuilt with a fresh `Vec::new()` and the self-closing flag hard-coded `true`, so a
+   foreign child, a comment or an `o:` extension inside a `w:control` was destroyed and
+   `<w:control></w:control>` came back `<w:control/>`. `CT_Control` declares no content model, which
+   is what made it look safe; the contract has no "the schema says this cannot happen" clause.
+   `mjx_docx::WordprocessingShape` and `mjx_docx::TextboxInfo` read `element.empty` into a field
+   their writers ignored in favour of a literal `false` — MJXOFF-217's self-closing loss, twice
+   more. All three are fixed at 0.0.151 and pinned by cases in
+   `crates/mjx-docx/tests/drawing_placement.rs` that fail against 0.0.150.
+
+   **Three files rather than one shared crate is a decision, recorded in the `mjx-docx` file.** The
+   three share a source scanner and nothing else, because the idioms are the finding and they differ
+   per crate. What the duplication costs is that a scanner improvement has to be made three times,
+   and that has already happened once: MJXOFF-218's own census reported 5 `FromXml` and 57 `ToXml`
+   in `mjx-sml` where there are 6 and 58, because a scanner keyed on a bare `impl ToXml for` cannot
+   see `impl mjx_ooxml_core::ToXml for ColorElement`. All three files now carry the fixed scanner.
+
+### 3 · "MCE is handled in `mjx-mce`, preserved on write and resolved (non-mutating) on read/render"
+
+**Preservation: true by construction. Non-mutating: true by the type system. "Handled in `mjx-mce`":
+true of resolution and not of everything.**
+
+*Preserved on write* needs no code at all, and that is the strongest form the claim could take: the
+stored tree already contains every `mc:*` node and attribute verbatim, so serialising it re-emits
+them. Preservation **is** the untouched tree. It is covered by exactly the same gate as everything
+else — `crates/mjx-opc/tests/tree_roundtrip.rs`.
+
+*Non-mutating* is not a promise anyone has to keep: `mjx_mce::resolve` takes `&RawDocument` and
+returns `mjx_mce::ResolvedNode` values that **borrow** from it. There is no `&mut` in the signature, so
+a later serialize is byte-identical because it cannot be anything else. `crates/mjx-mce/tests/resolve.rs`
+is the behavioural suite.
+
+*Handled in `mjx-mce`* is the part to qualify. Exactly one shipped call site resolves —
+`crates/mjx-docx/src/document/headers.rs` — and two format crates instead walk MCE **by hand**:
+`crates/mjx-pptx/src/slide.rs` and `crates/mjx-xlsx/src/nav.rs` each declare their own `MCE` namespace
+constant so their child-matching helpers can descend into `mc:AlternateContent` / `mc:Choice` /
+`mc:Fallback` directly, because an OLE object's `p:oleObj` and a worksheet's `x:controls` arrive
+wrapped in it. `mjx_xlsx`'s helper says outright that it does not resolve which branch a consumer would
+pick. That is a defensible design — the identifier it wants is the same in every branch, and choosing
+between them is a rendering decision — but it means "MCE is handled in `mjx-mce`" describes the
+resolution, not the navigation. `crates/mjx-mce/docs/markup_compatibility.md` is the page for it.
+
+### 4 · "Round-trip contract: per-part decompressed-payload byte identity + structural container identity"
+
+**True, and the best-enforced of the four — at three different granularities.**
+
+* **The container.** `crates/mjx-opc/tests/roundtrip.rs` —
+  `round_trip_preserves_every_part_verbatim` over every committed fixture, with an anti-vacuity floor
+  so a corpus that shrank to nothing cannot pass silently.
+* **The tree.** `crates/mjx-opc/tests/tree_roundtrip.rs` —
+  `every_xml_part_round_trips_byte_identical` parses and re-serialises every XML part of every fixture
+  through `mjx_xml::fidelity`. There are no exceptions and no list of them.
+* **The edit.** `crates/mjx-ooxml/tests/preservation/main.rs` — every committed fixture crossed with
+  every mutating method of all three facade surfaces, each method declaring which classes of part it
+  may add, change or remove. A difference matching no clause fails, and a reader declaring `NOTHING`
+  must bring the package back part for part identical.
+
+The third is the one with teeth, and its own vacuity traps are closed in both directions: the method
+list is derived from the facade's source and compared with the registry both ways, the corpus is read
+from `mjx-fixtures` and compared with what the sweep visited both ways.
+
+## What the contract does *not* promise
+
+**It is about parts, not about types.** Byte identity is asserted for a part that was not edited. Once
+a part *is* edited, what survives is whatever subtree copy-on-write could keep — which is nearly
+everything, and is not a guarantee about any particular element. A type that rebuilds differently
+(finding 2.3 above) loses what it loses, and the container-level and tree-level gates cannot see it,
+because they never edit anything.
+
+**The edit-level gate is per fixture, not per type.** `preservation` would catch a type dropping
+unknown content only if a committed fixture happens to carry that markup *and* a registered method
+happens to edit it. The corpus is canonical Office and LibreOffice output, so a `<pic:pic>` in it
+carries no unusual attribute and the diff shows nothing. **The mechanism-level derive tests are what
+give per-type coverage, and a hand-written `FromXml`/`ToXml` pair is outside them by definition.**
+That is the shape of the gap, and it is why every hand-written pair is worth a second look.
+
+**Nothing is repaired and nothing is evaluated.** A file that arrives broken is written back broken
+(that is what [`save_unchecked`](crate::Package::save_unchecked) is for); a formula's cached value is
+never recomputed. Both are refusals, not omissions.
+
+**Container bytes are not promised.** Deflate encodings vary between writers and between versions of
+one writer. If you need to compare two saves, compare the parts —
+[`Package::part_bytes`](crate::Package::part_bytes) — never the files.

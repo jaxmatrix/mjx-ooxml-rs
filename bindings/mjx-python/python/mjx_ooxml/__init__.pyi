@@ -5,6 +5,11 @@ Generated from the binding's own `#[pymethods]` blocks and committed, exactly as
 `tests/test_stub_parity.py` proves the two agree — every name here exists at run time, and every
 name at run time is declared here — so a method added to the binding and not to this file is a
 test failure, not a silent gap.
+
+**The docstrings below are not written here.** They are the `///` doc comments PyO3 compiles into
+each member's `__doc__`, copied in by `tools/stub_docs.py` and checked by `tests/test_stub_docs.py`
+(MJXOFF-234). Editing one here is a test failure: change the Rust comment and re-run the tool. The
+signatures above them are still written by hand.
 """
 
 from collections.abc import Sequence
@@ -30,7 +35,7 @@ class OoxmlError(Exception):
     index: int | None
 
 class IoError(OoxmlError):
-    """The container bytes could not be read or written."""
+    """The container bytes could not be read or written. Nothing about the document was learned."""
 
 class MalformedDocumentError(OoxmlError):
     """The bytes are a package, but its markup is not what the schema requires."""
@@ -227,6 +232,49 @@ class ColorSchemeSlot:
     Accent6: ColorSchemeSlot
     Hyperlink: ColorSchemeSlot
     FollowedHyperlink: ColorSchemeSlot
+    def __int__(self) -> int: ...
+
+@final
+class ColorTransformKind:
+    """The projection of [`mjx_ooxml::ColorTransformKind`], whose documentation is authoritative."""
+    Tint: ColorTransformKind
+    Shade: ColorTransformKind
+    Complement: ColorTransformKind
+    Inverse: ColorTransformKind
+    Grayscale: ColorTransformKind
+    Alpha: ColorTransformKind
+    AlphaOffset: ColorTransformKind
+    AlphaModulation: ColorTransformKind
+    Hue: ColorTransformKind
+    HueOffset: ColorTransformKind
+    HueModulation: ColorTransformKind
+    Saturation: ColorTransformKind
+    SaturationOffset: ColorTransformKind
+    SaturationModulation: ColorTransformKind
+    Luminance: ColorTransformKind
+    LuminanceOffset: ColorTransformKind
+    LuminanceModulation: ColorTransformKind
+    Red: ColorTransformKind
+    RedOffset: ColorTransformKind
+    RedModulation: ColorTransformKind
+    Green: ColorTransformKind
+    GreenOffset: ColorTransformKind
+    GreenModulation: ColorTransformKind
+    Blue: ColorTransformKind
+    BlueOffset: ColorTransformKind
+    BlueModulation: ColorTransformKind
+    Gamma: ColorTransformKind
+    InverseGamma: ColorTransformKind
+    Other: ColorTransformKind
+    def __int__(self) -> int: ...
+
+@final
+class ColorTransformValue:
+    """The projection of [`mjx_ooxml::ColorTransformValue`], whose documentation is authoritative."""
+    Percentage: ColorTransformValue
+    Angle: ColorTransformValue
+    Marker: ColorTransformValue
+    Raw: ColorTransformValue
     def __int__(self) -> int: ...
 
 @final
@@ -1051,9 +1099,7 @@ class TextDirection:
 
 @final
 class TextHorizontalOverflow:
-    """The projection of [`mjx_ooxml::TextHorizontalOverflow`], whose documentation is
-    authoritative.
-    """
+    """The projection of [`mjx_ooxml::TextHorizontalOverflow`], whose documentation is authoritative."""
     Overflow: TextHorizontalOverflow
     Clip: TextHorizontalOverflow
     def __int__(self) -> int: ...
@@ -1244,7 +1290,11 @@ class TableStylePart:
 
 @final
 class Surface:
-    """The shape-bearing part a call is about."""
+    """The shape-bearing part a call is about.
+
+    A bare integer means a slide wherever a surface is expected, so `deck.shape_count(0)` and
+    `deck.shape_count(Surface.slide(0))` are the same call. The other four kinds have to be named.
+    """
     @staticmethod
     def slide(index: int) -> "Surface":
         """The slide at this index, counting from zero."""
@@ -1276,16 +1326,19 @@ class Surface:
 
 @final
 class ShapePath:
-    """The address of a shape within a surface's shape tree."""
+    """The address of a shape within a surface's shape tree.
+
+    A bare integer means a top-level shape wherever a path is expected, and a list of integers means
+    a descent through nested groups, so `deck.shape_kind(0, 2)` and `deck.shape_kind(0, [2, 1])`
+    both work without naming this class.
+    """
     @staticmethod
     def top(index: int) -> "ShapePath":
         """The top-level shape at this index."""
         ...
     @staticmethod
     def of(indices: list[int]) -> "ShapePath":
-        """The shape at this address: `[2]` top-level, `[2, 1]` for member 1 of the group at index
-        2.
-        """
+        """The shape at this address: `[2]` top-level, `[2, 1]` for member 1 of the group at index 2."""
         ...
     indices: list[int]
     """The address as a list of indices, outermost first."""
@@ -1338,8 +1391,11 @@ class ChartData:
         """One category label, when the chart states one at that index."""
         ...
     def validate(self) -> None:
-        """Whether this description is one the chart kind will accept — the number of series it
-        needs, the decoration its series may carry, and whether every measure is finite.
+        """Whether this description is one the chart kind will accept — the number of series it needs,
+        the decoration its series may carry, and whether every measure is finite.
+
+        Raises `InvalidArgumentError` describing the first problem it finds. `Deck.add_chart` runs
+        the same check, so calling this first is a way to fail earlier, not a way to skip it.
         """
         ...
 
@@ -1410,8 +1466,8 @@ class DataLabelSettings:
     is_empty: bool
     """Whether these settings state nothing at all."""
     def inherit(self, parent: "DataLabelSettings") -> "DataLabelSettings":
-        """These settings laid over `parent`: whatever this tier states wins, and the rest comes
-        from the tier above. The same walk `chart_data_labels` makes.
+        """These settings laid over `parent`: whatever this tier states wins, and the rest comes from
+        the tier above. The same walk `chart_data_labels` makes.
         """
         ...
 
@@ -1466,7 +1522,10 @@ class TrendlineSpec:
     kind: TrendlineKind
     """Which kind of trendline."""
     def validate(self) -> None:
-        """Whether this trendline's order and period are in range for its kind."""
+        """Whether this trendline's order and period are in range for its kind.
+
+        Raises `InvalidArgumentError` describing the first problem it finds.
+        """
         ...
 
 @final
@@ -1489,7 +1548,10 @@ class ErrorBarSpec:
         """These error bars with, or without, the cap at each end."""
         ...
     def validate(self) -> None:
-        """Whether custom error bars carry the values they need."""
+        """Whether custom error bars carry the values they need.
+
+        Raises `InvalidArgumentError` describing the first problem it finds.
+        """
         ...
 
 @final
@@ -1615,8 +1677,8 @@ class ChartWorkbook:
 @final
 class DocumentChartWorkbook:
     """A Word chart's backing workbook: which drawing holds the chart, where the workbook is, and
-    whether it lies outside the package. The Word counterpart of `ChartWorkbook`, which names a
-    slide shape instead of a drawing id.
+    whether it lies outside the package. The Word counterpart of [`ChartWorkbook`], which names
+    a slide shape instead of a drawing id.
     """
     drawing_id: int
     """The `wp:docPr` id of the drawing that frames the chart."""
@@ -1632,9 +1694,7 @@ class ChartWrap:
     """How text flows around a floating Word chart (`Document.add_floating_chart`)."""
     @staticmethod
     def none() -> ChartWrap:
-        """The chart floats over or under the text and nothing reflows around it
-        (`wp:wrapNone`).
-        """
+        """The chart floats over or under the text and nothing reflows around it (`wp:wrapNone`)."""
         ...
     @staticmethod
     def square(wrap_text: WrapText) -> ChartWrap:
@@ -1644,9 +1704,7 @@ class ChartWrap:
         ...
     @staticmethod
     def top_and_bottom() -> ChartWrap:
-        """Text wraps above and below the chart only, never beside it
-        (`wp:wrapTopAndBottom`).
-        """
+        """Text wraps above and below the chart only, never beside it (`wp:wrapTopAndBottom`)."""
         ...
     kind: str
     """Which wrap this is: `"none"`, `"square"` or `"top_and_bottom"`."""
@@ -1839,8 +1897,8 @@ class OleObjectData:
 
 @final
 class OleObjectSpec:
-    """An OLE object to add to a surface: what application owns it, what its data is, and the
-    picture PowerPoint shows in its place.
+    """An OLE object to add to a surface: what application owns it, what its data is, and the picture
+    PowerPoint shows in its place.
     """
     def __init__(self, prog_id: str, data: OleObjectData, snapshot_image: bytes, name: str | None = ..., show_as_icon: bool = ...) -> None:
         """An OLE object."""
@@ -1887,128 +1945,177 @@ class ActiveXControlSpec:
 
 @final
 class Deck:
-    """An open PowerPoint deck."""
+    """An open PowerPoint deck.
+
+    A deck comes from exactly two places — `Deck.blank` authors one from nothing, and `Deck.open`
+    reads one from bytes — so `mjx_ooxml.Deck()` raises rather than handing back
+    something half-built.
+    """
     @staticmethod
     def blank(size: SlideSize) -> "Deck":
-        """A new deck with nothing in it: one slide master, one blank layout, a theme, and no
-        slides.
+        """A new deck with nothing in it: one slide master, one blank layout, a theme, and no slides.
+
+        Nothing is read from disk and no template is embedded — every part is authored from this
+        library's own element builders, which is what makes a deck buildable from a `pip install`
+        with no input file.
+
+        Raises `InvalidArgumentError` if the size is outside the 914 400–51 206 400 EMU range
+        `p:sldSz` can express (1 to 56 inches on each axis).
         """
         ...
     @staticmethod
     def open(data: bytes) -> "Deck":
-        """Opens a deck from the bytes of a `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx` or `.ppsm`."""
+        """Opens a deck from the bytes of a `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx` or `.ppsm`.
+
+        The interpreter lock is released for the parse, so several threads can open several decks at
+        once. Raises `IoError` for bytes that are not a readable container,
+        `MalformedDocumentError` for a package whose markup is not PresentationML, and
+        `UnsupportedFormatError` — naming the format — for a Word or Excel document.
+        """
         ...
     def format(self) -> Format:
-        """What this deck's main part says it is — `Format.Presentation`,
-        `Format.PresentationTemplate` and so on. A deck authored by `blank` reports
-        `Format.Presentation`.
+        """What this deck's main part says it is — `Format.Presentation`, `Format.PresentationTemplate`
+        and so on. A deck authored by `blank` reports `Format.Presentation`.
         """
         ...
     def save(self) -> bytes:
-        """The deck as the bytes of a `.pptx`, **validated first**."""
+        """The deck as the bytes of a `.pptx`, **validated first**.
+
+        Every part that was never touched is re-emitted verbatim; only the parts an edit
+        materialised are serialised from the model. The interpreter lock is released for the write.
+
+        Raises `InvalidDocumentError` rather than emitting a file PowerPoint would offer to repair.
+        `save_unchecked` is the deliberate override.
+        """
         ...
     def save_unchecked(self) -> bytes:
-        """The deck as bytes, **without** the validation pass."""
+        """The deck as bytes, **without** the validation pass.
+
+        For the one case that needs it: writing a deck whose defect you already know about and
+        intend to inspect. Anything this writes and `save` refuses is a file PowerPoint may decline
+        to open.
+        """
         ...
     def validate(self) -> None:
-        """Runs the packaging and PresentationML checks `save` runs, without writing anything."""
+        """Runs the packaging and PresentationML checks `save` runs, without writing anything.
+
+        Raises `InvalidDocumentError` describing the first defect found.
+        """
         ...
     def shape_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> FillSpec | None:
         """The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or
-        `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from
-        the placeholder / style / theme — resolving that is a separate, future task). Reading
-        does not dirty the part.
+        `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the
+        placeholder / style / theme — resolving that is a separate, future task). Reading does not
+        dirty the part.
         """
         ...
     def set_shape_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, fill: FillSpec) -> None:
-        """Sets the fill of shape `shape_idx` on `surface` from an interner-free `FillSpec`,
-        rebuilding the `p:spPr` fill element (replacing an existing one in place, or inserting a
-        new one after any geometry and before `a:ln`). Marks only that part dirty.
+        """Sets the fill of shape `shape_idx` on `surface` from an interner-free `FillSpec`, rebuilding
+        the `p:spPr` fill element (replacing an existing one in place, or inserting a new one after
+        any geometry and before `a:ln`). Marks only that part dirty.
         """
         ...
     def set_shape_no_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
-        """Sets shape `shape_idx` on `surface` to an explicit "no fill" (`a:noFill`). A shorthand
-        for `set_shape_fill` with `FillSpec::None`.
+        """Sets shape `shape_idx` on `surface` to an explicit "no fill" (`a:noFill`). A shorthand for
+        `set_shape_fill` with `FillSpec::None`.
         """
         ...
     def shape_outline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> LineSpec | None:
         """The **explicit** outline of shape `shape_idx` on `surface` — its `p:spPr > a:ln` as an
-        interner- free `LineSpec` — or `None` when the shape declares no `a:ln` (its outline is
-        then inherited; effective outline resolution is a later step). Reading does not dirty
-        the part.
+        interner- free `LineSpec` — or `None` when the shape declares no `a:ln` (its outline is then
+        inherited; effective outline resolution is a later step). Reading does not dirty the part.
         """
         ...
     def set_shape_outline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, line: LineSpec) -> None:
         """Sets the outline of shape `shape_idx` on `surface` from an interner-free `LineSpec`,
-        rebuilding the `p:spPr` `a:ln` element (replacing an existing one in place, or inserting
-        a new one after any geometry and fill, before effects). Marks only that part dirty.
+        rebuilding the `p:spPr` `a:ln` element (replacing an existing one in place, or inserting a
+        new one after any geometry and fill, before effects). Marks only that part dirty.
         """
         ...
     def set_shape_no_outline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
         """Sets shape `shape_idx` on `surface` to an explicit "no outline"
-        (`<a:ln><a:noFill/></a:ln>`). A shorthand for `set_shape_outline` with a `LineSpec`
-        whose fill is `FillSpec::None` — PowerPoint's "no line", distinct from an absent `a:ln`.
+        (`<a:ln><a:noFill/></a:ln>`). A shorthand for `set_shape_outline` with a `LineSpec` whose
+        fill is `FillSpec::None` — PowerPoint's "no line", distinct from an absent `a:ln`.
         """
         ...
     def shape_effects(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> EffectListSpec | None:
-        """The **explicit** effects of shape `shape_idx` on `surface` — its `p:spPr > a:effectLst`
-        as an interner-free `EffectListSpec` — or `None` when the shape declares no
-        `a:effectLst` (its effects are then inherited; effective effect resolution is a later
-        step). A shape whose effects use the rarer `a:effectDag` alternative also reads as
-        `None` (that opaque graph is not modeled). Reading does not dirty the part.
+        """The **explicit** effects of shape `shape_idx` on `surface` — its `p:spPr > a:effectLst` as
+        an interner-free `EffectListSpec` — or `None` when the shape declares no `a:effectLst` (its
+        effects are then inherited; effective effect resolution is a later step). A shape whose
+        effects use the rarer `a:effectDag` alternative also reads as `None` (that opaque graph is
+        not modeled). Reading does not dirty the part.
         """
         ...
     def set_shape_effects(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, effects: EffectListSpec) -> None:
-        """Sets the effects of shape `shape_idx` on `surface` from an interner-free
-        `EffectListSpec`, rebuilding the `p:spPr` `a:effectLst` element (replacing an existing
-        effect container in place — either an `a:effectLst` or the mutually-exclusive
-        `a:effectDag`, which is overwritten — or inserting a new one after any geometry, fill,
-        and outline, before the 3-D and extension children). Marks only that part dirty.
+        """Sets the effects of shape `shape_idx` on `surface` from an interner-free `EffectListSpec`,
+        rebuilding the `p:spPr` `a:effectLst` element (replacing an existing effect container in
+        place — either an `a:effectLst` or the mutually-exclusive `a:effectDag`, which is
+        overwritten — or inserting a new one after any geometry, fill, and outline, before the 3-D
+        and extension children). Marks only that part dirty.
         """
         ...
     def set_shape_no_effects(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
-        """Sets shape `shape_idx` on `surface` to explicit "no effects" (an empty
-        `<a:effectLst/>`). A shorthand for `set_shape_effects` with an empty `EffectListSpec` —
-        the explicitly-cleared effect state that overrides inheritance, distinct from an absent
-        `a:effectLst`. Reads back as `Some(EffectListSpec::default())`.
+        """Sets shape `shape_idx` on `surface` to explicit "no effects" (an empty `<a:effectLst/>`). A
+        shorthand for `set_shape_effects` with an empty `EffectListSpec` — the explicitly-cleared
+        effect state that overrides inheritance, distinct from an absent `a:effectLst`. Reads back
+        as `Some(EffectListSpec::default())`.
         """
         ...
     def shape_scene_3d(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Scene3DSpec | None:
         """The **explicit** 3-D scene of shape `shape_idx` on `surface` — its `p:spPr > a:scene3d`
         (`CT_Scene3D`) as an interner-free `Scene3DSpec` — or `None` when the shape declares no
-        `a:scene3d`. 3-D has no inheritance chain, so an absent scene means the shape is flat,
-        not that it inherits one. A scene present but missing a schema-required part (its
-        `a:camera` or `a:lightRig`) also reads as `None`. Reading does not dirty the part.
+        `a:scene3d`. 3-D has no inheritance chain, so an absent scene means the shape is flat, not
+        that it inherits one. A scene present but missing a schema-required part (its `a:camera` or
+        `a:lightRig`) also reads as `None`. Reading does not dirty the part.
+        """
+        ...
+    def shape_backdrop(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Backdrop | None:
+        """The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+        (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+        backdrop — which almost every scene is. It is read separately from `shape_scene_3d` because a
+        scene rebuilt from a `Scene3DSpec` drops what the spec does not carry: the backdrop survives
+        an edit by staying verbatim, and this is how a caller sees what is being preserved.
+        """
+        ...
+    def resolved_scheme_color(self, surface: int | Surface, color: SchemeColor) -> ResolvedColor | None:
+        """What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+        concrete `RRGGBB`: the surface's colour map turns the token into a scheme slot and its theme
+        turns the slot into RGB. `None` for `SchemeColor.PlaceholderColor`, for a surface with no
+        master in its chain, and for a slot the theme leaves undefined. The alpha is always `1.0`.
+        """
+        ...
+    def table_style_flags(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> TableStyleFlags:
+        """Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts
+        of its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers one
+        flag; this answers all six at once.
         """
         ...
     def set_shape_scene_3d(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scene: Scene3DSpec) -> None:
-        """Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free
-        `Scene3DSpec`, rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place,
-        or inserting a new one after any geometry, fill, outline, and effects, before `a:sp3d`).
-        Rebuilding from a spec drops any opaque scene internals (`a:backdrop`, `extLst`). Marks
-        only that part dirty.
+        """Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free `Scene3DSpec`,
+        rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place, or inserting a new
+        one after any geometry, fill, outline, and effects, before `a:sp3d`). Rebuilding from a spec
+        drops any opaque scene internals (`a:backdrop`, `extLst`). Marks only that part dirty.
         """
         ...
     def clear_shape_scene_3d(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
         """Clears the 3-D scene of shape `shape_idx` on `surface` by **removing** its `a:scene3d`
-        entirely — a shape without a scene is flat. Unlike effects, there is no "explicitly
-        empty" scene: `CT_Scene3D` requires a camera and light rig, and 3-D does not inherit, so
-        clearing removes rather than empties. A no-op (still `Ok`) when the shape has no scene.
-        Marks the part dirty only if it removed something.
+        entirely — a shape without a scene is flat. Unlike effects, there is no "explicitly empty"
+        scene: `CT_Scene3D` requires a camera and light rig, and 3-D does not inherit, so clearing
+        removes rather than empties. A no-op (still `Ok`) when the shape has no scene. Marks the
+        part dirty only if it removed something.
         """
         ...
     def shape_3d_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Shape3DSpec | None:
-        """The **explicit** 3-D properties of shape `shape_idx` on `surface` — its `p:spPr >
-        a:sp3d` (`CT_Shape3D`: extrusion, contour, bevels, material) as an interner-free
-        `Shape3DSpec` — or `None` when the shape declares no `a:sp3d`. Reading does not dirty
-        the part.
+        """The **explicit** 3-D properties of shape `shape_idx` on `surface` — its `p:spPr > a:sp3d`
+        (`CT_Shape3D`: extrusion, contour, bevels, material) as an interner-free `Shape3DSpec` — or
+        `None` when the shape declares no `a:sp3d`. Reading does not dirty the part.
         """
         ...
     def set_shape_3d_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, properties: Shape3DSpec) -> None:
         """Sets the 3-D properties of shape `shape_idx` on `surface` from an interner-free
         `Shape3DSpec`, rebuilding the `p:spPr` `a:sp3d` (replacing an existing one in place, or
-        inserting a new one after every other visual property, before any `a:extLst`).
-        Rebuilding from a spec drops any opaque `extLst`. Marks only that part dirty.
+        inserting a new one after every other visual property, before any `a:extLst`). Rebuilding
+        from a spec drops any opaque `extLst`. Marks only that part dirty.
         """
         ...
     def clear_shape_3d_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
@@ -2018,37 +2125,44 @@ class Deck:
         """
         ...
     def shape_bounds(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ShapeBounds | None:
-        """The position and size of shape `shape_idx` on `surface` **on the slide** — absolute
-        within `slide_size`, whether the shape is top-level or nested inside groups.
+        """The position and size of shape `shape_idx` on `surface` **on the slide** — absolute within
+        `slide_size`, whether the shape is top-level or nested inside groups.
         """
         ...
     def set_shape_bounds(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, bounds: ShapeBounds) -> None:
-        """Moves and resizes shape `shape_idx` on `surface` to `bounds`, given **on the slide** —
-        the same absolute space `shape_bounds` answers in. Creates the shape's transform element
-        if it had none, and marks only that part dirty.
+        """Moves and resizes shape `shape_idx` on `surface` to `bounds`, given **on the slide** — the
+        same absolute space `shape_bounds` answers in. Creates the shape's transform element if it
+        had none, and marks only that part dirty.
         """
         ...
     def shape_transform(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Transform2D | None:
-        """The **explicit** transform of shape `shape_idx` on `surface` — its position, size,
-        rotation and mirror flags, plus the child coordinate space if it is a group — or `None`
-        when the shape declares no transform at all.
+        """The **explicit** transform of shape `shape_idx` on `surface` — its position, size, rotation
+        and mirror flags, plus the child coordinate space if it is a group — or `None` when the
+        shape declares no transform at all.
         """
         ...
     def set_shape_transform(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, transform: Transform2D) -> None:
-        """Applies `transform` to shape `shape_idx` on `surface`, creating its transform element if
-        it had none. Marks only that part dirty; everything else re-emits verbatim.
+        """Applies `transform` to shape `shape_idx` on `surface`, creating its transform element if it
+        had none. Marks only that part dirty; everything else re-emits verbatim.
         """
         ...
     def shape_geometry(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Geometry:
         """The geometry of shape `shape_idx` on `surface`, as a `Geometry` — a preset shape
-        (`Geometry::Preset`), a custom path list (`Geometry::Custom`), or `Geometry::Inherited`
-        when the shape states no geometry of its own (it takes one from its placeholder /
-        layout). Reading does not dirty the part.
+        (`Geometry::Preset`), a custom path list (`Geometry::Custom`), or `Geometry::Inherited` when
+        the shape states no geometry of its own (it takes one from its placeholder / layout).
+        Reading does not dirty the part.
         """
         ...
     def shape_adjustments(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, size: GuideContext) -> list[BoundedAdjustment]:
         """Every adjustment of shape `shape_idx`'s **preset** geometry, resolved against a concrete
         shape size: each value *and* the numeric domain it may move in.
+        """
+        ...
+    def set_shape_adjustments(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, adjustments: Sequence[tuple[str, int]]) -> None:
+        """Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries
+        of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+        adjustment not named is left exactly as it was, and so are the `prst` token and every other
+        property of the shape. Marks only that slide part dirty.
         """
         ...
     def set_shape_geometry(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, geometry: Geometry) -> None:
@@ -2063,13 +2177,13 @@ class Deck:
         """The text of the cell at `(row, column)` — its paragraphs joined by newlines."""
         ...
     def visible_cell_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> str:
-        """The text that actually **renders** at `(row, column)` — the text of the cell if it
-        stands alone, or of the merge **anchor** covering it if it is merged away.
+        """The text that actually **renders** at `(row, column)` — the text of the cell if it stands
+        alone, or of the merge **anchor** covering it if it is merged away.
         """
         ...
     def set_cell_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, run_idx: int, text: str) -> None:
-        """Replaces the text of the `run_idx`-th run (flattened over the cell's paragraphs) of the
-        cell at `(row, column)`. Marks only that part dirty.
+        """Replaces the text of the `run_idx`-th run (flattened over the cell's paragraphs) of the cell
+        at `(row, column)`. Marks only that part dirty.
         """
         ...
     def cell_paragraph_count(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> int:
@@ -2091,16 +2205,16 @@ class Deck:
         """The character properties a run of the cell at `(row, column)` declares of its own."""
         ...
     def cell_end_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int) -> CharacterPropertiesSpec | None:
-        """The paragraph-mark properties (`a:endParaRPr`) of a paragraph of the cell at `(row,
-        column)` — the format an empty cell holds, and what text typed into it would take on.
+        """The paragraph-mark properties (`a:endParaRPr`) of a paragraph of the cell at `(row, column)`
+        — the format an empty cell holds, and what text typed into it would take on.
         """
         ...
     def set_cell_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, run_idx: int, spec: CharacterPropertiesSpec) -> None:
         """Applies `spec` to one run of one paragraph of the cell at `(row, column)`."""
         ...
     def set_cell_paragraph_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, spec: CharacterPropertiesSpec) -> None:
-        """Applies `spec` to **every run** of one paragraph of the cell at `(row, column)`, and to
-        its paragraph mark.
+        """Applies `spec` to **every run** of one paragraph of the cell at `(row, column)`, and to its
+        paragraph mark.
         """
         ...
     def set_cell_run_properties_all(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, spec: CharacterPropertiesSpec) -> None:
@@ -2109,25 +2223,24 @@ class Deck:
         """
         ...
     def set_cell_end_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, spec: CharacterPropertiesSpec) -> None:
-        """Applies `spec` to a paragraph mark (`a:endParaRPr`) of the cell at `(row, column)`,
-        creating the element if the paragraph has none — how an **empty** cell is formatted.
+        """Applies `spec` to a paragraph mark (`a:endParaRPr`) of the cell at `(row, column)`, creating
+        the element if the paragraph has none — how an **empty** cell is formatted.
         """
         ...
     def set_cell_paragraph_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, spec: ParagraphPropertiesSpec) -> None:
-        """Applies `spec` to a paragraph's layout properties (`a:pPr`) in the cell at `(row,
-        column)`, creating the element if it has none. The properties **merge**, as run
-        properties do.
+        """Applies `spec` to a paragraph's layout properties (`a:pPr`) in the cell at `(row, column)`,
+        creating the element if it has none. The properties **merge**, as run properties do.
         """
         ...
     def set_cell_text_range_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, range: range, spec: CharacterPropertiesSpec) -> None:
         """Applies `spec` to part of a paragraph of the cell at `(row, column)` — the characters in
-        `range`, counted in Unicode scalars. Splits runs at the range's edges, exactly as the
-        shape- addressed form does.
+        `range`, counted in Unicode scalars. Splits runs at the range's edges, exactly as the shape-
+        addressed form does.
         """
         ...
     def cell_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> FillSpec | None:
-        """The fill the cell at `(row, column)` declares, or `None` when it declares none — in
-        which case the table style decides. Reading does not dirty the part.
+        """The fill the cell at `(row, column)` declares, or `None` when it declares none — in which
+        case the table style decides. Reading does not dirty the part.
         """
         ...
     def set_cell_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, fill: FillSpec) -> None:
@@ -2146,31 +2259,31 @@ class Deck:
         ...
     def cell_headers(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> list[str]:
         """The ids of the header cells that describe the cell at `(row, column)` (`a:tcPr >
-        a:headers`), in order — the accessibility association a screen reader announces. Empty
-        when the cell names none. Reading does not dirty the part.
+        a:headers`), in order — the accessibility association a screen reader announces. Empty when
+        the cell names none. Reading does not dirty the part.
         """
         ...
     def set_cell_headers(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, header_ids: list[str]) -> None:
-        """Sets the header-cell ids that describe the cell at `(row, column)`, replacing whatever
-        it had; an empty slice removes the association. Marks only that part dirty.
+        """Sets the header-cell ids that describe the cell at `(row, column)`, replacing whatever it
+        had; an empty slice removes the association. Marks only that part dirty.
         """
         ...
     def clear_cell_border(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, edge: CellBorder) -> None:
         """Removes the border on one edge of the cell at `(row, column)`."""
         ...
     def cell_margins(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> CellMargins:
-        """The four insets between the cell's edges and its text, each `None` when the cell does
-        not state it. Reading does not dirty the part.
+        """The four insets between the cell's edges and its text, each `None` when the cell does not
+        state it. Reading does not dirty the part.
         """
         ...
     def set_cell_margins(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, margins: CellMargins) -> None:
-        """Sets the cell's insets. Each field left `None` is **not written**, so a caller can set
-        one margin without stating the other three.
+        """Sets the cell's insets. Each field left `None` is **not written**, so a caller can set one
+        margin without stating the other three.
         """
         ...
     def cell_anchor(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> TextAnchoring | None:
-        """Where the text sits vertically in the cell at `(row, column)`, or `None` if unstated
-        (the wire default is `TextAnchoring::Top`). Reading does not dirty the part.
+        """Where the text sits vertically in the cell at `(row, column)`, or `None` if unstated (the
+        wire default is `TextAnchoring::Top`). Reading does not dirty the part.
         """
         ...
     def set_cell_anchor(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, anchor: TextAnchoring) -> None:
@@ -2182,8 +2295,8 @@ class Deck:
         """
         ...
     def set_cell_text_direction(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, direction: TextDirection) -> None:
-        """Sets which way the text flows in the cell at `(row, column)` — how a rotated header row
-        is made.
+        """Sets which way the text flows in the cell at `(row, column)` — how a rotated header row is
+        made.
         """
         ...
     def format_cells(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, cells: Cells, format: CellFormat) -> None:
@@ -2208,9 +2321,9 @@ class Deck:
         """
         ...
     def chart_series_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> FillSpec | None:
-        """The fill of series `series_idx` of the chart the frame `shape_idx` on `surface`
-        references — what colour it is drawn in — or `None` when the series declares none and
-        takes its colour from the chart style. Reading does not dirty the part.
+        """The fill of series `series_idx` of the chart the frame `shape_idx` on `surface` references —
+        what colour it is drawn in — or `None` when the series declares none and takes its colour
+        from the chart style. Reading does not dirty the part.
         """
         ...
     def set_chart_series_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, fill: FillSpec) -> None:
@@ -2220,68 +2333,66 @@ class Deck:
         ...
     def set_chart_series_line(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, line: LineSpec) -> None:
         """Sets the outline of series `series_idx` of the chart the frame `shape_idx` on `surface`
-        references — the line a line or radar plot draws, or the border of a bar or area. Marks
-        only the chart part dirty.
+        references — the line a line or radar plot draws, or the border of a bar or area. Marks only
+        the chart part dirty.
         """
         ...
     def chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int | None = ...) -> DataLabelSettings:
-        """The data-label settings **in force** for one point of series `series_idx` of the chart
-        the frame `shape_idx` on `surface` references — the point's `c:dLbl` merged over the
-        series' `c:dLbls` merged over the owning plot's.
+        """The data-label settings **in force** for one point of series `series_idx` of the chart the
+        frame `shape_idx` on `surface` references — the point's `c:dLbl` merged over the series'
+        `c:dLbls` merged over the owning plot's.
         """
         ...
     def chart_data_label_tier(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope) -> DataLabelSettings | None:
-        """The data-label settings one **tier** states in its own right — what that tier
-        contributes to the merge, with everything it leaves unset reported as `None`.
+        """The data-label settings one **tier** states in its own right — what that tier contributes to
+        the merge, with everything it leaves unset reported as `None`.
         """
         ...
     def chart_point_label_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int) -> str | None:
-        """The words one point's label shows in place of its value (`c:dLbl > c:tx`), or `None`
-        when it states none and shows what the settings say. Reading does not dirty the part.
+        """The words one point's label shows in place of its value (`c:dLbl > c:tx`), or `None` when it
+        states none and shows what the settings say. Reading does not dirty the part.
         """
         ...
     def set_chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope, spec: DataLabelSpec) -> None:
-        """Applies `spec` at one tier of the chart's data labels, creating the element if that tier
-        had none and leaving every setting `spec` does not state alone. Marks only the chart
-        part dirty.
+        """Applies `spec` at one tier of the chart's data labels, creating the element if that tier had
+        none and leaving every setting `spec` does not state alone. Marks only the chart part dirty.
         """
         ...
     def suppress_chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope) -> None:
-        """Suppresses the labels at one tier — a `c:delete val="1"` in place of the settings, which
-        is how one series of a labelled plot, or one point of a labelled series, is silenced
-        without disturbing the rest. Marks only the chart part dirty.
+        """Suppresses the labels at one tier — a `c:delete val="1"` in place of the settings, which is
+        how one series of a labelled plot, or one point of a labelled series, is silenced without
+        disturbing the rest. Marks only the chart part dirty.
         """
         ...
     def remove_chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope) -> bool:
-        """Removes the `c:dLbls`/`c:dLbl` at one tier entirely, so that tier inherits the one above
-        it again. Answers whether an element was there. Marks only the chart part dirty.
+        """Removes the `c:dLbls`/`c:dLbl` at one tier entirely, so that tier inherits the one above it
+        again. Answers whether an element was there. Marks only the chart part dirty.
         """
         ...
     def chart_point_formats(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> list[ChartPointFormatData]:
-        """Every point of series `series_idx` that carries its own formatting (`c:dPt`), in
-        document order. Reading does not dirty the part.
+        """Every point of series `series_idx` that carries its own formatting (`c:dPt`), in document
+        order. Reading does not dirty the part.
         """
         ...
     def set_chart_point_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int, fill: FillSpec) -> None:
-        """Colours point `point_idx` of series `series_idx` differently from the rest of its
-        series, creating its `c:dPt` at the schema rank if it had none. Marks only the chart
-        part dirty.
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its series,
+        creating its `c:dPt` at the schema rank if it had none. Marks only the chart part dirty.
         """
         ...
     def set_chart_point_line(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int, line: LineSpec) -> None:
-        """Outlines point `point_idx` of series `series_idx` differently from the rest of its
-        series. Marks only the chart part dirty.
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its series.
+        Marks only the chart part dirty.
         """
         ...
     def set_chart_point_explosion(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int, percent: int | None = ...) -> None:
-        """Pulls slice `point_idx` of series `series_idx` out of the centre of its pie or doughnut
-        by `percent` of the radius (`c:explosion`), or (for `None`) puts it back. Marks only the
-        chart part dirty.
+        """Pulls slice `point_idx` of series `series_idx` out of the centre of its pie or doughnut by
+        `percent` of the radius (`c:explosion`), or (for `None`) puts it back. Marks only the chart
+        part dirty.
         """
         ...
     def remove_chart_point_format(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, point_idx: int) -> bool:
-        """Removes the formatting of point `point_idx` of series `series_idx`, so it is drawn like
-        the rest of its series. Answers whether any was there. Marks only the chart part dirty.
+        """Removes the formatting of point `point_idx` of series `series_idx`, so it is drawn like the
+        rest of its series. Answers whether any was there. Marks only the chart part dirty.
         """
         ...
     def chart_trendlines(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> list[ChartTrendlineData]:
@@ -2290,26 +2401,24 @@ class Deck:
         """
         ...
     def add_chart_trendline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, spec: TrendlineSpec) -> None:
-        """Fits a trendline through series `series_idx`. `c:trendline` repeats, so this **appends**
-        — a series may carry a linear fit and a moving average at once. Marks only the chart
-        part dirty.
+        """Fits a trendline through series `series_idx`. `c:trendline` repeats, so this **appends** — a
+        series may carry a linear fit and a moving average at once. Marks only the chart part dirty.
         """
         ...
     def set_chart_trendline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, trendline_idx: int, spec: TrendlineSpec) -> None:
-        """Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, **in place** —
-        the curve keeps its own `c:spPr` and any `c:trendlineLbl` it carries, and every optional
-        setting `spec` leaves unset is cleared. Marks only the chart part dirty.
+        """Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, **in place** — the
+        curve keeps its own `c:spPr` and any `c:trendlineLbl` it carries, and every optional setting
+        `spec` leaves unset is cleared. Marks only the chart part dirty.
         """
         ...
     def remove_chart_trendlines(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> int:
-        """Removes every trendline from series `series_idx`, answering how many went. Marks only
-        the chart part dirty.
+        """Removes every trendline from series `series_idx`, answering how many went. Marks only the
+        chart part dirty.
         """
         ...
     def chart_error_bars(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> list[ChartErrorBarData]:
-        """Every set of error bars series `series_idx` carries (`c:errBars`) — one for a bar or
-        line series, up to two (x and y) for scatter, area and bubble. Reading does not dirty
-        the part.
+        """Every set of error bars series `series_idx` carries (`c:errBars`) — one for a bar or line
+        series, up to two (x and y) for scatter, area and bubble. Reading does not dirty the part.
         """
         ...
     def set_chart_error_bars(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, spec: ErrorBarSpec) -> None:
@@ -2323,18 +2432,18 @@ class Deck:
         """
         ...
     def chart_dangling_decoration(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> list[DanglingPointReference]:
-        """Every `c:dPt` and `c:dLbl` of series `series_idx` whose `c:idx` names a point the series
-        no longer has. Reading does not dirty the part.
+        """Every `c:dPt` and `c:dLbl` of series `series_idx` whose `c:idx` names a point the series no
+        longer has. Reading does not dirty the part.
         """
         ...
     def drop_chart_dangling_decoration(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int) -> int:
-        """Removes every `c:dPt` and `c:dLbl` of series `series_idx` that names a point past the
-        end of its data, answering how many went. Marks only the chart part dirty.
+        """Removes every `c:dPt` and `c:dLbl` of series `series_idx` that names a point past the end of
+        its data, answering how many went. Marks only the chart part dirty.
         """
         ...
     def add_chart(self, surface: int | Surface, chart: ChartData, bounds: ShapeBounds) -> int:
-        """Adds `chart` to `surface` as a new chart, laid out inside `bounds`, and returns its
-        index in the shape tree.
+        """Adds `chart` to `surface` as a new chart, laid out inside `bounds`, and returns its index in
+        the shape tree.
         """
         ...
     def chart_part_bytes(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bytes | None:
@@ -2344,22 +2453,22 @@ class Deck:
         """
         ...
     def chart_workbooks(self, surface: int | Surface) -> list[ChartWorkbook]:
-        """Every chart on `surface` that references a backing workbook (`c:externalData`), with
-        where each is referenced from and whether that reference is external.
+        """Every chart on `surface` that references a backing workbook (`c:externalData`), with where
+        each is referenced from and whether that reference is external.
         """
         ...
     def detach_chart_workbook(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
         """Detaches the backing workbook from the chart `shape_idx` on `surface`: removes its
-        `c:externalData` reference — the element and its relationship — leaving the chart to
-        render from its cached values. This neutralizes a chart that links an unreachable
-        external workbook (the caller decides accessibility; use `chart_workbooks` to find the
-        candidates), and yields exactly the cache-only shape a freshly authored chart has.
+        `c:externalData` reference — the element and its relationship — leaving the chart to render
+        from its cached values. This neutralizes a chart that links an unreachable external workbook
+        (the caller decides accessibility; use `chart_workbooks` to find the candidates), and yields
+        exactly the cache-only shape a freshly authored chart has.
         """
         ...
     def chart_series(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartSeriesData]:
-        """The series of the chart the frame `shape_idx` on `surface` references — for each, its
-        name, category labels and values (for a scatter series, its X labels and Y values),
-        flattened across the chart's plots. Reading does not dirty the part.
+        """The series of the chart the frame `shape_idx` on `surface` references — for each, its name,
+        category labels and values (for a scatter series, its X labels and Y values), flattened
+        across the chart's plots. Reading does not dirty the part.
         """
         ...
     def chart_series_references(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartSeriesReferences]:
@@ -2369,27 +2478,35 @@ class Deck:
         """
         ...
     def set_chart_series_values(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, values: Sequence[float]) -> None:
-        """Rewrites the values of series `series_idx` (0-based across the chart's plots) of the
-        chart the frame `shape_idx` on `surface` references — whichever source the series names:
-        a `c:numRef`'s cache or a `c:numLit`.
+        """Rewrites the values of series `series_idx` (0-based across the chart's plots) of the chart
+        the frame `shape_idx` on `surface` references — whichever source the series names: a
+        `c:numRef`'s cache or a `c:numLit`.
         """
         ...
     def set_chart_series_categories(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, labels: list[str]) -> None:
-        """Rewrites the category labels of series `series_idx` (0-based across the chart's plots)
-        of the chart the frame `shape_idx` on `surface` references, and refreshes the chart's
-        embedded workbook alongside it.
+        """Rewrites the category labels of series `series_idx` (0-based across the chart's plots) of
+        the chart the frame `shape_idx` on `surface` references, and refreshes the chart's embedded
+        workbook alongside it.
         """
         ...
     def refresh_chart_workbook(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
-        """Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface`
-        references so its cells hold exactly what the chart now draws, and answers whether it
-        rewrote one.
+        """Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+        references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+        answers whether it wrote one.
+
+        Every other sheet, format and name that workbook carried survives. `regenerate_chart_workbook`
+        is the one that replaces the workbook wholesale.
+        """
+        ...
+    def regenerate_chart_workbook(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
+        """Replaces the embedded workbook of the chart the frame `shape_idx` on `surface` references
+        with a freshly built one, discarding whatever it held. Answers whether it replaced one.
         """
         ...
     def chart_kinds(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartKind]:
         """The kind of every plot the chart the frame `shape_idx` on `surface` references draws, in
-        document order — one entry per plot element, so a combo chart yields several. Reading
-        does not dirty the part.
+        document order — one entry per plot element, so a combo chart yields several. Reading does
+        not dirty the part.
         """
         ...
     def chart_axes(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartAxisData]:
@@ -2398,9 +2515,9 @@ class Deck:
         """
         ...
     def set_chart_axis_scale(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, axis_idx: int, minimum: float | None = ..., maximum: float | None = ...) -> None:
-        """Sets or clears the explicit bounds of axis `axis_idx` (0-based, document order) of the
-        chart the frame `shape_idx` on `surface` references. `None` returns that end of the axis
-        to automatic scaling. Marks only the chart part dirty.
+        """Sets or clears the explicit bounds of axis `axis_idx` (0-based, document order) of the chart
+        the frame `shape_idx` on `surface` references. `None` returns that end of the axis to
+        automatic scaling. Marks only the chart part dirty.
         """
         ...
     def set_chart_axis_orientation(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, axis_idx: int, orientation: AxisOrientation) -> None:
@@ -2409,8 +2526,8 @@ class Deck:
         """
         ...
     def set_chart_axis_title(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, axis_idx: int, text: str | None = ...) -> None:
-        """Sets or removes the title of axis `axis_idx` of the chart the frame `shape_idx` on
-        `surface` references. `None` removes the title. Marks only the chart part dirty.
+        """Sets or removes the title of axis `axis_idx` of the chart the frame `shape_idx` on `surface`
+        references. `None` removes the title. Marks only the chart part dirty.
         """
         ...
     def set_chart_axis_gridlines(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, axis_idx: int, major: bool, minor: bool) -> None:
@@ -2429,20 +2546,20 @@ class Deck:
         """
         ...
     def chart_legend(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ChartLegendData | None:
-        """The legend of the chart the frame `shape_idx` on `surface` references, or `None` when it
-        has none. Reading does not dirty the part.
+        """The legend of the chart the frame `shape_idx` on `surface` references, or `None` when it has
+        none. Reading does not dirty the part.
         """
         ...
     def set_chart_legend(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, position: LegendPosition | None = ...) -> None:
-        """Places the legend of the chart the frame `shape_idx` on `surface` references at
-        `position`, adding one if the chart had none. `None` removes the legend. Marks only the
-        chart part dirty.
+        """Places the legend of the chart the frame `shape_idx` on `surface` references at `position`,
+        adding one if the chart had none. `None` removes the legend. Marks only the chart part
+        dirty.
         """
         ...
     def chart_style_id(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> int | None:
         """The built-in style id the chart the frame `shape_idx` on `surface` references names
-        (`c:style@val`, 1 to 48) — the palette and effect set Office draws an unstyled series
-        with — or `None` when it names none. Reading does not dirty the part.
+        (`c:style@val`, 1 to 48) — the palette and effect set Office draws an unstyled series with —
+        or `None` when it names none. Reading does not dirty the part.
         """
         ...
     def slide_count(self) -> int:
@@ -2452,9 +2569,7 @@ class Deck:
         """The number of slide masters, in `p:sldMasterIdLst` order."""
         ...
     def master_name(self, idx: int) -> str | None:
-        """The name of master `idx` (`p:cSld@name`, e.g. `Office Theme`), or `None` if it is
-        unnamed.
-        """
+        """The name of master `idx` (`p:cSld@name`, e.g. `Office Theme`), or `None` if it is unnamed."""
         ...
     def layouts(self) -> list[LayoutInfo]:
         """Every slide layout the deck offers, in layout-index order — the inventory a caller reads
@@ -2463,8 +2578,8 @@ class Deck:
         ...
     def layout_count(self) -> int:
         """The number of slide layouts across the whole deck, in (master order, `p:sldLayoutIdLst`
-        order) — so layout indices run master by master. `layout_master` says which master an
-        index belongs to.
+        order) — so layout indices run master by master. `layout_master` says which master an index
+        belongs to.
         """
         ...
     def layout_master(self, idx: int) -> int | None:
@@ -2476,56 +2591,53 @@ class Deck:
         """
         ...
     def layout_kind(self, idx: int) -> SlideLayoutKind:
-        """How layout `idx` arranges its content (`p:sldLayout@type`) — a coarse description of
-        which placeholders it offers, which an application can use to map between layouts.
+        """How layout `idx` arranges its content (`p:sldLayout@type`) — a coarse description of which
+        placeholders it offers, which an application can use to map between layouts.
         """
         ...
     def slide_layout(self, slide_idx: int) -> int | None:
-        """The index of the layout slide `slide_idx` is built on, or `None` if the slide relates to
-        no layout (or to one no master lists).
+        """The index of the layout slide `slide_idx` is built on, or `None` if the slide relates to no
+        layout (or to one no master lists).
         """
         ...
     def slide_size(self) -> SlideSize:
-        """The size of every slide in the deck (`p:sldSz`) — the extent shape bounds are laid out
-        in.
-        """
+        """The size of every slide in the deck (`p:sldSz`) — the extent shape bounds are laid out in."""
         ...
     def theme(self, surface: int | Surface) -> ThemeInfo | None:
-        """The theme that governs `surface`, as an interner-free `ThemeInfo` (its color scheme +
-        fill- style matrix) — the theme related to the last part of the surface's inheritance
-        chain (slide → slideLayout → slideMaster → theme, and the shorter walks from a layout or
-        master). Returns `Ok(None)` if any hop is absent (a deck without a theme). Reading does
-        not dirty any part.
+        """The theme that governs `surface`, as an interner-free `ThemeInfo` (its color scheme + fill-
+        style matrix) — the theme related to the last part of the surface's inheritance chain (slide
+        → slideLayout → slideMaster → theme, and the shorter walks from a layout or master). Returns
+        `Ok(None)` if any hop is absent (a deck without a theme). Reading does not dirty any part.
         """
         ...
     def color_map(self, surface: int | Surface) -> ColorMap | None:
         """The effective theme `ColorMap` for `surface`: the master's `p:clrMap` (reached along the
         surface's inheritance chain), replaced by the surface's own `p:clrMapOvr >
         a:overrideClrMapping` when it supplies a full mapping (a `masterClrMapping`, an absent
-        override, or a schema-loose attribute-less override all inherit the master's map). It
-        maps the logical color names a shape may reference (`bg1`/`tx1`/…) to the theme's
-        concrete scheme slots. `Ok(None)` when there is no reachable master or no `p:clrMap`.
-        Reading does not dirty a part.
+        override, or a schema-loose attribute-less override all inherit the master's map). It maps
+        the logical color names a shape may reference (`bg1`/`tx1`/…) to the theme's concrete scheme
+        slots. `Ok(None)` when there is no reachable master or no `p:clrMap`. Reading does not dirty
+        a part.
         """
         ...
     def effective_shape_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> FillSpec | None:
         """The **effective** fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`
-        whose colors are resolved to concrete `RRGGBB` values — the fill the shape actually
-        renders. Three sources are tried, in order: an explicit `p:spPr` fill; a `p:style >
-        a:fillRef` (the theme fill- style at that index, `phClr` substituted by the reference's
-        color); and, for a placeholder shape (`p:ph`), **inheritance** from the same-slot
-        placeholder on the layout then the master. Scheme colors and color transforms are baked
-        against the surface's theme + map.
+        whose colors are resolved to concrete `RRGGBB` values — the fill the shape actually renders.
+        Three sources are tried, in order: an explicit `p:spPr` fill; a `p:style > a:fillRef` (the
+        theme fill- style at that index, `phClr` substituted by the reference's color); and, for a
+        placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on the layout
+        then the master. Scheme colors and color transforms are baked against the surface's theme +
+        map.
         """
         ...
     def effective_shape_outline(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> LineSpec | None:
-        """The **effective** outline of shape `shape_idx` on `surface`, as an interner-free
-        `LineSpec` whose stroke color is resolved to a concrete `RRGGBB` value — the outline the
-        shape actually renders. Three sources are tried, in order: an explicit `p:spPr > a:ln`;
-        a `p:style > a:lnRef` (the theme line-style at that index, `phClr` substituted by the
-        reference's color); and, for a placeholder shape (`p:ph`), **inheritance** from the
-        same-slot placeholder on the slide layout then the master. Scheme colors and color
-        transforms are baked against the slide's theme + map.
+        """The **effective** outline of shape `shape_idx` on `surface`, as an interner-free `LineSpec`
+        whose stroke color is resolved to a concrete `RRGGBB` value — the outline the shape actually
+        renders. Three sources are tried, in order: an explicit `p:spPr > a:ln`; a `p:style >
+        a:lnRef` (the theme line-style at that index, `phClr` substituted by the reference's color);
+        and, for a placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on the
+        slide layout then the master. Scheme colors and color transforms are baked against the
+        slide's theme + map.
         """
         ...
     def effective_shape_effects(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> EffectListSpec | None:
@@ -2534,8 +2646,8 @@ class Deck:
         shape actually renders. Three sources are tried, in order: an explicit `p:spPr >
         a:effectLst`; a `p:style > a:effectRef` (the theme effect-style at that index, `phClr`
         substituted by the reference's color); and, for a placeholder shape (`p:ph`),
-        **inheritance** from the same-slot placeholder on the slide layout then the master.
-        Scheme colors and color transforms are baked against the slide's theme + map.
+        **inheritance** from the same-slot placeholder on the slide layout then the master. Scheme
+        colors and color transforms are baked against the slide's theme + map.
         """
         ...
     def effective_shape_transform(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Transform2D | None:
@@ -2546,13 +2658,13 @@ class Deck:
         ...
     def effective_shape_bounds(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ShapeBounds | None:
         """The **effective** position and size of shape `shape_idx` on `surface` — where the shape
-        actually renders, with the layout and master consulted for a placeholder that declares
-        no bounds of its own.
+        actually renders, with the layout and master consulted for a placeholder that declares no
+        bounds of its own.
         """
         ...
     def effective_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int) -> CharacterPropertiesSpec:
-        """The **effective** character properties of run `run_idx` — what the run actually renders
-        as, with every tier of inheritance resolved and its colors baked to concrete `RRGGBB`.
+        """The **effective** character properties of run `run_idx` — what the run actually renders as,
+        with every tier of inheritance resolved and its colors baked to concrete `RRGGBB`.
         """
         ...
     def effective_paragraph_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> ParagraphPropertiesSpec:
@@ -2561,36 +2673,33 @@ class Deck:
         """
         ...
     def effective_cell_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> FillSpec | None:
-        """The **effective** fill of the cell at `(row, column)` of the table shape `shape_idx`
-        frames — an interner-free `FillSpec` with its colour baked to concrete `RRGGBB`, or
-        `None` if nothing fills the cell. The cell's own `a:tcPr` fill wins; else the first
-        applicable style part with a fill (explicit or a theme `fillRef`).
+        """The **effective** fill of the cell at `(row, column)` of the table shape `shape_idx` frames
+        — an interner-free `FillSpec` with its colour baked to concrete `RRGGBB`, or `None` if
+        nothing fills the cell. The cell's own `a:tcPr` fill wins; else the first applicable style
+        part with a fill (explicit or a theme `fillRef`).
         """
         ...
     def effective_cell_border(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, edge: CellBorder) -> LineSpec | None:
         """The **effective** border on one `edge` of the cell at `(row, column)` — an interner-free
-        `LineSpec` with its stroke colour baked, or `None`. The cell's own `a:tcPr` edge wins;
-        else the applicable style parts' `a:tcBdr`, taking the outer edge (`top`/`left`/…) for a
-        cell on the table's rim and the interior edge (`insideH`/`insideV`) for one within it.
+        `LineSpec` with its stroke colour baked, or `None`. The cell's own `a:tcPr` edge wins; else
+        the applicable style parts' `a:tcBdr`, taking the outer edge (`top`/`left`/…) for a cell on
+        the table's rim and the interior edge (`insideH`/`insideV`) for one within it.
         """
         ...
     def effective_cell_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int, para_idx: int, run_idx: int) -> CharacterPropertiesSpec:
         """The **effective** run properties of a cell's text run — the `CharacterPropertiesSpec` it
-        actually renders with, colours baked. A shorter ladder than a shape's (a cell inherits
-        from its table style, not a placeholder chain), highest first: the run's own `a:rPr`,
-        the paragraph's `a:defRPr`, the table style's `a:tcTxStyle` for each applicable part
-        (bold / italic / colour), then the presentation's `p:defaultTextStyle`.
+        actually renders with, colours baked. A shorter ladder than a shape's (a cell inherits from
+        its table style, not a placeholder chain), highest first: the run's own `a:rPr`, the
+        paragraph's `a:defRPr`, the table style's `a:tcTxStyle` for each applicable part (bold /
+        italic / colour), then the presentation's `p:defaultTextStyle`.
         """
         ...
     def remove_unused_parts(self) -> list[str]:
-        """Removes every part the package no longer reaches from its root, and reports what was
-        swept.
-        """
+        """Removes every part the package no longer reaches from its root, and reports what was swept."""
         ...
     def external_links(self) -> list[ExternalLink]:
         """Every relationship in the package whose target lies **outside** it — a linked image, a
-        chart's external workbook, a linked OLE object or media file — with the part that owns
-        each.
+        chart's external workbook, a linked OLE object or media file — with the part that owns each.
         """
         ...
     def retarget_external_link(self, source: str | None, id: str, new_target: str, mode: TargetMode) -> bool:
@@ -2600,63 +2709,63 @@ class Deck:
         ...
     def run_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int) -> Hyperlink | None:
         """The click hyperlink on run `run_idx` of paragraph `para_idx` in shape `shape_idx` on
-        `surface`, resolved to a `Hyperlink` (a URL or a slide index), or `None` if the run has
-        no hyperlink — or one this build does not model (a mouse-over action, a show jump).
-        Reading does not dirty the part.
+        `surface`, resolved to a `Hyperlink` (a URL or a slide index), or `None` if the run has no
+        hyperlink — or one this build does not model (a mouse-over action, a show jump). Reading
+        does not dirty the part.
         """
         ...
     def set_run_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int, link: Hyperlink) -> None:
-        """Sets the click hyperlink on run `run_idx` of paragraph `para_idx` in shape `shape_idx`
-        to `link`, adding its relationship. If the run already linked somewhere, that
-        relationship is removed once nothing else in the part still names it.
+        """Sets the click hyperlink on run `run_idx` of paragraph `para_idx` in shape `shape_idx` to
+        `link`, adding its relationship. If the run already linked somewhere, that relationship is
+        removed once nothing else in the part still names it.
         """
         ...
     def clear_run_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int) -> None:
-        """Removes the click hyperlink on run `run_idx` of paragraph `para_idx` in shape
-        `shape_idx`, and the relationship it named once nothing else in the part still
-        references it. A no-op if the run has no hyperlink.
+        """Removes the click hyperlink on run `run_idx` of paragraph `para_idx` in shape `shape_idx`,
+        and the relationship it named once nothing else in the part still references it. A no-op if
+        the run has no hyperlink.
         """
         ...
     def set_text_range_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, range: range, link: Hyperlink) -> None:
         """Sets the click hyperlink over a **scalar range** of paragraph `para_idx` in shape
         `shape_idx`, splitting runs at the boundaries so exactly the selected text is linked (as
-        `set_text_range_properties` does). One relationship is added and shared by every run in
-        the range. An empty range links nothing.
+        `set_text_range_properties` does). One relationship is added and shared by every run in the
+        range. An empty range links nothing.
         """
         ...
     def shape_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> Hyperlink | None:
-        """The click hyperlink on shape `shape_idx` itself (`p:cNvPr > a:hlinkClick`), resolved to
-        a `Hyperlink`, or `None` if the shape has no hyperlink (or one this build does not
-        model). Reading does not dirty the part.
+        """The click hyperlink on shape `shape_idx` itself (`p:cNvPr > a:hlinkClick`), resolved to a
+        `Hyperlink`, or `None` if the shape has no hyperlink (or one this build does not model).
+        Reading does not dirty the part.
         """
         ...
     def set_shape_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, link: Hyperlink) -> None:
-        """Sets the click hyperlink on shape `shape_idx` itself to `link`, adding its relationship
-        and removing the one any previous link named once unreferenced.
+        """Sets the click hyperlink on shape `shape_idx` itself to `link`, adding its relationship and
+        removing the one any previous link named once unreferenced.
         """
         ...
     def clear_shape_hyperlink(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
-        """Removes the click hyperlink on shape `shape_idx` itself, and the relationship it named
-        once unreferenced. A no-op if the shape has no hyperlink.
+        """Removes the click hyperlink on shape `shape_idx` itself, and the relationship it named once
+        unreferenced. A no-op if the shape has no hyperlink.
         """
         ...
     def ole_object_part_bytes(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bytes | None:
         """The raw bytes of the embedded object the OLE frame `shape_idx` on `surface` references
         (`/ppt/embeddings/oleObjectN.bin` or an embedded package), exactly as the package holds
-        them, or `None` when the shape frames no OLE object. Borrowed from the package, so the
-        part is not copied.
+        them, or `None` when the shape frames no OLE object. Borrowed from the package, so the part
+        is not copied.
         """
         ...
     def ole_snapshot_image_bytes(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bytes | None:
         """The stored bytes of the OLE fallback snapshot image the frame `shape_idx` on `surface`
-        embeds, exactly as the package holds them (never decoded or re-encoded), or `None` when
-        the frame is not an OLE object or carries no snapshot. Borrowed from the package.
+        embeds, exactly as the package holds them (never decoded or re-encoded), or `None` when the
+        frame is not an OLE object or carries no snapshot. Borrowed from the package.
         """
         ...
     def ole_prog_id(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> str | None:
-        """The `progId` the OLE frame `shape_idx` on `surface` declares (e.g. `"Excel.Sheet.12"`) —
-        the application that owns the embedded object — or `None` when the shape frames no OLE
-        object or the attribute is absent. Reading does not dirty the part.
+        """The `progId` the OLE frame `shape_idx` on `surface` declares (e.g. `"Excel.Sheet.12"`) — the
+        application that owns the embedded object — or `None` when the shape frames no OLE object or
+        the attribute is absent. Reading does not dirty the part.
         """
         ...
     def ole_objects(self, surface: int | Surface) -> list[OleObject]:
@@ -2667,10 +2776,10 @@ class Deck:
     def replace_ole_object_with_placeholder(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, placeholder: bytes | None = ...) -> None:
         """Replaces the object data of the OLE frame `shape_idx` on `surface` with an in-package
         placeholder, so an object that points at unreachable external data resolves inside the
-        package instead. The placeholder is `placeholder` if given, else
-        `default_placeholder_ole` (a minimal valid compound file). The `p:oleObj` markup is
-        unchanged — its relationship is simply retargeted at the placeholder — and the object
-        keeps displaying via its snapshot image.
+        package instead. The placeholder is `placeholder` if given, else `default_placeholder_ole`
+        (a minimal valid compound file). The `p:oleObj` markup is unchanged — its relationship is
+        simply retargeted at the placeholder — and the object keeps displaying via its snapshot
+        image.
         """
         ...
     def activex_control_count(self, surface: int | Surface) -> int:
@@ -2680,8 +2789,8 @@ class Deck:
         ...
     def activex_control_name(self, surface: int | Surface, control_idx: int) -> str | None:
         """The `name` the ActiveX control `control_idx` on `surface` declares (e.g.
-        `"CommandButton1"`), or `None` when there is no such control or it is unnamed. Reading
-        does not dirty the part.
+        `"CommandButton1"`), or `None` when there is no such control or it is unnamed. Reading does
+        not dirty the part.
         """
         ...
     def activex_part_bytes(self, surface: int | Surface, control_idx: int) -> bytes | None:
@@ -2691,16 +2800,15 @@ class Deck:
         """
         ...
     def activex_state_bytes(self, surface: int | Surface, control_idx: int) -> bytes | None:
-        """The ActiveX control's **persisted state** — the bytes of `/ppt/activeX/activeXN.bin` —
-        for the control `control_idx` on `surface`, or `None` when there is no such control or
-        it persists no state. Borrowed from the package; reading does not dirty anything.
+        """The ActiveX control's **persisted state** — the bytes of `/ppt/activeX/activeXN.bin` — for
+        the control `control_idx` on `surface`, or `None` when there is no such control or it
+        persists no state. Borrowed from the package; reading does not dirty anything.
         """
         ...
     def activex_snapshot_image_bytes(self, surface: int | Surface, control_idx: int) -> bytes | None:
         """The stored bytes of the ActiveX control's fallback snapshot image for the control
-        `control_idx` on `surface`, exactly as the package holds them (never decoded or re-
-        encoded), or `None` when there is no such control or snapshot. Borrowed from the
-        package.
+        `control_idx` on `surface`, exactly as the package holds them (never decoded or re-encoded),
+        or `None` when there is no such control or snapshot. Borrowed from the package.
         """
         ...
     def ink_part_names(self) -> list[str]:
@@ -2709,29 +2817,28 @@ class Deck:
         """
         ...
     def ink_part_bytes(self, part: str) -> bytes | None:
-        """The raw bytes of the ink (InkML) `part`, exactly as the package holds them, or `None`
-        when the package has no such part (or it has been edited elsewhere). Borrowed from the
-        package, so the part is not copied and nothing is dirtied.
+        """The raw bytes of the ink (InkML) `part`, exactly as the package holds them, or `None` when
+        the package has no such part (or it has been edited elsewhere). Borrowed from the package,
+        so the part is not copied and nothing is dirtied.
         """
         ...
     def ink_references(self, surface: int | Surface) -> list[InkReference]:
         """Every ink (InkML) part `surface` references, with where it is referenced from."""
         ...
     def ink_part_for_shape(self, surface: int | Surface, shape_idx: int) -> str | None:
-        """The ink part the shape `shape_idx` on `surface` references, or `None` when that shape is
-        not a content part or does not reference ink.
+        """The ink part the shape `shape_idx` on `surface` references, or `None` when that shape is not
+        a content part or does not reference ink.
         """
         ...
     def shape_for_ink_part(self, surface: int | Surface, part: str) -> int | None:
-        """The shape index of the content part on `surface` that references the ink `part`, or
-        `None` when no shape on that surface does (or the reference lives inside an
-        `mc:AlternateContent`, which is out of the shape index space).
+        """The shape index of the content part on `surface` that references the ink `part`, or `None`
+        when no shape on that surface does (or the reference lives inside an `mc:AlternateContent`,
+        which is out of the shape index space).
         """
         ...
     def add_ink(self, surface: int | Surface, inkml: bytes) -> int:
-        """Adds an ink (InkML) part holding `inkml` to the package and a `p:contentPart`
-        referencing it to `surface`, and returns the new shape's index in the one shape index
-        space.
+        """Adds an ink (InkML) part holding `inkml` to the package and a `p:contentPart` referencing it
+        to `surface`, and returns the new shape's index in the one shape index space.
         """
         ...
     def set_ink_content(self, surface: int | Surface, shape_idx: int, inkml: bytes) -> None:
@@ -2739,30 +2846,27 @@ class Deck:
         ...
     def diagram_relationship_ids(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> DiagramRelationshipIds | None:
         """The four relationship ids the SmartArt frame `shape_idx` on `surface` names in its
-        `dgm:relIds`, or `None` when the shape frames no diagram. Reading does not dirty the
-        part.
+        `dgm:relIds`, or `None` when the shape frames no diagram. Reading does not dirty the part.
         """
         ...
     def diagram_parts(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> DiagramParts | None:
-        """The parts of the SmartArt diagram the frame `shape_idx` on `surface` references,
-        resolved to part names — the relationship graph behind the diagram, `None` when the
-        shape frames none.
+        """The parts of the SmartArt diagram the frame `shape_idx` on `surface` references, resolved to
+        part names — the relationship graph behind the diagram, `None` when the shape frames none.
         """
         ...
     def diagram_part_bytes(self, part: str) -> bytes | None:
         """The raw bytes of a diagram `part`, exactly as the package holds them, or `None` when the
-        package has no such part (or it has been edited elsewhere). Borrowed; nothing is
-        dirtied.
+        package has no such part (or it has been edited elsewhere). Borrowed; nothing is dirtied.
         """
         ...
     def add_diagram(self, surface: int | Surface, content: DiagramContent, bounds: ShapeBounds) -> int:
-        """Adds a SmartArt diagram to `surface`, laid out inside `bounds`, and returns its index in
-        the shape tree.
+        """Adds a SmartArt diagram to `surface`, laid out inside `bounds`, and returns its index in the
+        shape tree.
         """
         ...
     def set_diagram_part(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, kind: DiagramPartKind, bytes: bytes) -> None:
-        """Replaces one part of the SmartArt diagram the frame `shape_idx` on `surface` references,
-        in place.
+        """Replaces one part of the SmartArt diagram the frame `shape_idx` on `surface` references, in
+        place.
         """
         ...
     def add_ole_object(self, surface: int | Surface, spec: OleObjectSpec, bounds: ShapeBounds) -> int:
@@ -2779,20 +2883,19 @@ class Deck:
         """Replaces the data of the OLE object the frame `shape_idx` on `surface` embeds, in place."""
         ...
     def set_ole_snapshot_image(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, bytes: bytes) -> None:
-        """Replaces the fallback snapshot image of the OLE frame `shape_idx` on `surface` — the
-        picture a consumer draws in place of the object it will never run.
+        """Replaces the fallback snapshot image of the OLE frame `shape_idx` on `surface` — the picture
+        a consumer draws in place of the object it will never run.
         """
         ...
     def add_activex_control(self, surface: int | Surface, spec: ActiveXControlSpec, bounds: ShapeBounds) -> int:
-        """Adds an ActiveX form control to `surface`, laid out inside `bounds`, and returns its
-        index in the surface's **control** index space (not the shape index space — a
-        `p:control` is a sibling of the shape tree, not a member of it).
+        """Adds an ActiveX form control to `surface`, laid out inside `bounds`, and returns its index
+        in the surface's **control** index space (not the shape index space — a `p:control` is a
+        sibling of the shape tree, not a member of it).
         """
         ...
     def set_ole_legacy_shape_id(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, identifier: str) -> None:
         """Points the OLE frame `shape_idx` on `surface` at the VML shape with `identifier`
-        (`p:oleObj@spid`) — how an authored object is bound to the legacy fallback that draws
-        it.
+        (`p:oleObj@spid`) — how an authored object is bound to the legacy fallback that draws it.
         """
         ...
     def set_activex_control_shape_id(self, surface: int | Surface, control_idx: int, identifier: str) -> None:
@@ -2801,20 +2904,20 @@ class Deck:
         """
         ...
     def activex_control_shape_id(self, surface: int | Surface, control_idx: int) -> str | None:
-        """The `spid` the ActiveX control `control_idx` on `surface` names — the `id` of the VML
-        shape that draws it in a legacy consumer — or `None` when there is no such control or it
-        names none.
+        """The `spid` the ActiveX control `control_idx` on `surface` names — the `id` of the VML shape
+        that draws it in a legacy consumer — or `None` when there is no such control or it names
+        none.
         """
         ...
     def activex_class_id(self, surface: int | Surface, control_idx: int) -> str | None:
-        """The COM class id the ActiveX control `control_idx` on `surface` names
-        (`ax:ocx@ax:classid`), or `None` when there is no such control or its part states none.
+        """The COM class id the ActiveX control `control_idx` on `surface` names (`ax:ocx@ax:classid`),
+        or `None` when there is no such control or its part states none.
         """
         ...
     def activex_persistence(self, surface: int | Surface, control_idx: int) -> ActiveXPersistence | None:
         """How the ActiveX control `control_idx` on `surface` persists its state
-        (`ax:ocx@ax:persistence`), or `None` when there is no such control, its part states
-        none, or it names a value the ActiveX part does not define.
+        (`ax:ocx@ax:persistence`), or `None` when there is no such control, its part states none, or
+        it names a value the ActiveX part does not define.
         """
         ...
     def set_activex_control_name(self, surface: int | Surface, control_idx: int, name: str) -> None:
@@ -2823,13 +2926,11 @@ class Deck:
         """
         ...
     def set_activex_state(self, surface: int | Surface, control_idx: int, state: bytes) -> None:
-        """Replaces the persisted state of the ActiveX control `control_idx` on `surface`, in
-        place.
-        """
+        """Replaces the persisted state of the ActiveX control `control_idx` on `surface`, in place."""
         ...
     def set_activex_snapshot_image(self, surface: int | Surface, control_idx: int, bytes: bytes) -> None:
-        """Replaces the fallback snapshot image of the ActiveX control `control_idx` on `surface` —
-        the picture a consumer draws in place of the control it will never run.
+        """Replaces the fallback snapshot image of the ActiveX control `control_idx` on `surface` — the
+        picture a consumer draws in place of the control it will never run.
         """
         ...
     def remove_activex_control(self, surface: int | Surface, control_idx: int) -> None:
@@ -2839,116 +2940,111 @@ class Deck:
         ...
     def ole_legacy_shape_id(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> str | None:
         """The `spid` the OLE frame `shape_idx` on `surface` names — the `id` of the VML shape that
-        draws it in a legacy consumer — or `None` when the shape frames no OLE object or names
-        no `spid`.
+        draws it in a legacy consumer — or `None` when the shape frames no OLE object or names no
+        `spid`.
         """
         ...
     def notes_text(self, slide_idx: int) -> str | None:
-        """The speaker notes of slide `slide_idx` — the text of its notes slide's `body`
-        placeholder — or `None` if the slide has no notes slide (or its notes slide has no body
-        placeholder).
+        """The speaker notes of slide `slide_idx` — the text of its notes slide's `body` placeholder —
+        or `None` if the slide has no notes slide (or its notes slide has no body placeholder).
         """
         ...
     def set_notes_text(self, slide_idx: int, text: str) -> None:
-        """Sets the speaker notes of slide `slide_idx` to `text`, creating the notes slide (and, if
-        the deck has none, the notes master it follows) on demand.
+        """Sets the speaker notes of slide `slide_idx` to `text`, creating the notes slide (and, if the
+        deck has none, the notes master it follows) on demand.
         """
         ...
     def clear_notes(self, slide_idx: int) -> None:
-        """Removes the speaker notes of slide `slide_idx`: unwires the slide → notes-slide
-        relationship and removes the notes slide part (with its `.rels` and content-type
-        override). A no-op if the slide has no notes.
+        """Removes the speaker notes of slide `slide_idx`: unwires the slide → notes-slide relationship
+        and removes the notes slide part (with its `.rels` and content-type override). A no-op if
+        the slide has no notes.
         """
         ...
     def add_picture(self, surface: int | Surface, bytes: bytes, bounds: ShapeBounds) -> int:
-        """Appends a picture (`p:pic`) showing `bytes` to `surface`, laid out at `bounds`. Returns
-        the index of the new shape in the slide's one shape index space (see `shape_count`);
-        `shape_kind` reports it as `ShapeKind::Picture`, and the whole `p:spPr` surface —
-        outline, effects, geometry — applies to it like any other shape.
+        """Appends a picture (`p:pic`) showing `bytes` to `surface`, laid out at `bounds`. Returns the
+        index of the new shape in the slide's one shape index space (see `shape_count`);
+        `shape_kind` reports it as `ShapeKind::Picture`, and the whole `p:spPr` surface — outline,
+        effects, geometry — applies to it like any other shape.
         """
         ...
     def media_references(self, surface: int | Surface) -> list[MediaReference]:
-        """Every audio/video/media relationship on `surface`, with where each is referenced from
-        and whether it is external.
+        """Every audio/video/media relationship on `surface`, with where each is referenced from and
+        whether it is external.
         """
         ...
     def replace_media_with_placeholder(self, surface: int | Surface, rel_id: str, placeholder: bytes | None = ...) -> None:
         """Replaces the media that relationship `rel_id` on `surface` binds with an in-package
-        placeholder, so a reference to unreachable external audio/video resolves inside the
-        package instead. The placeholder is `placeholder` if given, else a built-in one matching
-        the media kind — a valid silent WAV for audio (`default_placeholder_audio`) or a minimal
-        MP4 for video (`default_placeholder_video`). The relationship is retargeted at the
-        placeholder, so every carrier that named it — the `p:pic`, its `a14:media` fallback,
-        timing/transition sounds — now resolves locally; the poster image is untouched.
+        placeholder, so a reference to unreachable external audio/video resolves inside the package
+        instead. The placeholder is `placeholder` if given, else a built-in one matching the media
+        kind — a valid silent WAV for audio (`default_placeholder_audio`) or a minimal MP4 for video
+        (`default_placeholder_video`). The relationship is retargeted at the placeholder, so every
+        carrier that named it — the `p:pic`, its `a14:media` fallback, timing/transition sounds —
+        now resolves locally; the poster image is untouched.
         """
         ...
     def picture_image_link_target(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> str | None:
         """The target of the image that picture `shape_idx` on `surface` *links* (`p:blipFill >
         a:blip@r:link`), exactly as the relationship records it — an external path/URL for the
         common case, or an in-package part target for an internal link. `None` when the picture
-        embeds its image (or binds none): an embedded image has no separate target, its bytes
-        are the image.
+        embeds its image (or binds none): an embedded image has no separate target, its bytes are
+        the image.
         """
         ...
     def picture_image_bytes(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bytes | None:
-        """The stored bytes of the image that picture `shape_idx` on `surface` binds, exactly as
-        the package holds them (never decoded or re-encoded), or `None` when the picture binds
-        no image. Borrowed from the package, so a large image is not copied.
+        """The stored bytes of the image that picture `shape_idx` on `surface` binds, exactly as the
+        package holds them (never decoded or re-encoded), or `None` when the picture binds no image.
+        Borrowed from the package, so a large image is not copied.
         """
         ...
     def set_picture_image(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, bytes: bytes) -> None:
-        """Points picture `shape_idx` on `surface` at `bytes`, adding the image to the package if
-        it is not already there (`add_image`, so identical bytes are stored once) and rewriting
-        the blip's `@r:embed`. Any `@r:link` is dropped — the picture now embeds its image — and
-        the rest of the `p:blipFill` (source rect, tile/stretch) is preserved.
+        """Points picture `shape_idx` on `surface` at `bytes`, adding the image to the package if it is
+        not already there (`add_image`, so identical bytes are stored once) and rewriting the blip's
+        `@r:embed`. Any `@r:link` is dropped — the picture now embeds its image — and the rest of
+        the `p:blipFill` (source rect, tile/stretch) is preserved.
         """
         ...
     def linked_images(self, surface: int | Surface) -> list[LinkedImage]:
-        """Every picture on `surface` that *links* its image (`a:blip@r:link`) rather than
-        embedding it, with where each links from — the candidates for
-        `replace_linked_image_with_placeholder`. A linked image is the common source that can be
-        unreachable on another platform; this saves the caller from walking the shapes
-        themselves. Reading does not dirty the part.
+        """Every picture on `surface` that *links* its image (`a:blip@r:link`) rather than embedding
+        it, with where each links from — the candidates for `replace_linked_image_with_placeholder`.
+        A linked image is the common source that can be unreachable on another platform; this saves
+        the caller from walking the shapes themselves. Reading does not dirty the part.
         """
         ...
     def replace_linked_image_with_placeholder(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, placeholder: bytes | None = ...) -> None:
         """Replaces the *linked* image of picture `shape_idx` on `surface` with an embedded
-        placeholder, so a picture that points at an unreachable external file resolves inside
-        the package instead. The placeholder is `placeholder` if given, else
-        `DEFAULT_PLACEHOLDER_IMAGE`. The picture becomes an ordinary embedded picture (`@r:link`
-        → `@r:embed`), keeping its bounds and the rest of its `p:blipFill`, and the now-unused
-        link relationship is dropped.
+        placeholder, so a picture that points at an unreachable external file resolves inside the
+        package instead. The placeholder is `placeholder` if given, else
+        `DEFAULT_PLACEHOLDER_IMAGE`. The picture becomes an ordinary embedded picture (`@r:link` →
+        `@r:embed`), keeping its bounds and the rest of its `p:blipFill`, and the now-unused link
+        relationship is dropped.
         """
         ...
     def add_image(self, surface: int | Surface, bytes: bytes) -> str:
-        """Stores `bytes` as an image part of the package and relates it to `surface`, returning
-        the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
+        """Stores `bytes` as an image part of the package and relates it to `surface`, returning the
+        **slide-scoped relationship id** that names the image — the `rel_id` to hand to
         `FillSpec::Picture` via `set_shape_fill`.
         """
         ...
     def shape_count(self, surface: int | Surface) -> int:
         """The number of **top-level** shapes on `surface` — of **every** `ShapeKind` (autoshapes,
         pictures, groups, graphic frames, connectors), in document order. A group counts as one
-        shape here; its own members are addressed by descending into it with a `ShapePath` and
-        are not included in this count.
+        shape here; its own members are addressed by descending into it with a `ShapePath` and are
+        not included in this count.
         """
         ...
     def shape_kind(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ShapeKind:
-        """What kind of shape `shape_idx` on `surface` is — which of the index-addressed APIs apply
-        to it (a `Picture` takes the `p:spPr` surface but has no text body; a `GroupShape` has
-        no `p:spPr` at all).
+        """What kind of shape `shape_idx` on `surface` is — which of the index-addressed APIs apply to
+        it (a `Picture` takes the `p:spPr` surface but has no text body; a `GroupShape` has no
+        `p:spPr` at all).
         """
         ...
     def shape_member_count(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> int:
         """How many member shapes the group at `shape_idx` holds — `0` for anything that is not a
-        group, since only a `p:grpSp` has members. This is the range a `ShapePath` may descend
-        into.
+        group, since only a `p:grpSp` has members. This is the range a `ShapePath` may descend into.
         """
         ...
     def shapes(self, surface: int | Surface) -> list[ShapeInfo]:
-        """Every shape of `surface`, in document order — what it is and the placeholder slot it
-        fills.
-        """
+        """Every shape of `surface`, in document order — what it is and the placeholder slot it fills."""
         ...
     def shape_for_placeholder(self, surface: int | Surface, kind: PlaceholderType) -> int | None:
         """The address of the first shape on `surface` that fills the `kind` placeholder slot, or
@@ -2956,39 +3052,37 @@ class Deck:
         """
         ...
     def shape_placeholder(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> PlaceholderInfo | None:
-        """The placeholder shape `shape_idx` on `surface` occupies (`p:nvPr > p:ph`), or `None` if
-        it is not a placeholder.
+        """The placeholder shape `shape_idx` on `surface` occupies (`p:nvPr > p:ph`), or `None` if it
+        is not a placeholder.
         """
         ...
     def add_text_box(self, surface: int | Surface, text: str, bounds: ShapeBounds) -> int:
         """Appends a new rectangular text-box shape (`p:sp`) to `surface`, laid out at `bounds` and
-        containing `text` (one paragraph per line, split on `\n`). Returns the index of the new
+        containing `text` (one paragraph per line, split on `\\n`). Returns the index of the new
         shape in the slide's one shape index space (see `shape_count`). Only that part is marked
         dirty.
         """
         ...
     def add_shape(self, surface: int | Surface, preset: PresetShapeType, bounds: ShapeBounds) -> int:
-        """Appends a new autoshape (`p:sp`) with the given `preset` geometry to `surface`, laid out
-        at `bounds`, with an empty text body. Returns the index of the new shape in the slide's
-        one shape index space (see `shape_count`). Only that part is marked dirty.
+        """Appends a new autoshape (`p:sp`) with the given `preset` geometry to `surface`, laid out at
+        `bounds`, with an empty text body. Returns the index of the new shape in the slide's one
+        shape index space (see `shape_count`). Only that part is marked dirty.
         """
         ...
     def remove_shape(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> None:
-        """Removes shape `shape_idx` from `surface`, closing the gap in the shape index space:
-        every later shape on that surface moves down one index. Only that part is marked dirty.
+        """Removes shape `shape_idx` from `surface`, closing the gap in the shape index space: every
+        later shape on that surface moves down one index. Only that part is marked dirty.
         """
         ...
     def group_shapes(self, surface: int | Surface, members: Sequence[int | Sequence[int] | ShapePath]) -> ShapePath:
-        """Wraps `members` — which must be siblings — in a new group, returning the group's
-        address.
-        """
+        """Wraps `members` — which must be siblings — in a new group, returning the group's address."""
         ...
     def ungroup(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ShapePath]:
         """Dissolves the group at `shape_idx`, returning where its members now are."""
         ...
     def move_shape_into_group(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, group_idx: int | Sequence[int] | ShapePath) -> ShapePath:
-        """Moves shape `shape_idx` into the group at `group_idx`, as its last member, and returns
-        its new address.
+        """Moves shape `shape_idx` into the group at `group_idx`, as its last member, and returns its
+        new address.
         """
         ...
     def move_shape_out_of_group(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ShapePath:
@@ -2997,15 +3091,15 @@ class Deck:
         """
         ...
     def graphic_frame_kind(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> GraphicFrameKind | None:
-        """What the graphic frame `shape_idx` on `surface` frames — a `Table`, a `Chart`, a
-        `Diagram` or something else — or `None` when the shape is not a `p:graphicFrame` at all.
-        Reading does not dirty the part.
+        """What the graphic frame `shape_idx` on `surface` frames — a `Table`, a `Chart`, a `Diagram`
+        or something else — or `None` when the shape is not a `p:graphicFrame` at all. Reading does
+        not dirty the part.
         """
         ...
     def add_slide(self) -> int:
-        """Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0
-        — or, on a deck with no slides yet, to the deck's first layout — and returns its index.
-        The new slide is a blank shape tree; add content with `add_text_box` or use
+        """Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0 —
+        or, on a deck with no slides yet, to the deck's first layout — and returns its index. The
+        new slide is a blank shape tree; add content with `add_text_box` or use
         `add_slide_with_text`.
         """
         ...
@@ -3015,9 +3109,13 @@ class Deck:
         """
         ...
     def remove_slide(self, slide_idx: int) -> None:
-        """Removes slide `slide_idx` from the deck, unwiring it completely: the `p:sldId` naming
-        it, the presentation's relationship to it, the slide part, its own `.rels`, and its
-        content-type `Override`.
+        """Removes slide `slide_idx` from the deck, unwiring it completely: the `p:sldId` naming it,
+        the presentation's relationship to it, the slide part, its own `.rels`, and its content-type
+        `Override`.
+
+        Every reference to the slide goes with it: a slide that hyperlinks to the removed one keeps
+        its text and loses the link, and a custom show loses its entry for it. Anything less leaves a
+        relationship pointing at a part that is no longer there, which `save` refuses.
         """
         ...
     def add_slide_with_text(self, text: str, bounds: ShapeBounds) -> int:
@@ -3034,8 +3132,8 @@ class Deck:
         """The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`."""
         ...
     def column_width(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, column: int) -> Emu | None:
-        """The width of column `column` of the table shape `shape_idx` frames, or `None` if the
-        column states none. Reading does not dirty the part.
+        """The width of column `column` of the table shape `shape_idx` frames, or `None` if the column
+        states none. Reading does not dirty the part.
         """
         ...
     def set_column_width(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, column: int, width: Emu) -> None:
@@ -3050,11 +3148,11 @@ class Deck:
         """Sets the height row `row` asks for. Marks only that part dirty."""
         ...
     def insert_row(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int) -> None:
-        """Inserts a row into the table shape `shape_idx` frames so it becomes row `row`; `row`
-        equal to the current row count appends at the end. The new row copies the height of the
-        row beside it and its cells are empty and ready for `set_cell_text`. A merge the new row
-        falls inside grows to include it. Marks only that part dirty; the frame's own bounds are
-        **not** enlarged (as PowerPoint does not either — resize with `set_shape_bounds`).
+        """Inserts a row into the table shape `shape_idx` frames so it becomes row `row`; `row` equal
+        to the current row count appends at the end. The new row copies the height of the row beside
+        it and its cells are empty and ready for `set_cell_text`. A merge the new row falls inside
+        grows to include it. Marks only that part dirty; the frame's own bounds are **not** enlarged
+        (as PowerPoint does not either — resize with `set_shape_bounds`).
         """
         ...
     def remove_row(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int) -> None:
@@ -3065,28 +3163,28 @@ class Deck:
         ...
     def insert_column(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, column: int) -> None:
         """Inserts a column into the table shape `shape_idx` frames so it becomes column `column`;
-        `column` equal to the current column count appends. The grid gains one `a:gridCol`
-        (width copied from the column beside it) and every row gains one empty cell, so the grid
-        and rows stay in step. A merge the new column falls inside grows to include it. Marks
-        only that part dirty; the frame's own bounds are **not** enlarged.
+        `column` equal to the current column count appends. The grid gains one `a:gridCol` (width
+        copied from the column beside it) and every row gains one empty cell, so the grid and rows
+        stay in step. A merge the new column falls inside grows to include it. Marks only that part
+        dirty; the frame's own bounds are **not** enlarged.
         """
         ...
     def remove_column(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, column: int) -> None:
         """Removes column `column` from the table shape `shape_idx` frames: its `a:gridCol` and one
-        cell from every row, together. A merge the column lies inside shrinks; a merge anchored
-        in the column promotes the cell to its right, which takes over the anchor's text and
+        cell from every row, together. A merge the column lies inside shrinks; a merge anchored in
+        the column promotes the cell to its right, which takes over the anchor's text and
         formatting. Marks only that part dirty.
         """
         ...
     def cell_span(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> tuple[int, int]:
-        """How many rows and columns the cell at `(row, column)` spans, as `(rows, columns)` — the
-        same order `table_dimensions` answers in, and the order every address on this surface is
-        written in.
+        """How many rows and columns the cell at `(row, column)` spans, as `(rows, columns)` — the same
+        order `table_dimensions` answers in, and the order every address on this surface is written
+        in.
         """
         ...
     def merged_cell_anchor(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, row: int, column: int) -> tuple[int, int]:
-        """Which cell actually renders at `(row, column)` — itself when it is not merged away, or
-        the anchor of the merged region covering it.
+        """Which cell actually renders at `(row, column)` — itself when it is not merged away, or the
+        anchor of the merged region covering it.
         """
         ...
     def table_part(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, part: TablePart) -> bool | None:
@@ -3100,8 +3198,8 @@ class Deck:
         """
         ...
     def table_style_id(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> str | None:
-        """The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`),
-        or `None` if it names none. Reading does not dirty the part.
+        """The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or
+        `None` if it names none. Reading does not dirty the part.
         """
         ...
     def set_table_style(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, style_id: str) -> None:
@@ -3111,10 +3209,10 @@ class Deck:
         """
         ...
     def create_table_style(self, style_id: str, style_name: str) -> None:
-        """Creates the presentation's `tableStyles.xml` part if it has none, and adds a style with
-        GUID `style_id` and gallery name `style_name` — replacing one already carrying that
-        GUID. The style is born empty; give its parts formatting with `format_table_style_part`,
-        and point a table at it with `set_table_style`.
+        """Creates the presentation's `tableStyles.xml` part if it has none, and adds a style with GUID
+        `style_id` and gallery name `style_name` — replacing one already carrying that GUID. The
+        style is born empty; give its parts formatting with `format_table_style_part`, and point a
+        table at it with `set_table_style`.
         """
         ...
     def format_table_style_part(self, style_id: str, part: TableStylePart, format: TableStyleFormat) -> None:
@@ -3124,22 +3222,25 @@ class Deck:
         """
         ...
     def set_inline_table_style(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, definition: TableStyleDefinition) -> None:
-        """Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`),
-        replacing any inline or referenced style it had — the lean alternative to a shared
-        `tableStyles.xml` style: the whole look is spelled out in `definition` and travels with
-        the table, so no shared part, relationship or referenced GUID is involved. Marks only
-        that part dirty.
+        """Gives the table shape `shape_idx` frames its own inline style (`a:tableStyle`), replacing
+        any inline or referenced style it had: the whole look is spelled out in `definition` and
+        travels with the table. Marks only that part dirty.
+
+        This call adds no shared `tableStyles.xml`, no relationship and no referenced GUID, and a
+        shared part the deck already has comes out of a save byte for byte as it went in. Whether the
+        package holds one at all depends on where the table came from: a table from `add_table`
+        arrives with a `tableStyles.xml` beside it, and this call does not delete it.
         """
         ...
     def format_inline_table_style_part(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, part: TableStylePart, format: TableStyleFormat) -> None:
-        """Sets the formatting the table's **inline** style gives one `part`, creating the inline
-        style if the table had none — the incremental sibling of `set_inline_table_style`,
-        mirroring `format_table_style_part` for a self-contained style. Only the facets `format`
-        sets are written. Marks only that part dirty.
+        """Sets the formatting the table's **inline** style gives one `part`, creating the inline style
+        if the table had none — the incremental sibling of `set_inline_table_style`, mirroring
+        `format_table_style_part` for a self-contained style. Only the facets `format` sets are
+        written. Marks only that part dirty.
         """
         ...
     def shape_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> str:
-        """The full text of shape `shape_idx` on `surface` (paragraphs joined by `\n`)."""
+        """The full text of shape `shape_idx` on `surface` (paragraphs joined by `\\n`)."""
         ...
     def set_shape_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, run_idx: int, text: str) -> None:
         """Replaces the text of the `run_idx`-th run (flattened over the shape's paragraphs, in
@@ -3147,25 +3248,21 @@ class Deck:
         """
         ...
     def set_shape_text_content(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, text: str) -> None:
-        """Replaces the **whole text** of shape `shape_idx` on `surface` with `text` — one
-        paragraph per line, each holding exactly one run, so `shape_text` reads back exactly
-        what was written. Marks only that part dirty.
+        """Replaces the **whole text** of shape `shape_idx` on `surface` with `text` — one paragraph
+        per line, each holding exactly one run, so `shape_text` reads back exactly what was written.
+        Marks only that part dirty.
         """
         ...
     def paragraph_count(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> int:
-        """The number of paragraphs in shape `shape_idx`'s text body. Reading does not dirty the
-        part.
-        """
+        """The number of paragraphs in shape `shape_idx`'s text body. Reading does not dirty the part."""
         ...
     def run_count(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> int:
-        """The number of runs in paragraph `para_idx` of shape `shape_idx`. Reading does not dirty
-        the part.
+        """The number of runs in paragraph `para_idx` of shape `shape_idx`. Reading does not dirty the
+        part.
         """
         ...
     def paragraph_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> str:
-        """The text of paragraph `para_idx` — its runs concatenated. Reading does not dirty the
-        part.
-        """
+        """The text of paragraph `para_idx` — its runs concatenated. Reading does not dirty the part."""
         ...
     def run_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int) -> str:
         """The text of one run. Reading does not dirty the part."""
@@ -3177,39 +3274,36 @@ class Deck:
         """
         ...
     def paragraph_field_text(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, field_idx: int) -> str:
-        """The cached text of field `field_idx` in paragraph `para_idx` — the value the producer
-        last computed for it (a slide number, a formatted date), not a live value. Reading does
-        not dirty the part.
+        """The cached text of field `field_idx` in paragraph `para_idx` — the value the producer last
+        computed for it (a slide number, a formatted date), not a live value. Reading does not dirty
+        the part.
         """
         ...
     def paragraph_field_type(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, field_idx: int) -> str | None:
-        """What field `field_idx` in paragraph `para_idx` generates (`a:fld@type`, e.g. `slidenum`
-        or `datetime`), or `None` if it names no type. Reading does not dirty the part.
+        """What field `field_idx` in paragraph `para_idx` generates (`a:fld@type`, e.g. `slidenum` or
+        `datetime`), or `None` if it names no type. Reading does not dirty the part.
         """
         ...
     def paragraph_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> ParagraphPropertiesSpec | None:
-        """The layout properties a paragraph declares of its own (`a:pPr`), or `None` if it
-        declares none — in which case every property is inherited. Reading does not dirty the
-        part.
+        """The layout properties a paragraph declares of its own (`a:pPr`), or `None` if it declares
+        none — in which case every property is inherited. Reading does not dirty the part.
         """
         ...
     def run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int) -> CharacterPropertiesSpec | None:
-        """The character properties a run declares of its own (`a:rPr`), or `None` if it declares
-        none. Reading does not dirty the part.
+        """The character properties a run declares of its own (`a:rPr`), or `None` if it declares none.
+        Reading does not dirty the part.
         """
         ...
     def end_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> CharacterPropertiesSpec | None:
-        """The paragraph-mark properties (`a:endParaRPr`), or `None` if the paragraph declares
-        none.
-        """
+        """The paragraph-mark properties (`a:endParaRPr`), or `None` if the paragraph declares none."""
         ...
     def set_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, run_idx: int, spec: CharacterPropertiesSpec) -> None:
         """Applies `spec` to one run's character properties, creating its `a:rPr` if it has none."""
         ...
     def set_paragraph_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, spec: CharacterPropertiesSpec) -> None:
-        """Applies `spec` to **every run** in paragraph `para_idx`, and to its `a:endParaRPr` if it
-        has one — so text typed at the end of the paragraph takes the same formatting, which is
-        what selecting a paragraph and restyling it means.
+        """Applies `spec` to **every run** in paragraph `para_idx`, and to its `a:endParaRPr` if it has
+        one — so text typed at the end of the paragraph takes the same formatting, which is what
+        selecting a paragraph and restyling it means.
         """
         ...
     def set_shape_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, spec: CharacterPropertiesSpec) -> None:
@@ -3218,32 +3312,31 @@ class Deck:
         """
         ...
     def coalesce_paragraph_runs(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int) -> int:
-        """Merges adjacent runs in paragraph `para_idx` that would render identically, returning
-        the number of runs merged away. This undoes the run splitting that
-        `set_text_range_properties` does: formatting a sub-range splits a run, and repeatedly
-        formatting overlapping ranges leaves a paragraph with more runs than it needs.
+        """Merges adjacent runs in paragraph `para_idx` that would render identically, returning the
+        number of runs merged away. This undoes the run splitting that `set_text_range_properties`
+        does: formatting a sub-range splits a run, and repeatedly formatting overlapping ranges
+        leaves a paragraph with more runs than it needs.
         """
         ...
     def coalesce_shape_runs(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> int:
-        """Merges adjacent identical runs across **every** paragraph of a shape's text body,
-        returning the total number of runs merged away. The per-paragraph rule is
-        `coalesce_paragraph_runs`.
+        """Merges adjacent identical runs across **every** paragraph of a shape's text body, returning
+        the total number of runs merged away. The per-paragraph rule is `coalesce_paragraph_runs`.
         """
         ...
     def set_end_run_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, spec: CharacterPropertiesSpec) -> None:
-        """Applies `spec` to the paragraph-mark properties (`a:endParaRPr`), creating the element
-        if the paragraph has none.
+        """Applies `spec` to the paragraph-mark properties (`a:endParaRPr`), creating the element if
+        the paragraph has none.
         """
         ...
     def set_paragraph_properties(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, spec: ParagraphPropertiesSpec) -> None:
-        """Applies `spec` to a paragraph's layout properties (`a:pPr`), creating the element if it
-        has none. The properties **merge**, as run properties do.
+        """Applies `spec` to a paragraph's layout properties (`a:pPr`), creating the element if it has
+        none. The properties **merge**, as run properties do.
         """
         ...
     def shape_list_style_level(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, level: IndentLevel) -> ParagraphPropertiesSpec | None:
         """The layout properties the shape's own list style offers at `level` (`a:lstStyle >
-        a:lvlNpPr`), or `None` if it offers none there — or declares no list style at all.
-        Reading does not dirty the part.
+        a:lvlNpPr`), or `None` if it offers none there — or declares no list style at all. Reading
+        does not dirty the part.
         """
         ...
     def shape_list_style_default(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> ParagraphPropertiesSpec | None:
@@ -3253,20 +3346,20 @@ class Deck:
         ...
     def set_shape_list_style_level(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, level: IndentLevel, spec: ParagraphPropertiesSpec) -> None:
         """Applies `spec` to what the shape's own list style offers at `level`, creating the
-        `a:lstStyle` — and the `a:lvlNpPr` within it — if the shape has none. Marks only that
-        part dirty.
+        `a:lstStyle` — and the `a:lvlNpPr` within it — if the shape has none. Marks only that part
+        dirty.
         """
         ...
     def set_shape_list_style_default(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, spec: ParagraphPropertiesSpec) -> None:
-        """Applies `spec` to what the shape's own list style offers where no level applies
-        (`a:lstStyle > a:defPPr`), creating the elements if the shape has none. Marks only that
-        part dirty. Merges as `set_shape_list_style_level` does.
+        """Applies `spec` to what the shape's own list style offers where no level applies (`a:lstStyle
+        > a:defPPr`), creating the elements if the shape has none. Marks only that part dirty.
+        Merges as `set_shape_list_style_level` does.
         """
         ...
     def clear_shape_list_style_level(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, level: IndentLevel) -> bool:
-        """Removes what the shape's own list style offers at `level`, so the level falls through to
-        the tier below again. Returns whether it offered anything there; a `false` changes
-        nothing and does **not** dirty the part.
+        """Removes what the shape's own list style offers at `level`, so the level falls through to the
+        tier below again. Returns whether it offered anything there; a `false` changes nothing and
+        does **not** dirty the part.
         """
         ...
     def clear_shape_list_style_default(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
@@ -3275,8 +3368,8 @@ class Deck:
         """
         ...
     def clear_shape_list_style(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
-        """Removes the shape's own list style entirely (`a:lstStyle`), so every level falls through
-        to the tier below. Returns whether the shape had one; a `false` changes nothing and does
+        """Removes the shape's own list style entirely (`a:lstStyle`), so every level falls through to
+        the tier below. Returns whether the shape had one; a `false` changes nothing and does
         **not** dirty the part.
         """
         ...
@@ -3287,8 +3380,7 @@ class Deck:
         ...
     def set_text_range_properties_by_grapheme(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, para_idx: int, range: range, spec: CharacterPropertiesSpec) -> None:
         """Applies `spec` to part of a paragraph — the characters in `range`, counted in **grapheme
-        clusters**: what a reader would call characters, and what a text selection actually
-        spans.
+        clusters**: what a reader would call characters, and what a text selection actually spans.
         """
         ...
 
@@ -3298,7 +3390,7 @@ class Deck:
 
 @final
 class Justification:
-    """The projection of `mjx_ooxml::Justification`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::Justification`], whose documentation is authoritative."""
     Start: Justification
     Center: Justification
     End: Justification
@@ -3315,21 +3407,21 @@ class Justification:
 
 @final
 class MergedCellType:
-    """The projection of `mjx_ooxml::MergedCellType`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::MergedCellType`], whose documentation is authoritative."""
     Continue: MergedCellType
     Restart: MergedCellType
     def __int__(self) -> int: ...
 
 @final
 class PageOrientation:
-    """The projection of `mjx_ooxml::PageOrientation`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::PageOrientation`], whose documentation is authoritative."""
     Portrait: PageOrientation
     Landscape: PageOrientation
     def __int__(self) -> int: ...
 
 @final
 class HeaderFooterType:
-    """The projection of `mjx_ooxml::HeaderFooterType`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::HeaderFooterType`], whose documentation is authoritative."""
     Even: HeaderFooterType
     Default: HeaderFooterType
     First: HeaderFooterType
@@ -3337,14 +3429,14 @@ class HeaderFooterType:
 
 @final
 class FieldForm:
-    """The projection of `mjx_ooxml::FieldForm`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::FieldForm`], whose documentation is authoritative."""
     Simple: FieldForm
     Complex: FieldForm
     def __int__(self) -> int: ...
 
 @final
 class CellBorderEdge:
-    """The projection of `mjx_ooxml::CellBorderEdge`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::CellBorderEdge`], whose documentation is authoritative."""
     Top: CellBorderEdge
     Start: CellBorderEdge
     Left: CellBorderEdge
@@ -3357,7 +3449,7 @@ class CellBorderEdge:
 
 @final
 class RevisionKind:
-    """The projection of `mjx_ooxml::RevisionKind`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::RevisionKind`], whose documentation is authoritative."""
     Inserted: RevisionKind
     Deleted: RevisionKind
     MovedFromContent: RevisionKind
@@ -3388,9 +3480,7 @@ class BlockPath:
         ...
     @staticmethod
     def of(indices: list[int]) -> "BlockPath":
-        """The paragraph at this address: `[1]` top-level, `[1, 0]` for a nested block
-        container.
-        """
+        """The paragraph at this address: `[1]` top-level, `[1, 0]` for a nested block container."""
         ...
     indices: list[int]
     """The address as a list of indices, outermost first."""
@@ -3444,15 +3534,15 @@ class PageSize:
         ...
     @staticmethod
     def from_twips(width_twips: int, height_twips: int, orientation: PageOrientation) -> "PageSize":
-        """An arbitrary page extent, in twips, with the given orientation."""
-        ...
-    def landscape(self) -> "PageSize":
-        """The same physical page, rotated: width and height swapped, orientation set to
-        landscape.
+        """An arbitrary page extent, in twips, with the given orientation. Not checked here —
+        `Document.blank` checks the result before writing anything.
         """
         ...
+    def landscape(self) -> "PageSize":
+        """The same physical page, rotated: width and height swapped, orientation set to landscape."""
+        ...
     width_twips: int
-    """The page width, in twips — the larger dimension when landscape."""
+    """The page width, in twips (1/1440 inch) — the larger dimension when landscape."""
     height_twips: int
     """The page height, in twips."""
     orientation: PageOrientation
@@ -3463,8 +3553,8 @@ class PageMargins:
     """A section's page margins, in twips."""
     @staticmethod
     def normal() -> "PageMargins":
-        """Word's "Normal" template margins: 1 inch on every side, half an inch header/footer,
-        no gutter.
+        """Word's "Normal" template margins: 1 inch on every side, half an inch header/footer, no
+        gutter.
         """
         ...
     top: int
@@ -3486,7 +3576,7 @@ class PageMargins:
 class EffectiveColor:
     """A resolved colour: `"auto"`, or a concrete `RRGGBB` hex value."""
     is_auto: bool
-    """Whether the document leaves this colour to the renderer."""
+    """Whether the document leaves this colour to the renderer (`w:val="auto"`)."""
     hex: str | None
     """The concrete `RRGGBB` hex value, uppercase, when this is not `auto`."""
 
@@ -3504,11 +3594,11 @@ class EffectiveFonts:
 
 @final
 class EffectiveCharacterProperties:
-    """The curated subset of a run's effective character formatting — see `Document`'s own
-    module doc for which fields, and why not all of them.
+    """The curated subset of a run's effective character formatting — see the guide's *What is not
+    projected* for which fields, and why not all of them.
     """
     bold: bool | None
-    """Bold, resolved (XOR-combined across the style chain)."""
+    """Bold, resolved (XOR-combined across the style chain, per ECMA-376 Part 1 §17.7.3)."""
     italic: bool | None
     """Italic, resolved."""
     strikethrough: bool | None
@@ -3520,7 +3610,9 @@ class EffectiveCharacterProperties:
     small_caps: bool | None
     """Small capitals, resolved."""
     font_size_half_points: str | None
-    """The font size, in half-points, as the raw wire string."""
+    """The font size, in half-points, as the raw wire string (`ST_HpsMeasure` — an unsigned decimal
+    or a universal measure, never renormalized).
+    """
     color: EffectiveColor | None
     """The resolved colour, its theme reference already baked to concrete `RRGGBB`."""
     fonts: EffectiveFonts | None
@@ -3528,7 +3620,9 @@ class EffectiveCharacterProperties:
 
 @final
 class EffectiveParagraphProperties:
-    """The curated subset of a paragraph's effective layout."""
+    """The curated subset of a paragraph's effective layout — see the guide's *What is not
+    projected*.
+    """
     keep_with_next: bool | None
     """`w:keepNext`, resolved."""
     keep_lines_together: bool | None
@@ -3544,9 +3638,7 @@ class EffectiveParagraphProperties:
 
 @final
 class EffectiveShading:
-    """A resolved cell/table shading: the pattern's own colour and the background it draws
-    over.
-    """
+    """A resolved cell/table shading: the pattern's own colour and the background it draws over."""
     pattern_color: EffectiveColor | None
     """The shading pattern's own colour."""
     fill: EffectiveColor | None
@@ -3626,8 +3718,8 @@ class HyperlinkTarget:
 
 @final
 class Field:
-    """One field (`w:fldSimple` or a `w:fldChar` sequence): its form, instruction, cached
-    result and any fields nested inside it.
+    """One field (`w:fldSimple` or a `w:fldChar` sequence): its form, instruction, cached result
+    and any fields nested inside it.
     """
     form: FieldForm
     """Which wire form this field was read from."""
@@ -3639,19 +3731,17 @@ class Field:
     """The instruction with the field-type keyword removed, verbatim."""
     cached_result: str | None
     """The field's cached result, excluding any nested field's own result — `None` only for a
-    complex field with no `separate` marker.
+    complex field with no `separate` marker (legal markup, not a missing value).
     """
     nested_fields: list["Field"]
-    """Every field nested inside this one's own instruction or result zone, in document
-    order.
-    """
+    """Every field nested inside this one's own instruction or result zone, in document order."""
 
 @final
 class GridDiscrepancy:
     """One way a table's grid and its rows disagree with each other."""
     kind: str
     """Which kind of discrepancy this is: `"RowWidthMismatch"`, `"OrphanedVerticalMerge"` or
-    `"EmptyRow"`.
+    `"EmptyRow"` — or `"Unknown"` for a discrepancy a later build names and this one does not.
     """
     row: int | None
     """The row involved, for every kind."""
@@ -3666,19 +3756,25 @@ class Document:
     """An open Word document."""
     @staticmethod
     def blank(size: PageSize) -> "Document":
-        """A new document with nothing in it beyond one empty paragraph and a body-level
-        `w:sectPr`.
-        """
+        """A new document with nothing in it beyond one empty paragraph and a body-level `w:sectPr`."""
         ...
     @staticmethod
     def open(data: bytes) -> "Document":
-        """Opens a document from the bytes of a `.docx`, `.docm`, `.dotx` or `.dotm`."""
+        """Opens a document from the bytes of a `.docx`, `.docm`, `.dotx` or `.dotm`.
+
+        The interpreter lock is released for the parse. Raises `IoError` for bytes that are not a
+        readable container, `MalformedDocumentError` for a package whose markup is not
+        WordprocessingML, and `UnsupportedFormatError` — naming the format — for a PowerPoint or
+        Excel document.
+        """
         ...
     def format(self) -> Format:
         """What this document's main part says it is."""
         ...
     def save(self) -> bytes:
-        """The document as the bytes of a `.docx`, **validated first**."""
+        """The document as the bytes of a `.docx`, **validated first**. The interpreter lock is
+        released for the write.
+        """
         ...
     def save_unchecked(self) -> bytes:
         """The document as bytes, **without** the validation pass."""
@@ -3687,12 +3783,12 @@ class Document:
         """Checks the packaging invariants `save` enforces, without writing anything."""
         ...
     def conformance(self) -> str | None:
-        """The document's conformance class (`"strict"`/`"transitional"`), or `None` if
-        absent.
-        """
+        """The document's conformance class (`"strict"`/`"transitional"`), or `None` if absent."""
         ...
     def set_conformance(self, value: str | None = None) -> None:
-        """Sets (or, given `None`, removes) `w:document/@conformance`."""
+        """Sets (or, given `None`, removes) `w:document/@conformance`. `value` is `"strict"` or
+        `"transitional"`.
+        """
         ...
     def paragraph_count(self) -> int:
         """How many paragraphs the document body holds."""
@@ -3710,9 +3806,7 @@ class Document:
         """Sets the text of one run."""
         ...
     def insert_paragraph(self, at: int | Sequence[int] | BlockPath) -> None:
-        """Inserts a new, empty paragraph at `at`, shifting every paragraph at or after it
-        later.
-        """
+        """Inserts a new, empty paragraph at `at`, shifting every paragraph at or after it later."""
         ...
     def append_paragraph(self) -> None:
         """Appends a new, empty paragraph as the body's new last paragraph."""
@@ -3772,9 +3866,7 @@ class Document:
         """Removes the `w:sectPr` at `location`, if it carries one."""
         ...
     def even_and_odd_headers(self) -> bool:
-        """Whether this document's sections use different headers/footers for even and odd
-        pages.
-        """
+        """Whether this document's sections use different headers/footers for even and odd pages."""
         ...
     def header_text(self, section: int, kind: HeaderFooterType) -> str | None:
         """The text of the header of `kind` that applies to `section`'s pages, or `None`."""
@@ -3845,10 +3937,12 @@ class Document:
         """Every field a paragraph holds, at its own top level and nested, in document order."""
         ...
     def set_field_instruction(self, paragraph: int | Sequence[int] | BlockPath, field: Sequence[int], text: str) -> None:
-        """Sets a field's own instruction."""
+        """Sets a field's own instruction. `field` is the sequence of indices from `fields`'s own top
+        level down to the target field: `[0]` for the paragraph's first field.
+        """
         ...
     def set_field_cached_result_text(self, paragraph: int | Sequence[int] | BlockPath, field: Sequence[int], text: str) -> None:
-        """Sets a field's own cached result."""
+        """Sets a field's own cached result. See `set_field_instruction` for how `field` addresses one."""
         ...
     def hyperlink_target(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath) -> HyperlinkTarget | None:
         """The click target of the hyperlink at slot `at` within `paragraph`, or `None`."""
@@ -3857,17 +3951,13 @@ class Document:
         """Inserts a new hyperlink wrapping one run of `text` at slot `at` within `paragraph`."""
         ...
     def remove_hyperlink(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath) -> None:
-        """Removes the hyperlink at slot `at` within `paragraph`, together with every run it
-        wraps.
-        """
+        """Removes the hyperlink at slot `at` within `paragraph`, together with every run it wraps."""
         ...
     def comments(self) -> list[CommentSummary]:
         """Every comment this document's `word/comments.xml` holds."""
         ...
     def add_comment(self, paragraph: int | Sequence[int] | BlockPath, author: str, initials: str | None = None, text: str = "") -> int:
-        """Adds a new comment on the whole paragraph at `paragraph`. Returns the comment's own
-        id.
-        """
+        """Adds a new comment on the whole paragraph at `paragraph`. Returns the comment's own id."""
         ...
     def remove_comment(self, id: int) -> None:
         """Removes the comment with `id`."""
@@ -3879,9 +3969,7 @@ class Document:
         """Every user-visible footnote this document holds."""
         ...
     def add_footnote(self, paragraph: int | Sequence[int] | BlockPath, text: str) -> int:
-        """Adds a new user footnote referenced from the end of `paragraph`. Returns its own
-        id.
-        """
+        """Adds a new user footnote referenced from the end of `paragraph`. Returns its own id."""
         ...
     def remove_footnote(self, id: int) -> None:
         """Removes the user footnote with `id`."""
@@ -3899,52 +3987,52 @@ class Document:
         """Every tracked-change marker the document body holds."""
         ...
     def text_with_revisions_accepted(self) -> str:
-        """The document body's text with tracked insertions kept and tracked deletions
-        dropped.
-        """
+        """The document body's text with tracked insertions kept and tracked deletions dropped."""
         ...
     def text_with_revisions_rejected(self) -> str:
         """As `text_with_revisions_accepted`, the rejected-text counterpart."""
         ...
     def add_inline_picture(self, paragraph: int | Sequence[int] | BlockPath, image_bytes: bytes, content_type: str, extension: str, width_emu: int, height_emu: int, name: str) -> int:
-        """Adds an inline picture as a new run at the end of `paragraph`. Returns its
-        `wp:docPr` id.
-        """
+        """Adds an inline picture as a new run at the end of `paragraph`. Returns its `wp:docPr` id."""
         ...
     def remove_drawing(self, doc_pr_id: int) -> bool:
-        """Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was
-        removed.
-        """
+        """Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was removed."""
         ...
     def chart_drawing_ids(self) -> list[int]:
-        """The `wp:docPr` id of every drawing in the document body that frames a chart, in
-        document order.
+        """The `wp:docPr` id of every drawing in the document body that frames a chart, in document
+        order.
         """
         ...
     def chart_rel_id(self, drawing_id: int) -> str | None:
-        """The relationship id the drawing `drawing_id` names as its chart part, or `None` when
-        that drawing frames no chart.
+        """The relationship id the drawing `drawing_id` names as its chart part, or `None` when that
+        drawing frames no chart.
         """
         ...
     def chart_part_bytes(self, drawing_id: int) -> bytes | None:
         """The raw XML bytes of the chart part the drawing `drawing_id` references, or `None`."""
         ...
     def add_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, width_emu: int, height_emu: int, name: str) -> int:
-        """Adds `chart` as a new inline chart at the end of `paragraph`. Returns its `wp:docPr`
-        id.
-        """
+        """Adds `chart` as a new inline chart at the end of `paragraph`. Returns its `wp:docPr` id."""
         ...
     def add_floating_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, offset_x_emu: int, offset_y_emu: int, width_emu: int, height_emu: int, wrap: ChartWrap, name: str) -> int:
-        """Adds `chart` as a floating chart, offset from the paragraph's own origin, with the
-        text wrapping around it as `wrap` says. Returns its `wp:docPr` id.
+        """Adds `chart` as a floating chart, offset from the paragraph's own origin, with the text
+        wrapping around it as `wrap` says. Returns its `wp:docPr` id.
         """
         ...
     def chart_workbooks(self) -> list[DocumentChartWorkbook]:
         """Every chart in the document that references a backing workbook."""
         ...
     def refresh_chart_workbook(self, drawing_id: int) -> bool:
-        """Rewrites the embedded workbook of the chart `drawing_id` frames. Answers whether it
-        rewrote one.
+        """Writes the chart's data into the workbook the chart `drawing_id` frames already embeds — the
+        cells its own `c:f` formulas name, and nothing else — and answers whether it wrote one.
+
+        Every other sheet, format and name that workbook carried survives. `regenerate_chart_workbook`
+        is the one that replaces the workbook wholesale.
+        """
+        ...
+    def regenerate_chart_workbook(self, drawing_id: int) -> bool:
+        """Replaces the embedded workbook of the chart `drawing_id` frames with a freshly built one,
+        discarding whatever it held. Answers whether it replaced one.
         """
         ...
     def detach_chart_workbook(self, drawing_id: int) -> None:
@@ -3975,9 +4063,7 @@ class Document:
         """The built-in style id the chart names, or `None`."""
         ...
     def chart_series_fill(self, drawing_id: int, series_idx: int) -> FillSpec | None:
-        """The fill of series `series_idx`, or `None` when it takes its colour from the chart
-        style.
-        """
+        """The fill of series `series_idx`, or `None` when it takes its colour from the chart style."""
         ...
     def chart_data_labels(self, drawing_id: int, series_idx: int, point_idx: int | None = None) -> DataLabelSettings:
         """The data-label settings in force for one point of series `series_idx`."""
@@ -4001,14 +4087,12 @@ class Document:
         """Every decoration of series `series_idx` naming a point the series no longer has."""
         ...
     def set_chart_series_values(self, drawing_id: int, series_idx: int, values: Sequence[float]) -> None:
-        """Rewrites the values of series `series_idx`, refreshing the embedded workbook in the
-        same call.
+        """Rewrites the values of series `series_idx`, refreshing the embedded workbook in the same
+        call.
         """
         ...
     def set_chart_series_categories(self, drawing_id: int, series_idx: int, labels: Sequence[str]) -> None:
-        """Rewrites the category labels of series `series_idx`, refreshing the workbook
-        alongside.
-        """
+        """Rewrites the category labels of series `series_idx`, refreshing the workbook alongside."""
         ...
     def set_chart_axis_scale(self, drawing_id: int, axis_idx: int, minimum: float | None = None, maximum: float | None = None) -> None:
         """Sets or clears the explicit bounds of axis `axis_idx`."""
@@ -4044,19 +4128,13 @@ class Document:
         """Removes the labels at one tier entirely. Answers whether one was there."""
         ...
     def set_chart_point_fill(self, drawing_id: int, series_idx: int, point_idx: int, fill: FillSpec) -> None:
-        """Colours point `point_idx` of series `series_idx` differently from the rest of its
-        series.
-        """
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its series."""
         ...
     def set_chart_point_line(self, drawing_id: int, series_idx: int, point_idx: int, line: LineSpec) -> None:
-        """Outlines point `point_idx` of series `series_idx` differently from the rest of its
-        series.
-        """
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its series."""
         ...
     def set_chart_point_explosion(self, drawing_id: int, series_idx: int, point_idx: int, percent: int | None = None) -> None:
-        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it
-        back.
-        """
+        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back."""
         ...
     def remove_chart_point_format(self, drawing_id: int, series_idx: int, point_idx: int) -> bool:
         """Removes the formatting of point `point_idx` of series `series_idx`."""
@@ -4077,8 +4155,8 @@ class Document:
         """Removes every set of error bars from series `series_idx`, answering how many went."""
         ...
     def drop_chart_dangling_decoration(self, drawing_id: int, series_idx: int) -> int:
-        """Removes every decoration of series `series_idx` past the end of its data, answering
-        how many went.
+        """Removes every decoration of series `series_idx` past the end of its data, answering how many
+        went.
         """
         ...
 
@@ -4092,7 +4170,11 @@ class FormatFamily:
 
 @final
 class Format:
-    """What a package's main part says the document is."""
+    """What a package's main part says the document is.
+
+    One member per main-part content type, so a template is distinguishable from a presentation and
+    a macro-enabled file from a plain one — which is precisely what a filename check cannot do.
+    """
     Presentation: Format
     PresentationMacroEnabled: Format
     PresentationTemplate: Format
@@ -4120,8 +4202,11 @@ class Format:
     leading dot.
     """
     is_editable: bool
-    """Whether `Deck.open` can edit this format. Word and Excel documents are detected before they
-    are editable, so a caller can say so precisely instead of reporting a parse failure.
+    """Whether this build can edit a package of this format — true for every format except
+    `WorkbookBinary`, whose `.xlsb` payload is not XML at all. `Deck.open` opens the
+    PresentationML members, `Document.open` the WordprocessingML ones and `Workbook.open` the
+    SpreadsheetML ones, so a caller can refuse a `.xlsb` precisely instead of reporting a parse
+    failure.
     """
 
 @final
@@ -4345,8 +4430,8 @@ class GuideContext:
     height: Emu
     """The height `h` stands for."""
     def variable(self, name: str) -> float | None:
-        """The value of one built-in variable — `w`, `h`, `l`, `t`, `r`, `b`, `hc`, `vc`, `ss`,
-        `ls`, `ssd2`… — or `None` if that is not a variable name.
+        """The value of one built-in variable — `w`, `h`, `l`, `t`, `r`, `b`, `hc`, `vc`, `ss`, `ls`,
+        `ssd2`… — or `None` if that is not a variable name.
         """
         ...
 
@@ -4445,7 +4530,7 @@ class AdjustHandle:
     """The first axis's limits, when stated."""
     second_limits: tuple[AdjustCoordinate | None, AdjustCoordinate | None]
     """The second axis's limits, when stated. An `xy` handle's are coordinates; a `polar` handle's
-    are angles, reported through [`second_angle_limits`](Self::second_angle_limits).
+    are angles, reported through `second_angle_limits`.
     """
     second_angle_limits: tuple[AdjustAngle | None, AdjustAngle | None]
     """A polar handle's angular limits, when stated."""
@@ -4482,12 +4567,14 @@ class CustomGeometrySpec:
     paths: list[Path2DSpec]
     """The paths (`a:pathLst`), in order."""
     def guide_values(self, context: GuideContext) -> dict[str, float]:
-        """Every guide's value at the given size."""
+        """Every guide's value at the given size.
+
+        Raises `MalformedDocumentError` if a formula does not parse or refers to a guide that is not
+        defined.
+        """
         ...
     def resolve(self, context: GuideContext) -> ResolvedCustomGeometry:
-        """This geometry with every formula evaluated at the given size — what a renderer would
-        draw.
-        """
+        """This geometry with every formula evaluated at the given size — what a renderer would draw."""
         ...
 
 @final
@@ -4495,7 +4582,20 @@ class ShapeGeometry:
     """A preset shape with its named adjustments, or an unmodelled preset carrying only its name."""
     @staticmethod
     def of(preset: PresetShapeType, adjustments: dict[str, Fraction | Angle] | None = ...) -> "ShapeGeometry":
-        """The geometry of one preset shape, with values for the adjustments it carries."""
+        """The geometry of one preset shape, with values for the adjustments it carries.
+
+        ```python
+        ShapeGeometry.of(PresetShapeType.RoundedRectangle, {"corner_radius": Fraction.of(0.25)})
+        ShapeGeometry.of(PresetShapeType.Arc, {
+            "start_angle": Angle.from_degrees(0),
+            "end_angle": Angle.from_degrees(90),
+        })
+        ShapeGeometry.of(PresetShapeType.Ellipse)   # an ellipse has no adjustments
+        ```
+
+        Raises `KeyError` for a missing or unrecognised adjustment name, and `TypeError` for a value
+        of the wrong unit.
+        """
         ...
     preset: PresetShapeType
     """The preset this geometry names."""
@@ -4503,8 +4603,8 @@ class ShapeGeometry:
     """The adjustments this geometry states, by name."""
     @staticmethod
     def adjustment_names(preset: PresetShapeType) -> list[str]:
-        """What a preset's adjustments are called — the keys [`of`](ShapeGeometry::of) expects, in
-        the order the specification lists them.
+        """What a preset's adjustments are called — the keys `ShapeGeometry.of` expects, in the order
+        the specification lists them.
         """
         ...
 
@@ -4592,7 +4692,7 @@ class ResolvedRectangle:
 class ResolvedDrawCommand:
     """A path command with every coordinate resolved."""
     kind: str
-    """Which command this is, in the same vocabulary [`DrawCommand.kind`](DrawCommand::kind) uses."""
+    """Which command this is, in the same vocabulary `DrawCommand.kind` uses."""
     points: list[ResolvedPoint]
     """The points this command names, in order."""
     radii: tuple[Emu, Emu] | None
@@ -4711,9 +4811,7 @@ class Fraction:
         ...
     @staticmethod
     def percent(percent: float) -> "Fraction":
-        """A proportion given as a percentage: `Fraction.percent(50)` is the same as
-        `Fraction.of(0.5)`.
-        """
+        """A proportion given as a percentage: `Fraction.percent(50)` is the same as `Fraction.of(0.5)`."""
         ...
     ratio: float
     """The proportion, as a fraction of one."""
@@ -4789,9 +4887,7 @@ class ColorSpec:
     """
     @staticmethod
     def srgb(hex: str) -> "ColorSpec":
-        """A literal colour, six hexadecimal digits with no leading `#`:
-        `ColorSpec.srgb("1F3864")`.
-        """
+        """A literal colour, six hexadecimal digits with no leading `#`: `ColorSpec.srgb("1F3864")`."""
         ...
     @staticmethod
     def scheme(color: SchemeColor) -> "ColorSpec":
@@ -4799,19 +4895,83 @@ class ColorSpec:
         ...
     @staticmethod
     def other(kind: ColorKind, value: str | None = ...) -> "ColorSpec":
-        """One of the other colour elements — `hslClr`, `scrgbClr`, `sysClr`, `prstClr` — kept
-        exactly as written so it round-trips, and reported here so a caller knows what it is
-        looking at.
+        """One of the other colour elements — `hslClr`, `scrgbClr`, `sysClr`, `prstClr` — kept exactly
+        as written so it round-trips, and reported here so a caller knows what it is looking at.
         """
         ...
     kind: ColorKind
-    """Which kind of colour element this is."""
+    """Which kind of colour element this is. A colour carrying transforms answers for the colour
+    underneath them, because a theme colour with a `lumMod` on it is still a theme colour.
+    """
     srgb_value: str | None
     """The six hex digits, when this is a literal colour."""
     scheme_color: SchemeColor | None
     """The theme slot, when this is a theme colour."""
     value: str | None
     """The raw value of one of the other colour elements, when the document stated one."""
+    base: "ColorSpec"
+    """This colour without its transforms — itself, when it has none."""
+    transforms: list[ColorTransform]
+    """The colour's transforms, in the order they are written and applied."""
+    def with_transform(self, transform: ColorTransform) -> "ColorSpec":
+        """This colour with one more transform **appended**. Order is part of the markup, so this
+        appends rather than merges: the same transforms in another order are another colour.
+        """
+        ...
+    def with_tint(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:tint` appended — lightened toward white."""
+        ...
+    def with_shade(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:shade` appended — darkened toward black."""
+        ...
+    def with_alpha(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:alpha` appended — its opacity set."""
+        ...
+    def with_luminance_modulation(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:lumMod` appended — its luminance multiplied."""
+        ...
+    def with_luminance_offset(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:lumOff` appended — its luminance shifted."""
+        ...
+    def with_saturation_modulation(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:satMod` appended — its saturation multiplied."""
+        ...
+
+@final
+class ColorTransform:
+    """One `EG_ColorTransform` child of a colour — a tint, a shade, a luminance modulation, or any
+    of the other twenty-five members of the group.
+    """
+    @staticmethod
+    def percentage(kind: ColorTransformKind, value: Fraction) -> "ColorTransform | None":
+        """A percentage-valued transform — a tint, a shade, an alpha, a luminance modulation and the
+        seventeen others. `None` when `kind` names a member that carries no percentage.
+        """
+        ...
+    @staticmethod
+    def angle(kind: ColorTransformKind, value: Angle) -> "ColorTransform | None":
+        """An angle-valued transform — `hue` or `hue_offset`. `None` for any other member."""
+        ...
+    @staticmethod
+    def marker(kind: ColorTransformKind) -> "ColorTransform | None":
+        """A transform that carries no value at all — `complement`, `inverse`, `grayscale`, `gamma` or
+        `inverse_gamma`. `None` for any member that carries one.
+        """
+        ...
+    @staticmethod
+    def other(name: str, value: str | None = ...) -> "ColorTransform":
+        """A transform this build does not read, kept by element name and raw value so it round-trips."""
+        ...
+    kind: ColorTransformKind
+    """Which member of the group this is."""
+    name: str
+    """The element local name this transform writes, without its `a:` prefix."""
+    percentage_value: Fraction | None
+    """The percentage it carries, when it carries one."""
+    angle_value: Angle | None
+    """The angle it carries, when it carries one."""
+    value: str | None
+    """The raw `val` of a transform this build does not read."""
 
 @final
 class GradientStopSpec:
@@ -4883,8 +5043,8 @@ class LineDash:
         ...
     @staticmethod
     def custom() -> "LineDash":
-        """A custom dash pattern. The document's own `a:custDash` stops are preserved on write;
-        this build does not model the individual dash and space lengths.
+        """A custom dash pattern. The document's own `a:custDash` stops are preserved on write; this
+        build does not model the individual dash and space lengths.
         """
         ...
     preset_dash: PresetLineDash | None
@@ -5222,9 +5382,7 @@ class ColorMap:
     """A theme's twelve-slot colour mapping: which scheme colour each named slot resolves to."""
     @staticmethod
     def identity() -> "ColorMap":
-        """The mapping that sends every slot to itself — what a theme means when it states no
-        `clrMap`.
-        """
+        """The mapping that sends every slot to itself — what a theme means when it states no `clrMap`."""
         ...
     def resolve(self, color: SchemeColor) -> ColorSchemeSlot | None:
         """Which scheme colour a named slot resolves to, or `None` for a colour that is not mapped."""
@@ -5283,7 +5441,9 @@ class Cells:
         """Every cell of the table."""
         ...
     kind: str
-    """Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"`."""
+    """Which kind of selection this is: `"one"`, `"row"`, `"column"`, `"rectangle"` or `"all"` —
+    or `"unknown"` for a selection a later build names and this one does not.
+    """
     rows: tuple[int, int] | None
     """The rows this selection covers, as a `range`, when it names any."""
     columns: tuple[int, int] | None
@@ -5349,8 +5509,8 @@ class TableStyleFormat:
         """This formatting with the given cell fill."""
         ...
     def with_bold(self, bold: OnOffStyle) -> "TableStyleFormat":
-        """This formatting with the given boldness. A table style's on/off values are three-valued
-        — on, off, or "whatever the default is" — which is why this takes an [`OnOffStyle`].
+        """This formatting with the given boldness. A table style's on/off values are three-valued —
+        on, off, or "whatever the default is" — which is why this takes an [`OnOffStyle`].
         """
         ...
     def with_italic(self, italic: OnOffStyle) -> "TableStyleFormat":
@@ -5360,8 +5520,8 @@ class TableStyleFormat:
         """This formatting with the given text colour."""
         ...
     def with_border(self, edge: TableStyleBorder, line: LineSpec) -> "TableStyleFormat":
-        """This formatting with the given border on one edge. A table style has eight edges,
-        including the two *inside* ones a single cell does not have.
+        """This formatting with the given border on one edge. A table style has eight edges, including
+        the two *inside* ones a single cell does not have.
         """
         ...
     def with_cell_material(self, material: PresetMaterial) -> "TableStyleFormat":
@@ -5381,9 +5541,7 @@ class TableStyleDefinition:
         """A style that states nothing. Add to it with the `with_…` methods."""
         ...
     def with_id(self, style_id: str) -> "TableStyleDefinition":
-        """This style with the given identifier — a GUID in braces, as `tableStyles.xml` writes
-        them.
-        """
+        """This style with the given identifier — a GUID in braces, as `tableStyles.xml` writes them."""
         ...
     def with_name(self, style_name: str) -> "TableStyleDefinition":
         """This style with the given display name."""
@@ -5517,9 +5675,9 @@ class CharacterPropertiesSpec:
         """The font for one script slot, when stated."""
         ...
     def merge_under(self, lower: "CharacterPropertiesSpec") -> "CharacterPropertiesSpec":
-        """This specification laid over `lower`: whatever this one states wins, and whatever it
-        leaves unstated comes from `lower`. The same walk the `effective_…` readers make, one
-        rung at a time.
+        """This specification laid over `lower`: whatever this one states wins, and whatever it leaves
+        unstated comes from `lower`. The same walk the `effective_…` readers make, one rung at a
+        time.
         """
         ...
 
@@ -5880,8 +6038,8 @@ class FontScheme:
         """The font a theme reference resolves to, when the scheme states one."""
         ...
     def resolve(self, font: TextFont) -> TextFont | None:
-        """The typeface a font resolves to: itself, unless it is a theme reference, in which case
-        the font this scheme names for that slot.
+        """The typeface a font resolves to: itself, unless it is a theme reference, in which case the
+        font this scheme names for that slot.
         """
         ...
 
@@ -6039,9 +6197,8 @@ class Shape3DSpec:
     """The contour's colour, when stated."""
 
 def default_placeholder_audio() -> bytes:
-    """The three placeholder payloads a `replace_…_with_placeholder` call defaults to, as module-
-    level functions so a caller can hand one to `set_ole_object_data` or `set_picture_image`
-    directly.
+    """The three placeholder payloads a `replace_…_with_placeholder` call defaults to, as module-level
+    functions so a caller can hand one to `set_ole_object_data` or `set_picture_image` directly.
     """
     ...
 
@@ -6054,7 +6211,15 @@ def default_placeholder_ole() -> bytes:
     ...
 
 def detect_format(data: bytes) -> Format:
-    """What these bytes are, read from the package's main part rather than from a filename."""
+    """What these bytes are, read from the package's main part rather than from a filename.
+
+    Opens the container, follows the root `officeDocument` relationship, and maps that part's
+    content type — the same walk every conforming consumer makes, and the only answer that survives
+    a renamed file.
+
+    Raises `IoError` if the bytes are not a readable container, and `MalformedDocumentError` if they
+    are a container with no main part.
+    """
     ...
 
 # ---------------------------------------------------------------------------------------------
@@ -6068,14 +6233,14 @@ def detect_format(data: bytes) -> Format:
 
 @final
 class Anchoring:
-    """The projection of `mjx_ooxml::Anchoring`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::Anchoring`] — whether an address component carries a `$`. Its documentation is authoritative."""
     Relative: Anchoring
     Absolute: Anchoring
     def __int__(self) -> int: ...
 
 @final
 class ApplyFlag:
-    """The projection of `mjx_ooxml::ApplyFlag`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::ApplyFlag`] — what an `x:xf`'s `apply*` attribute says about one aspect. Its documentation is authoritative."""
     Unstated: ApplyFlag
     Applied: ApplyFlag
     Suppressed: ApplyFlag
@@ -6083,7 +6248,7 @@ class ApplyFlag:
 
 @final
 class BorderStyle:
-    """The projection of `mjx_ooxml::BorderStyle`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::BorderStyle`] — the style of one cell-border edge. Its documentation is authoritative."""
     NONE: BorderStyle
     Thin: BorderStyle
     Medium: BorderStyle
@@ -6102,7 +6267,7 @@ class BorderStyle:
 
 @final
 class CalculationMode:
-    """The projection of `mjx_ooxml::CalculationMode`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::CalculationMode`] — when the producer's engine recalculated. Its documentation is authoritative."""
     Manual: CalculationMode
     Auto: CalculationMode
     AutoNoTable: CalculationMode
@@ -6110,21 +6275,21 @@ class CalculationMode:
 
 @final
 class CellFormatTarget:
-    """The projection of `mjx_ooxml::CellFormatTarget`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::CellFormatTarget`] — which of `styles.xml`'s two `x:xf` tables to append to. Its documentation is authoritative."""
     CellFormats: CellFormatTarget
     CellStyleFormats: CellFormatTarget
     def __int__(self) -> int: ...
 
 @final
 class DateSystem:
-    """The projection of `mjx_ooxml::DateSystem`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::DateSystem`] — which epoch a workbook's date serials count from. Its documentation is authoritative."""
     Windows1900: DateSystem
     Macintosh1904: DateSystem
     def __int__(self) -> int: ...
 
 @final
 class FormatAspect:
-    """The projection of `mjx_ooxml::FormatAspect`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::FormatAspect`] — one of the six things an `x:xf` states. Its documentation is authoritative."""
     NumberFormat: FormatAspect
     Font: FormatAspect
     Fill: FormatAspect
@@ -6135,7 +6300,7 @@ class FormatAspect:
 
 @final
 class FormatLayer:
-    """The projection of `mjx_ooxml::FormatLayer`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::FormatLayer`] — which record supplied one aspect of a resolved format. Its documentation is authoritative."""
     Direct: FormatLayer
     CellStyle: FormatLayer
     Neither: FormatLayer
@@ -6143,7 +6308,7 @@ class FormatLayer:
 
 @final
 class GridAnomalyKind:
-    """The projection of `mjx_ooxml::GridAnomalyKind`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::GridAnomalyKind`] — which of the nine things a sheet's grid can say that a well-formed one would not. Its documentation is authoritative."""
     MergeReferenceUnreadable: GridAnomalyKind
     MergesOverlap: GridAnomalyKind
     DegenerateMerge: GridAnomalyKind
@@ -6157,7 +6322,7 @@ class GridAnomalyKind:
 
 @final
 class HyperlinkKind:
-    """The projection of `mjx_ooxml::HyperlinkKind`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::HyperlinkKind`] — which of `CT_Hyperlink`'s four shapes an entry is. Its documentation is authoritative."""
     External: HyperlinkKind
     Internal: HyperlinkKind
     ExternalWithLocation: HyperlinkKind
@@ -6166,7 +6331,7 @@ class HyperlinkKind:
 
 @final
 class PartKind:
-    """The projection of `mjx_ooxml::PartKind`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::PartKind`] — which SpreadsheetML part a package member is. Its documentation is authoritative."""
     Workbook: PartKind
     Worksheet: PartKind
     Chartsheet: PartKind
@@ -6199,14 +6364,14 @@ class PartKind:
 
 @final
 class ReferenceMode:
-    """The projection of `mjx_ooxml::ReferenceMode`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::ReferenceMode`] — whether formulas are written A1 or R1C1. Its documentation is authoritative."""
     A1: ReferenceMode
     R1C1: ReferenceMode
     def __int__(self) -> int: ...
 
 @final
 class SheetKind:
-    """The projection of `mjx_ooxml::SheetKind`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::SheetKind`] — which of the three sheet kinds a tab's part is. Its documentation is authoritative."""
     Worksheet: SheetKind
     Chartsheet: SheetKind
     Dialogsheet: SheetKind
@@ -6214,7 +6379,7 @@ class SheetKind:
 
 @final
 class SpreadsheetFontScheme:
-    """The projection of `mjx_ooxml::SpreadsheetFontScheme`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::SpreadsheetFontScheme`] — which theme slot a cell font is, if it is one. Its documentation is authoritative."""
     NONE: SpreadsheetFontScheme
     Major: SpreadsheetFontScheme
     Minor: SpreadsheetFontScheme
@@ -6222,7 +6387,7 @@ class SpreadsheetFontScheme:
 
 @final
 class SpreadsheetPatternType:
-    """The projection of `mjx_ooxml::SpreadsheetPatternType`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::SpreadsheetPatternType`] — a cell fill's pattern (`ST_PatternType`), which is **not** DrawingML's `PatternType`. Its documentation is authoritative."""
     NONE: SpreadsheetPatternType
     Solid: SpreadsheetPatternType
     MediumGray: SpreadsheetPatternType
@@ -6246,7 +6411,7 @@ class SpreadsheetPatternType:
 
 @final
 class StyleIndexSource:
-    """The projection of `mjx_ooxml::StyleIndexSource`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::StyleIndexSource`] — which layer supplied a cell's `cellXfs` index. Its documentation is authoritative."""
     Cell: StyleIndexSource
     Row: StyleIndexSource
     Column: StyleIndexSource
@@ -6255,7 +6420,7 @@ class StyleIndexSource:
 
 @final
 class TableStyleOrigin:
-    """The projection of `mjx_ooxml::TableStyleOrigin`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::TableStyleOrigin`] — where a table style comes from. Its documentation is authoritative."""
     LocallyDefined: TableStyleOrigin
     BuiltIn: TableStyleOrigin
     Undefined: TableStyleOrigin
@@ -6263,7 +6428,7 @@ class TableStyleOrigin:
 
 @final
 class TotalsRowFunction:
-    """The projection of `mjx_ooxml::TotalsRowFunction`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::TotalsRowFunction`] — the aggregate a table column's totals row shows. Its documentation is authoritative."""
     NONE: TotalsRowFunction
     Sum: TotalsRowFunction
     Minimum: TotalsRowFunction
@@ -6278,7 +6443,7 @@ class TotalsRowFunction:
 
 @final
 class UnderlineType:
-    """The projection of `mjx_ooxml::UnderlineType`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::UnderlineType`] — how a cell font underlines. Its documentation is authoritative."""
     Single: UnderlineType
     Double: UnderlineType
     SingleAccounting: UnderlineType
@@ -6288,7 +6453,9 @@ class UnderlineType:
 
 @final
 class ResizingBehavior:
-    """The projection of `mjx_ooxml::ResizingBehavior`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::ResizingBehavior`] — what an anchored object on a sheet does
+    when the rows and columns under it move. Its documentation is authoritative.
+    """
     MoveAndResizeWithAnchorCells: ResizingBehavior
     MoveWithCellsButDoNotResize: ResizingBehavior
     DoNotMoveOrResizeWithRowsOrColumns: ResizingBehavior
@@ -6296,7 +6463,10 @@ class ResizingBehavior:
 
 @final
 class GeometrySource:
-    """The projection of `mjx_ooxml::GeometrySource`, whose documentation is authoritative."""
+    """The projection of [`mjx_ooxml::GeometrySource`] — where a resolved anchor's number came
+    from, and the honesty half of every answer that carries one. Its documentation is
+    authoritative.
+    """
     Stated: GeometrySource
     SheetDefault: GeometrySource
     BaseColumnWidth: GeometrySource
@@ -6306,17 +6476,23 @@ class GeometrySource:
 class CellData:
     """One cell's value, as the file states it — **stored, not displayed**."""
     kind: str
-    """`"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`."""
+    """`"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`."""
     is_blank: bool
     """Whether the cell is not populated, or holds no value element."""
     number: float | None
     """The number this cell holds, or `None` for every other kind."""
     text: str | None
-    """The string this cell holds, or `None` for every other kind. An error code is **not** a string here."""
+    """The string this cell holds, or `None` for every other kind. An error code is **not** a
+    string here.
+    """
     boolean: bool | None
     """The boolean this cell holds, or `None` for every other kind."""
     error_code: str | None
     """The error code this cell holds, or `None` for every other kind."""
+    unreadable_text: str | None
+    """The text of a value this library could not read as the kind its cell declares, or `None` for
+    every other kind — including a blank, which is a cell that states no value at all.
+    """
     value: object
     """The value as one of Python's own types: `None`, `float`, `str` or `bool`."""
 
@@ -6337,7 +6513,9 @@ class CellWrite:
         ...
     @staticmethod
     def shared_text(reference: str, text: str) -> "CellWrite":
-        """A string interned into `xl/sharedStrings.xml` — **what Excel itself writes**, and what to reach for when the same text appears in many cells."""
+        """A string interned into `xl/sharedStrings.xml` — **what Excel itself writes**, and what to
+        reach for when the same text appears in many cells.
+        """
         ...
     @staticmethod
     def inline_text(reference: str, text: str) -> "CellWrite":
@@ -6371,13 +6549,25 @@ class CellBlock:
         """The value at `row`/`column`, **as offsets into the block**."""
         ...
     def formula(self, row: int, column: int) -> str | None:
-        """The formula text at `row`/`column`, or `None` when that cell carries none. Exactly as the file wrote it, never expanded and never evaluated."""
+        """The formula text at `row`/`column`, or `None` when that cell carries none. Exactly as the
+        file wrote it, never expanded and never evaluated.
+        """
         ...
     def rows(self) -> list[list[object]]:
-        """The whole block as rows of Python's own types — `None`, `float`, `str`, `bool` — top to bottom, left to right.  **The shape to reach for.** One call converts the whole block; `value` per cell converts one at a time, which is cheap for a handful and needless for a table."""
+        """The whole block as rows of Python's own types — `None`, `float`, `str`, `bool` — top to
+        bottom, left to right.
+
+        **The shape to reach for.** One call converts the whole block; `value` per cell converts one
+        at a time, which is cheap for a handful and needless for a table.
+        """
         ...
     def kinds(self) -> list[list[str]]:
-        """The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"`.  The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell because both arrive as `str`. Built only when asked."""
+        """The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
+        `"error"` or `"unreadable"`, exactly the vocabulary `CellData.kind` answers.
+
+        The disambiguator for `rows`, which cannot tell a text cell from an error cell
+        because both arrive as `str`. Built only when asked.
+        """
         ...
 
 @final
@@ -6558,9 +6748,9 @@ class SheetDrawingObjectInfo:
     index: int
     """The object's position in the drawing part, which is also its paint order."""
     anchor: str
-    """`"twoCellAnchor"`, `"oneCellAnchor"` or `"absoluteAnchor"`."""
+    """Which of the three anchor elements pins it."""
     object: str | None
-    """`"sp"`, `"pic"`, `"graphicFrame"`, `"grpSp"`, `"cxnSp"`, `"contentPart"`, or `None`."""
+    """Which kind of object it holds, or `None` for an anchor holding none."""
     resizing: ResizingBehavior
     """What the anchor promises to do when the cells under it move."""
     id: int | None
@@ -6823,7 +7013,9 @@ class SharedWorkbookUserInfo:
 
 @final
 class Color:
-    """A SpreadsheetML colour: automatic, an indexed-palette row, an `AARRGGBB` value, or a theme slot with an optional tint."""
+    """A SpreadsheetML colour: automatic, an indexed-palette row, an `AARRGGBB` value, or a theme
+    slot with an optional tint.
+    """
     is_automatic: bool | None
     """`@auto`."""
     indexed_value: int | None
@@ -6836,11 +7028,23 @@ class Color:
     """`@tint`, in `-1.0 ..= 1.0`."""
     @staticmethod
     def from_opaque_rgb(hex: str) -> "Color":
-        """An opaque sRGB colour, written `rgb="FFRRGGBB"`. `hex` is the six-digit `RRGGBB` form; the opaque alpha is prefixed for you, because a six-digit `@rgb` is read as transparent."""
+        """An opaque sRGB colour, written `rgb="FFRRGGBB"`. `hex` is the six-digit `RRGGBB` form; the
+        opaque alpha is prefixed for you, because a six-digit `@rgb` is read as transparent.
+        """
         ...
     @staticmethod
     def from_theme(index: int, tint: float | None = None) -> "Color":
-        """A theme colour by index, optionally tinted towards white (positive) or black (negative)."""
+        """A theme colour by index, optionally tinted towards white (positive) or black (negative).
+
+        The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states.
+        An author should reach for `from_theme_slot`, which names the slot instead of numbering it.
+        """
+        ...
+    @staticmethod
+    def from_theme_slot(slot: ColorSchemeSlot, tint: float | None = None) -> "Color":
+        """A theme colour by **slot**, optionally tinted — `from_theme` with the position spelled out,
+        and the constructor an author should reach for.
+        """
         ...
     @staticmethod
     def automatic() -> "Color":
@@ -6890,6 +7094,13 @@ class PatternFillSpec:
     def solid(hex: str) -> "PatternFillSpec":
         """A solid fill in one opaque colour — the shape a caller filling a cell almost always wants."""
         ...
+    @staticmethod
+    def solid_from_theme(slot: ColorSchemeSlot, tint: float | None = None) -> "PatternFillSpec":
+        """A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+        this one unless the colour itself is the point: a hex literal survives into a document whose
+        owner has rebranded everything around it.
+        """
+        ...
 
 @final
 class BorderEdgeSpec:
@@ -6921,7 +7132,9 @@ class BorderSpec:
 
 @final
 class CellFormatSpec:
-    """One `x:xf`: the four resource indices and the six `apply*` flags."""
+    """One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
+    """
     number_format_id: int | None
     """`@numFmtId`."""
     font_index: int | None
@@ -6930,12 +7143,30 @@ class CellFormatSpec:
     """`@fillId`."""
     border_index: int | None
     """`@borderId`."""
+    cell_style_format_index: int | None
+    """`@xfId` — the `cellStyleXfs` record beneath this one."""
+    text_is_quote_prefixed: bool | None
+    """`@quotePrefix` — the value is text because it was typed with a leading apostrophe."""
+    applies_number_format: bool | None
+    """`@applyNumberFormat`. Three-valued: `None` writes no attribute at all."""
+    applies_font: bool | None
+    """`@applyFont`. Three-valued: `None` writes no attribute at all."""
+    applies_fill: bool | None
+    """`@applyFill`. Three-valued: `None` writes no attribute at all."""
+    applies_border: bool | None
+    """`@applyBorder`. Three-valued: `None` writes no attribute at all."""
+    applies_alignment: bool | None
+    """`@applyAlignment`. Three-valued: `None` writes no attribute at all."""
+    applies_protection: bool | None
+    """`@applyProtection`. Three-valued: `None` writes no attribute at all."""
     def __init__(self, number_format_id: int | None = None, font_index: int | None = None, fill_index: int | None = None, border_index: int | None = None, cell_style_format_index: int | None = None, applies_number_format: bool | None = None, applies_font: bool | None = None, applies_fill: bool | None = None, applies_border: bool | None = None, applies_alignment: bool | None = None, applies_protection: bool | None = None, text_is_quote_prefixed: bool | None = None) -> None:
         """An `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, and the six `apply*` flags."""
         ...
     @staticmethod
     def skeleton_cell_format() -> "CellFormatSpec":
-        """The record every workbook's `cellXfs[0]` is: `numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"`. The base to build a real format on."""
+        """The record every workbook's `cellXfs[0]` is: `numFmtId="0" fontId="0" fillId="0"
+        borderId="0" xfId="0"`. The base to build a real format on.
+        """
         ...
     @staticmethod
     def skeleton_cell_style_format() -> "CellFormatSpec":
@@ -6955,7 +7186,9 @@ class EffectiveCellFormat:
     cell_style_format_index: int | None
     """The `cellStyleXfs` record beneath the resolved `x:xf`, when it names one."""
     def aspect(self, aspect: FormatAspect) -> ResolvedAspect:
-        """One aspect's resolution: the number format, the font, the fill, the border, the alignment or the protection."""
+        """One aspect's resolution: the number format, the font, the fill, the border, the alignment or
+        the protection.
+        """
         ...
 
 @final
@@ -6966,7 +7199,9 @@ class ResolvedAspect:
     supplying_apply_flag: ApplyFlag
     """The same, for the record that supplied the value."""
     layer: FormatLayer
-    """Which layer supplied it: the direct `cellXfs` record, the `cellStyleXfs` one beneath it, or neither."""
+    """Which layer supplied it: the direct `cellXfs` record, the `cellStyleXfs` one beneath it, or
+    neither.
+    """
     format_index: int | None
     """The index of the `x:xf` that supplied the value."""
     resource_index: int | None
@@ -7030,7 +7265,13 @@ class ChartSeriesFreshnessInfo:
     references: ChartSeriesReferences
     """The formula of each of the series' sources, as the file wrote them."""
     from_cells: ChartSeriesData
-    """What the cells say, for the sources that are references and resolved."""
+    """What the cells say, for the sources that are references and resolved.
+
+    `clippy::wrong_self_convention` reads `from_*` as a constructor; here it is the *identity*
+    projection of `mjx_ooxml::ChartSeriesFreshnessInfo::from_cells`, and this binding renames
+    nothing (see the crate's own doc comment). Renaming it to satisfy a lint would put a third
+    spelling of one field in front of a Python caller.
+    """
     values_problem: str | None
     """Why the values reference did not resolve, in words, or `None` when it did."""
     categories_problem: str | None
@@ -7081,17 +7322,28 @@ class Workbook:
     """An open Excel workbook."""
     @staticmethod
     def blank() -> "Workbook":
-        """A new workbook with nothing in it: one empty worksheet named `Sheet1`, a styles part, and the package around them."""
+        """A new workbook with nothing in it: one empty worksheet named `Sheet1`, a styles part, and the
+        package around them.
+        """
         ...
     @staticmethod
     def open(data: bytes) -> "Workbook":
-        """Opens a workbook from the bytes of a `.xlsx`, `.xlsm`, `.xltx` or `.xltm`.  The interpreter lock is released for the parse. Raises `IoError` for bytes that are not a readable container, `MalformedDocumentError` for a package whose markup is not SpreadsheetML, and `UnsupportedFormatError` — naming the format — for a PowerPoint or Word document, **and for a `.xlsb`**, whose main part is the MS-XLSB binary record stream rather than SpreadsheetML. That last refusal is permanent by design, not a not-yet."""
+        """Opens a workbook from the bytes of a `.xlsx`, `.xlsm`, `.xltx` or `.xltm`.
+
+        The interpreter lock is released for the parse. Raises `IoError` for bytes that are not a
+        readable container, `MalformedDocumentError` for a package whose markup is not
+        SpreadsheetML, and `UnsupportedFormatError` — naming the format — for a PowerPoint or Word
+        document, **and for a `.xlsb`**, whose main part is the MS-XLSB binary record stream rather
+        than SpreadsheetML. That last refusal is permanent by design, not a not-yet.
+        """
         ...
     def format(self) -> Format:
         """What this workbook's main part says it is."""
         ...
     def save(self) -> bytes:
-        """The workbook as the bytes of a `.xlsx`, **validated first**. The interpreter lock is released for the write."""
+        """The workbook as the bytes of a `.xlsx`, **validated first**. The interpreter lock is released
+        for the write.
+        """
         ...
     def save_unchecked(self) -> bytes:
         """The workbook as bytes, **without** the validation pass."""
@@ -7124,7 +7376,15 @@ class Workbook:
         """Every `x:workbookView`, in document order."""
         ...
     def read_range(self, sheet: int, range: str) -> CellBlock:
-        """Reads every cell of one rectangle, parsing the worksheet **once**.  `range` is A1 text: `"A1"` for one cell, `"A1:C3"` for a rectangle, `"A:C"` for whole columns, `"1:3"` for whole rows. The two open-ended forms are clamped to the sheet's populated extent, so `"A:A"` costs the rows the file actually has.  **This is the way to read cells**, and there is deliberately no per-cell call beside it: see this module's own documentation for the measurements that decided that."""
+        """Reads every cell of one rectangle, parsing the worksheet **once**.
+
+        `range` is A1 text: `"A1"` for one cell, `"A1:C3"` for a rectangle, `"A:C"` for whole
+        columns, `"1:3"` for whole rows. The two open-ended forms are clamped to the sheet's
+        populated extent, so `"A:A"` costs the rows the file actually has.
+
+        **This is the way to read cells**, and there is deliberately no per-cell call beside it: the
+        guide's *The mapping rules* carries the measurements that decided that.
+        """
         ...
     def read_sheet(self, sheet: int) -> CellBlock:
         """Reads every populated cell of one sheet, parsing the worksheet **once**."""
@@ -7133,7 +7393,11 @@ class Workbook:
         """The A1 range of one sheet's populated extent, or `None` when nothing is populated."""
         ...
     def write_cells(self, sheet: int, cells: list[CellWrite]) -> None:
-        """Writes every entry of `cells` into one sheet, parsing **once** and serializing **once**.  Entries are applied in the order given. Prefer top-to-bottom, left-to-right: that is append-only in the cell arena. A batch with a bad address writes **nothing**."""
+        """Writes every entry of `cells` into one sheet, parsing **once** and serializing **once**.
+
+        Entries are applied in the order given. Prefer top-to-bottom, left-to-right: that is
+        append-only in the cell arena. A batch with a bad address writes **nothing**.
+        """
         ...
     def merged_ranges(self, sheet: int) -> list[str]:
         """Every merged range on one sheet, as A1 text."""
@@ -7148,7 +7412,9 @@ class Workbook:
         """Removes the merge whose `@ref` is exactly `range`, answering whether one was there."""
         ...
     def set_row_height(self, sheet: int, row: int, points: float | None, custom: bool = True) -> None:
-        """Sets a row's height in points. `row` is **one-based**, as `row@r` is. `custom=True` is the height a person set (Excel keeps it); `False` is one a consumer computed and may recompute."""
+        """Sets a row's height in points. `row` is **one-based**, as `row@r` is. `custom=True` is the
+        height a person set (Excel keeps it); `False` is one a consumer computed and may recompute.
+        """
         ...
     def set_row_hidden(self, sheet: int, row: int, hidden: bool) -> None:
         """Hides or shows a row. `row` is **one-based**."""
@@ -7157,7 +7423,9 @@ class Workbook:
         """Sets a row's outline (grouping) depth. `row` is **one-based**."""
         ...
     def set_column_width(self, sheet: int, first_column: int, last_column: int, characters: float | None, custom: bool = True) -> None:
-        """Sets the width of the columns `first_column..=last_column`, both **zero-based**, in characters of the maximum digit width."""
+        """Sets the width of the columns `first_column..=last_column`, both **zero-based**, in
+        characters of the maximum digit width.
+        """
         ...
     def set_column_hidden(self, sheet: int, first_column: int, last_column: int, hidden: bool) -> None:
         """Hides or shows the columns `first_column..=last_column`, both **zero-based**."""
@@ -7181,13 +7449,17 @@ class Workbook:
         """Appends an `x:xf` to `cellXfs` or `cellStyleXfs` and answers its index."""
         ...
     def set_cell_style(self, sheet: int, reference: str, style: int | None = None) -> None:
-        """Points one cell at `cellXfs[style]`, or removes its `@s` with `None`. The cell must already exist — write the value first."""
+        """Points one cell at `cellXfs[style]`, or removes its `@s` with `None`. The cell must already
+        exist — write the value first.
+        """
         ...
     def intern_shared_string(self, text: str) -> int:
         """Interns `text` into `xl/sharedStrings.xml` and answers its index."""
         ...
     def effective_cell_format(self, sheet: int, reference: str) -> EffectiveCellFormat | None:
-        """What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder and the column and row defaults above it. **What the file states, not what a renderer shows.**"""
+        """What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder and the
+        column and row defaults above it. **What the file states, not what a renderer shows.**
+        """
         ...
     def effective_merged_cell_format(self, sheet: int, reference: str) -> EffectiveCellFormat | None:
         """The same ladder, answered for the **anchor** of the merged region `reference` falls in."""
@@ -7241,7 +7513,9 @@ class Workbook:
         maximum_digit_width_pixels: float,
         pixels_per_inch: float,
     ) -> AnchorBoundsInfo | None:
-        """Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own worked example, for 11-point Calibri."""
+        """Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own
+        worked example, for 11-point Calibri.
+        """
         ...
     def add_two_cell_anchored_picture(
         self,
@@ -7391,8 +7665,7 @@ class Workbook:
         ...
 
     def chart_rel_id(self, sheet: int, anchor: int) -> str | None:
-        """The relationship id the anchor names as its chart part, or `None` when it frames no chart.
-        """
+        """The relationship id the anchor names as its chart part, or `None` when it frames no chart."""
         ...
 
     def chart_part_bytes(self, sheet: int, anchor: int) -> bytes | None:
@@ -7440,8 +7713,18 @@ class Workbook:
         ...
 
     def refresh_chart_workbook(self, sheet: int, anchor: int) -> bool:
-        """Rewrites the embedded workbook of the chart. Answers `False` — changing nothing — when there
-        is none, which is the ordinary state of a chart on a sheet.
+        """Writes the chart's data into the workbook the chart already embeds — the cells its own `c:f`
+        formulas name, and nothing else — and answers whether it wrote one.
+
+        Every other sheet, format and name that workbook carried survives. Answers `False`, changing
+        nothing, when there is no embedded workbook — which is the ordinary state of a chart on a
+        sheet, whose data is a live range. No workbook is ever fabricated.
+        """
+        ...
+
+    def regenerate_chart_workbook(self, sheet: int, anchor: int) -> bool:
+        """Replaces the embedded workbook of the chart with a freshly built one, discarding whatever it
+        held. Answers whether it replaced one.
         """
         ...
 
@@ -7504,8 +7787,7 @@ class Workbook:
         ...
 
     def chart_series_fill(self, sheet: int, anchor: int, series_idx: int) -> FillSpec | None:
-        """The fill of series `series_idx`, or `None` when it takes its colour from the chart style.
-        """
+        """The fill of series `series_idx`, or `None` when it takes its colour from the chart style."""
         ...
 
     def chart_data_labels(
@@ -7592,8 +7874,7 @@ class Workbook:
         series_idx: int,
         labels: list[str],
     ) -> None:
-        """Rewrites the category labels of series `series_idx`, refreshing the workbook alongside.
-        """
+        """Rewrites the category labels of series `series_idx`, refreshing the workbook alongside."""
         ...
 
     def set_chart_axis_scale(
@@ -7692,8 +7973,7 @@ class Workbook:
         point_idx: int,
         fill: FillSpec,
     ) -> None:
-        """Colours point `point_idx` of series `series_idx` differently from the rest of its series.
-        """
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its series."""
         ...
 
     def set_chart_point_line(
@@ -7704,8 +7984,7 @@ class Workbook:
         point_idx: int,
         line: LineSpec,
     ) -> None:
-        """Outlines point `point_idx` of series `series_idx` differently from the rest of its series.
-        """
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its series."""
         ...
 
     def set_chart_point_explosion(
@@ -7716,8 +7995,7 @@ class Workbook:
         point_idx: int,
         percent: int | None = None,
     ) -> None:
-        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back.
-        """
+        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back."""
         ...
 
     def remove_chart_point_format(

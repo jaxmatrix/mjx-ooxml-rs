@@ -344,6 +344,12 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .shape_3d_properties(slide, shape.clone())
         .expect("reading")
         .is_some());
+    // MJXOFF-228: `Backdrop` is re-exported, and this is what produces one — `None` here, because
+    // a scene this library authored states no backdrop, but the producer is reachable.
+    assert!(deck
+        .shape_backdrop(slide, shape.clone())
+        .expect("reading")
+        .is_none());
     deck.clear_shape_scene_3d(slide, shape.clone())
         .expect("clearing");
     deck.clear_shape_3d_properties(slide, shape.clone())
@@ -388,8 +394,20 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
             GuideContext::from_extents(Emu::from_emu(30), Emu::from_emu(40)),
         )
         .expect("the adjustments");
+    deck.set_shape_adjustments(slide, shape.clone(), &[("adj", 12_500)])
+        .expect("writing an adjustment");
 
     // --- effective readers -------------------------------------------------------------------------
+    // MJXOFF-228: `ResolvedColor` is re-exported, and this is what produces one. The hex is the
+    // blank deck's own `accent1`, and both binding suites assert the same value — a blank deck that
+    // stopped carrying the Office palette would fail in three languages at once.
+    assert_eq!(
+        deck.resolved_scheme_color(slide, mjx_ooxml::SchemeColor::Accent1)
+            .expect("resolving")
+            .expect("a blank deck's theme defines accent1")
+            .to_hex(),
+        "4472C4"
+    );
     let _ = deck
         .effective_shape_fill(slide, shape.clone())
         .expect("an effective fill");
@@ -454,10 +472,19 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
             .expect("reading"),
         Some(true)
     );
+    // MJXOFF-232: a table from `add_table` names a style, because the emphasis flags it is born
+    // with have to have something to emphasise. It was `None` here until that was fixed.
     assert!(deck
         .table_style_id(slide, table.clone())
         .expect("reading")
-        .is_none());
+        .is_some());
+    // MJXOFF-228: the six flags in one read. `TableStyleFlags` is re-exported, and until this
+    // existed nothing on any of the three surfaces produced one.
+    assert!(
+        deck.table_style_flags(slide, table.clone())
+            .expect("reading")
+            .first_row
+    );
     assert_eq!(
         deck.merged_cell_anchor(slide, table.clone(), 0, 0)
             .expect("an anchor"),
@@ -740,15 +767,29 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     deck.set_chart_axis_gridlines(slide, chart.clone(), 0, true, false)
         .expect("gridlines");
     let _ = deck.chart_style_id(slide, chart.clone()).expect("reading");
-    // A chart part that has been edited is held as a tree until it is written, so its raw bytes may
-    // legitimately be absent; what matters here is that the reader is reachable and answers.
-    let _ = deck
+    // The chart part has been edited half a dozen times above, so it is held as a dirty tree with no
+    // stored bytes. It is still a part of this package, and this reader still answers with what it
+    // contains — `None` here would mean "there is no chart", which is the conflation MJXOFF-222
+    // removed.
+    let edited_chart = deck
         .chart_part_bytes(slide, chart.clone())
-        .expect("reading");
+        .expect("reading")
+        .expect("an edited chart part is still a chart part");
+    assert!(
+        std::str::from_utf8(&edited_chart)
+            .expect("the chart part is XML")
+            .contains("Trend"),
+        "and the bytes it answers with are the edited ones, title and all"
+    );
     let _ = deck.chart_workbooks(slide).expect("the workbooks");
     let _ = deck
         .refresh_chart_workbook(slide, chart.clone())
         .expect("refreshing");
+    // MJXOFF-208's explicit opt-in reaches the facade too, and is not the same method under a second
+    // name: `refresh` patches the cells the chart's own `c:f` names, this one replaces the package.
+    let _ = deck
+        .regenerate_chart_workbook(slide, chart.clone())
+        .expect("regenerating");
 
     // --- chart decoration -------------------------------------------------------------------------------
     deck.set_chart_series_fill(slide, chart.clone(), 0, &FillSpec::solid(navy()))

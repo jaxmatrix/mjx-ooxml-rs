@@ -221,10 +221,10 @@ impl Workbook {
         part: &PartName,
         edit: impl FnOnce(&mut WorksheetTable, &mut Interner) -> Result<R, XlsxError>,
     ) -> Result<R, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let mut document = mjx_xml::fidelity::parse(bytes)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(mut model) = WorksheetTable::read_root(&document.root, &document.interner)? else {
             return Err(XlsxError::MalformedWorkbook(
                 "a table part's root element is not x:table",
@@ -260,10 +260,10 @@ impl Workbook {
         let Some(part) = self.parts().styles.clone() else {
             return Ok(origin_without_a_styles_part(name));
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Ok(origin_without_a_styles_part(name));
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(styles) = mjx_sml::StylesheetPart::read_root(&document.root, &document.interner)?
         else {
             return Err(XlsxError::MalformedWorkbook(
@@ -333,7 +333,8 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab; [`XlsxError::MissingWorkbookPart`] if it
-    /// reaches no worksheet part; [`XlsxError::Sml`] for a spec whose geometry does not fit or which
+    /// reaches no part; [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet; [`XlsxError::Sml`] for a spec whose geometry does not fit or which
     /// names no column; or [`XlsxError`] if the package refuses the new part.
     pub fn add_table(
         &mut self,
@@ -349,9 +350,7 @@ impl Workbook {
             .clone()
             .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
 
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         // A `tablePart` is nothing but an `r:id`, so the part has to be able to spell one. A
         // worksheet this library authored declares only the SpreadsheetML namespace — see
         // `AuthoredWorksheet`'s seed — and refusing here would mean a sheet built from nothing could
@@ -417,10 +416,10 @@ impl Workbook {
         &self,
         part: &PartName,
     ) -> Result<Option<(Interner, WorksheetTable)>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(table) = WorksheetTable::read_part(&document)? else {
             return Ok(None);
         };

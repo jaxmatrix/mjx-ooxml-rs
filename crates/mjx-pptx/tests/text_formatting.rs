@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_dml::{
-    CharacterPropertiesSpec, ColorSpec, FillSpec, IndentLevel, LineSpec, LineWidth,
-    ParagraphPropertiesSpec, SchemeColor, TextAlignment, TextUnderline, UnderlineFill,
+    CharacterPropertiesSpec, ColorSpec, FillSpec, FontSlot, Fraction, IndentLevel, LineSpec,
+    LineWidth, ParagraphPropertiesSpec, SchemeColor, TextAlignment, TextUnderline, UnderlineFill,
     UnderlineLine,
 };
 use mjx_opc::Package;
@@ -865,6 +865,201 @@ fn coalescing_does_not_merge_across_a_differing_hyperlink() {
         0
     );
     assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+}
+
+// --- MJXOFF-233: the resolved comparison is lossy, and a merge must not act on the loss ---------
+//
+// Each of the three tests below first *proves the premise* — that the two runs' effective
+// (resolved) properties really do compare equal — and only then asserts that they are nevertheless
+// left alone. That ordering is what makes them proofs rather than coincidences: restore the old
+// two-condition merge and the coalesce assertion reddens while the premise assertion stays green.
+
+/// A two-run text box whose runs are given `first` and `second` respectively.
+fn deck_with_two_runs(
+    first: &CharacterPropertiesSpec,
+    second: &CharacterPropertiesSpec,
+) -> (Presentation, usize) {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    pres.set_text_range_properties(0, shape, 0, 0..3, first)
+        .expect("format the first half");
+    pres.set_text_range_properties(0, shape, 0, 3..6, second)
+        .expect("format the second half");
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+    (pres, shape)
+}
+
+#[test]
+fn coalescing_does_not_merge_two_runs_that_differ_only_by_an_alpha() {
+    let red = ColorSpec::Srgb("FF0000".to_owned());
+    let (mut pres, shape) = deck_with_two_runs(
+        &CharacterPropertiesSpec::new().with_color(red.clone()),
+        &CharacterPropertiesSpec::new().with_color(red.with_alpha(Fraction::from_ratio(0.5))),
+    );
+
+    // The premise: resolution drops the `a:alpha`, so the two runs' effective specs are equal.
+    let opaque = pres
+        .effective_run_properties(0, shape, 0, 0)
+        .expect("run 0");
+    let half = pres
+        .effective_run_properties(0, shape, 0, 1)
+        .expect("run 1");
+    assert_eq!(
+        opaque, half,
+        "the resolved comparison cannot tell a half-transparent red from an opaque one — that is \
+         the loss this test exists for"
+    );
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        0,
+        "merging would have deleted one run's a:alpha"
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+    assert_eq!(pres.coalesce_shape_runs(0, shape).expect("coalesce"), 0);
+}
+
+#[test]
+fn coalescing_does_not_replace_a_theme_colour_with_the_literal_it_resolves_to() {
+    let mut probe = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = probe
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    probe
+        .set_run_properties(
+            0,
+            shape,
+            0,
+            0,
+            &CharacterPropertiesSpec::new().with_color(ColorSpec::Scheme(SchemeColor::Accent1)),
+        )
+        .expect("set the scheme colour");
+    // Whatever `accent1` resolves to in this deck's theme, spelled as a literal.
+    let literal = match probe
+        .effective_run_properties(0, shape, 0, 0)
+        .expect("effective")
+        .fill()
+    {
+        Some(FillSpec::Solid(ColorSpec::Srgb(hex))) => hex.clone(),
+        other => panic!("accent1 should resolve to a literal sRGB colour, got {other:?}"),
+    };
+
+    let (mut pres, shape) = deck_with_two_runs(
+        &CharacterPropertiesSpec::new().with_color(ColorSpec::Srgb(literal)),
+        &CharacterPropertiesSpec::new().with_color(ColorSpec::Scheme(SchemeColor::Accent1)),
+    );
+
+    // The premise: resolution flattens the theme link, so the two runs' effective specs are equal.
+    assert_eq!(
+        pres.effective_run_properties(0, shape, 0, 0)
+            .expect("run 0"),
+        pres.effective_run_properties(0, shape, 0, 1)
+            .expect("run 1"),
+        "the resolved comparison cannot tell a:schemeClr from the literal it resolves to"
+    );
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        0,
+        "merging would have left a hard-coded colour where a theme link was — the survivor is the \
+         earlier run"
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+    // The second run still names the theme, so re-theming the deck still moves it.
+    assert_eq!(
+        pres.run_properties(0, shape, 0, 1)
+            .expect("props")
+            .and_then(|properties| properties.fill().cloned()),
+        Some(FillSpec::Solid(ColorSpec::Scheme(SchemeColor::Accent1)))
+    );
+}
+
+#[test]
+fn coalescing_does_not_replace_a_theme_font_with_the_typeface_it_resolves_to() {
+    // The same defect in the font dimension: `resolve_theme_fonts` replaces `+mn-lt` with whatever
+    // the theme's minor latin font is, so a run that follows the theme and a run that hard-codes
+    // today's answer resolve identically.
+    let mut probe = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = probe
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    probe
+        .set_run_properties(
+            0,
+            shape,
+            0,
+            0,
+            &CharacterPropertiesSpec::new().with_font("+mn-lt"),
+        )
+        .expect("set the theme font");
+    let resolved = probe
+        .effective_run_properties(0, shape, 0, 0)
+        .expect("effective")
+        .font(FontSlot::Latin)
+        .map(|font| font.typeface.clone())
+        .expect("a latin typeface");
+    assert_ne!(
+        resolved, "+mn-lt",
+        "sample.pptx's theme must actually name a minor latin font for this test to mean anything"
+    );
+
+    let (mut pres, shape) = deck_with_two_runs(
+        &CharacterPropertiesSpec::new().with_font(&resolved),
+        &CharacterPropertiesSpec::new().with_font("+mn-lt"),
+    );
+
+    assert_eq!(
+        pres.effective_run_properties(0, shape, 0, 0)
+            .expect("run 0"),
+        pres.effective_run_properties(0, shape, 0, 1)
+            .expect("run 1"),
+        "the resolved comparison cannot tell +mn-lt from the typeface it resolves to"
+    );
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        0,
+        "merging would have left a hard-coded typeface where a theme reference was"
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+}
+
+#[test]
+fn coalescing_still_merges_a_run_that_states_a_non_colour_property_a_neighbour_inherits() {
+    // The narrowing of MJXOFF-233 is deliberately confined to the colours and typefaces. Every
+    // other property still compares as *meaning*: run 1 states nothing and inherits its size from
+    // the paragraph default that run 0 states explicitly, and the two still merge.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    pres.set_paragraph_properties(
+        0,
+        shape,
+        0,
+        &ParagraphPropertiesSpec::new()
+            .with_default_run_properties(CharacterPropertiesSpec::new().with_size_points(18.0)),
+    )
+    .expect("state the paragraph default");
+    pres.set_text_range_properties(
+        0,
+        shape,
+        0,
+        0..3,
+        &CharacterPropertiesSpec::new().with_size_points(18.0),
+    )
+    .expect("state the same size explicitly on the first half");
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        1,
+        "a size stated explicitly still merges with a neighbour that inherits it"
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 1);
+    assert_eq!(pres.paragraph_text(0, shape, 0).expect("text"), "onetwo");
 }
 
 #[test]

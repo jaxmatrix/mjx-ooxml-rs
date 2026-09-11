@@ -396,7 +396,8 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
-    /// reaches no worksheet part, [`XlsxError::UnrecognizedImageFormat`] if the bytes match no image
+    /// reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet, [`XlsxError::UnrecognizedImageFormat`] if the bytes match no image
     /// format this build knows, or [`XlsxError`] if the package refuses an edit.
     #[allow(clippy::too_many_arguments)]
     pub fn add_two_cell_anchored_picture(
@@ -569,9 +570,7 @@ impl Workbook {
             .clone()
             .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
 
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         // An `x:drawing` is nothing but an `r:id`, so the part has to be able to spell one — and a
         // worksheet this library authored declares only the SpreadsheetML namespace.
         let prefix = markup.bind_relationship_prefix();
@@ -617,10 +616,10 @@ impl Workbook {
         &self,
         part: &PartName,
     ) -> Result<Option<(RawDocument, WorksheetDrawing)>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let Some(drawing) = WorksheetDrawing::read_root(&document.root, &document.interner)
             .map_err(mjx_sml::SmlError::Model)?
         else {
@@ -677,7 +676,7 @@ impl Workbook {
         self.package()
             .part_names()
             .filter(|part| part.as_str().starts_with("/xl/media/"))
-            .find(|part| self.package().part_bytes(part) == Some(bytes))
+            .find(|part| self.package().part_payload(part).as_deref() == Some(bytes))
     }
 
     /// The id of `source`'s existing image relationship pointing at `target`, or `None`.

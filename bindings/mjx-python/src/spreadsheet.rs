@@ -13,8 +13,9 @@
 //! *crossing* is one call — this class exists so the *conversion* can be one call too.
 //!
 //! `CellBlock.rows()` answers Python's own types — `None`, `float`, `str`, `bool` — because that is
-//! what a caller iterating a table wants. It cannot distinguish a text cell from an error cell,
-//! which both arrive as `str`; `CellBlock.kinds` is the disambiguator, built only when asked.
+//! what a caller iterating a table wants. It cannot distinguish a text cell from an error cell or
+//! from an unreadable one, which all arrive as `str`; `CellBlock.kinds` is the disambiguator, built
+//! only when asked.
 
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -23,9 +24,9 @@ use pyo3::IntoPyObjectExt;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GeometrySource,
-    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
-    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    ApplyFlag, BorderStyle, CalculationMode, ColorSchemeSlot, FormatAspect, FormatLayer,
+    GeometrySource, GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior,
+    SheetKind, SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
     UnderlineType,
 };
 use crate::errors::to_py_err;
@@ -131,7 +132,8 @@ value_class! {
     /// A cell border: up to nine edges, plus the two diagonal flags.
     BorderSpec(ooxml::BorderSpec), derive(PartialEq);
 
-    /// One `x:xf`: the four resource indices and the six `apply*` flags.
+    /// One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    /// quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
     CellFormatSpec(ooxml::CellFormatSpec), derive(PartialEq, Eq);
 
     /// What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder.
@@ -154,20 +156,23 @@ fn kind_of(value: &ooxml::CellData) -> &'static str {
         ooxml::CellData::Text(_) => "text",
         ooxml::CellData::Boolean(_) => "boolean",
         ooxml::CellData::Error(_) => "error",
+        ooxml::CellData::Unreadable(_) => "unreadable",
     }
 }
 
 /// One cell as Python's own types: `None`, `float`, `str` or `bool`.
 ///
-/// An error cell arrives as its code (`"#DIV/0!"`), which a text cell holding that same text would
-/// too — `CellBlock.kinds` is how the two are told apart when it matters.
+/// An error cell arrives as its code (`"#DIV/0!"`) and an unreadable one as the text its file
+/// states, which a text cell holding that same text would too — `CellBlock.kinds` is how they are
+/// told apart when it matters. An unreadable cell is deliberately **not** `None`: `None` is what a
+/// blank answers, and telling those two apart is the whole reason the kind exists.
 fn native(python: Python<'_>, value: &ooxml::CellData) -> PyResult<Py<PyAny>> {
     match value {
         ooxml::CellData::Blank => python.None().into_bound_py_any(python),
         ooxml::CellData::Number(number) => number.into_bound_py_any(python),
-        ooxml::CellData::Text(text) | ooxml::CellData::Error(text) => {
-            text.into_bound_py_any(python)
-        }
+        ooxml::CellData::Text(text)
+        | ooxml::CellData::Error(text)
+        | ooxml::CellData::Unreadable(text) => text.into_bound_py_any(python),
         ooxml::CellData::Boolean(value) => value.into_bound_py_any(python),
     }
     .map(pyo3::Bound::unbind)
@@ -175,7 +180,7 @@ fn native(python: Python<'_>, value: &ooxml::CellData) -> PyResult<Py<PyAny>> {
 
 #[pymethods]
 impl CellData {
-    /// `"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`.
+    /// `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`.
     #[getter]
     fn kind(&self) -> &'static str {
         kind_of(&self.0)
@@ -210,6 +215,13 @@ impl CellData {
     #[getter]
     fn error_code(&self) -> Option<&str> {
         self.0.error_code()
+    }
+
+    /// The text of a value this library could not read as the kind its cell declares, or `None` for
+    /// every other kind — including a blank, which is a cell that states no value at all.
+    #[getter]
+    fn unreadable_text(&self) -> Option<&str> {
+        self.0.unreadable_text()
     }
 
     /// The value as one of Python's own types: `None`, `float`, `str` or `bool`.
@@ -383,9 +395,9 @@ impl CellBlock {
     }
 
     /// The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
-    /// `"error"`.
+    /// `"error"` or `"unreadable"`, exactly the vocabulary `CellData.kind` answers.
     ///
-    /// The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell
+    /// The disambiguator for `rows`, which cannot tell a text cell from an error cell
     /// because both arrive as `str`. Built only when asked.
     fn kinds<'py>(&self, python: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let block = self.0.clone();
@@ -1616,10 +1628,21 @@ impl Color {
     }
 
     /// A theme colour by index, optionally tinted towards white (positive) or black (negative).
+    ///
+    /// The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states.
+    /// An author should reach for `from_theme_slot`, which names the slot instead of numbering it.
     #[staticmethod]
     #[pyo3(signature = (index, tint = None))]
     fn from_theme(index: u32, tint: Option<f64>) -> Self {
         Self(ooxml::Color::from_theme(index, tint))
+    }
+
+    /// A theme colour by **slot**, optionally tinted — `from_theme` with the position spelled out,
+    /// and the constructor an author should reach for.
+    #[staticmethod]
+    #[pyo3(signature = (slot, tint = None))]
+    fn from_theme_slot(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::Color::from_theme_slot(slot.into(), tint))
     }
 
     /// The system foreground/background colour, whatever that is at render time.
@@ -1810,6 +1833,15 @@ impl PatternFillSpec {
     #[staticmethod]
     fn solid(hex: &str) -> Self {
         Self(ooxml::PatternFillSpec::solid(hex))
+    }
+
+    /// A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+    /// this one unless the colour itself is the point: a hex literal survives into a document whose
+    /// owner has rebranded everything around it.
+    #[staticmethod]
+    #[pyo3(signature = (slot, tint = None))]
+    fn solid_from_theme(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::PatternFillSpec::solid_from_theme(slot.into(), tint))
     }
 
     /// `@patternType`.
@@ -2055,6 +2087,54 @@ impl CellFormatSpec {
     #[getter]
     fn border_index(&self) -> Option<u32> {
         self.0.border_index
+    }
+
+    /// `@xfId` — the `cellStyleXfs` record beneath this one.
+    #[getter]
+    fn cell_style_format_index(&self) -> Option<u32> {
+        self.0.cell_style_format_index
+    }
+
+    /// `@quotePrefix` — the value is text because it was typed with a leading apostrophe.
+    #[getter]
+    fn text_is_quote_prefixed(&self) -> Option<bool> {
+        self.0.text_is_quote_prefixed
+    }
+
+    /// `@applyNumberFormat`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_number_format(&self) -> Option<bool> {
+        self.0.applies_number_format
+    }
+
+    /// `@applyFont`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_font(&self) -> Option<bool> {
+        self.0.applies_font
+    }
+
+    /// `@applyFill`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_fill(&self) -> Option<bool> {
+        self.0.applies_fill
+    }
+
+    /// `@applyBorder`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_border(&self) -> Option<bool> {
+        self.0.applies_border
+    }
+
+    /// `@applyAlignment`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_alignment(&self) -> Option<bool> {
+        self.0.applies_alignment
+    }
+
+    /// `@applyProtection`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_protection(&self) -> Option<bool> {
+        self.0.applies_protection
     }
 }
 

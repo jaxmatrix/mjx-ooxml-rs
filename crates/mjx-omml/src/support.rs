@@ -124,7 +124,7 @@ pub(crate) fn val_element<C: AttributeCodec>(
 /// Reads the `val` attribute of the first `m:{local}` child of `children`, or `None` if there is no
 /// such child or the attribute is absent/invalid — the read-never-fails leniency every optional
 /// leaf accessor in this crate applies (an unreadable optional value is simply not there, exactly as
-/// `crate::geometry::Transform2D::read` treats a malformed `a:off`).
+/// `mjx_dml::geometry::Transform2D::read` treats a malformed `a:off`).
 pub(crate) fn read_val_child<'a, C: AttributeCodec>(
     children: &'a [RawNode],
     interner: &'a Interner,

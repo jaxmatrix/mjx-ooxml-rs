@@ -2,11 +2,11 @@
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is the **widest content model in this workspace** — a
 //! thirty-nine member `xsd:sequence`, ten times `CT_Slide`'s and twice `CT_Workbook`'s.
-//! [`WorksheetPart`] is the frame that holds all thirty-nine: **eighteen** modelled (seven by
-//! MJXOFF-102, six more by MJXOFF-117, and five more that live in [`crate::features`] — MJXOFF-120's
-//! `conditionalFormatting`, MJXOFF-123's `autoFilter`, `sortState` and `dataValidations`, and
-//! MJXOFF-125's `tableParts`), **twenty-one** kept as the markup the file wrote, every one of them
-//! in its schema position.
+//! [`WorksheetPart`] is the frame that holds all thirty-nine: **thirty-five** modelled and **four**
+//! held as the markup the file wrote, every one of them in its schema position. Neither number is
+//! written down anywhere it could rot — `frame.rs`'s
+//! [rank table](WorksheetPart#the-slot-ledger) and the sentences around it are both held against
+//! what the read path actually does, by the three tests MJXOFF-220 added to that file.
 //!
 //! # The module tree, and the child that fills each file
 //!
@@ -36,11 +36,10 @@
 //!
 //! # What is *held* and what is *modelled* are different claims
 //!
-//! Eight of the thirty-nine slots — `phoneticPr`, the drawing family (`drawing`, `legacyDrawing`,
-//! `legacyDrawingHF`, `drawingHF`, `oleObjects`, `controls`) and `extLst` — are held as
-//! [`WorksheetContent::Raw`], the markup the producer wrote, in the position it wrote it. **A
-//! worksheet whose `pageSetup` survives is proof the frame works, not proof `pageSetup` was
-//! modelled.**
+//! Four of the thirty-nine slots — `phoneticPr`, the header/footer halves of the drawing family
+//! (`legacyDrawingHF` and `drawingHF`) and `extLst` — are held as [`WorksheetContent::Raw`], the
+//! markup the producer wrote, in the position it wrote it. **A worksheet whose `pageSetup` survives
+//! is proof the frame works, not proof `pageSetup` was modelled.**
 //!
 //! That distinction is what makes the later children cheap: each replaces one `Raw` slot with a
 //! typed one and changes nothing else, and until it does, a caller's file is not damaged by the

@@ -3359,7 +3359,7 @@ fn read_charts(
         let Some(bytes) = document.chart_part_bytes(id)? else {
             continue;
         };
-        if let Ok(model) = mjx_layout_chart::ChartModel::read(bytes) {
+        if let Ok(model) = mjx_layout_chart::ChartModel::read(&bytes) {
             charts.push((id, model));
         }
     }

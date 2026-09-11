@@ -10,11 +10,24 @@ why every assertion here is asymmetric on purpose: a test that writes `"Region"`
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Callable
 
 import pytest
 
 import mjx_ooxml
-from mjx_ooxml import CellWrite, GeometrySource, ResizingBehavior, SheetKind, Workbook
+from mjx_ooxml import (
+    CellWrite,
+    Color,
+    ColorSchemeSlot,
+    GeometrySource,
+    PatternFillSpec,
+    ResizingBehavior,
+    SheetKind,
+    SpreadsheetPatternType,
+    Workbook,
+)
+
+from opc import with_part_replaced
 
 
 @pytest.fixture
@@ -600,6 +613,7 @@ def test_removing_an_excel_chart_binding_is_caught_by_this_suite() -> None:
         "chart_legend",
         "chart_workbooks",
         "refresh_chart_workbook",
+        "regenerate_chart_workbook",
         "detach_chart_workbook",
         "chart_series_references",
         "chart_series_from_cells",
@@ -613,3 +627,220 @@ def test_removing_an_excel_chart_binding_is_caught_by_this_suite() -> None:
         "drop_chart_dangling_decoration",
     ):
         assert callable(getattr(workbook, method)), f"Workbook.{method} is not bound"
+
+
+# ---------------------------------------------------------------------------------------------
+# `CellFormatSpec`: all twelve `x:xf` attributes, readable (MJXOFF-226)
+# ---------------------------------------------------------------------------------------------
+
+
+def test_every_cell_format_attribute_reads_back_its_own_value() -> None:
+    """The twelve attributes of `mjx_ooxml::CellFormatSpec`, each at a value only it can have.
+
+    Until MJXOFF-226 this class declared four readable attributes against twelve constructor
+    keywords, so eight of the twelve were write-only in Python and unreadable in TypeScript. The
+    five indices are given five *different* numbers on purpose: wire any of the five getters to a
+    neighbouring field and exactly one of these equalities fails, which a spec built from one
+    repeated number could not show.
+    """
+    spec = mjx_ooxml.CellFormatSpec(
+        number_format_id=11,
+        font_index=22,
+        fill_index=33,
+        border_index=44,
+        cell_style_format_index=55,
+        text_is_quote_prefixed=True,
+    )
+    assert spec.number_format_id == 11
+    assert spec.font_index == 22
+    assert spec.fill_index == 33
+    assert spec.border_index == 44
+    assert spec.cell_style_format_index == 55
+    assert spec.text_is_quote_prefixed is True
+
+
+# Every flag named the way a caller would write it, rather than reached through `getattr` and a
+# `**kwargs` dictionary: a string lookup would exercise these twelve members without any test
+# source ever naming them, which is exactly what `xtask/tests/binding_projection.rs` counts.
+APPLY_FLAGS: tuple[
+    tuple[str, Callable[[bool], mjx_ooxml.CellFormatSpec], Callable[[mjx_ooxml.CellFormatSpec], bool | None]],
+    ...,
+] = (
+    (
+        "applies_number_format",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_number_format=value),
+        lambda spec: spec.applies_number_format,
+    ),
+    (
+        "applies_font",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_font=value),
+        lambda spec: spec.applies_font,
+    ),
+    (
+        "applies_fill",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_fill=value),
+        lambda spec: spec.applies_fill,
+    ),
+    (
+        "applies_border",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_border=value),
+        lambda spec: spec.applies_border,
+    ),
+    (
+        "applies_alignment",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_alignment=value),
+        lambda spec: spec.applies_alignment,
+    ),
+    (
+        "applies_protection",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_protection=value),
+        lambda spec: spec.applies_protection,
+    ),
+)
+
+
+@pytest.mark.parametrize("stated", APPLY_FLAGS, ids=[flag[0] for flag in APPLY_FLAGS])
+@pytest.mark.parametrize("value", [True, False])
+def test_each_apply_flag_is_three_valued_and_independent(
+    stated: tuple[
+        str,
+        Callable[[bool], mjx_ooxml.CellFormatSpec],
+        Callable[[mjx_ooxml.CellFormatSpec], bool | None],
+    ],
+    value: bool,
+) -> None:
+    """One flag set at a time, so a getter reading its neighbour's field has nowhere to hide.
+
+    Six booleans cannot be told apart by giving them six distinct values, because there are only
+    two — so each is stated *alone* and the other five are required to stay `None`. The `False`
+    round is not redundant: §18.8.9 makes an absent `applyX` *participate* and `applyX="0"`
+    *suppress*, so a projection that collapsed the three values to two would pass the `True` round
+    and fail this one.
+    """
+    name, state, _ = stated
+    spec = state(value)
+    for other, _, read in APPLY_FLAGS:
+        expected = value if other == name else None
+        assert read(spec) is expected, f"{name}={value} was visible on {other}"
+
+
+def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None:
+    """The two theme-following constructors, and what makes them worth having.
+
+    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot. What
+    this asserts is the *property* the projection has to have, never the table itself. SpreadsheetML's
+    `@theme` mapping is decided in exactly one place — `mjx_sml::styles::theme_color_position` — and a
+    literal position here would be a second copy of that decision sitting where nothing checks it.
+    MJXOFF-246 is what taught that: a writer and a resolver each stating the mapping in their own
+    words drifted apart, and the library read the default font colour of every workbook it authored
+    as white.
+
+    Two properties, and between them they catch every way this can go wrong:
+
+    * the twelve slots occupy the twelve positions **exactly once each** — a bijection, so a drift, a
+      collision or an out-of-range position all fail;
+    * `Dark1`'s position is **not** its ordinal in the enumeration. That is the sharp one. The two
+      dark/light pairs are swapped against the sequence order §20.1.6.2 prints for `clrScheme`'s
+      children (MJXOFF-246, derived from ECMA's own preset styles in
+      `crates/mjx-sml/tests/theme_index.rs`), so a binding that projected the *ordinal* instead of
+      calling `theme_color_position` — much the likeliest way to get this wrong — would satisfy the
+      bijection and every slot from `Accent1` on, and fail only here.
+
+    The comparison is field by field rather than `==`: `Color` is a frozen value class with no
+    `__eq__`, so `==` on two of them is identity and would be false for two colours that say exactly
+    the same thing.
+
+    `PatternFillSpec.solid_from_theme` is the same claim one level up: the fill pins nothing, which
+    is the whole point of it beside `solid`.
+    """
+
+    def stated(color: Color) -> tuple[int | None, float | None, str | None]:
+        return (color.theme, color.tint, color.rgb)
+
+    slots = [
+        ColorSchemeSlot.Dark1,
+        ColorSchemeSlot.Light1,
+        ColorSchemeSlot.Dark2,
+        ColorSchemeSlot.Light2,
+        ColorSchemeSlot.Accent1,
+        ColorSchemeSlot.Accent2,
+        ColorSchemeSlot.Accent3,
+        ColorSchemeSlot.Accent4,
+        ColorSchemeSlot.Accent5,
+        ColorSchemeSlot.Accent6,
+        ColorSchemeSlot.Hyperlink,
+        ColorSchemeSlot.FollowedHyperlink,
+    ]
+    # `Color.theme` is `int | None`, and narrowing it here rather than at the point of use is itself
+    # a claim worth making: a theme-following colour that stated *no* position would be a colour
+    # pinning nothing at all, which is the one thing these constructors exist to avoid.
+    position: dict[int, int] = {}
+    for slot in slots:
+        stated_position = Color.from_theme_slot(slot).theme
+        assert stated_position is not None, "a theme-following colour states a position"
+        position[int(slot)] = stated_position
+
+    assert sorted(position.values()) == list(range(12)), (
+        "the twelve slots must occupy the twelve positions exactly once each"
+    )
+    assert position[int(ColorSchemeSlot.Dark1)] != int(ColorSchemeSlot.Dark1), (
+        "`Dark1`'s position is not its ordinal — see MJXOFF-246"
+    )
+
+    # `from_theme_slot` and `from_theme` are the same colour said two ways, and a tint moves neither
+    # of them off the position.
+    assert stated(Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25)) == stated(
+        Color.from_theme(position[int(ColorSchemeSlot.Dark1)], -0.25)
+    )
+    assert Color.from_theme_slot(ColorSchemeSlot.Accent1).tint is None
+
+    fill = PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent2, 0.4)
+    foreground = fill.foreground
+    assert foreground is not None
+    assert foreground.theme == position[int(ColorSchemeSlot.Accent2)]
+    assert foreground.tint == pytest.approx(0.4)
+    assert foreground.rgb is None, "a theme-following fill pins no literal"
+    # …and nothing but the colour differs from the hex-taking sibling.
+    assert fill.pattern == SpreadsheetPatternType.Solid == PatternFillSpec.solid("FF0000").pattern
+    assert fill.background is None
+
+
+def _workbook_whose_first_row_is(cells: str) -> bytes:
+    """A one-sheet workbook whose first row is exactly `cells`, authored in the archive.
+
+    No call in this binding will write a token its own schema refuses, so the input has to come from
+    bytes — the same reason `crates/mjx-ooxml/tests/workbook_unreadable_values.rs` reaches for
+    `mjx_opc` to build its. The archive is opened through `opc.with_part_replaced`, because this
+    directory has exactly one place that knows what a package is.
+    """
+    saved = Workbook.blank().save()
+    part = Workbook.open(saved).sheet(0).part
+    assert part is not None
+    markup = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData><row r="1">{cells}</row></sheetData></worksheet>'
+    ).encode()
+    return with_part_replaced(saved, part, markup)
+
+
+def test_a_value_the_file_states_and_we_cannot_read_is_not_a_blank() -> None:
+    """MJXOFF-285. `None` is what a blank answers, so an unreadable cell must not answer `None`."""
+    workbook = Workbook.open(
+        _workbook_whose_first_row_is(
+            '<c r="A1" t="n"><v>not-a-number</v></c><c r="B1"/>'
+        )
+    )
+    block = workbook.read_range(0, "A1:B1")
+
+    stated = block.value(0, 0)
+    empty = block.value(0, 1)
+    assert (stated.kind, empty.kind) == ("unreadable", "blank")
+    assert stated.unreadable_text == "not-a-number"
+    assert empty.unreadable_text is None
+    assert stated.is_blank is False
+    assert empty.is_blank is True
+
+    # And in the shape a caller iterating a table actually reads: a string, not `None`.
+    assert block.rows() == [["not-a-number", None]]
+    assert block.kinds() == [["unreadable", "blank"]]

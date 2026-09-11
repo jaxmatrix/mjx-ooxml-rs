@@ -16,7 +16,17 @@
 //! original bytes are dropped and `save` re-serializes the tree with the byte-preserving fidelity
 //! writer. Content types and relationships are edited only through the dedicated helpers, which keep
 //! the control parts' trees and the parsed navigation views in lock-step.
+//!
+//! **Three states, three questions.** Because the third state has no stored bytes,
+//! [`Package::part_bytes`] answers `None` for a part that is dirty as readily as for one that is not
+//! there, and a caller that reads that as one answer is wrong about a part it has itself just
+//! edited. So each question has its own call: [`Package::contains_part`] for presence,
+//! [`Package::part_payload`] for content, and `part_bytes` only for the narrow fidelity question of
+//! whether a part still carries the bytes it arrived with. MJXOFF-222 is what conflating the first
+//! two cost.
 
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read, Write};
 use std::mem;
 use std::sync::Arc;
@@ -175,6 +185,9 @@ pub struct Package {
     entries: Vec<ZipEntry>,
     content_types: ContentTypes,
     relationships: Vec<RelationshipsPart>,
+    /// The relationship ids this library has removed from a part's `.rels`, per source part
+    /// (MJXOFF-238). See [`unwired_relationships`](Self::unwired_relationships).
+    unwired: BTreeMap<PartName, BTreeSet<String>>,
 }
 
 impl Package {
@@ -225,6 +238,7 @@ impl Package {
             entries,
             content_types,
             relationships,
+            unwired: BTreeMap::new(),
         })
     }
 
@@ -269,6 +283,7 @@ impl Package {
                 source: None,
                 relationships: Relationships::default(),
             }],
+            unwired: BTreeMap::new(),
         }
     }
 
@@ -479,16 +494,29 @@ impl Package {
     /// Yields each part's name alongside its entry, in container order.
     pub fn authored_xml_parts(&self) -> impl Iterator<Item = (PartName, &ZipEntry)> + '_ {
         self.entries.iter().filter_map(move |entry| {
-            if entry.provenance() != PartProvenance::Authored || is_control_part(&entry.name) {
+            if entry.provenance() != PartProvenance::Authored {
                 return None;
             }
             let part = PartName::from_zip_name(&entry.name).ok()?;
-            let content_type = self.content_types.content_type_of(&part)?;
-            if !is_xml_content_type(content_type) {
-                return None;
-            }
-            Some((part, entry))
+            self.is_checkable_xml_part(&entry.name, &part)
+                .then_some((part, entry))
         })
+    }
+
+    /// The two filters [`authored_xml_parts`](Self::authored_xml_parts) applies besides provenance:
+    /// the entry is not a control part, and its content type names XML.
+    ///
+    /// Factored out rather than repeated because `validate`'s markup-reference check has a **second**
+    /// scope since MJXOFF-238 — a part whose `.rels` this library edited — which is defined by the
+    /// same two filters and a different provenance rule. Two spellings of "a part whose markup can be
+    /// walked" would be two things to keep in step, and `XML_CONTENT_TYPES_WITHOUT_SUFFIX` has
+    /// already cost this project one silently-empty scope.
+    pub(crate) fn is_checkable_xml_part(&self, entry_name: &str, part: &PartName) -> bool {
+        !is_control_part(entry_name)
+            && self
+                .content_types
+                .content_type_of(part)
+                .is_some_and(is_xml_content_type)
     }
 
     /// The names of all addressable parts — every ZIP entry except the special
@@ -500,17 +528,69 @@ impl Package {
             .filter_map(|e| PartName::from_zip_name(&e.name).ok())
     }
 
-    /// Looks up a part's decompressed bytes by its part name.
+    /// Looks up a part's **stored** decompressed bytes by its part name.
     ///
     /// Returns `None` if the part is absent or has been edited (an [`Edited`](PartBody::Edited) body
     /// has no materialized bytes — read it via [`Package::part_tree`] instead).
+    ///
+    /// # This is the storage question, and it is almost never the one a caller means
+    ///
+    /// `None` here means *two* things — "no such part" and "that part is dirty" — and a caller that
+    /// reads it as one is wrong about a part it has itself just edited. Ask instead:
+    ///
+    /// | The question | The call |
+    /// |---|---|
+    /// | is this part in the package? | [`contains_part`](Self::contains_part) |
+    /// | what does this part contain? | [`part_payload`](Self::part_payload) |
+    /// | does this part still have the bytes it arrived with? | this |
+    ///
+    /// Only the third is this one, and only a caller reasoning about *fidelity* — a round-trip
+    /// suite, a provenance check — wants it. MJXOFF-222 is what the other two readings cost: two
+    /// `from_package` constructors reported a main part missing the moment it was edited.
     #[must_use]
     pub fn part_bytes(&self, part: &PartName) -> Option<&[u8]> {
+        self.entry_named(part).and_then(ZipEntry::bytes)
+    }
+
+    /// Whether the package holds a part with this name, **whatever state its body is in**.
+    ///
+    /// The presence question, asked without materializing anything: `true` for a
+    /// [`Raw`](PartBody::Raw), a [`Parsed`](PartBody::Parsed) *and* an [`Edited`](PartBody::Edited)
+    /// body alike. [`part_bytes`](Self::part_bytes) cannot answer it — it says `None` for a dirty
+    /// part as readily as for an absent one — and neither can a scan of
+    /// [`part_names`](Self::part_names) without allocating a name per entry.
+    #[must_use]
+    pub fn contains_part(&self, part: &PartName) -> bool {
+        self.entry_named(part).is_some()
+    }
+
+    /// A part's payload **as it stands**, whatever copy-on-write state its body is in.
+    ///
+    /// The content question. Borrowed for a part that still holds its bytes — a `Raw` or a `Parsed`
+    /// body, which is every part of a file nobody has edited, so the ordinary case still costs no
+    /// copy. Serialized on the spot for an [`Edited`](PartBody::Edited) one, through the same
+    /// fidelity writer [`save`](Self::save) uses, so what comes back is byte for byte what saving
+    /// now would write.
+    ///
+    /// `None` means one thing only: the package holds no such part.
+    #[must_use]
+    pub fn part_payload(&self, part: &PartName) -> Option<Cow<'_, [u8]>> {
+        let entry = self.entry_named(part)?;
+        match entry.bytes() {
+            Some(bytes) => Some(Cow::Borrowed(bytes)),
+            // An `Edited` body always has a tree; the `None` arm is unreachable rather than a
+            // fallback, and answering `None` there would put back the conflation this method exists
+            // to remove.
+            None => entry
+                .tree()
+                .map(|tree| Cow::Owned(fidelity::serialize_to_vec(tree))),
+        }
+    }
+
+    /// The entry a part name addresses, by the ZIP name it spells.
+    fn entry_named(&self, part: &PartName) -> Option<&ZipEntry> {
         let zip_name = part.zip_name();
-        self.entries
-            .iter()
-            .find(|e| e.name == zip_name)
-            .and_then(ZipEntry::bytes)
+        self.entries.iter().find(|e| e.name == zip_name)
     }
 
     /// Borrows a part's fidelity tree for **reading**, parsing and caching it on first access.
@@ -789,7 +869,46 @@ impl Package {
         {
             part.relationships.remove_by_id(id);
         }
+        // Remembered so that `validate` can see the one fault this call can create in markup it did
+        // not write: a part whose body names the relationship that has just gone. Editing a `.rels`
+        // does not make its owning part `Authored`, so nothing else would look (MJXOFF-238). The
+        // package root is skipped because it has no markup — `_rels/.rels` names its targets in the
+        // `.rels` itself, and `check_relationships` already covers those.
+        if let Some(source) = source {
+            self.unwired
+                .entry(source.clone())
+                .or_default()
+                .insert(id.to_owned());
+        }
         Ok(true)
+    }
+
+    /// The relationship ids this library has removed from each part's `.rels` since the package was
+    /// opened — the extra reach [`validate`](Self::validate)'s markup-reference check has beyond the
+    /// parts this library authored (MJXOFF-238).
+    ///
+    /// # Why this is recorded rather than derived
+    ///
+    /// `validate` checks relationship references over
+    /// [`authored_xml_parts`](Self::authored_xml_parts), and that scope is right: a part still
+    /// holding its container bytes is re-emitted verbatim, so faulting it for markup it arrived with
+    /// would mean refusing to write back a file we were given. But the scope answers *"was this
+    /// markup ours?"* and not *"did our edit break this markup?"*, and the two come apart for one
+    /// shape — [`remove_relationship`](Self::remove_relationship) on a part whose body is never
+    /// touched. `check_relationships` sees nothing (there is no relationship left, so no missing
+    /// target) and the markup check skips the part, so the body goes on naming a relationship
+    /// nothing declares and [`save`](Self::save) writes it out.
+    ///
+    /// Widening the scope to *the whole part* would close that hole and open a worse one: a part
+    /// that arrived with a dangling reference of its own would start failing the save, so removing
+    /// a relationship a slide never names would stop a deck saving over a fault somewhere else in
+    /// it. This is the smallest record that closes the hole and only the hole — **only the ids this
+    /// library removed are looked for**, so what the file arrived with stays out of our checks.
+    ///
+    /// The `.rels` of a part that is itself removed is removed with it, and its record goes too.
+    #[must_use]
+    pub fn unwired_relationships(&self) -> &BTreeMap<PartName, BTreeSet<String>> {
+        &self.unwired
     }
 
     /// Every relationship in the package that points outside it (`TargetMode::External`), with the
@@ -829,6 +948,13 @@ impl Package {
     /// the package without touching the part's own markup — which matters for the many element kinds
     /// the library does not model. The `.rels` tree and the navigation view are edited in tandem, in
     /// place, so relationship order is preserved.
+    ///
+    /// `new_target` is written as given: this is target *text*, not a part name, because an external
+    /// target is a URI that no part name could express. So a caller pointing one at a part whose name
+    /// needs percent-encoding — a space, a literal `%` — should build the text with
+    /// [`PartName::relative_target`], which encodes it, rather than handing over the part name
+    /// itself. Every name this library generates is already safe, so this only arises for a name the
+    /// caller chose.
     ///
     /// # Errors
     /// Returns [`OpcError`] if the `.rels` part is not well-formed XML.
@@ -925,8 +1051,30 @@ impl Package {
 
     /// Removes a part, its content-type `Override` (if any), and its own outgoing `.rels` part.
     ///
-    /// Shared `Default` content-type rules are left untouched. Inbound relationships *from other
-    /// parts* are not scanned (a graph operation left to a later phase); no bytes are corrupted.
+    /// Shared `Default` content-type rules are left untouched.
+    ///
+    /// # This is the one removal that can leave the package broken
+    ///
+    /// **Inbound relationships from other parts are not scanned, and outbound targets are not
+    /// followed.** Nothing here is a graph operation. If anything still points at `part`,
+    /// [`save`](Self::save) will now refuse the package — [`validate`](Self::validate) faults a
+    /// relationship whose target is absent — and whatever `part` alone referenced is left behind as
+    /// an orphan. That is deliberate: this is the primitive the other three are built out of, and it
+    /// is right exactly when the caller has already unwired the references itself.
+    ///
+    /// It was once the only removal there was, and its doc comment said the graph operation was
+    /// "left to a later phase". The later phase arrived, three times over, and which of the four to
+    /// call is the decision `crates/mjx-opc/docs/guide/removing_a_part.md` exists to make:
+    ///
+    /// | Call | Follows the graph | Guarded | Reaches parts the caller did not name |
+    /// |---|---|---|---|
+    /// | `remove_part` | no | no | no |
+    /// | [`remove_part_cascading`](Self::remove_part_cascading) | downward | no | only what `part` alone held |
+    /// | [`remove_part_if_unreferenced`](Self::remove_part_if_unreferenced) | downward | yes | only what `part` alone held |
+    /// | [`remove_unreferenced_parts`](Self::remove_unreferenced_parts) | from the root | n/a | **yes — the whole package** |
+    ///
+    /// An edit cleaning up after itself wants the third. The fourth is a caller's request, never an
+    /// edit's own clean-up: MJXOFF-209 is what happens when an edit runs it.
     ///
     /// # Errors
     /// Returns [`OpcError::UnknownPart`] if the part is absent, or an error while removing its
@@ -946,6 +1094,8 @@ impl Package {
         }
         self.relationships
             .retain(|r| r.source.as_ref() != Some(part));
+        // The part's `.rels` went with it, so there is no markup left to have broken.
+        self.unwired.remove(part);
         Ok(())
     }
 
@@ -993,11 +1143,46 @@ impl Package {
         Ok(removed)
     }
 
+    /// Removes `part` — and everything that was reachable only through it — **but only if nothing in
+    /// the package still references it**. Returns the parts removed, empty when `part` is still
+    /// referenced or is not there at all.
+    ///
+    /// This is the *scoped* clean-up: the one an edit performs on its own behalf, having just
+    /// unwired the relationship that named `part`. [`remove_unreferenced_parts`] is the package-wide
+    /// sweep, and the difference matters to a caller's file. The sweep removes every orphan it can
+    /// find, including one the *producer* left there — so an edit that ran it would change something
+    /// the caller never asked about, which is precisely what an editing library must not do. This
+    /// touches nothing but the subtree the caller's own edit stranded.
+    ///
+    /// Being unreferenced is decided by the same resolver the sweep walks with, so the two agree on
+    /// what an edge points at. The cascade is [`remove_part_cascading`]'s, so a chart part takes its
+    /// embedded workbook with it and a picture two drawings share is left alone.
+    ///
+    /// [`remove_unreferenced_parts`]: Self::remove_unreferenced_parts
+    /// [`remove_part_cascading`]: Self::remove_part_cascading
+    ///
+    /// # Errors
+    /// Returns an error only if removing a swept part's content type fails.
+    pub fn remove_part_if_unreferenced(
+        &mut self,
+        part: &PartName,
+    ) -> Result<Vec<PartName>, OpcError> {
+        if self.is_referenced(part) || !self.entries.iter().any(|e| e.name == part.zip_name()) {
+            return Ok(Vec::new());
+        }
+        self.remove_part_cascading(part)
+    }
+
     /// Removes every part unreachable from the package root and returns their names, in the order the
     /// package listed them.
     ///
     /// [`remove_part_cascading`](Self::remove_part_cascading) is a *targeted* delete that walks
-    /// downward from one part the caller names. This is the *package-wide* garbage collection:
+    /// downward from one part the caller names, and
+    /// [`remove_part_if_unreferenced`](Self::remove_part_if_unreferenced) is the same walk guarded
+    /// by a reference check — the clean-up an edit does on its own behalf. This is the
+    /// *package-wide* garbage collection, and it removes an orphan the producer left in the file
+    /// just as readily as one an edit stranded, so it belongs to a caller who asked for it rather
+    /// than inside an editing method:
     /// replacing an image, deleting a slide, or any edit that unwires a relationship can leave a part
     /// with nothing pointing at it (an orphaned media blob, most commonly), and an unreferenced part is
     /// legal but dead weight. This sweeps all of them at once.
@@ -1178,9 +1363,15 @@ fn make_empty_element(
     )
 }
 
-/// Removes any `<Override>` child of the content-types root whose `PartName` equals `part`.
+/// Removes any `<Override>` child of the content-types root whose `PartName` names `part`.
+///
+/// A rule has to be found however it is spelled, because failing to find it leaves the element in
+/// the stream while the parsed view drops it — exactly the drift the tandem edit exists to prevent,
+/// and it would surface as a package carrying a rule for a part that is gone. So both spellings this
+/// crate can meet are prepared and [`names_part`] takes them together.
 fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
-    let target = escape_attribute_bytes(part.as_str());
+    let plain = escape_attribute_bytes(part.as_str());
+    let encoded = escape_attribute_bytes(&crate::percent::encode_part_reference(part.as_str()));
     let RawDocument { interner, root, .. } = tree;
     root.children.retain(|child| {
         let RawNode::Element(el) = child else {
@@ -1188,19 +1379,47 @@ fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
         };
         let is_override = interner.resolve(el.name.local) == "Override";
         let matches_part = el.attributes.iter().any(|a| {
-            interner.resolve(a.name.local) == "PartName" && a.value.as_ref() == target.as_ref()
+            interner.resolve(a.name.local) == "PartName" && names_part(&a.value, &plain, &encoded)
         });
         !(is_override && matches_part)
     });
 }
 
+/// Whether an attribute holding a part name refers to `part`, given its name in both the forms that
+/// can appear in the stream: `plain`, XML-escaped only, and `encoded`, percent-encoded first and
+/// then XML-escaped — what [`upsert_override_element`] writes.
+///
+/// **Two escaping systems meet in this attribute and they do not commute.** Percent-encoding runs
+/// first, so a part name holding `&` is written `%26` and the XML escaper never sees it, while the
+/// part name itself still holds a bare `&` whose XML-escaped form is `&amp;`. Percent-decoding the
+/// raw bytes therefore cannot reach `plain` for that name — hence `encoded` as a second candidate
+/// rather than a cleverer single comparison.
+///
+/// The three cases, in the order they are tried: a producer who encoded nothing (`plain`); this
+/// crate's own writer (`encoded`); and a producer who chose some other encoding of the same name,
+/// which only percent-decoding can recognise. Non-UTF-8 attribute bytes simply do not match.
+fn names_part(raw: &[u8], plain: &[u8], encoded: &[u8]) -> bool {
+    if raw == plain || raw == encoded {
+        return true;
+    }
+    std::str::from_utf8(raw)
+        .ok()
+        .and_then(crate::percent::decode_part_reference)
+        .is_some_and(|decoded| decoded.as_bytes() == plain)
+}
+
 /// Inserts (replacing any existing) the `<Override>` for `part`, setting its content type.
+///
+/// The `PartName` is written percent-encoded, as ECMA-376 Part 2 requires of a part name and as
+/// [`ContentTypes::parse`] reads it back. Every name this library generates is already safe, so the
+/// encoding is the identity in practice; it matters only for a part the caller named itself.
 fn upsert_override_element(tree: &mut RawDocument, part: &PartName, content_type: &str) {
     remove_override_element(tree, part);
+    let encoded = crate::percent::encode_part_reference(part.as_str());
     let namespace = tree.root.name.namespace;
     let RawDocument { interner, root, .. } = tree;
     let attributes = vec![
-        make_attribute(interner, "PartName", part.as_str()),
+        make_attribute(interner, "PartName", &encoded),
         make_attribute(interner, "ContentType", content_type),
     ];
     let element = make_empty_element(interner, namespace, "Override", attributes);

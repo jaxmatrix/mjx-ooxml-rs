@@ -1,5 +1,10 @@
 //! `mjx-derive` — `#[derive(FromXml, ToXml)]` for the mjx-ooxml typed models.
 //!
+//! **This crate has no guide of its own**, because it has no runtime surface: it emits the impls
+//! a model implements. The discipline those impls reproduce is described in
+//! `crates/mjx-opc/docs/guide/the_preservation_tree.md`, and `mjx-dml` is the reference usage.
+//! Every prose page in this repository is listed from `docs/api/README.md`.
+//!
 //! These two derives generate the `FromXml` / `ToXml` trait impls (defined in `mjx-ooxml-core`) that
 //! a typed model implements to parse itself out of, and rebuild, a raw preservation-tree element —
 //! reproducing the fidelity discipline of the hand-written impls exactly (preserve the element name

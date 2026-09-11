@@ -67,14 +67,16 @@ fn a_blank_workbook_has_the_one_sheet_the_schema_requires() {
     workbook.save().expect("it saves again");
 }
 
-/// The part list is the one a workbook Office wrote carries, minus the theme.
+/// The part list is the one a workbook Office wrote carries, theme included.
 ///
-/// The theme is **deliberately** absent: no schema or OPC rule requires one in a SpreadsheetML
-/// package, `mjx-chart`'s retired writer shipped without one, and authoring one here would put
-/// a third hand-written `a:theme` in this workspace on the very child whose premise is that a
-/// duplicated markup writer is a debt.
+/// The theme used to be deliberately absent, on the reasoning that no schema or OPC rule requires
+/// one in a SpreadsheetML package. MJXOFF-200 is what that cost: a package is finished not when it
+/// is *valid* but when every reference its own content makes resolves, and this package makes two —
+/// font 0's `<color theme="1"/>` and `<scheme val="minor"/>`, which are what make the default font
+/// follow the document's theme instead of pinning `Calibri` over it. A chart added to the workbook
+/// makes a third, since a series carries no `c:spPr` and takes its fill from `accent1…accent6`.
 #[test]
-fn a_blank_workbook_carries_the_parts_office_writes_bar_the_theme() {
+fn a_blank_workbook_carries_the_parts_office_writes() {
     let workbook = reopened_blank();
     let mut names: Vec<String> = workbook
         .package()
@@ -91,19 +93,20 @@ fn a_blank_workbook_carries_the_parts_office_writes_bar_the_theme() {
             "/xl/_rels/workbook.xml.rels",
             "/xl/sharedStrings.xml",
             "/xl/styles.xml",
+            "/xl/theme/theme1.xml",
             "/xl/workbook.xml",
             "/xl/worksheets/sheet1.xml",
         ],
-    );
-    assert!(
-        !names.iter().any(|name| name.contains("theme")),
-        "no theme is authored, and that is a decision rather than an omission",
     );
 
     let parts = workbook.parts();
     assert!(parts.styles.is_some());
     assert!(parts.shared_strings.is_some());
-    assert!(parts.theme.is_none());
+    assert_eq!(
+        parts.theme.as_ref().map(PartName::as_str),
+        Some("/xl/theme/theme1.xml"),
+        "the theme is reached from the workbook part, the way a consumer reaches it",
+    );
 }
 
 /// Every authored part declares the SpreadsheetML namespace **in the reopened file's bytes**.

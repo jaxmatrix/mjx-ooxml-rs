@@ -15,10 +15,8 @@ Rust answer with.
 
 from __future__ import annotations
 
-import io
 import pathlib
 import subprocess
-import zipfile
 
 import pytest
 
@@ -31,13 +29,15 @@ from mjx_ooxml import (
     CellFormatTarget,
     CellWrite,
     Color,
+    ColorSchemeSlot,
     FontProperties,
     Format,
     OoxmlError,
     PatternFillSpec,
-    SpreadsheetPatternType,
     Workbook,
 )
+
+from opc import part_payloads
 
 OUTPUT_NAME = "python_build_a_workbook.xlsx"
 
@@ -80,6 +80,7 @@ def build_the_guides_workbook() -> bytes:
     )
 
     # ---- A style, built once and pointed at -------------------------------------------------------
+    # The heading's fill is a theme slot, its text a literal — see the Rust walkthrough.
     font = workbook.append_font(
         FontProperties(
             font_name="Calibri",
@@ -89,10 +90,7 @@ def build_the_guides_workbook() -> bytes:
         )
     )
     fill = workbook.append_pattern_fill(
-        PatternFillSpec(
-            pattern=SpreadsheetPatternType.Solid,
-            foreground=Color.from_opaque_rgb("1F3864"),
-        )
+        PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent1)
     )
     border = workbook.append_border(
         BorderSpec(bottom=BorderEdgeSpec(style=BorderStyle.Medium))
@@ -185,17 +183,11 @@ def test_a_workbook_opened_and_saved_untouched_is_byte_identical_part_by_part(
     workbook = Workbook.open(original)
     saved = workbook.save()
 
-    before = _part_payloads(original)
-    after = _part_payloads(saved)
+    before = part_payloads(original)
+    after = part_payloads(saved)
     assert sorted(before) == sorted(after), "the part set must survive a round trip"
     differing = [name for name in before if before[name] != after[name]]
     assert not differing, f"these parts changed on an untouched round trip: {differing}"
-
-
-def _part_payloads(archive: bytes) -> dict[str, bytes]:
-    """Every part of a package, by name, decompressed."""
-    with zipfile.ZipFile(io.BytesIO(archive)) as package:
-        return {entry.filename: package.read(entry.filename) for entry in package.infolist()}
 
 
 @pytest.mark.skipif(
@@ -233,8 +225,8 @@ def test_the_three_excel_walkthroughs_agree(output_directory: pathlib.Path) -> N
     )
     assert completed.returncode == 0, completed.stderr
 
-    python_parts = _part_payloads(from_python)
-    rust_parts = _part_payloads(rust_output.read_bytes())
+    python_parts = part_payloads(from_python)
+    rust_parts = part_payloads(rust_output.read_bytes())
 
     assert sorted(python_parts) == sorted(rust_parts), (
         "the two walkthroughs must author the same set of parts"

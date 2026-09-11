@@ -74,15 +74,17 @@ assert_eq!(core_properties.classification, PartClassification::Unclassified);
 
 ## What is deliberately not modelled
 
-### Inside a worksheet: five of thirty-nine slots
+### Inside a worksheet: four of thirty-nine slots
 
 `mjx-sml` models cells (MJXOFF-95), shared strings (MJXOFF-97), the workbook part (MJXOFF-100) and
-thirty-four of the worksheet's thirty-nine slots. **Five are held as the markup the file wrote, not
-modelled**: `phoneticPr`, `legacyDrawing`, `legacyDrawingHF`, `drawingHF` and `extLst`. MJXOFF-107
-took the other three of what used to be the drawing family — `drawing`, `oleObjects` and `controls`
-— and `crates/mjx-sml/src/worksheet/frame.rs` names the disposition of every one that is left,
-including the three (`phoneticPr`, `legacyDrawingHF`, `drawingHF`) that belong to no ticket at all,
-each with the reason it does not.
+thirty-five of the worksheet's thirty-nine slots. **Four are held as the markup the file wrote, not
+modelled**: `phoneticPr`, `legacyDrawingHF`, `drawingHF` and `extLst`, and none of the four belongs
+to a work item. `crates/mjx-sml/src/worksheet/frame.rs` names the disposition of every slot with the
+reason for it, and — since MJXOFF-220 — **derives that split rather than stating it**: its
+`every_slot_of_the_generated_sequence_is_accounted_for` reads a worksheet holding one of every slot
+and asks the reader which ones it typed, and two tests beside it hold the file's table and its prose
+to that answer. The figure on this page was 34/5 until that test was written, and had been 25/14 and
+31/8 before.
 
 Held is not dropped. A worksheet whose `pageSetup` survives a save is proof the frame works, not
 proof `pageSetup` was modelled, and that is exactly what the round-trip suites check.

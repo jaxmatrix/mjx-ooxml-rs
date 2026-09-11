@@ -47,8 +47,8 @@ use mjx_ooxml_types::spreadsheetml::{
 use mjx_opc::{Package, PartName};
 use mjx_sml::styles::palette::{resolve_color, IndexedColor, IndexedColorPalette};
 use mjx_sml::{
-    Color, ColorElement, DifferentialFormat, Font, FontProperties, FontPropertyOwner,
-    StylesheetContent, StylesheetPart,
+    Color, ColorElement, ColorScaleSpec, DataBarSpec, DifferentialFormat, DifferentialFormatSpec,
+    Font, FontProperties, FontPropertyOwner, PatternFillSpec, StylesheetContent, StylesheetPart,
 };
 
 /// One committed styles part: a label, and its bytes.
@@ -850,7 +850,13 @@ fn the_declared_count_moves_with_an_append_and_is_not_invented() {
 /// against `resolve_color`, never against a hard-coded hex.
 ///
 /// SpreadsheetML addresses a theme colour by *position*; DrawingML addresses it by *token*. The two
-/// must land on one colour, and ECMA-376 Part 1 §20.1.6.2's index table is what maps between them.
+/// must land on one colour, and `mjx_sml::styles::theme_color_slot` is what maps between them.
+///
+/// The table below is a **second statement** of that mapping, and deliberately a literal one: it
+/// holds on every machine, where `crates/mjx-sml/tests/theme_index.rs` — which re-derives the same
+/// table from ECMA's own preset styles, and is what establishes it — skips without `References/`.
+/// The two dark/light pairs are swapped against §20.1.6.2's *Sequence Index* table; MJXOFF-246 and
+/// the module documentation of `mjx_sml::styles::palette` say why.
 #[test]
 fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
     let (theme_document, scheme) = scheme_of("style_resources.xlsx");
@@ -860,10 +866,10 @@ fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
     let palette = IndexedColorPalette::default_palette();
 
     for (position, slot) in [
-        (0, ColorSchemeSlot::Dark1),
-        (1, ColorSchemeSlot::Light1),
-        (2, ColorSchemeSlot::Dark2),
-        (3, ColorSchemeSlot::Light2),
+        (0, ColorSchemeSlot::Light1),
+        (1, ColorSchemeSlot::Dark1),
+        (2, ColorSchemeSlot::Light2),
+        (3, ColorSchemeSlot::Dark2),
         (4, ColorSchemeSlot::Accent1),
         (9, ColorSchemeSlot::Accent6),
         (10, ColorSchemeSlot::Hyperlink),
@@ -883,7 +889,7 @@ fn a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot() {
         assert_eq!(
             through_spreadsheetml.to_hex(),
             through_drawingml.to_hex(),
-            "theme=\"{position}\" is {slot:?} per Part 1 §20.1.6.2, and the two must agree"
+            "theme=\"{position}\" is {slot:?} (MJXOFF-246), and the two must agree"
         );
     }
 
@@ -1137,4 +1143,235 @@ fn windows_contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// hex this suite would then be asserting against itself.
 fn brightness(color: ResolvedColor) -> u32 {
     u32::from(color.red) + u32::from(color.green) + u32::from(color.blue)
+}
+
+// -------------------------------------------------------------------------------------------
+// Every colour the authoring vocabulary writes is a valid `ST_UnsignedIntHex` (MJXOFF-220)
+// -------------------------------------------------------------------------------------------
+
+/// Whether `value` is `ST_UnsignedIntHex` as `sml.xsd` declares it: exactly eight hexadecimal
+/// digits, alpha first.
+fn is_unsigned_int_hex(value: &str) -> bool {
+    value.len() == 8 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// **Every `@rgb` the authoring vocabulary writes is eight hexadecimal digits** — including when
+/// the caller hands it the eight-digit ARGB form.
+///
+/// # The gate that did not exist
+///
+/// `Color::from_opaque_rgb` prefixed `FF` unconditionally, so `"FFFF0000"` — the exact spelling
+/// `Color::rgb`'s own documentation gives — became the ten-character `"FFFFFF0000"`, which
+/// `sml.xsd` rejects. It reached `PatternFillSpec::solid`, `ColorScaleSpec::two_color`,
+/// `DataBarSpec::spanning_the_range` and `DifferentialFormatSpec::highlight`, and **nothing in the
+/// workspace could see it**: `mjx-schema-gate` validates the markup a test authored, and every test
+/// that authored a colour handed it six digits. That is MJXOFF-88 §9 A5 defect 1 and MJXOFF-198 §6
+/// F6, unowned from the day it was found.
+///
+/// So the check is over the *constructors a caller reaches for*, fed both spellings, rather than
+/// over one of them fed the spelling that already worked.
+#[test]
+fn every_authored_colour_is_a_valid_unsigned_int_hex() {
+    // Both forms of the same opaque red, plus a `#` prefix and a half-transparent value that is
+    // only expressible in eight digits.
+    let inputs = ["FF0000", "#FF0000", "ffff0000", "FFFF0000", "801F3864"];
+
+    let mut checked = 0usize;
+    for input in inputs {
+        let mut colours = vec![Color::from_opaque_rgb(input)];
+        colours.extend(
+            PatternFillSpec::solid(input)
+                .foreground
+                .into_iter()
+                .chain(PatternFillSpec::solid(input).background),
+        );
+        colours.extend(ColorScaleSpec::two_color(input, input).colors);
+        colours.push(DataBarSpec::spanning_the_range(input).color);
+        let highlight = DifferentialFormatSpec::highlight(input, input);
+        colours.extend(highlight.font.and_then(|font| font.color));
+        colours.extend(highlight.fill.and_then(|fill| fill.foreground));
+
+        for colour in colours {
+            let rgb = colour.rgb.expect("every constructor here writes an @rgb");
+            assert!(
+                is_unsigned_int_hex(&rgb),
+                "`{input}` was authored as rgb=\"{rgb}\", which is {} characters and not \
+                 ST_UnsignedIntHex — `sml.xsd` rejects the part",
+                rgb.len()
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 25,
+        "only {checked} authored colours were checked — the vocabulary walk has stopped walking, \
+         and a walk that reaches nothing passes forever"
+    );
+    println!("authoring vocabulary: {checked} authored colours checked against ST_UnsignedIntHex");
+
+    // …and the six-digit path is unchanged, which is what says the fix is a normalisation rather
+    // than a different constructor.
+    assert_eq!(
+        Color::from_opaque_rgb("1F3864").rgb.as_deref(),
+        Some("FF1F3864")
+    );
+    // A value that is neither six nor eight digits is the caller's contract, and is written
+    // through rather than refused — see `Color::from_opaque_rgb`'s documentation.
+    assert_eq!(Color::from_opaque_rgb("f00").rgb.as_deref(), Some("FFf00"));
+}
+
+/// **Every theme-following constructor pins nothing**, and each is its hex-taking sibling with the
+/// colour swapped and nothing else changed.
+///
+/// # What this is written against
+///
+/// MJXOFF-235: the Excel authoring vocabulary had one theme-following constructor
+/// (`Color::from_theme`) and four hex-taking conveniences, so the shortest path pinned a literal
+/// into a document whose owner may have rebranded it, and the theme-following path was the longer
+/// one. Each of the four now has a sibling — and a sibling is only worth having if it is *the same
+/// call*: a `solid_from_theme` that forgot `patternType="solid"`, or a
+/// `spanning_the_range_from_theme` that lost a threshold, would be a second, subtly different
+/// constructor wearing the first one's name.
+///
+/// So both halves are asserted. **The colour**: `@theme` is set, `@rgb` is not, and the tint is
+/// carried through — a constructor that resolved the slot to a literal would fail here even though
+/// the file it wrote would open. **Everything else**: the theme-taking value is compared field by
+/// field against its hex-taking sibling with the colours substituted, which is the assertion that
+/// notices a dropped pattern, a dropped threshold or a dropped default.
+#[test]
+fn every_theme_following_constructor_pins_nothing_and_changes_nothing_else() {
+    use mjx_dml::ColorSchemeSlot;
+    use mjx_sml::styles::theme_color_position;
+
+    let slots = [
+        ColorSchemeSlot::Dark1,
+        ColorSchemeSlot::Light1,
+        ColorSchemeSlot::Accent1,
+        ColorSchemeSlot::Accent6,
+        ColorSchemeSlot::FollowedHyperlink,
+    ];
+    let tints = [None, Some(-0.25), Some(0.8)];
+
+    let mut checked = 0usize;
+    for slot in slots {
+        let position = theme_color_position(slot);
+        for tint in tints {
+            // Every colour the five constructors produce, in one list.
+            let fill = PatternFillSpec::solid_from_theme(slot, tint);
+            let scale = ColorScaleSpec::two_color_from_theme(slot, tint, slot, tint);
+            let bar = DataBarSpec::spanning_the_range_from_theme(slot, tint);
+            let highlight = DifferentialFormatSpec::highlight_from_theme(slot, tint, slot, tint);
+
+            let mut colours = vec![Color::from_theme_slot(slot, tint)];
+            colours.extend(fill.foreground.clone());
+            colours.extend(scale.colors.iter().cloned());
+            colours.push(bar.color.clone());
+            colours.extend(highlight.font.clone().and_then(|font| font.color));
+            colours.extend(highlight.fill.clone().and_then(|f| f.foreground));
+
+            for colour in &colours {
+                assert_eq!(
+                    colour.theme,
+                    Some(position),
+                    "{slot:?} was authored as theme={:?}, not {position}",
+                    colour.theme
+                );
+                assert_eq!(colour.tint, tint, "the tint was not carried through");
+                assert!(
+                    colour.rgb.is_none(),
+                    "a theme-following constructor pinned rgb={:?} — the whole point of it is that \
+                     it does not",
+                    colour.rgb
+                );
+                assert!(colour.indexed.is_none() && colour.automatic.is_none());
+                checked += 1;
+            }
+
+            // …and each is its hex-taking sibling with only the colour changed.
+            let themed = Color::from_theme_slot(slot, tint);
+            assert_eq!(
+                fill,
+                PatternFillSpec {
+                    foreground: Some(themed.clone()),
+                    ..PatternFillSpec::solid("FF0000")
+                },
+                "`solid_from_theme` differs from `solid` by more than the colour"
+            );
+            assert_eq!(
+                scale,
+                ColorScaleSpec {
+                    colors: vec![themed.clone(), themed.clone()],
+                    ..ColorScaleSpec::two_color("FF0000", "00FF00")
+                },
+                "`two_color_from_theme` differs from `two_color` by more than the colours"
+            );
+            assert_eq!(
+                bar,
+                DataBarSpec {
+                    color: themed.clone(),
+                    ..DataBarSpec::spanning_the_range("FF0000")
+                },
+                "`spanning_the_range_from_theme` differs from `spanning_the_range` by more than \
+                 the colour"
+            );
+            assert_eq!(
+                highlight,
+                DifferentialFormatSpec {
+                    font: Some(mjx_sml::FontProperties {
+                        color: Some(themed.clone()),
+                        ..mjx_sml::FontProperties::default()
+                    }),
+                    fill: Some(PatternFillSpec {
+                        foreground: Some(themed),
+                        ..PatternFillSpec::solid("FF0000")
+                    }),
+                    border: None,
+                },
+                "`highlight_from_theme` differs from `highlight` by more than the colours"
+            );
+        }
+    }
+
+    assert!(
+        checked >= 100,
+        "only {checked} theme-following colours were checked — the vocabulary walk has stopped \
+         walking, and a walk that reaches nothing passes forever"
+    );
+    println!("authoring vocabulary: {checked} theme-following colours checked, none pinned");
+}
+
+/// The markup, not just the description: a theme-following fill writes `<fgColor theme="4"/>` and
+/// nothing else.
+///
+/// The test above is over the plain-data specs; this is over the bytes they build, because a
+/// `ColorElement` writer that dropped `@theme` on the floor would leave every assertion above true
+/// and every authored file wrong.
+#[test]
+fn a_theme_following_fill_builds_a_theme_reference_and_not_a_literal() {
+    use mjx_dml::ColorSchemeSlot;
+    use mjx_ooxml_core::{Interner, RawDocument, ToXml};
+
+    let mut interner = Interner::new();
+    let fill = PatternFillSpec::solid_from_theme(ColorSchemeSlot::Accent1, Some(0.8))
+        .build(&mut interner, None);
+    let root = fill.to_xml(&mut interner);
+    let document = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
+    let markup = String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&document)).expect("utf-8");
+
+    assert!(
+        markup.contains(r#"theme="4""#),
+        "the fill does not name a theme slot: {markup}"
+    );
+    assert!(
+        markup.contains(r#"tint="0.8""#),
+        "the fill lost its tint: {markup}"
+    );
+    assert!(
+        !markup.contains("rgb="),
+        "the fill pinned a literal colour: {markup}"
+    );
+    assert!(
+        markup.contains(r#"patternType="solid""#),
+        "the fill is not solid: {markup}"
+    );
 }

@@ -1,6 +1,8 @@
 //! Pictures and media: adding an image, reading or replacing the one a picture shows, and the
 //! audio/video and linked-image references a deck carries.
 
+use std::borrow::Cow;
+
 use mjx_dml::PictureFill;
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
@@ -277,7 +279,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.picture_image_rel_id(surface, shape_idx)? else {
             return Ok(None);
@@ -286,7 +288,7 @@ impl Presentation {
         let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// Points picture `shape_idx` on `surface` at `bytes`, adding the image to the package if
@@ -466,7 +468,7 @@ impl Presentation {
         self.package
             .part_names()
             .filter(|part| part.as_str().starts_with(&media_dir))
-            .find(|part| self.package.part_bytes(part) == Some(bytes))
+            .find(|part| self.package.part_payload(part).as_deref() == Some(bytes))
     }
 
     /// The id of `source`'s existing [`REL_IMAGE`](constants::REL_IMAGE) relationship pointing at

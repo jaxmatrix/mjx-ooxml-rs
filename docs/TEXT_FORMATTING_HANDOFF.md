@@ -1,5 +1,13 @@
 # Handoff — text formatting (`a:rPr` / `a:pPr` / bullets / inheritance) — COMPLETE
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-21.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 The workstream that makes text *look* like something. Read after `docs/PHASE2_HANDOFF.md` (§3
 guardrails); `docs/LAYOUT_MASTER_HANDOFF.md` is the immediately preceding workstream and left this as
 its one open follow-up.
@@ -243,5 +251,5 @@ into:
 `font.rs`, `run.rs`, `paragraph.rs`, `body.rs`), `crates/mjx-dml/src/theme.rs` (where T5 goes),
 `crates/mjx-dml/src/resolve.rs` (`resolve_character_properties`; T6's merges go beside it),
 `crates/mjx-dml/src/geometry/measures.rs` (`FontSize`, `TextPoint`, `IndentLevel`),
-`crates/mjx-pptx/src/presentation.rs` (the text surface, `with_text_body`/`edit_text_body`, and
+`crates/mjx-pptx/src/presentation/` (the text surface, `with_text_body`/`edit_text_body`, and
 `effective_shape_fill` as T6's template), and the tests named above.

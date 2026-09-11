@@ -5,6 +5,8 @@
 //! [`Presentation`](mjx_pptx::Presentation); see [the module documentation](crate::deck) for
 //! the signature changes the facade makes and the reasons for each.
 
+use std::borrow::Cow;
+
 use crate::index::{count, index, part_name};
 use crate::{
     ActiveXControlSpec, ActiveXPersistence, Deck, DiagramContent, DiagramPartKind, DiagramParts,
@@ -31,7 +33,7 @@ impl Deck {
         Ok(self
             .presentation
             .ole_object_part_bytes(surface.to_model(), shape_idx.to_model())?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The stored bytes of the OLE fallback snapshot image the frame `shape_idx` on `surface` embeds,
@@ -51,7 +53,7 @@ impl Deck {
         Ok(self
             .presentation
             .ole_snapshot_image_bytes(surface.to_model(), shape_idx.to_model())?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The `progId` the OLE frame `shape_idx` on `surface` declares (e.g. `"Excel.Sheet.12"`) — the
@@ -158,7 +160,7 @@ impl Deck {
         Ok(self
             .presentation
             .activex_part_bytes(surface.to_model(), index(control_idx))?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The ActiveX control's **persisted state** — the bytes of `/ppt/activeX/activeXN.bin` — for the
@@ -178,7 +180,7 @@ impl Deck {
         Ok(self
             .presentation
             .activex_state_bytes(surface.to_model(), index(control_idx))?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The stored bytes of the ActiveX control's fallback snapshot image for the control `control_idx`
@@ -198,7 +200,7 @@ impl Deck {
         Ok(self
             .presentation
             .activex_snapshot_image_bytes(surface.to_model(), index(control_idx))?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     #[cfg(feature = "vml")]
@@ -225,7 +227,7 @@ impl Deck {
     pub fn vml_part_bytes(&self, part: &str) -> Option<Vec<u8>> {
         self.presentation
             .vml_part_bytes(&part_name(part).ok()?)
-            .map(<[u8]>::to_vec)
+            .map(Cow::into_owned)
     }
 
     /// The names of every **ink** (InkML) part in the package (`ppt/ink/inkN.xml`), in package order.
@@ -249,7 +251,7 @@ impl Deck {
     pub fn ink_part_bytes(&self, part: &str) -> Option<Vec<u8>> {
         self.presentation
             .ink_part_bytes(&part_name(part).ok()?)
-            .map(<[u8]>::to_vec)
+            .map(Cow::into_owned)
     }
 
     /// Every ink (InkML) part `surface` references, with where it is referenced from.
@@ -382,7 +384,7 @@ impl Deck {
     pub fn diagram_part_bytes(&self, part: &str) -> Option<Vec<u8>> {
         self.presentation
             .diagram_part_bytes(&part_name(part).ok()?)
-            .map(<[u8]>::to_vec)
+            .map(Cow::into_owned)
     }
 
     /// Adds a SmartArt diagram to `surface`, laid out inside `bounds`, and returns its index in the

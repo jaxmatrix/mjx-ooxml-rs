@@ -159,14 +159,42 @@ fn a_created_table_survives_a_save_and_reopen() {
     pres.set_cell_text(0, table, 1, 1, 0, "42").expect("text");
 
     let saved = pres.save().expect("save");
-    // Only the slide changed — creating a table adds no parts and no relationships.
+    // Everything the deck arrived with is untouched **except** the slide. Creating a table also
+    // *adds* three things since MJXOFF-232 — `ppt/tableStyles.xml`, its content-type Override and
+    // the presentation relationship to it — because a table is born with `firstRow` and `bandRow`
+    // on and those flags need a style to emphasise. Adding is not dirtying: the loop below is over
+    // what the original package held, so a new part is out of its reach by construction, and the
+    // three additions are declared and counted in
+    // `crates/mjx-ooxml/tests/preservation/deck_cases.rs`. Two of the three land *inside* an
+    // existing file — the content-types manifest and the presentation's relationships — so they are
+    // skipped here by name and asserted positively below, rather than being waved past.
     let after = byte_map(&Package::open(&saved).expect("reopen"));
     for (name, original) in &before {
-        if name.ends_with("slide1.xml") {
+        if name.ends_with("slide1.xml")
+            || name.ends_with("[Content_Types].xml")
+            || name.ends_with("presentation.xml.rels")
+        {
             continue;
         }
         assert_eq!(after.get(name), Some(original), "dirtied {name}");
     }
+    assert!(
+        after.contains_key("ppt/tableStyles.xml"),
+        "the style the table's emphasis flags name has to be somewhere"
+    );
+    // …and the two files that did change, changed by exactly one entry each: the new part.
+    let manifest = String::from_utf8_lossy(&after["[Content_Types].xml"]).into_owned();
+    assert!(manifest.contains("/ppt/tableStyles.xml"));
+    let rels = String::from_utf8_lossy(&after["ppt/_rels/presentation.xml.rels"]).into_owned();
+    assert!(rels.contains("tableStyles.xml"));
+    assert_eq!(
+        rels.matches("<Relationship ").count(),
+        String::from_utf8_lossy(&before["ppt/_rels/presentation.xml.rels"])
+            .matches("<Relationship ")
+            .count()
+            + 1,
+        "one relationship added, and only one"
+    );
 
     let mut reopened = Presentation::open(&saved).expect("reopen");
     assert_eq!(reopened.table_dimensions(0, table).expect("dims"), (2, 2));

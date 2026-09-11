@@ -2,7 +2,8 @@
 //!
 //! Every distinct string (namespace URI, prefix, local name) is interned; attribute values, text,
 //! and other content are stored as raw escaped bytes. A `Vec<RawNode>` is also the "unknown content
-//! bucket" that future typed complex types carry to survive round-trips.
+//! bucket" every modelled complex type carries to survive round-trips — see the crate docs for the
+//! three shapes that takes.
 //!
 //! A document parsed from bytes also *keeps* those bytes, so any subtree still in the state it was
 //! parsed in can be written by copying its byte range instead of being rebuilt from the model. See

@@ -60,6 +60,23 @@ second half — see [`docs/validation/00-method.md`](docs/validation/00-method.m
 project has ever taken moved the patch digit; the minor and major digits are raised by hand, during
 verification, and there are no tags.
 
+**Every prose page in this repository is listed from
+[`docs/api/README.md`](docs/api/README.md)**, including the dated July-2026 hand-offs linked further
+down, and that index is machine-checked in both directions by `xtask/tests/doc_gate.rs` along with
+every file path and crate-qualified symbol the pages name.
+
+## Where this stands today
+
+**Every phase below through Phase 6 has shipped**, so the list is now a record of how the library was
+built rather than a queue of what is coming. Two things are *not* done, and both are named in their
+own bullets: the human validation pass against real Microsoft Office (Phase 3c's last clause, which
+is what `v0.1` waits on) and rendering (Phase 7+).
+
+The three `docs/*_HANDOFF.md` documents cited in the Phase 3b bullet below are **July-2026 design
+records**, each carrying a dated banner at its head; they are cited for the reasoning they settled,
+not as a description of the current layout. What is current is
+[the documentation index](docs/api/README.md).
+
 ## Phases
 
 - **Phase 0 — Skeleton + container + round-trip proof.** ✅ *done.* Workspace, CI, docs,
@@ -74,7 +91,7 @@ verification, and there are no tags.
 - **Phase 2 — PowerPoint vertical slice.** ✅ *done.* `mjx-derive` + `mjx-dml` + `mjx-pptx`: open a real
   `.pptx`, read slides + shape text, edit a run, add a shape/slide, write a file PowerPoint &
   LibreOffice open (the office-open canary is a CI gate).
-- **Phase 3 — DrawingML + PPTX depth.** ✅ *done.* ✅ preset geometry (all 117 adjustable shapes
+- **Phase 3 — DrawingML + PPTX depth.** ✅ *done.* ✅ preset geometry (every shape with user-facing adjustments
   named), ✅ color model + theme (`clrScheme`/`fmtScheme`, color resolution to concrete RGB), and the
   ✅ `spPr` visual trilogy — fill, outline (`a:ln`), and effects (`a:effectLst`) — each modeled both
   explicitly and *effectively* (style refs + placeholder inheritance), and ✅ **images** (`add_image`
@@ -86,8 +103,8 @@ verification, and there are no tags.
   on any surface and `remove_slide`, which unwires the deck and takes with it every part only that
   slide referenced (`Package::remove_part_cascading`).
 - **Phase 3b — finishing PowerPoint (→ `v0.1`).** ✅ **text formatting** — `a:rPr`/`a:pPr`, bullets and
-  indent levels, editable at four selection scopes, and *effective* resolution up a seven-tier ladder
-  ending in the master's `p:txStyles` (`docs/TEXT_FORMATTING_HANDOFF.md`). ✅ **transform** (`a:xfrm`)
+  indent levels, editable at every selection scope, and *effective* resolution up the ladder that
+  ends in the master's `p:txStyles` (`docs/TEXT_FORMATTING_HANDOFF.md`). ✅ **transform** (`a:xfrm`)
   — position, size, rotation and mirror flags, read and written on every shape kind, plus
   `effective_shape_bounds`, so a placeholder's real position resolves through the layout and master
   (`docs/TRANSFORM_HANDOFF.md`). ✅ **tables** (`a:tbl` inside a `p:graphicFrame`) — the model,
@@ -96,8 +113,8 @@ verification, and there are no tags.
   (the notes slide and notes master parts). ✅ the follow-ups each workstream recorded — group
   descent, hyperlinks, run coalescing, `a:br`/`a:fld` addressability, package hygiene,
   external-source neutralisation, custom geometry, 3-D, charts and VML.
-- **Phase 3c — the road to `v0.1`.** ✅ **usage documentation** — the five-page guide and six runnable
-  examples, so the library documents *tasks* and not only *items*. ✅ **the `mjx-ooxml` facade** —
+- **Phase 3c — the road to `v0.1`.** ✅ **usage documentation** — [the `mjx-pptx` guide](crates/mjx-pptx/docs/guide/README.md) and the
+  runnable examples beside it, so the library documents *tasks* and not only *items*. ✅ **the `mjx-ooxml` facade** —
   `detect_format` over the OPC layer, `Deck` restating the PresentationML surface with concrete
   FFI-expressible types, an `Error` collapsing every `PptxError` into eleven stable codes, and the
   whole authoring vocabulary re-exported so nothing downstream names a lower crate. ✅ **the
@@ -107,7 +124,7 @@ verification, and there are no tags.
   all three produce byte-identical parts. 🔨 Next, **validation**: every shipped feature checked by
   hand against real PowerPoint, which nothing has yet been. The harness for it is built —
   [`docs/validation/`](docs/validation/00-method.md) holds the method, the index, the risk order and
-  113 checks across the three formats, `cargo run -p xtask -- validation-artefacts` writes the files
+  116 checks across the three formats, `cargo run -p xtask -- validation-artefacts` writes the files
   a person opens, and [`docs/validation/06-the-office-pass.md`](docs/validation/06-the-office-pass.md)
   is how that person runs the pass. **The verdicts are the user's and every result line ships
   unfilled**, which is why this bullet still says *next*.
@@ -119,8 +136,11 @@ verification, and there are no tags.
   this repository was written by this project or by LibreOffice, so every gate proves that our reader
   agrees with our writer; a file's value in that directory is entirely its provenance, and no agent
   may supply one. Filling it is §5 of the hand-off document.
-- **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
-- **Phase 5 — Excel slice.** **Two** crates, not one: `mjx-sml` holds the SpreadsheetML *markup* —
+- **Phase 4 — Word slice.** ✅ *done.* `mjx-docx` body/styles/tables/sections/numbering/headers +
+  `mjx-omml`, projected through `mjx_ooxml::Document` and both bindings.
+  ✅ **usage documentation** — [the `mjx-docx` guide](crates/mjx-docx/docs/guide/README.md) and the
+  runnable examples beside it.
+- **Phase 5 — Excel slice.** ✅ *done.* **Two** crates, not one: `mjx-sml` holds the SpreadsheetML *markup* —
   cells, rows, shared strings, styles, number formats, formulas as text (no calc engine) — in the
   shared-markup tier at rank 2.1, and `mjx-xlsx` holds the `Workbook` surface and the package graph
   in the format tier. The split exists because an authored chart embeds a whole workbook inside a
@@ -128,16 +148,18 @@ verification, and there are no tags.
   Excel crate, retiring `mjx-chart`'s duplicate workbook writer would need `mjx-chart → mjx-xlsx`,
   which points up. See `CLAUDE.md`'s rank table and `xtask/tests/layering.rs`.
   ✅ **usage documentation** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md),
-  thirteen pages of compiled doctests, plus six runnable examples under `crates/mjx-xlsx/examples/`
-  each of which reopens its own output and asserts on it. Two of the pages are the ones a user needs
-  before they meet a surprise:
+  seventeen pages of compiled doctests beside their index, plus seven runnable examples under
+  `crates/mjx-xlsx/examples/`, each of which reopens its own output and asserts on it. Two of the
+  pages are the ones a user needs before they meet a surprise:
   [Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md) — the memory model, and the fact
   that every per-sheet accessor re-parses the worksheet part — and
   [Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md), which gathers the
   standing refusals (no calculation engine, no rule evaluation, no filter application, half of
   `sml.xsd` preserved rather than modelled) in one place with a workaround beside each.
-- **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
-  references, re-exposed from `mjx-pptx` behind the `vml` feature).
+- **Phase 6 — Charts + VML.** ✅ *done.* `mjx-chart`; `mjx-vml` (a typed drawing model with
+  shape-level references, re-exposed from `mjx-pptx` behind the `vml` feature). Both are documented
+  by [the upper shared markup's guide](crates/mjx-chart/docs/guide/README.md), which also states the
+  guarantee a VML part does *not* carry.
 - **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF).
   **⚠ Superseded by Phase R (MJXOFF-155 onward), and the chain above is the part that changed.** The
   pipeline is IR → `FragmentTree` (`mjx-layout`) → `DisplayList` (`mjx-scene`) → a painter, and

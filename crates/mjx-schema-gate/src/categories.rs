@@ -310,22 +310,76 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
     },
 ];
 
-/// How a part in category 2 is keyed. VML is the reason this is not simply a namespace: a `.vml`
-/// part's root is a bare `<xml>` wrapper in **no namespace at all**, which is still a fact about the
-/// markup and must still be answerable for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ForeignMarkupKey {
-    /// The root element's namespace URI.
-    Namespace(&'static str),
-    /// The root element is in no namespace — a VML drawing part's `<xml>` wrapper.
-    NoNamespace,
+/// Category 1b: a part whose **root** is a container no schema declares a global element for, but
+/// whose every child *is* a global element some schema declares. Such a part is validated **child by
+/// child**.
+///
+/// A legacy VML drawing part is the only shape of this in the two pinned trees, and it is the reason
+/// the category exists. `xmllint` pointed at the document as a whole reports *Element \'xml\': No
+/// matching global declaration available for the validation root* — an obstacle in the **root**, not
+/// in the schema. Until MJXOFF-245 the written reason for skipping such a part also claimed
+/// `vml-main.xsd` could not compile at all without an `xml.xsd` the Transitional set does not ship;
+/// [MJXOFF-134's driver schema](mod@crate::harness) had already removed that half, and
+/// [`Harness::validate`](crate::harness::Harness::validate) builds a driver for every schema on one
+/// code path, so `vml-main.xsd` compiles today and the wrapper root is all that is left.
+#[derive(Debug, Clone, Copy)]
+pub struct WrapperRoot {
+    /// The root element's local name. The root is in **no namespace at all**, which together with
+    /// this name is what identifies the part.
+    pub root_local_name: &'static str,
+    /// A human name for reports.
+    pub label: &'static str,
+    /// The XSD each child is validated against. `vml-main.xsd` imports its four sibling VML schemas
+    /// (`vml-officeDrawing`, `vml-presentationDrawing`, `vml-spreadsheetDrawing`,
+    /// `vml-wordprocessingDrawing`), so one driver over it carries the whole family and one arm
+    /// covers every child kind a producer writes.
+    pub schema: SchemaRef,
+    /// The namespace `schema` targets, which the generated driver imports.
+    pub namespace: &'static str,
+    /// What validating child by child does say, and what it cannot.
+    pub reason: &'static str,
 }
 
+/// Every wrapper root the gate validates child by child.
+///
+/// [`Sweep::assert_every_wrapper_root_was_reached`] fails on an entry nothing in the corpus
+/// carries, exactly as the category-2 allowlist is held.
+///
+/// [`Sweep::assert_every_wrapper_root_was_reached`]: crate::sweep::Sweep::assert_every_wrapper_root_was_reached
+pub const WRAPPER_ROOTS: &[WrapperRoot] = &[WrapperRoot {
+    root_local_name: "xml",
+    label: "a VML drawing part",
+    schema: SchemaRef {
+        set: SchemaSet::Markup,
+        file: "vml-main.xsd",
+    },
+    namespace: namespaces::VML_MAIN.transitional,
+    reason:
+        "a `.vml` part is a bare `<xml>` wrapper in no namespace, which no VML schema declares \
+             a global element for — but `v:shape`, `v:shapetype`, `o:shapelayout`, `x:ClientData` \
+             and the rest are all global elements of the VML family, so every child of the wrapper \
+             is validated separately against a driver over `vml-main.xsd`. That reaches every \
+             element a producer or `mjx-vml` writes, **and the order of that element's own \
+             children**: handing a child to `xmllint` on its own applies its content model rather \
+             than removing it, so a `v:shapetype` that writes `o:complex` before its shape elements \
+             fails here — `crates/mjx-schema-gate/tests/wrapper_child_order.rs` proves it against \
+             real markup. What is left unasserted is the order of the *wrapper's* own children, and \
+             there is nothing there to assert: `<xml>` is a Microsoft convention that no schema in \
+             either pinned tree declares, so it has no content model and no sequence (MJXOFF-264)",
+}];
+
 /// Category 2: markup this project preserves verbatim and never writes, with the reason per entry.
+///
+/// Keyed by the root element's namespace, and only that: a part whose root declares **no** namespace
+/// is never category 2. Until MJXOFF-245 one entry matched the *absence* of a namespace, which meant
+/// a worksheet that lost its `xmlns` was reported as a VML drawing part and skipped — a false green
+/// `mjx-xlsx`'s own path rule had to be built to close from the outside. VML is [category
+/// 1b](WrapperRoot) now, so the absence of a namespace matches nothing and such a part is
+/// [`Uncategorised`](NamespaceCategory::Uncategorised): a hard failure naming the part.
 #[derive(Debug, Clone, Copy)]
 pub struct PreservedForeignMarkup {
-    /// What identifies a part as this entry.
-    pub key: ForeignMarkupKey,
+    /// The root element's namespace URI.
+    pub namespace: &'static str,
     /// A human name for reports.
     pub label: &'static str,
     /// Why validating it against a schema would report noise rather than defects.
@@ -341,28 +395,20 @@ pub struct PreservedForeignMarkup {
 /// [`the_allowlist_has_no_dead_entries`]: crate::sweep::Sweep::assert_pinned_skips
 pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
     PreservedForeignMarkup {
-        key: ForeignMarkupKey::NoNamespace,
-        label: "a VML drawing part",
-        reason: "a `.vml` part's root is a bare `<xml>` wrapper the VML schemas declare no global \
-                 element for, and `vml-main.xsd` cannot compile without an `xml.xsd` the \
-                 Transitional set does not ship. VML is a Microsoft vocabulary this project stores \
-                 and re-emits; `add_vml_drawing` takes the caller's bytes and writes them verbatim",
-    },
-    PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(INKML_NS),
+        namespace: INKML_NS,
         label: "InkML",
         reason: "a W3C vocabulary, not an OOXML one. `add_ink` stores the caller's InkML document \
                  byte for byte; nothing in this workspace generates a stroke",
     },
     PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(ACTIVEX_NS),
+        namespace: ACTIVEX_NS,
         label: "ActiveX control markup",
         reason: "a Microsoft vocabulary describing a COM control's persisted state. \
                  `add_activex_control` writes the caller's class id and state through; the payload \
                  is opaque to this project",
     },
     PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(EXCEL_2010_EXTENSIONS_NS),
+        namespace: EXCEL_2010_EXTENSIONS_NS,
         label: "a form control's properties part",
         reason: "`xl/ctrlPropsN.xml` is rooted in `x14:formControlPr` — Excel 2010's SpreadsheetML \
                  extension namespace, which ECMA-376 does not define and the Transitional schema \
@@ -372,7 +418,7 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
                  is the child that brought one into the corpus",
     },
     PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(CUSTOM_XML_DATA_PROPS_NS),
+        namespace: CUSTOM_XML_DATA_PROPS_NS,
         label: "Custom XML Data Storage Properties",
         reason: "ECMA-376 Part 1 §15.2.6 defines this part (`customXml/itemPropsN.xml`), but its own \
                  schema (`shared-customXmlDataProperties.xsd`) is a small satellite tree this project \
@@ -382,7 +428,7 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
                  is validated",
     },
     PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(CUSTOM_XML_DATA_EXAMPLE_NS),
+        namespace: CUSTOM_XML_DATA_EXAMPLE_NS,
         label: "Custom XML Data Storage (a representative namespace)",
         reason: "ECMA-376 Part 1 §15.2.4: a Custom XML Data Storage part's own root namespace is \
                  \"any XML allowed\" — arbitrary by definition, chosen by whatever template or \
@@ -403,37 +449,48 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
     // and this list's entry together.
 ];
 
-/// Which category a root element's namespace falls into.
+/// Which category a part's root element falls into.
 #[derive(Debug, Clone, Copy)]
 pub enum NamespaceCategory {
     /// Category 1: validate it against [`ModeledSchema::schema`].
     Modeled(&'static ModeledSchema),
+    /// Category 1b: validate each **child** of it against [`WrapperRoot::schema`]; the root itself
+    /// is a container no schema declares.
+    Wrapper(&'static WrapperRoot),
     /// Category 2: skip it, printing [`PreservedForeignMarkup::reason`].
     PreservedForeign(&'static PreservedForeignMarkup),
     /// Category 3: on no list — a hard failure.
     Uncategorised,
 }
 
-/// Classifies a root element's namespace. `None` means the root is in no namespace at all.
+/// Classifies a part by its root element. `namespace` is `None` when the root declares none at all,
+/// which is the only case `local_name` decides.
+///
+/// The local name is a parameter because a namespace alone cannot answer for a part whose root has
+/// none: `<xml>` is a [VML wrapper](WrapperRoot) and every *other* namespace-less root is
+/// [`Uncategorised`](NamespaceCategory::Uncategorised), which is the difference between validating a
+/// VML drawing and skipping a worksheet that lost its `xmlns`.
 #[must_use]
-pub fn categorise(namespace: Option<&str>) -> NamespaceCategory {
-    if let Some(namespace) = namespace {
-        if let Some(modeled) = MODELED_SCHEMAS
+pub fn categorise(namespace: Option<&str>, local_name: &str) -> NamespaceCategory {
+    let Some(namespace) = namespace else {
+        return match WRAPPER_ROOTS
             .iter()
-            .find(|entry| entry.namespace == namespace)
+            .find(|entry| entry.root_local_name == local_name)
         {
-            return NamespaceCategory::Modeled(modeled);
-        }
-    }
-    let key = match namespace {
-        Some(namespace) => PRESERVED_FOREIGN_MARKUP.iter().find(
-            |entry| matches!(entry.key, ForeignMarkupKey::Namespace(listed) if listed == namespace),
-        ),
-        None => PRESERVED_FOREIGN_MARKUP
-            .iter()
-            .find(|entry| entry.key == ForeignMarkupKey::NoNamespace),
+            Some(entry) => NamespaceCategory::Wrapper(entry),
+            None => NamespaceCategory::Uncategorised,
+        };
     };
-    match key {
+    if let Some(modeled) = MODELED_SCHEMAS
+        .iter()
+        .find(|entry| entry.namespace == namespace)
+    {
+        return NamespaceCategory::Modeled(modeled);
+    }
+    match PRESERVED_FOREIGN_MARKUP
+        .iter()
+        .find(|entry| entry.namespace == namespace)
+    {
         Some(entry) => NamespaceCategory::PreservedForeign(entry),
         None => NamespaceCategory::Uncategorised,
     }
@@ -567,7 +624,7 @@ mod tests {
         for schema in MODELED_SCHEMAS {
             assert!(
                 matches!(
-                    categorise(Some(schema.namespace)),
+                    categorise(Some(schema.namespace), schema.probe_root_element),
                     NamespaceCategory::Modeled(_)
                 ),
                 "{} must be category 1",
@@ -576,30 +633,86 @@ mod tests {
             assert!(
                 !PRESERVED_FOREIGN_MARKUP
                     .iter()
-                    .any(|foreign| foreign.key == ForeignMarkupKey::Namespace(schema.namespace)),
+                    .any(|foreign| foreign.namespace == schema.namespace),
                 "{} is on both lists",
                 schema.label
             );
             assert_eq!(schema_for_namespace(schema.namespace), Some(schema.schema));
         }
         for foreign in PRESERVED_FOREIGN_MARKUP {
-            let namespace = match foreign.key {
-                ForeignMarkupKey::Namespace(namespace) => Some(namespace),
-                ForeignMarkupKey::NoNamespace => None,
-            };
             assert!(
                 matches!(
-                    categorise(namespace),
+                    categorise(Some(foreign.namespace), "root"),
                     NamespaceCategory::PreservedForeign(_)
                 ),
                 "{} must be category 2",
                 foreign.label
             );
         }
+        for wrapper in WRAPPER_ROOTS {
+            assert!(
+                matches!(
+                    categorise(None, wrapper.root_local_name),
+                    NamespaceCategory::Wrapper(_)
+                ),
+                "{} must be category 1b",
+                wrapper.label
+            );
+        }
         assert!(matches!(
-            categorise(Some("urn:example:invented-for-this-test")),
+            categorise(Some("urn:example:invented-for-this-test"), "root"),
             NamespaceCategory::Uncategorised
         ));
+    }
+
+    /// A root that declares no namespace and is **not** a wrapper root is category 3, not a VML
+    /// drawing.
+    ///
+    /// This is the false green MJXOFF-245 closed at the source. While the category-2 allowlist held
+    /// an entry keyed on the *absence* of a namespace, a `w:document` or an `x:worksheet` that lost
+    /// its `xmlns` was classified "a VML drawing part" and skipped with that reason printed beside
+    /// it — and `mjx-xlsx` had to carry a path rule of its own to notice. Both halves matter: `xml`
+    /// is a wrapper, and `worksheet` in no namespace is a hard failure.
+    #[test]
+    fn a_namespace_less_root_that_is_not_a_wrapper_is_uncategorised() {
+        assert!(matches!(
+            categorise(None, "xml"),
+            NamespaceCategory::Wrapper(_)
+        ));
+        for stray in ["worksheet", "document", "presentation", ""] {
+            assert!(
+                matches!(categorise(None, stray), NamespaceCategory::Uncategorised),
+                "a `<{stray}>` root in no namespace must be category 3, not a VML drawing"
+            );
+        }
+    }
+
+    /// A wrapper root's schema is a real file in the pinned Part 4 tree, and its namespace is the
+    /// one that file targets — the two the driver is built from.
+    #[test]
+    fn every_wrapper_root_names_a_markup_schema_and_its_own_namespace() {
+        for wrapper in WRAPPER_ROOTS {
+            assert_eq!(
+                wrapper.schema.set,
+                SchemaSet::Markup,
+                "{} names a schema outside the Part 4 markup tree",
+                wrapper.label
+            );
+            assert!(
+                wrapper.schema.file.ends_with(".xsd"),
+                "{} names {}, which is not an XSD",
+                wrapper.label,
+                wrapper.schema.file
+            );
+            assert!(
+                namespaces::ALL
+                    .iter()
+                    .any(|entry| entry.transitional == wrapper.namespace),
+                "{} names {}, which is not an ECMA-376 namespace",
+                wrapper.label,
+                wrapper.namespace
+            );
+        }
     }
 
     #[test]

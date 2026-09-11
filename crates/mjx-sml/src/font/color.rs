@@ -25,7 +25,10 @@
 //! spreadsheet colour type in this workspace, shared by a rich-text run's `color` here and by
 //! everything `styles.xml` colours in MJXOFF-105 — fonts, fills, borders and the tab colour.
 
+use mjx_dml::ColorSchemeSlot;
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement, RawName, RawNode};
+
+use crate::styles::theme_color_position;
 
 use super::value::write_qualified_name;
 
@@ -63,18 +66,94 @@ pub struct Color {
 impl Color {
     /// An opaque sRGB colour, written `rgb="FFRRGGBB"`.
     ///
-    /// Takes the six-digit form callers think in and prefixes the opaque alpha, because `rgb` is
-    /// eight digits and a six-digit value there is the single most common way to write a colour
-    /// Excel then reads as transparent.
+    /// `@rgb` is `ST_UnsignedIntHex`: **eight** hexadecimal digits, alpha first. Callers think in
+    /// the six-digit `RRGGBB` form, and a six-digit value written straight into `@rgb` is the
+    /// single most common way to author a colour Excel then reads as transparent — so this
+    /// constructor supplies the opaque alpha.
+    ///
+    /// # What it accepts
+    ///
+    /// A leading `#` is dropped. **Six** digits are given the `FF` alpha; **eight** are already an
+    /// ARGB value and are taken as they stand. Case is preserved either way, because
+    /// [`rgb`](Self::rgb) holds the file's own spelling and `ffff0000` and `FFFF0000` are the same
+    /// colour and different bytes.
+    ///
+    /// ```
+    /// use mjx_sml::Color;
+    /// assert_eq!(Color::from_opaque_rgb("1F3864").rgb.as_deref(), Some("FF1F3864"));
+    /// assert_eq!(Color::from_opaque_rgb("#1F3864").rgb.as_deref(), Some("FF1F3864"));
+    /// // Already alpha-first: taken as it stands rather than prefixed a second time.
+    /// assert_eq!(Color::from_opaque_rgb("801F3864").rgb.as_deref(), Some("801F3864"));
+    /// ```
+    ///
+    /// # What the caller still owns
+    ///
+    /// Anything that is *neither* six nor eight hexadecimal digits is not a colour this constructor
+    /// can spell, and it is written through with the `FF` prefix rather than refused: the signature
+    /// is projected verbatim onto `mjx_ooxml::Color` and onto both bindings, so it cannot become
+    /// fallible without breaking every caller that already works, and [`rgb`](Self::rgb) is a public
+    /// field a caller can set to anything regardless. **Three hex digits are not expanded** — CSS's
+    /// shorthand is not `ST_UnsignedIntHex` — and no value is validated against the schema here.
+    ///
+    /// Until MJXOFF-220 the `FF` was prefixed **unconditionally**, so an eight-digit ARGB — the
+    /// exact form this type's own [`rgb`](Self::rgb) documentation shows — became a ten-character
+    /// `@rgb` that `sml.xsd` rejects, reached from [`PatternFillSpec::solid`](crate::PatternFillSpec::solid)
+    /// and from every convenience constructor in the authoring vocabulary. That was MJXOFF-88 §9 A5
+    /// defect 1 / MJXOFF-198 §6 F6, and no gate could see it: the schema gate validates the markup a
+    /// test authored, and no test authored that. `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `every_authored_colour_is_a_valid_unsigned_int_hex` is what sees it now.
     #[must_use]
     pub fn from_opaque_rgb(hex: &str) -> Self {
+        let digits = hex.strip_prefix('#').unwrap_or(hex);
+        let already_alpha_first =
+            digits.len() == 8 && digits.bytes().all(|byte| byte.is_ascii_hexdigit());
         Self {
-            rgb: Some(format!("FF{}", hex.trim_start_matches('#'))),
+            rgb: Some(if already_alpha_first {
+                digits.to_owned()
+            } else {
+                format!("FF{digits}")
+            }),
             ..Self::default()
         }
     }
 
     /// A theme colour by index, optionally tinted.
+    ///
+    /// `index` is a **position** in `theme1.xml`'s colour scheme, which is what a *file* states —
+    /// so this is the constructor a reader of a file needs. An **author** should reach for
+    /// [`from_theme_slot`](Self::from_theme_slot), which names the slot instead of numbering it.
+    ///
+    /// Until MJXOFF-235 this was the only theme-following constructor in the Excel authoring
+    /// vocabulary, and every convenience beside it took a hex literal — so the shortest path pinned
+    /// a colour into a file whose owner may have rebranded it, and the theme-following path was the
+    /// longer one. The doc comment here argued that a `solid_theme` was unnecessary because a spec's
+    /// fields are public and the long path is one line, and that a Rust-only convenience would be a
+    /// surface two of the three languages could not use. **The second half answered itself**:
+    /// `CLAUDE.md`'s rule is that when the facade grows a method both bindings grow it, so the
+    /// convenience is not Rust-only. Each of the four now has a theme-taking sibling —
+    /// [`PatternFillSpec::solid_from_theme`](crate::PatternFillSpec::solid_from_theme),
+    /// [`ColorScaleSpec::two_color_from_theme`](crate::ColorScaleSpec::two_color_from_theme),
+    /// [`DataBarSpec::spanning_the_range_from_theme`](crate::DataBarSpec::spanning_the_range_from_theme),
+    /// [`DifferentialFormatSpec::highlight_from_theme`](crate::DifferentialFormatSpec::highlight_from_theme)
+    /// — so the two paths cost one call each and the choice is visible at the call site.
+    ///
+    /// ```
+    /// use mjx_ooxml_types::spreadsheetml::PatternType;
+    /// use mjx_sml::{Color, PatternFillSpec};
+    ///
+    /// let follows_the_theme = PatternFillSpec {
+    ///     pattern: Some(PatternType::Solid),
+    ///     foreground: Some(Color::from_theme(4, Some(-0.25))),
+    ///     ..PatternFillSpec::default()
+    /// };
+    /// assert_eq!(follows_the_theme.foreground.expect("a colour").theme, Some(4));
+    /// ```
+    ///
+    /// `index` is a **position** in `theme1.xml`'s colour scheme, not a
+    /// [`SchemeColor`](mjx_dml::SchemeColor) token — see this type's own documentation — and
+    /// `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot` is what pins the two
+    /// vocabularies to the same answer.
     #[must_use]
     pub fn from_theme(index: u32, tint: Option<f64>) -> Self {
         Self {
@@ -82,6 +161,39 @@ impl Color {
             tint,
             ..Self::default()
         }
+    }
+
+    /// A theme colour by **slot**, optionally tinted — [`from_theme`](Self::from_theme) with the
+    /// position spelled out.
+    ///
+    /// A position is a number a reader cannot check — `4` is `accent1` and `1` is `dk1`, and neither
+    /// is inferable — and this project's rule is that a public identifier should not need the spec.
+    /// So this is the constructor an *author* reaches for, and [`from_theme`](Self::from_theme) is
+    /// the one a *reader* of a file needs, where the position is what the file states and may be one
+    /// the twelve-slot table does not name.
+    ///
+    /// It is also what keeps the two ends of this crate from drifting: MJXOFF-246 found the
+    /// stylesheet writer spelling font 0's colour as a literal `1` and
+    /// [`theme_color_slot`](crate::styles::theme_color_slot) reading that same `1` as the theme's
+    /// *background*, so the library resolved the default font of every workbook it authored to white.
+    /// Every authoring path in this crate goes through this constructor now.
+    ///
+    /// The slot is DrawingML's [`ColorSchemeSlot`], deliberately: a workbook colour and a shape
+    /// colour naming the same slot resolve to the same RGB, which is what
+    /// `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot` pins.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::Color;
+    ///
+    /// // "Accent 1, 25% darker" — the workbook's own accent, whatever the opener rebrands it to.
+    /// let shaded = Color::from_theme_slot(ColorSchemeSlot::Accent1, Some(-0.25));
+    /// assert_eq!(shaded, Color::from_theme(4, Some(-0.25)));
+    /// ```
+    #[must_use]
+    pub fn from_theme_slot(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self::from_theme(theme_color_position(slot), tint)
     }
 
     /// Whether this colour says nothing at all — every attribute absent.

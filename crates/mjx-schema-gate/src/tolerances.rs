@@ -104,8 +104,11 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
                  shows breaks the wildcard. MJXOFF-133 authored this fixture to reproduce the \
                  §12.3.6 example rather than to dodge it — `xl/xmlMaps.xml` is a part this library \
                  preserves verbatim and never writes, and a gap the specification leaves is not a \
-                 gap a fixture should paper over. The same shape as the `CT_Extension` \
-                 `xsd:any minOccurs=\"1\"` trap MJXOFF-120 recorded against `mc:Ignorable`",
+                 gap a fixture should paper over. `CT_Schema` is one of the five wildcard \
+                 slots MJXOFF-196 derived from the schemas (see `wildcard_slots.rs`), and \
+                 that rule deliberately does **not** reach this one: it fires only where \
+                 markup-compatibility resolution emptied a slot, and nothing was ignored \
+                 away here — the child is present and the *strict* wildcard refuses it",
     },
     ToleratedDeviation {
         fixture: "cell_comments.xlsx",

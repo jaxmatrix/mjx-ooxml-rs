@@ -113,13 +113,13 @@ with [`Workbook::write_worksheet_markup`] — one read and one write instead of 
 
 ## What a worksheet holds that this crate does not yet model
 
-`CT_Worksheet` has thirty-nine slots and **eighteen** of them are modelled: `sheetPr`, `dimension`,
-`sheetViews`, `sheetFormatPr`, `cols`, `sheetData` and `sheetCalcPr` (MJXOFF-102), plus
-`sheetProtection`, `protectedRanges`, `scenarios`, `mergeCells`, `rowBreaks` and `colBreaks`
-(MJXOFF-117), `conditionalFormatting` (MJXOFF-120), `autoFilter`, `sortState` and `dataValidations`
-(MJXOFF-123), and `tableParts` (MJXOFF-125). The other twenty-one — `hyperlinks`, `pageSetup`,
-`headerFooter`, `drawing`, `oleObjects` and the rest — are held as the markup the producer wrote, in
-the position it wrote it, and come back byte for byte.
+`CT_Worksheet` has thirty-nine slots and **thirty-five** of them are modelled — everything from
+`sheetPr` at rank 0 to `tableParts` at rank 37, filled in by MJXOFF-102, MJXOFF-117, MJXOFF-120,
+MJXOFF-123, MJXOFF-125, MJXOFF-127, MJXOFF-129, MJXOFF-107 and MJXOFF-114. The other **four** —
+`phoneticPr`, `legacyDrawingHF`, `drawingHF` and `extLst` — are held as the markup the producer
+wrote, in the position it wrote it, and come back byte for byte. Neither number is written down where
+it can rot: `crates/mjx-sml/src/worksheet/frame.rs` derives the split from its own read path and
+holds this page's figure's source — its module table — to it.
 
 So you can open a workbook with conditional formatting on it, change a number, and save: the
 conditional formatting is still there, still exactly as Excel wrote it. You just cannot ask this

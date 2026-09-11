@@ -201,7 +201,7 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             );
             let picture = inline
                 .graphic(interner)
-                .and_then(|graphic| graphic.data().picture().cloned())
+                .and_then(|graphic| graphic.data().and_then(|data| data.picture().cloned()))
                 .expect("the inline drawing wraps a pic:pic");
             assert_eq!(picture.image_rel_id(interner).as_deref(), Some("rId2"));
         })
@@ -238,7 +238,7 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             assert_eq!(
                 anchor
                     .graphic(interner)
-                    .and_then(|graphic| graphic.data().picture().cloned())
+                    .and_then(|graphic| graphic.data().and_then(|data| data.picture().cloned()))
                     .and_then(|picture| picture.image_rel_id(interner)),
                 Some("rId3".to_owned())
             );
@@ -260,8 +260,9 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             // picture-only reader that assumes `a:graphic` always holds `pic:pic` would misread
             // this drawing entirely.
             let graphic = anchor.graphic(interner).expect("a:graphic");
-            assert_eq!(graphic.data().uri(interner).as_deref(), Some(WP_NS));
-            assert!(graphic.data().picture().is_none());
+            let data = graphic.data().expect("a:graphicData");
+            assert_eq!(data.uri(interner).as_deref(), Some(WP_NS));
+            assert!(data.picture().is_none());
         })
         .expect("paragraph 2");
 
@@ -573,4 +574,88 @@ fn an_activex_control_reads_typed_and_survives_an_edit_to_a_different_paragraph_
             .map(|bytes| bytes.to_vec()),
         Some(b"<ax:ocx xmlns:ax=\"urn:schemas-microsoft-com:office:activex\"/>".to_vec())
     );
+}
+
+// -------------------------------------------------------------------------------------------------
+// MJXOFF-218: the three hand-written pairs in `document/drawing.rs` that lost content.
+//
+// `crates/mjx-docx/tests/serialization_ledger.rs` is the class-level gate these three answer to; each
+// case below is the loss that gate now refuses, written against markup rather than against a source
+// shape, so the fix is proved and not merely described.
+//
+// Every case round-trips one element through its own `FromXml`/`ToXml` pair and compares bytes,
+// which is the narrowest place the loss is visible: the fixture corpus these types appear in is
+// canonical (no foreign child, nothing self-closed that the writer would expand), so the
+// preservation gate reproduced an already-empty vector and the diff showed nothing — MJXOFF-216's
+// own hiding place, one crate over.
+// -------------------------------------------------------------------------------------------------
+
+/// One element through `T::from_xml` then `T::to_xml`, serialized back to bytes.
+///
+/// `None` for the source, deliberately: a verbatim byte range would let a child that only *survived*
+/// because its range still covers it pass for a child the model kept. Every byte below therefore
+/// comes out of the model.
+fn round_trip<T: mjx_ooxml_core::FromXml + mjx_ooxml_core::ToXml>(markup: &str) -> String {
+    let mut document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("the fragment parses");
+    let value = T::from_xml(&document.root, &document.interner).expect("from_xml");
+    let rebuilt = value.to_xml(&mut document.interner);
+    let mut out = Vec::new();
+    mjx_xml::fidelity::serialize_element(&rebuilt, &document.interner, None, &mut out);
+    String::from_utf8(out).expect("utf8")
+}
+
+/// `w:control` kept its attributes and destroyed everything else: its reader stored no children at
+/// all and its writer handed `RawElement::rebuilt` a fresh `Vec::new()` with `empty` hard-coded
+/// `true` — MJXOFF-216's exact shape, in `mjx-docx`.
+///
+/// `CT_Control` declares no content model, so anything here is markup the file wrote that the schema
+/// does not allow. The fidelity rule does not have a "the schema says this cannot happen" clause:
+/// what a file holds is what a file gets back.
+#[test]
+fn a_control_keeps_a_child_the_schema_does_not_declare() {
+    let markup = concat!(
+        r#"<w:control xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" "#,
+        r#"xmlns:o="urn:schemas-microsoft-com:office:office" w:name="CommandButton1">"#,
+        r#"<o:extra kept="yes"/></w:control>"#
+    );
+    assert_eq!(round_trip::<mjx_docx::Control>(markup), markup);
+}
+
+/// …and a non-self-closing `w:control` stays non-self-closing. Its reader read `element.empty` into
+/// a field that its writer then ignored, so `<w:control></w:control>` came back as `<w:control/>`.
+#[test]
+fn a_control_that_is_not_self_closing_stays_that_way() {
+    let markup = concat!(
+        r#"<w:control xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" "#,
+        r#"w:name="CommandButton1"></w:control>"#
+    );
+    assert_eq!(round_trip::<mjx_docx::Control>(markup), markup);
+}
+
+/// `wp:wsp` hard-coded `false` for the self-closing flag, so a shape written `<wp:wsp/>` came back
+/// as `<wp:wsp></wp:wsp>` — the loss MJXOFF-217 found twice in `mjx-dml`, twice more here.
+#[test]
+fn a_self_closing_wordprocessing_shape_stays_self_closing() {
+    let markup = r#"<wp:wsp xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"/>"#;
+    assert_eq!(round_trip::<mjx_docx::WordprocessingShape>(markup), markup);
+}
+
+/// …and the same for `wp:txbx`, which shares the body.
+#[test]
+fn a_self_closing_textbox_info_stays_self_closing() {
+    let markup = r#"<wp:txbx xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" id="1"/>"#;
+    assert_eq!(round_trip::<mjx_docx::TextboxInfo>(markup), markup);
+}
+
+/// A shape that *is* written out long-hand still comes back long-hand, so the fix above is the flag
+/// being carried rather than a second hard-coded constant.
+#[test]
+fn a_wordprocessing_shape_with_children_round_trips_unchanged() {
+    let markup = concat!(
+        r#"<wp:wsp xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" "#,
+        r#"xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">"#,
+        r#"<wp:cNvPr id="3" name="Rectangle 3"/><a:extLst><a:ext uri="{FF2B5EF4}"/></a:extLst>"#,
+        r#"</wp:wsp>"#
+    );
+    assert_eq!(round_trip::<mjx_docx::WordprocessingShape>(markup), markup);
 }

@@ -1,6 +1,10 @@
 //! `mjx-vml` — Legacy VML (Transitional-only): the vocabulary, the model, and the shape-level
 //! references.
 //!
+//! **Start at [`guide`]** — this crate's page of the rank 2.2 guide set, whose index is
+//! `mjx_chart::guide`. Read it before relying on anything here: a VML part is neither
+//! schema-validated nor child-ordered, and the round trip is the only check it has.
+//!
 //! VML (Vector Markup Language) is the legacy drawing markup carried in the *Transitional* flavour of
 //! OOXML (ECMA-376 Part 4 §14.1, reference material §19) and dropped from *Strict*. Producers still
 //! emit it for constructs with no DrawingML equivalent — OLE-object fallbacks, comment authoring
@@ -51,6 +55,29 @@
 //! every producer emits — `v`, `o`, `p`, `x`, `w10` and `r`. If an element rebinds one of those to a
 //! different namespace, the lookup answers `None` rather than matching the wrong attribute.
 //!
+//! # What checks this crate, and what does not
+//!
+//! **A VML part is schema-validated one child at a time, and nothing derives its child order from
+//! an XSD.** A `.vml` part's root is a bare `<xml>` element in no namespace at all, which none of the
+//! five VML schemas declares a global element for, so the document as a whole cannot be handed to a
+//! validator. Its *children* can: `v:shape`, `v:shapetype`, `o:shapelayout` and the rest are global
+//! elements of the VML family, and `crates/mjx-schema-gate/src/categories.rs` files a VML part as a
+//! `WrapperRoot` — the category whose parts are validated child by child against a driver over
+//! `vml-main.xsd`.
+//!
+//! It was category 2, *preserved and never validated*, until MJXOFF-245, on a reason whose other
+//! half — that `vml-main.xsd` could not compile at all without an `xml.xsd` the Transitional set
+//! does not ship — had stopped being true when MJXOFF-134 gave every schema a driver.
+//!
+//! What is left is narrower than it was written down as being, and MJXOFF-264 is what measured it.
+//! Every element this crate writes is checked against the XSD **and so is the order of that
+//! element's own children**: a wrapper's child is handed to `xmllint` as a standalone document,
+//! which applies its content model rather than removing it, so a `v:shapetype` that writes
+//! `o:complex` before its shape elements fails CI today. What no schema constrains is the order of
+//! the *wrapper's* children, because `<xml>` is a Microsoft convention that no schema in either
+//! pinned tree declares — it has no content model to be out of. Both halves are checked by
+//! `crates/mjx-schema-gate/tests/wrapper_child_order.rs` rather than stated here.
+//!
 //! # Fidelity
 //!
 //! Every modelled type keeps the element's name (prefix included), its attributes in source order,
@@ -69,6 +96,8 @@ mod drawing;
 mod error;
 mod office;
 mod shape;
+
+pub mod guide;
 
 pub use control::{AttachedObjectData, AttachedObjectKind};
 pub use drawing::{Drawing, DrawingContent, DrawingPart};
@@ -115,10 +144,41 @@ pub fn shape_identifier_for_number(number: u32) -> String {
     format!("_x0000_s{number}")
 }
 
-/// Whether `content_type` names a legacy VML drawing part.
+/// Whether `content_type` names a legacy VML drawing part, **however the file spells it**.
+///
+/// ECMA-376 Part 2 §10.1.2.3 compares a content type case-insensitively and treats everything after
+/// a `;` as media-type parameters, so this folds the base type to lower case before comparing and
+/// writes [`CONTENT_TYPE_VML`] — Office's own capitalisation — only on the way out.
+///
+/// **That rule is not decoration, it is a defect this project has already paid for.** MJXOFF-114
+/// found `mjx-opc`'s own exception list carrying `…vmlDrawing` in Office's capitalisation while
+/// `is_xml_content_type` folded its argument, so the entry matched nothing and every authored `.vml`
+/// part sat outside `Package::validate` from the day the list was written. This predicate is the
+/// same comparison one crate further up — `mjx_pptx::Presentation::vml_part_names` uses it to
+/// *find* a VML part at all, and `mjx-pptx`'s `check_is_vml` and `mjx-xlsx`'s `read_vml_document`
+/// use it to *refuse* one — and until MJXOFF-221 it was an exact `==`. So the two halves disagreed:
+/// `mjx-opc` counted a lower-cased spelling as XML while this counted it as not VML, and a deck
+/// whose `[Content_Types].xml` spelled the type any other legal way had no VML parts to enumerate
+/// and answered `PartIsNotVmlDrawing` to anyone who named one.
+///
+/// ```
+/// assert!(mjx_vml::is_vml_content_type(mjx_vml::CONTENT_TYPE_VML));
+/// assert!(mjx_vml::is_vml_content_type(
+///     "application/vnd.openxmlformats-officedocument.vmldrawing"
+/// ));
+/// assert!(mjx_vml::is_vml_content_type(
+///     "application/vnd.openxmlformats-officedocument.vmlDrawing; charset=utf-8"
+/// ));
+/// assert!(!mjx_vml::is_vml_content_type("image/png"));
+/// ```
 #[must_use]
 pub fn is_vml_content_type(content_type: &str) -> bool {
-    content_type == CONTENT_TYPE_VML
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .eq_ignore_ascii_case(CONTENT_TYPE_VML)
 }
 
 /// Reads an `ST_TrueFalse` / `ST_TrueFalseBlank` value (ECMA-376 Part 4 §19.7.3), or `None` for one
@@ -160,6 +220,47 @@ mod tests {
             "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
         ));
         assert!(!is_vml_content_type(""));
+    }
+
+    /// The predicate agrees with `mjx-opc`'s, which folds — see [`is_vml_content_type`]'s own docs
+    /// for the defect MJXOFF-114 paid for one crate below this one.
+    ///
+    /// Every spelling here is the same media type under ECMA-376 Part 2 §10.1.2.3. Before
+    /// MJXOFF-221 the predicate was `content_type == CONTENT_TYPE_VML`, so all four of the
+    /// non-canonical ones answered `false` and a deck or a workbook spelling its Content-Types entry
+    /// any other way had **no** VML parts as far as `vml_part_names` was concerned.
+    #[test]
+    fn a_vml_drawing_is_recognised_in_every_casing_a_producer_writes() {
+        for spelling in [
+            "application/vnd.openxmlformats-officedocument.vmlDrawing",
+            "application/vnd.openxmlformats-officedocument.vmldrawing",
+            "APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.VMLDRAWING",
+            "application/vnd.openxmlformats-officedocument.vmlDrawing; charset=utf-8",
+            " application/vnd.openxmlformats-officedocument.vmlDrawing ",
+        ] {
+            assert!(
+                is_vml_content_type(spelling),
+                "{spelling} names a VML drawing part"
+            );
+        }
+    }
+
+    /// Folding must not widen the predicate onto anything else.
+    #[test]
+    fn folding_does_not_admit_a_neighbouring_content_type() {
+        for spelling in [
+            "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+            "application/vnd.openxmlformats-officedocument.drawing+xml",
+            "application/vnd.openxmlformats-officedocument.vmlDrawing.extra",
+            "vmlDrawing",
+            "image/png",
+            "",
+        ] {
+            assert!(
+                !is_vml_content_type(spelling),
+                "{spelling} does not name a VML drawing part"
+            );
+        }
     }
 
     #[test]

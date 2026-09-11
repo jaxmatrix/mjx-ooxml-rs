@@ -1,4 +1,9 @@
-"""The seventy-four enumerations: complete, correctly renamed, and round-tripping through a deck."""
+"""The projected enumerations: complete, correctly renamed, and round-tripping through a deck.
+
+The count is deliberately not written here. `MEMBER_COUNTS` below pins the member count of
+each enumeration it names, and `crates/mjx-ooxml-types` is where the vocabulary itself is
+stated; a number in this docstring would be a third copy that nothing derives.
+"""
 
 from __future__ import annotations
 

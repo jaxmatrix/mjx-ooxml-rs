@@ -550,7 +550,7 @@ fn read_chart(
     let Some(bytes) = deck.chart_part_bytes(surface, path.to_vec())? else {
         return Ok(None);
     };
-    Ok(ChartModel::read(bytes).ok())
+    Ok(ChartModel::read(&bytes).ok())
 }
 
 /// Reads a shape's text body, or `None` when it has none.

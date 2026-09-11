@@ -42,6 +42,20 @@ pub fn color_of(spec: &ColorSpec) -> Option<Color> {
         // visible, which is what makes it reportable.
         ColorSpec::Scheme(_) => return None,
         ColorSpec::Other { value, .. } => value.as_deref()?,
+        // ⚠ **A transformed colour draws nothing, and that is a stated gap rather than an
+        // oversight.** `ColorSpec::Transformed` arrived with the document graph's own work and
+        // carries `lumMod`, `lumOff`, `tint`, `shade` and `alpha` — arithmetic on the colour
+        // underneath, not a different kind of colour. `mjx_dml::Color::from_spec` flattens the
+        // chain, but it builds *markup*: it answers what to write, not what to paint, so there is
+        // nothing here to read a resolved channel out of.
+        //
+        // The two things this could do instead are both worse. Painting `base` and dropping the
+        // transforms puts a shape on screen in a colour the document does not state — the exact
+        // silent-wrong-colour failure this crate exists to avoid — and inventing the arithmetic
+        // here would put a second implementation of DrawingML's colour model above the crate that
+        // owns it. So it takes the answer the scheme arm above already takes, for the same reason:
+        // drawing nothing is honest, it is visible, and it is reportable.
+        ColorSpec::Transformed { .. } => return None,
     };
     let digits = hex.strip_prefix('#').unwrap_or(hex);
     if digits.len() != 6 {

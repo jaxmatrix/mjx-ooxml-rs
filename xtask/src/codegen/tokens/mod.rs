@@ -172,7 +172,7 @@ pub fn run(arguments: &[String]) -> Result<()> {
 ///
 /// A bare "these files differ" would be true of a regenerated header as much as of a changed
 /// colour, and the first thing anyone would do with it is run a diff by hand.
-pub(crate) fn first_difference(actual: &str, expected: &str) -> Option<String> {
+pub fn first_difference(actual: &str, expected: &str) -> Option<String> {
     if actual == expected {
         return None;
     }

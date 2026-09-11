@@ -175,8 +175,8 @@ impl Workbook {
     /// columns, `"1:3"` for whole rows. The two open-ended forms are clamped to the sheet's
     /// populated extent, so `"A:A"` costs the rows the file actually has.
     ///
-    /// **This is the way to read cells**, and there is deliberately no per-cell call beside it: see
-    /// this module's own documentation for the measurements that decided that.
+    /// **This is the way to read cells**, and there is deliberately no per-cell call beside it: the
+    /// guide's *The mapping rules* carries the measurements that decided that.
     fn read_range(&self, sheet: u32, range: &str) -> PyResult<CellBlock> {
         self.inner
             .read_range(sheet, range)
@@ -953,11 +953,23 @@ impl Workbook {
             .collect())
     }
 
-    /// Rewrites the embedded workbook of the chart. Answers `False` — changing nothing — when there
-    /// is none, which is the ordinary state of a chart on a sheet.
+    /// Writes the chart's data into the workbook the chart already embeds — the cells its own `c:f`
+    /// formulas name, and nothing else — and answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. Answers `False`, changing
+    /// nothing, when there is no embedded workbook — which is the ordinary state of a chart on a
+    /// sheet, whose data is a live range. No workbook is ever fabricated.
     fn refresh_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
         self.inner
             .refresh_chart_workbook(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Replaces the embedded workbook of the chart with a freshly built one, discarding whatever it
+    /// held. Answers whether it replaced one.
+    fn regenerate_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
+        self.inner
+            .regenerate_chart_workbook(sheet, anchor)
             .map_err(to_py_err)
     }
 

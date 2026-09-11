@@ -5,7 +5,7 @@ are, what was measured, which alternatives lost, and the two policies this child
 *decide* rather than to implement. The module documentation carries the same reasoning next to the
 code; this page is the record with the numbers and the machine attached.
 
-Its companion is `docs/CELL_STORE.md` (MJXOFF-95). The two halves fit together in one sentence: **the
+Its companion is [The cell store](the_cell_store) (MJXOFF-95). The two halves fit together in one sentence: **the
 cell store holds a shared-string cell as a `u32` index and no text at all, and this table is what
 that index means.**
 
@@ -25,7 +25,7 @@ says what that is.
 
 Two calls, one on each side of the index, and neither crate holds the other's data:
 
-```rust
+```rust,ignore
 let index = cell.shared_string_index()?;   // mjx_sml::Cell — MJXOFF-95
 let value = table.item(index)?;            // mjx_sml::SharedStringTable — this child
 let text  = value.text()?;                 // Cow<str>, borrowed from the part's own bytes
@@ -41,7 +41,7 @@ let text  = value.text()?;                 // Cow<str>, borrowed from the part's
 
 The **inline-string** path produces the same type from the same reader:
 
-```rust
+```rust,ignore
 let inline = InlineString::parse(cell.inline_string_markup()?)?;
 let text   = inline.item().text()?;        // the same StringItem, the same accessors
 ```
@@ -55,7 +55,7 @@ the way past.
 
 Four flat arrays over the same byte arena the cell store uses (`crates/mjx-sml/src/arena/`).
 
-```
+```text
 items:     Vec<PackedStringItem>    48 B each, one per <si>
 runs:      Vec<PackedRun>           36 B each, one per <r>
 phonetics: Vec<PackedPhoneticRun>   24 B each, one per <rPh>
@@ -286,6 +286,8 @@ Nothing here reorders anything on read, ever, for either type.
   down the half of `sml.xsd` this workspace deliberately does not type.
 * **`styles.xml`'s font table** is MJXOFF-105 (D08), which reuses `font/` rather than copying it.
 * **The `t="str"` formula-result string** is MJXOFF-115 (D11); it is a cell value, not a table entry.
-* **`mjx-chart`'s duplicate `SharedStrings`** is still there. This table reproduces its output byte
-  for byte (`an_authored_table_matches_the_chart_writers_bytes_exactly` pins it), MJXOFF-112 (D10)
-  holds the parity gate from the other side, and MJXOFF-99 performs the deletion.
+* **`mjx-chart`'s duplicate `SharedStrings`** is gone. MJXOFF-112 (D10) routed the chart's embedded
+  workbook through this table and held a parity gate from the other side; MJXOFF-99 then deleted
+  both the duplicate and that gate, leaving this the workspace's one shared-string writer. What
+  remains of the pairing is `an_authored_table_writes_exactly_these_bytes`, which pins the whole
+  part byte for byte.

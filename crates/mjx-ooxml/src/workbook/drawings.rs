@@ -6,6 +6,19 @@
 //! [`mjx_dml::spreadsheet_drawing::CellMarker`] tree — the same rule every other authoring call on
 //! this surface follows.
 //!
+//! # The anchors take the column first
+//!
+//! Every other `(row, column)` pair on this facade — [`CellBlock::value`](crate::CellBlock::value),
+//! `Deck::cell_text`, `Document::set_cell_text` and forty-four siblings — takes the row first,
+//! because each indexes a two-dimensional *body* of cells. These four do not
+//! ([`Workbook::add_two_cell_anchored_picture`], [`Workbook::add_one_cell_anchored_picture`],
+//! [`Workbook::add_chart`](crate::Workbook::add_chart) and
+//! [`Workbook::add_range_chart`](crate::Workbook::add_range_chart)): a marker is
+//! `<xdr:col><xdr:colOff><xdr:row><xdr:rowOff>` in the file, its two offsets interleave with the two
+//! indices, and taking the row first would put each offset beside the wrong one. So
+//! `(from_column, from_row, to_column, to_row)` reads straight down the element it writes — the same
+//! reason [`mjx_sml::CellReference::relative`] takes `(column, row)`, written on that type.
+//!
 //! # Three calls, because there are three anchors
 //!
 //! Not one call with a mode argument. A `xdr:twoCellAnchor` has **no extent of its own** — its two

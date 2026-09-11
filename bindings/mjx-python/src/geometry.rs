@@ -27,7 +27,7 @@ use pyo3::types::PyModule;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{AdjustmentAxis, PathFillMode, PresetShapeType, SlideSizeKind};
-use crate::errors::to_py_err;
+use crate::errors::{to_py_err, unsupported_content};
 use crate::measures::{Angle, Emu, Fraction};
 
 value_class! {
@@ -1107,7 +1107,7 @@ impl AdjustHandle {
     }
 
     /// The second axis's limits, when stated. An `xy` handle's are coordinates; a `polar` handle's
-    /// are angles, reported through [`second_angle_limits`](Self::second_angle_limits).
+    /// are angles, reported through `second_angle_limits`.
     #[getter]
     fn second_limits(&self) -> (Option<AdjustCoordinate>, Option<AdjustCoordinate>) {
         match &self.0 {
@@ -1322,7 +1322,7 @@ impl ResolvedRectangle {
 
 #[pymethods]
 impl ResolvedDrawCommand {
-    /// Which command this is, in the same vocabulary [`DrawCommand.kind`](DrawCommand::kind) uses.
+    /// Which command this is, in the same vocabulary `DrawCommand.kind` uses.
     #[getter]
     fn kind(&self) -> &'static str {
         match &self.0 {
@@ -1905,10 +1905,14 @@ impl ShapeGeometry {
     fn preset(&self) -> PyResult<PresetShapeType> {
         let preset = match &self.0 {
             ooxml::ShapeGeometry::Unmodeled(preset) => *preset,
+            // Unreachable: `parts` answers `None` only for `Unmodeled`, matched above, and its
+            // `match` carries no wildcard — so the compiler holds that equivalence rather than this
+            // comment. An `UnsupportedContentError` is nonetheless what it would mean, and it is a
+            // class `errors.rs` registers, so `except mjx_ooxml.OoxmlError` catches it (MJXOFF-275).
             _ => self
                 .parts()
                 .map(|(preset, _)| preset)
-                .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("unreachable"))?,
+                .ok_or_else(|| unsupported_content("this geometry names no preset"))?,
         };
         PresetShapeType::from_model(preset)
     }
@@ -1925,8 +1929,8 @@ impl ShapeGeometry {
             .collect()
     }
 
-    /// What a preset's adjustments are called — the keys
-    /// [`of`](ShapeGeometry::of) expects, in the order the specification lists them.
+    /// What a preset's adjustments are called — the keys `ShapeGeometry.of` expects, in the order
+    /// the specification lists them.
     #[staticmethod]
     fn adjustment_names(preset: PresetShapeType) -> Vec<&'static str> {
         Self::names(preset.into())

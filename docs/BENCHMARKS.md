@@ -210,7 +210,7 @@ counter (`xtask/src/corpus/memory.rs`), read at four checkpoints within one proc
 (`cargo run --release -p xtask -- corpus --mem <pptx|docx|xlsx>`).
 
 This is a deliberate choice over the more common pure-Rust answer — a counting `#[global_allocator]`
-(MJXOFF-146 already has one, `xtask/src/fuzz/allocation.rs`, `unsafe impl GlobalAlloc` forwarding to
+(MJXOFF-146 already has one, `crates/mjx-allocation-counter/src/lib.rs`, `unsafe impl GlobalAlloc` forwarding to
 `std::alloc::System`) — because a counting allocator and "peak resident set" are **different
 questions**. A counting allocator answers "how many bytes has the app asked the allocator for,
 net of frees" — it cannot see allocator-held-but-unreturned memory (glibc rarely returns freed

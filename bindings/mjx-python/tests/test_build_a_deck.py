@@ -5,17 +5,15 @@ layouts, the same shapes, the same table, the same chart, the same notes, the sa
 is the point: if the curated subset were missing anything, this file could not be written, and if
 the identity mapping were not identity, it would not read the same.
 
-`tests/node/build_a_deck.mjs` is the third copy. All three write to `target/examples/`, and
+`bindings/mjx-wasm/tests/node/build_a_deck.mjs` is the third copy. All three write to `target/examples/`, and
 `test_the_three_walkthroughs_agree` checks that this one and the Rust one produce the same deck.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import io
 import pathlib
 import subprocess
-import zipfile
 
 import pytest
 
@@ -37,6 +35,8 @@ from mjx_ooxml import (
     PresetShapeType,
     ShapeBounds,
 )
+
+from opc import part_payloads
 
 OUTPUT_NAME = "python_build_a_deck.pptx"
 
@@ -238,12 +238,6 @@ def test_a_word_document_is_detected_and_refused(word_document: bytes) -> None:
     assert isinstance(refusal.value, OoxmlError)
 
 
-def _part_payloads(archive: bytes) -> dict[str, bytes]:
-    """Every part of a package, by name, decompressed."""
-    with zipfile.ZipFile(io.BytesIO(archive)) as package:
-        return {entry.filename: package.read(entry.filename) for entry in package.infolist()}
-
-
 @pytest.mark.skipif(
     subprocess.run(["cargo", "--version"], capture_output=True).returncode != 0,
     reason="cargo is not on PATH, so the Rust walkthrough cannot be run to compare against",
@@ -283,8 +277,8 @@ def test_the_three_walkthroughs_agree(
     assert completed.returncode == 0, completed.stderr
 
     from_rust = rust_output.read_bytes()
-    python_parts = _part_payloads(from_python)
-    rust_parts = _part_payloads(from_rust)
+    python_parts = part_payloads(from_python)
+    rust_parts = part_payloads(from_rust)
 
     assert sorted(python_parts) == sorted(rust_parts), (
         "the two walkthroughs must author the same set of parts"

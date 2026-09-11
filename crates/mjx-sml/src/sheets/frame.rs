@@ -654,3 +654,182 @@ macro_rules! sheet_slot {
 }
 
 pub(crate) use {sheet_part_surface, sheet_slot};
+
+// ===============================================================================================
+// The slot ledger for the three sheet kinds — the same class MJXOFF-88 §9 B2 names for a worksheet
+// ===============================================================================================
+
+#[cfg(test)]
+mod tests {
+    use mjx_ooxml_types::child_order::{CHARTSHEET, DIALOGSHEET, MACROSHEET};
+
+    use super::*;
+    use crate::prose::{check_counts, module_documentation, NUMBER_WORDS};
+    use crate::sheets::{ChartSheetContent, DialogSheetContent, MacroSheetContent};
+
+    /// How one sheet kind's slots divide, **derived from its own read path**.
+    struct Split {
+        /// Every slot [`SheetContent::read`] gives a typed variant.
+        modelled: usize,
+        /// Every slot it declines, in rank order — the frame holds each as its kind's `Raw`.
+        held: Vec<&'static str>,
+    }
+
+    /// Reads a part holding **every** slot the generated table names for `C`, and reports how the
+    /// frame classified each one.
+    ///
+    /// The classification comes from [`read_slot`] — the function a real part goes through — so
+    /// modelling a held slot flips a row here on the next build, and a slot added to `sml.xsd` and
+    /// regenerated arrives in `held` rather than anywhere silent. This is `CT_Worksheet`'s
+    /// derivation (`crates/mjx-sml/src/worksheet/frame.rs`) applied to the kinds that share this
+    /// frame, because the figure they state is written the same way and rots the same way.
+    fn split_derived_from_the_read_path<C: SheetContent>(root: &str) -> Split {
+        let mut markup = String::from("<");
+        markup.push_str(root);
+        markup.push_str(r#" xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#);
+        for slot in C::ORDER.slots {
+            markup.push('<');
+            markup.push_str(slot.local);
+            markup.push_str("/>");
+        }
+        markup.push_str("</");
+        markup.push_str(root);
+        markup.push('>');
+
+        let document = mjx_xml::fidelity::parse(markup.as_bytes())
+            .expect("a part holding one of every slot parses");
+        let frame: SheetFrame<C> = SheetFrame::read_document(document, root)
+            .expect("the part reads")
+            .expect("the root is the element it was built as");
+        assert_eq!(
+            frame.content.len(),
+            C::ORDER.slots.len(),
+            "the frame read back a different number of children than the markup held"
+        );
+
+        let mut split = Split {
+            modelled: 0,
+            held: Vec::new(),
+        };
+        for (slot, declared) in frame.content.iter().zip(C::ORDER.slots) {
+            match slot.value.local() {
+                Some(local) => {
+                    assert_eq!(local, declared.local, "rank {} is misnamed", declared.rank);
+                    split.modelled += 1;
+                }
+                None => split.held.push(declared.local),
+            }
+        }
+        split
+    }
+
+    /// **Every slot of all three sheet kinds is either modelled or named as held, and the two add
+    /// up** — and the file that documents each kind states the figure its reader produces.
+    ///
+    /// At 0.0.138 `dialogsheet.rs` opened with *"Eleven of its sixteen slots are modelled"* over a
+    /// reader that types ten, and named *"the five held verbatim"* immediately above a list of six
+    /// before calling them *"all six"* two sentences later. Nothing could see it: the split was
+    /// prose, and the only assertions in the crate were about round-tripping, which holds whether a
+    /// slot is typed or not. That is MJXOFF-88 §9 B2 in the file next door to the one it names.
+    #[test]
+    fn every_slot_of_every_sheet_kind_is_accounted_for() {
+        let chartsheet = split_derived_from_the_read_path::<ChartSheetContent>("chartsheet");
+        let dialogsheet = split_derived_from_the_read_path::<DialogSheetContent>("dialogsheet");
+        let macrosheet = split_derived_from_the_read_path::<MacroSheetContent>("macrosheet");
+
+        assert_eq!(
+            chartsheet.held,
+            vec!["legacyDrawing", "legacyDrawingHF", "drawingHF", "extLst"]
+        );
+        assert_eq!(
+            dialogsheet.held,
+            vec![
+                "legacyDrawing",
+                "legacyDrawingHF",
+                "drawingHF",
+                "oleObjects",
+                "controls",
+                "extLst"
+            ]
+        );
+        assert_eq!(
+            macrosheet.held,
+            vec![
+                "sheetData",
+                "phoneticPr",
+                "legacyDrawing",
+                "legacyDrawingHF",
+                "drawingHF",
+                "oleObjects",
+                "extLst"
+            ]
+        );
+
+        let kinds = [
+            (
+                "chartsheet.rs",
+                include_str!("chartsheet.rs"),
+                CHARTSHEET,
+                chartsheet,
+            ),
+            (
+                "dialogsheet.rs",
+                include_str!("dialogsheet.rs"),
+                DIALOGSHEET,
+                dialogsheet,
+            ),
+            (
+                "macrosheet.rs",
+                include_str!("macrosheet.rs"),
+                MACROSHEET,
+                macrosheet,
+            ),
+        ];
+        let mut checked = 0usize;
+        for (file, source, order, split) in kinds {
+            assert_eq!(
+                split.modelled + split.held.len(),
+                order.slots.len(),
+                "{file}: a slot of {} was classified as neither",
+                order.symbol
+            );
+            let documentation = module_documentation(source);
+            let sentence = format!(
+                "{} slots, {} modelled, {} held",
+                NUMBER_WORDS[order.slots.len()],
+                NUMBER_WORDS[split.modelled],
+                NUMBER_WORDS[split.held.len()],
+            );
+            assert!(
+                documentation.to_lowercase().contains(&sentence),
+                "{file}'s module documentation does not say `{sentence}`, which is what its read \
+                 path says"
+            );
+            checked += 1;
+            checked += check_counts(
+                file,
+                &documentation,
+                &[
+                    ("slots", order.slots.len()),
+                    ("modelled", split.modelled),
+                    ("typed", split.modelled),
+                    ("held", split.held.len()),
+                    ("held verbatim", split.held.len()),
+                ],
+            );
+            println!(
+                "{}: {} slots, {} modelled, {} held",
+                order.symbol,
+                order.slots.len(),
+                split.modelled,
+                split.held.len()
+            );
+        }
+        assert!(
+            checked >= 3,
+            "only {checked} spelled-out counts were found across the three sheet kinds — the \
+             phrase scanner has stopped matching, and a scanner that matches nothing passes forever"
+        );
+        println!("sheet-kind prose: {checked} spelled-out counts checked");
+    }
+}

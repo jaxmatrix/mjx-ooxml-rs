@@ -321,3 +321,103 @@ fn set_3d_on_a_group_member() {
         Some(scene())
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// The backdrop — read, and preserved (MJXOFF-228)
+// ---------------------------------------------------------------------------------------------
+
+/// `a:backdrop` is the one part of `a:scene3d` this crate does not author, so the case authors it
+/// by hand: a scene is written through the public setter, the slide's bytes are reopened, and the
+/// backdrop is spliced into the `a:scene3d` the setter produced.
+///
+/// Writing it into the file rather than through an API is the point. The backdrop is content this
+/// library **preserves** and does not model on the write path, and a reader for it is only worth
+/// having if it reads what a *producer* wrote.
+fn deck_with_a_backdrop() -> (Presentation, usize) {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    pres.set_shape_scene_3d(0, idx, &scene()).expect("scene");
+
+    let saved = pres.save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen");
+    let slide = mjx_opc::PartName::new("/ppt/slides/slide1.xml").expect("a literal part name");
+    let bytes = package.part_bytes(&slide).expect("the slide").to_vec();
+    let markup = String::from_utf8(bytes).expect("the slide is utf-8");
+    // The three children are schema-required and each is `CT_Point3D` / `CT_Vector3D`.
+    let backdrop = concat!(
+        r#"<a:backdrop>"#,
+        r#"<a:anchor x="10" y="20" z="30"/>"#,
+        r#"<a:norm dx="40" dy="50" dz="60"/>"#,
+        r#"<a:up dx="70" dy="80" dz="90"/>"#,
+        r#"</a:backdrop>"#,
+    );
+    let patched = markup.replacen("</a:scene3d>", &format!("{backdrop}</a:scene3d>"), 1);
+    assert_ne!(patched, markup, "the scene the setter wrote was not found");
+    package
+        .replace_part_bytes(&slide, patched.into_bytes())
+        .expect("replacing the slide");
+
+    let bytes = package
+        .save_unchecked()
+        .expect("saving the patched package");
+    (Presentation::open(&bytes).expect("reopen"), idx)
+}
+
+#[test]
+fn a_backdrop_is_read_typed_and_a_shape_without_one_answers_none() {
+    let (mut pres, idx) = deck_with_a_backdrop();
+    let backdrop = pres
+        .shape_backdrop(0, idx)
+        .expect("reading")
+        .expect("the scene states a backdrop");
+
+    // Nine distinct numbers, so a reader that crossed `norm` with `up`, or `y` with `z`, fails.
+    let emu = |point: mjx_dml::Emu| point.emu();
+    assert_eq!(
+        (
+            emu(backdrop.anchor.x),
+            emu(backdrop.anchor.y),
+            emu(backdrop.anchor.z)
+        ),
+        (10, 20, 30)
+    );
+    assert_eq!(
+        (
+            emu(backdrop.normal.x),
+            emu(backdrop.normal.y),
+            emu(backdrop.normal.z)
+        ),
+        (40, 50, 60)
+    );
+    assert_eq!(
+        (emu(backdrop.up.x), emu(backdrop.up.y), emu(backdrop.up.z)),
+        (70, 80, 90)
+    );
+
+    // A scene with no backdrop, and a shape with no scene, are both `None` and not an error.
+    let mut plain = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let scened = added_shape(&mut plain);
+    plain
+        .set_shape_scene_3d(0, scened, &scene())
+        .expect("scene");
+    assert_eq!(plain.shape_backdrop(0, scened).expect("reading"), None);
+    let flat = added_shape(&mut plain);
+    assert_eq!(plain.shape_backdrop(0, flat).expect("reading"), None);
+}
+
+/// Reading the backdrop does not dirty the slide, and the backdrop itself survives verbatim.
+#[test]
+fn reading_a_backdrop_preserves_it() {
+    let (mut pres, idx) = deck_with_a_backdrop();
+    let before = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    let _ = pres.shape_backdrop(0, idx).expect("reading");
+
+    let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    assert_eq!(after, before, "reading the backdrop dirtied a part");
+    let slide = String::from_utf8(after["ppt/slides/slide1.xml"].clone()).expect("utf-8");
+    assert!(
+        slide.contains(r#"<a:norm dx="40" dy="50" dz="60"/>"#),
+        "the backdrop did not survive: {slide}"
+    );
+}

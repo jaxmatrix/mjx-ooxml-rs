@@ -149,7 +149,7 @@ rel id, blip mode, pattern preset + fg/bg); builders → expected bytes; `Fill::
 `spPr` slot: **after** geometry (`prstGeom`/`custGeom`), **before** `a:ln`. Adding a `blipFill` image
 needs an image part + a relationship (`insert_part` + `add_relationship`, `r:embed`) — its own step.
 Extend the office-open canary with a gradient/pattern-filled shape. Mirrors `shape_geometry` /
-`set_shape_geometry` (see `mjx-pptx/src/presentation.rs` + `slide::shape_prstgeom`).
+`set_shape_geometry` (see `crates/mjx-pptx/src/presentation/` + `slide::shape_prstgeom`).
 
 ---
 

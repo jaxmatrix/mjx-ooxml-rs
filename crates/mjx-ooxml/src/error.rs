@@ -444,6 +444,15 @@ fn classify(error: &PptxError) -> (ErrorCode, ErrorDetail) {
         | PptxError::ShapeIsNotAContentPart
         | PptxError::PartIsNotVmlDrawing { .. } => (C::WrongKind, none()),
 
+        // --- the chart names something this library will not write over --------------------
+        //
+        // `UnsupportedContent`, the same code `ChartFillNotSupported` answers, and for the same
+        // reason: the *content* is a shape this library declines to act on, rather than an argument
+        // that is wrong or a document that is malformed. The `c:f` may well be perfectly valid — it
+        // is simply not a range of cells a patch can write, and the alternative to refusing is
+        // destroying the workbook it names.
+        PptxError::ChartEmbeddedWorkbookNotWritable { .. } => (C::UnsupportedContent, none()),
+
         // --- a name resolved to nothing ---------------------------------------------------
         PptxError::NotAMediaReference { .. } | PptxError::TableStyleNotFound { .. } => {
             (C::NotFound, none())
@@ -539,6 +548,10 @@ fn chart_access_code(error: &mjx_chart::ChartAccessError) -> (ErrorCode, ErrorDe
         Chart::SeriesNotEditable { index, .. } => (C::WrongKind, nth(*index)),
         Chart::NoChartElement => (C::MalformedDocument, none()),
         Chart::FillNotSupported => (C::UnsupportedContent, none()),
+        // A `c:f` this library will not write over is `UnsupportedContent` for the reason
+        // `classify_pptx` states beside `ChartEmbeddedWorkbookNotWritable`, which is the same
+        // verdict reaching this function by PresentationML's route rather than by `#[from]`.
+        Chart::EmbeddedWorkbookNotWritable { .. } => (C::UnsupportedContent, none()),
         Chart::Data(_) => (C::InvalidArgument, none()),
     }
 }
@@ -734,7 +747,14 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         //
         // The same code `PptxError::PartIsNotVmlDrawing` gets, from the same refusal: a
         // `legacyDrawing` relationship pointing at something that is not a `.vml` is a part of the
-        // wrong kind, not a missing one.
+        // wrong kind, not a missing one. `SheetIsNotAWorksheet` is the same reading one tab up: the
+        // tab is there; it is a chartsheet or a dialogsheet, and neither has a cell to address
+        // (MJXOFF-241). `WrongKind` rather than `MalformedDocument`, which is what this answered
+        // while `mjx-xlsx` still reported it as a missing part: nothing about the file is wrong,
+        // and a caller who reads `MalformedDocument` goes looking for a broken package. It carries
+        // the tab index for the same reason `NoSuchSheet` does — the argument at fault is the one
+        // a caller can change.
+        XlsxError::SheetIsNotAWorksheet { index, .. } => (C::WrongKind, nth(*index)),
         XlsxError::PartIsNotVmlDrawing(_) => (C::WrongKind, none()),
     }
 }

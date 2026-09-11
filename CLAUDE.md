@@ -236,15 +236,19 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
-  makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
-  deleted. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
+  makes `mjx-chart → mjx-sml → mjx-dml` legal and is what let `mjx-chart`'s duplicate workbook writer
+  be deleted — MJXOFF-99 deleted it, and exactly one SpreadsheetML writer ships. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
   `Workbook` surface, format tier). **The bindings depend on `mjx-ooxml` alone** — never on a crate
   below it — and nothing depends on them.
 
   This is checked, not trusted: `xtask/tests/layering.rs` reads the real graph out of
   `cargo metadata --no-deps` and fails on any edge that does not point strictly down, naming both
-  crates and both ranks. The table there and the table here are the same table; a new crate must be
-  added to both. Dev-dependencies are deliberately exempt from the rank check (`mjx-derive` tests
+  crates and both ranks. The table there and the table here are the same table, and since
+  MJXOFF-225 that is **compared rather than assumed** —
+  `the_rank_table_in_claude_md_is_the_table_in_this_file` holds the two against each other crate by
+  crate, rank and label, in both directions, because `xtask/tests/derived_rosters.rs` derives crate
+  populations ("the rank-2.2 crates", "everything at or above 2.2") out of the table below. A new
+  crate must be added to both. Dev-dependencies are deliberately exempt from the rank check (`mjx-derive` tests
   against `mjx-ooxml-types`; every format crate dev-depends on the gate) but may still never reach a
   binding or `xtask`.
 
@@ -410,8 +414,33 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   glossed, and `Package::settle_edited_parts` is the call that performs it and clears the dirty set.
   **The round-trip guarantee is untouched**: an untouched part is never marked dirty and still
   re-emits byte for byte. Only the timing moved.
-- **Unknown bucket:** every modeled complex type carries `extra: Vec<RawNode>` for unknown children,
-  and preserves unknown attributes, attribute order, and namespace prefixes.
+- **Unknown bucket:** every modeled complex type keeps a `Vec<RawNode>` for the content it does not
+  model, and preserves unknown attributes, attribute order, and namespace prefixes. The field is
+  spelled three ways — `extra` (only the unmodelled children), `children` (all of them, with typed
+  accessors reading out of it), or a typed content vector with a `Raw(RawNode)` variant (so an
+  unmodelled child keeps its position) — and searching for `extra` alone finds one of the three.
+  What holds it up is `mjx-derive`'s codegen rather than a convention, so one test failure reaches
+  every type that derives it. **The exceptions are named in
+  `crates/mjx-opc/docs/guide/the_round_trip_contract.md`**, and a hand-written `FromXml`/`ToXml` pair
+  is outside the codegen's guarantee by definition.
+- **A child comes back where the file put it, not where the schema would.** The four serialization
+  ledgers ask what a hand-written pair *loses*; none of them can see what it *moves*, which is how
+  MJXOFF-251 shipped six `mjx-docx` types that hoisted a named child to the front while dropping
+  nothing. `xtask/tests/child_order_census.rs` (MJXOFF-265) is the census: over every function in
+  every workspace member's `src/` — functions rather than impl bodies, because that defect lived in a
+  free function both halves called — it finds every child vector whose order is decided by the code
+  rather than by the file, and every one is on a ledger with a written reason and, where it really
+  moves a child, the markup that proves the position travels. **Indentation is made of text nodes and
+  a text node is a child**, so the counting is over nodes, not elements.
+- **`#[xml(text)]` re-escapes minimally on write.** A text leaf that goes through the derive decodes
+  its character data on read and writes it back escaping only `<` and `&`, so an entity spelling, a
+  character reference, a CDATA section or an interleaved comment does not survive a rebuild — and a
+  text node that differs from the original denies its element, *and every ancestor of it*, the
+  verbatim source range subtree copy-on-write would otherwise give it. This is a **write-path**
+  property of the derive: `mjx-xml`'s reader never decodes text, so an untouched part round-trips
+  byte for byte regardless. Five types in `mjx-sml` decline the derive because of it and hand-write
+  the pair instead. Fixing it in the derive is a foundation change across every text leaf and **no
+  work item owns it**.
 - **MCE** (`mc:AlternateContent`/`Ignorable`/`ProcessContent`) is handled in `mjx-mce`, preserved on
   write and resolved (non-mutating) on read/render.
 - **Round-trip contract:** per-part decompressed-payload byte identity + structural container identity
@@ -491,15 +520,60 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   is renamed. The single exception is forced — the `None` *member* of fourteen enumerations is
   spelled `NONE`, because `None` is a Python keyword. (Nine until MJXOFF-137; Excel's own
   vocabulary added five more.) Committed `.pyi` + `py.typed`, checked by
-  `mypy --strict` and by `tests/test_stub_parity.py`, which compares the stub to the compiled module
-  in both directions.
+  `mypy --strict` and by `bindings/mjx-python/tests/test_stub_parity.py`, which compares the stub to
+  the compiled module
+  in both directions. That comparison is over **names**; the sentence beside each name is not
+  written in the stub at all (MJXOFF-234). PyO3 compiles each `///` doc comment verbatim into the
+  member's `__doc__`, so **the binding's `///` comment *is* the Python docstring** — a comment there
+  that talks about Rust is already wrong in `help()` — and `bindings/mjx-python/tools/stub_docs.py`
+  copies each `__doc__` into the committed stub, with `bindings/mjx-python/tests/test_stub_docs.py`
+  as the drift check over 1,938 governed docstrings. Editing a docstring in the `.pyi` is a test
+  failure. Only the prose is generated; the signatures are still hand-written. The two bindings are
+  checked **against each other** too since MJXOFF-266 — their `///` comments are independently
+  written, so `xtask/tests/binding_doc_parity.rs` pairs every member both project under one name and
+  one argument count and requires the two sentences to agree once identifiers inside backtick spans
+  are `snake_case`d and a closed table folds `str`/`string`, `None`/`undefined` and the rest. What
+  still differs is a ledger with a reason per row, held to the measurement in both directions;
+  equality could never have been the gate, and building it found twenty-three members where the
+  TypeScript reader was told strictly less than the Python one.
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are
-  **camelCase**, from an explicit `js_name` on every one, because a `snake_case` API is an immediate
-  smell to a TypeScript consumer. Two further shapes differ, both forced: a range argument becomes
+  **camelCase**, because a `snake_case` API is an immediate smell to a TypeScript consumer: 1,630 of
+  the 1,768 exported functions carry an explicit `js_name`, and the 138 that do not are single words
+  where the two cases coincide. `xtask/tests/binding_projection.rs` is what makes that a rule rather
+  than a habit — every `js_name` must equal the camel case of the Rust name it sits on, and every
+  name without one must be a single word, with a ledger of the seven JavaScript itself forces
+  (`toString`). Two further shapes differ, both forced: a range argument becomes
   two numbers, and a `Format`'s accessors are free functions (a wasm enumeration is a number in
-  JavaScript and cannot carry a getter). **No serde** — `serde-wasm-bindgen` would need derives on
+  JavaScript and cannot carry a getter). The same file asks a second question since
+  MJXOFF-276, of both bindings rather than of this one: **an accessor whose doc comment lists the
+  strings it can answer must list the ones its body actually writes.** The return type is
+  `str`/`string`, so that sentence is the whole contract, and the three gates around it compared
+  code to code or sentence to sentence — never one to the other. Forty-two vocabularies are held to
+  their bodies, through one hop where the tokens are written once and called from several accessors
+  (`kind_of`, `conformance_str`), and five accessors whose value is made outside the binding that
+  documents it stand on a ledger naming the file that makes it. Four sentences were already wrong,
+  one of them two hours old: MJXOFF-285's `Unreadable` variant reached `CellData.kind`'s sentence
+  and not `CellBlock.kinds`'. **No serde** — `serde-wasm-bindgen` would need derives on
   `FillSpec`/`ColorSpec` in the *shipped* `mjx-dml`, contradicting the hand-written-de/serialization
   decision above.
+
+**What a binding raises is held to what it registers** (MJXOFF-275). Each binding has two legitimate
+error populations and no third: the typed model — twelve Python classes rooted at `OoxmlError`, one
+JavaScript `Error` named `"OoxmlError"` carrying a `code` — and the **host language's own vocabulary
+for a mistake in the call**, which is `TypeError`/`ValueError`/`KeyError` in Python and a
+`RangeError` through `invalid_argument` in JavaScript. Those two mirror each other exactly, and
+routing the second through `OoxmlError` would be the divergence rather than the fix: PyO3 raises
+`TypeError` for every argument conversion it generates. A third population is the error model
+quietly ceasing to be total, and nothing a caller can write tells it apart from the other two — so
+`xtask/tests/binding_projection.rs` asks three questions of `xtask/src/binding_surface.rs`'s raise
+scan. Every one of the Python binding's hand-written raises is a registered class, the ledgered
+vocabulary, or the one site that raises *while the hierarchy is being built*; every `Error` the wasm
+binding constructs sits in one of its two factory files; and — the rule underneath both — **a member
+that takes no argument never raises the argument vocabulary**, because there is no call for the
+caller to have got wrong. `ShapeGeometry.preset` broke the first and the third at once: an arm the
+compiler can prove unreachable answered `PyRuntimeError("unreachable")` in Python, which
+`except mjx_ooxml.OoxmlError` did not catch, and `invalid_argument` in JavaScript, from a getter that
+takes nothing. Both now raise `unsupported_content`, which is what the arm would mean.
 
 The acceptance test for both is the same, and there are now four of it. Each of the three
 walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.rs`,
@@ -509,6 +583,53 @@ walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.
 `bindings/mjx-wasm/tests/node/validation_artefacts.mjs`). Every one compares its output against the
 Rust one **part by part, byte for byte**. A method wired to the wrong `Deck` method changes one
 payload and fails there.
+
+That sentence was **false for Word in both bindings** until MJXOFF-239, and it read as true because
+the two Word files passed: they transcribed `build_a_document.rs` call for call and each wrote its
+*own* `.docx`, so nothing ran the Rust example and nothing compared. It is **checked rather than
+asserted** now. `xtask/tests/walkthrough_triples.rs` derives the walkthroughs from
+`crates/mjx-ooxml/examples/` instead of listing them, and fails when one has no copy in a binding,
+when a copy names no walkthrough, or when a copy does not run the Rust example and read both
+packages through that binding's one shared payload reader — `bindings/mjx-python/tests/opc.py` and
+`bindings/mjx-wasm/tests/node/zip.mjs`, one definition per suite and imported everywhere else,
+because a helper copied per file is a comparison that can go missing from a file unnoticed. What the
+gate cannot check is that the two payload maps are then asserted equal; what establishes *that* is
+breaking each walkthrough by one argument and confirming the comparison reddens and names the part.
+
+**A guide example is the same idea one layer up** (MJXOFF-254). The facade guide's code blocks are
+*copies*, not transcriptions: an example is three files carrying a `guide-example` region — a `cargo`
+example, a `pytest` module and a `node --test` module — and
+`cargo run -p xtask -- guide-examples` copies each region into the block that marks it, committed
+output and never a `build.rs`. `xtask/tests/guide_examples.rs` holds the four populations (the
+markers and the three directories) equal in both directions, fails on a hand-edited block, and fails
+when one half stops producing the package the other two compare against. It inherits
+`walkthrough_triples.rs`'s limit exactly: it cannot tell that a comparison it can see asserts
+anything. A Rust half may also carry a **hidden prelude** region, emitted as rustdoc's `#` lines, so
+an example that starts from a file can bind its bytes without showing a reader how this repository
+finds its fixtures; the other two languages need none, because whatever they do above their sentinel
+is already invisible.
+
+**A block that genuinely cannot exist in three languages says so, in names a test can check**
+(MJXOFF-261, MJXOFF-257). Its marker reads `rust-only` followed by the Rust symbols that make the
+claim true, and the gate then demands *more* rather than less: the example must have a Rust half and
+no binding half and be shown by no marker in either language; every declared name must occur in the
+region the block shows; and every declared name must be reachable from **neither** binding, read out
+of the committed `.pyi` and the committed `#[wasm_bindgen]` declarations by `xtask/src/binding_surface.rs`
+— the module `xtask/tests/binding_projection.rs` and the guide gate share, because two parsers of
+the same two surfaces would disagree with no way to say which was wrong. So the day a binding
+projects one of the named symbols, the claim reddens instead of quietly rotting. `rust-only` with no
+names is refused where it is parsed: a claim nothing can be compared against is the suppression the
+form exists not to be.
+
+**The examples carried end to end are exactly the files under the three directories** — no list
+anywhere states which, by design. What remains a backlog on MJXOFF-254 is every *other* fenced Rust
+block in `crates/mjx-ooxml/docs/guide/`, and the ones left are there because their projection is not
+name for name: an `ErrorCode` is a string on `.code`, a `CellInput` is a `CellWrite` constructor, a
+`Format` accessor is a free function in wasm — and two blocks have **no** binding half at all, the
+escape hatches (`presentation_mut` and its two siblings are Rust-only by decision) and the
+`mjx_opc::Package` comparison in *The contract* (the package is sealed, and a `Deck` has no part
+door in any language). Those need a written decision about how the guide says the shape differs, and
+the mechanism needs a spelling for a Rust-only block, which it does not have.
 
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
@@ -553,6 +674,10 @@ cargo run -p xtask -- ledger         # regenerate docs/client-platform/PARITY_LE
                                      #   anything nothing tests is `not-started`. Read the
                                      #   document's header before its table — it is a ledger of
                                      #   what was CHECKED, not of what is true.
+cargo run -p xtask -- guide-examples  # copy each guide example's region into the blocks the guide commits
+cargo run -p xtask -- guide-examples --check   # write nothing; report whether those blocks are current
+python bindings/mjx-python/tools/stub_docs.py           # restate the committed .pyi's docstrings from the module
+python bindings/mjx-python/tools/stub_docs.py --check   # write nothing; report whether they are current
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
 
@@ -606,9 +731,11 @@ cargo run -p xtask -- validation-artefacts --list
 cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
 
 # The other direction (MJXOFF-130): hand it a file saved out of Office and it reports which entry the
-# file answers, whether it round-trips at the container and through the facade, whether the package
-# invariants hold, whether its child order matches ours, whether it validates, and where it would be
-# committed. It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
+# file answers, whether it round-trips at the container and through the facade, whether the typed
+# model can read it and what an edit through that model moves (MJXOFF-278 — the two checks that are
+# not byte identity, and the only ones that ever call a `FromXml`), whether the package invariants
+# hold, whether its child order matches ours, whether it validates, and where it would be committed.
+# It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
 # it: a file's value there is entirely its provenance. docs/validation/06-the-office-pass.md is the
 # hand-off that says how a person does.
 cargo run -p xtask -- validation-artefacts --ingest <file> --area 2
@@ -632,7 +759,21 @@ wasm-pack test --node bindings/mjx-wasm              # the Rust side, in a wasm 
 
 - **Project-setup commits go on `main`;** once features start, **branch per feature + open a PR**.
 - **Atomic commits** (one self-contained change, easy rollback/cherry-pick); commit only when
-  `cargo build` + `cargo test --workspace` are green.
+  `cargo build` + `cargo test --workspace` are green. That rule was **unsatisfiable for the commit
+  that adds a file** until MJXOFF-290: four gates derived their corpus from the Git *index*, so a
+  file a unit had just written was judged for the first time by the run *after* the commit that
+  added it — which is how `xtask/src/validation/model.rs` reached `main` naming a page that has
+  never existed and left `doc_gate` red from 0.0.168. `xtask/src/repository_files.rs` is the one
+  corpus all four now read, and it is the **working tree**: tracked plus untracked-and-not-ignored,
+  so `.gitignore` is the only skip list. `xtask/tests/working_tree_corpus.rs` provokes the property
+  rather than observing it — CI's checkout is clean, so it writes a file it never commits — and
+  sweeps every `.rs` file so a fifth gate cannot go back to asking Git what is committed.
+- **A release commit bumps every file that states the version**, not just `Cargo.toml`: the lock,
+  `CHANGELOG.md`'s newest heading and `bindings/mjx-wasm/npm/package.json` — which 0.0.167 forgot,
+  leaving the npm package unbuildable from `main` for two versions. `xtask/tests/release_versions.rs`
+  holds the four together and derives the set of carriers from the working tree, so a fifth file
+  that starts restating the version fails rather than being missed (MJXOFF-286) — and fails before
+  the commit that adds it, not after (MJXOFF-290).
 - **Do NOT add `Co-Authored-By` or any AI-attribution trailer** to commits.
 - `References/` is git-ignored — never stage it; put test inputs under `tests/fixtures/`.
 

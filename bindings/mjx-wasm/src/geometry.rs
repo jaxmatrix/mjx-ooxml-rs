@@ -22,6 +22,7 @@ use wasm_bindgen::prelude::*;
 
 use mjx_ooxml as ooxml;
 
+use crate::errors::unsupported_content;
 use crate::support::invalid_argument;
 
 use crate::enums::{AdjustmentAxis, PathFillMode, PresetShapeType, SlideSizeKind};
@@ -1156,7 +1157,7 @@ impl ResolvedRectangle {
 
 #[wasm_bindgen]
 impl ResolvedDrawCommand {
-    /// Which command this is, in the same vocabulary [`DrawCommand.kind`](DrawCommand::kind) uses.
+    /// Which command this is, in the same vocabulary `DrawCommand.kind` uses.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         match &self.0 {
@@ -1735,8 +1736,12 @@ impl ShapeGeometry {
             ooxml::ShapeGeometry::Unmodeled(preset) => *preset,
             _ => match self.parts() {
                 Some((preset, _)) => preset,
-                // Unreachable: `parts` returns `None` only for `Unmodeled`, matched above.
-                None => return Err(invalid_argument("this geometry names no preset")),
+                // Unreachable: `parts` answers `None` only for `Unmodeled`, matched above, and
+                // its `match` carries no wildcard — so the compiler holds that equivalence rather
+                // than this comment. `unsupported_content` is nonetheless what it would mean, and
+                // unlike `invalid_argument` it carries `name = "OoxmlError"` and a `code`, which is
+                // what the Python side now raises too (MJXOFF-275).
+                None => return Err(unsupported_content("this geometry names no preset")),
             },
         };
         PresetShapeType::from_model(preset)
@@ -1755,7 +1760,7 @@ impl ShapeGeometry {
         record
     }
 
-    /// What a preset's adjustments are called — the keys `of` expects, in the order the
+    /// What a preset's adjustments are called — the keys `ShapeGeometry.of` expects, in the order the
     /// specification lists them.
     #[wasm_bindgen(js_name = "adjustmentNames")]
     pub fn adjustment_names(preset: PresetShapeType) -> Vec<String> {

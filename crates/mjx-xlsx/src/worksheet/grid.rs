@@ -55,6 +55,41 @@ impl Workbook {
         self.worksheet_markup_of(&part)
     }
 
+    /// [`worksheet_markup`](Self::worksheet_markup) for an edit that has no answer without one,
+    /// with the two ways a tab can fail to yield worksheet markup told apart (MJXOFF-241).
+    ///
+    /// `worksheet_markup` answers one `None` for two different facts, and an edit that turns both
+    /// into "the part is missing" is untruthful about the more common of them: the part of a
+    /// chartsheet or a dialogsheet is **present and correct**, and the reason the edit cannot happen
+    /// is that the tab is not the kind that can carry it. So:
+    ///
+    /// - the tab reaches no part at all → [`XlsxError::MissingWorkbookPart`], which is what that is;
+    /// - the tab reaches a part that is not `x:worksheet` → [`XlsxError::SheetIsNotAWorksheet`],
+    ///   naming the kind the tab actually is.
+    ///
+    /// Every edit in this crate that needs a worksheet goes through here, so the two answers cannot
+    /// drift apart one call site at a time.
+    ///
+    /// # Errors
+    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, one of the two above if it names no
+    /// worksheet, or [`XlsxError`] if the part is malformed.
+    pub(crate) fn require_worksheet_markup(
+        &self,
+        index: usize,
+    ) -> Result<WorksheetPart, XlsxError> {
+        match self.worksheet_markup(index)? {
+            Some(markup) => Ok(markup),
+            // `worksheet_markup` has already established that `index` names a tab.
+            None => Err(match self.sheets().get(index) {
+                Some(sheet) if sheet.part.is_some() => XlsxError::SheetIsNotAWorksheet {
+                    index,
+                    kind: sheet.kind,
+                },
+                _ => XlsxError::MissingWorkbookPart(format!("sheet {index}")),
+            }),
+        }
+    }
+
     /// [`worksheet_markup`](Self::worksheet_markup) for a caller that already holds the part name —
     /// from [`Worksheet::part`](crate::Worksheet::part), above all.
     ///
@@ -62,10 +97,10 @@ impl Workbook {
     /// As [`worksheet_markup`](Self::worksheet_markup), plus [`XlsxError::Opc`] if the package holds
     /// no such part.
     pub fn worksheet_markup_of(&self, part: &PartName) -> Result<Option<WorksheetPart>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        Ok(WorksheetPart::read_part(bytes)?)
+        Ok(WorksheetPart::read_part(&bytes)?)
     }
 
     /// Writes `markup` back over the worksheet part behind the tab at `index`.
@@ -106,16 +141,15 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if the
-    /// tab reaches no worksheet part, or [`XlsxError::Sml`] if the store refuses the value.
+    /// tab reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet, or [`XlsxError::Sml`] if the store refuses the value.
     pub fn set_cell_value(
         &mut self,
         index: usize,
         reference: CellReference,
         value: CellValue<'_>,
     ) -> Result<(), XlsxError> {
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         markup.set_cell_value(reference, value)?;
         self.write_worksheet_markup(index, &markup)
     }
@@ -175,10 +209,10 @@ impl Workbook {
         let Some(part) = self.parts().shared_strings.clone() else {
             return Ok(None);
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         Ok(SharedStringTable::read_part(&document)?)
     }
 }

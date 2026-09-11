@@ -120,7 +120,7 @@ impl RunPath {
         Self(ooxml::RunPath::from(index))
     }
 
-    /// The run at this address: `[0]` top-level, `[2, 0]` inside a run container.
+    /// The run at this address: `[0]` top-level, `[2, 0]` inside a run container (e.g. a hyperlink).
     #[wasm_bindgen(js_name = "of")]
     pub fn of(indices: Vec<u32>) -> Result<RunPath, JsValue> {
         if indices.is_empty() {
@@ -181,7 +181,8 @@ impl SectionLocation {
         )?)))
     }
 
-    /// `"body"` or `"paragraph"`.
+    /// A readable form of this location — `SectionLocation.body()`, or
+    /// `SectionLocation.paragraph(...)` naming the path.
     #[wasm_bindgen(js_name = "toString")]
     pub fn to_display_string(&self) -> String {
         match &self.0 {
@@ -337,6 +338,10 @@ impl Document {
     }
 
     /// Opens a document from the bytes of a `.docx`, `.docm`, `.dotx` or `.dotm`.
+    ///
+    /// Throws an `OoxmlError` whose `code` is `"Io"` for bytes that are not a readable container,
+    /// `"MalformedDocument"` for a package whose markup is not WordprocessingML, and
+    /// `"UnsupportedFormat"` — naming the format — for a PowerPoint or Excel document.
     #[wasm_bindgen(js_name = "open")]
     pub fn open(data: &[u8]) -> Result<Document, JsValue> {
         map_error(ooxml::Document::open(data)).map(|inner| Self { inner })
@@ -396,7 +401,7 @@ impl Document {
         map_error(self.inner.run_count(block_path_of(paragraph)?))
     }
 
-    /// The whole text of a paragraph.
+    /// The whole text of a paragraph, every run concatenated in document order.
     #[wasm_bindgen(js_name = "paragraphText")]
     pub fn paragraph_text(&mut self, paragraph: &BlockPathArg) -> Result<String, JsValue> {
         map_error(self.inner.paragraph_text(block_path_of(paragraph)?))
@@ -1182,11 +1187,21 @@ impl Document {
             .map(|values| values.into_iter().map(DocumentChartWorkbook).collect())
     }
 
-    /// Rewrites the embedded workbook of the chart `drawingId` frames. Answers whether it rewrote
-    /// one.
+    /// Writes the chart's data into the workbook the chart `drawingId` frames already embeds — the
+    /// cells its own `c:f` formulas name, and nothing else — and answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. `regenerateChartWorkbook`
+    /// is the one that replaces the workbook wholesale.
     #[wasm_bindgen(js_name = "refreshChartWorkbook")]
     pub fn refresh_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, JsValue> {
         map_error(self.inner.refresh_chart_workbook(drawing_id))
+    }
+
+    /// Replaces the embedded workbook of the chart `drawingId` frames with a freshly built one,
+    /// discarding whatever it held. Answers whether it replaced one.
+    #[wasm_bindgen(js_name = "regenerateChartWorkbook")]
+    pub fn regenerate_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, JsValue> {
+        map_error(self.inner.regenerate_chart_workbook(drawing_id))
     }
 
     /// Detaches the backing workbook, leaving the chart to render from its cached values.

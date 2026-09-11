@@ -186,16 +186,47 @@ fn resolving_a_cell_dirties_nothing() {
 // From-scratch, for out-of-range and no-style behaviour
 // ---------------------------------------------------------------------------------------------
 
+/// A table from `add_table` is **not** unstyled, and that is MJXOFF-232.
+///
+/// It is born with `firstRow` and `bandRow` on, and until MJXOFF-232 it named no style for them to
+/// emphasise — so this case read `None` from the header row and called the table unstyled. It now
+/// points at the default style `add_table` authors, whose header row is the deck's own `accent1`,
+/// and the assertion is the interesting one either way: **the emphasis flags resolve to a colour
+/// that came out of the theme.** `4472C4` is `sample.pptx`'s `accent1`, not a literal anything in
+/// this library writes — open the same deck in a template branded green and this reads green.
+///
+/// The second half is unchanged and is what the case was originally for: a cell's *own* fill beats
+/// the style's.
 #[test]
-fn a_cell_of_an_unstyled_table_resolves_only_its_own_properties() {
+fn a_table_from_add_table_resolves_its_style_and_a_cell_still_beats_it() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let table = pres
         .add_table(0, 2, 2, ShapeBounds::from_inches(1.0, 1.0, 4.0, 2.0))
         .expect("add table");
-    // No style assigned: an unfilled cell resolves nothing.
+    let theme_accent = pres
+        .theme(mjx_pptx::Surface::Master(0))
+        .expect("reading the theme")
+        .expect("a theme")
+        .color(mjx_dml::ColorSchemeSlot::Accent1)
+        .cloned();
     assert_eq!(
-        pres.effective_cell_fill(0, table, 0, 0).expect("fill"),
-        None
+        solid_hex(pres.effective_cell_fill(0, table, 0, 0).expect("fill")).as_deref(),
+        Some("4472C4"),
+        "the header row resolves through the style `add_table` authored"
+    );
+    assert!(
+        matches!(theme_accent, Some(mjx_dml::ColorSpec::Srgb(ref hex)) if hex == "4472C4"),
+        "and that colour is the deck's own accent1, not one this library chose: {theme_accent:?}"
+    );
+
+    // And the banded row resolves the *derived* colour: `accent1` with its luminance modulated to
+    // 20% and offset by 80% — Office's own "Lighter 80%". Nothing in this library writes `DAE3F3`;
+    // it is what the resolver computes from the deck's accent, which is the strongest statement
+    // available here that the banding follows the theme rather than a literal.
+    assert_eq!(
+        solid_hex(pres.effective_cell_fill(0, table, 1, 0).expect("fill")).as_deref(),
+        Some("DAE3F3"),
+        "the banded row resolves accent1 lightened, not a colour of ours"
     );
 
     // Its own fill still resolves.

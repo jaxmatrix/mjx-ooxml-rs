@@ -462,8 +462,8 @@ fn part_tree<'a>(package: &'a Package, part: &PartName) -> Option<PartTree<'a>> 
             .ok()
             .map(|tree| PartTree::Parsed(Box::new(tree)));
     }
-    let bytes = package.part_bytes(part)?;
-    fidelity::parse(bytes)
+    let bytes = package.part_payload(part)?;
+    fidelity::parse(&bytes)
         .ok()
         .map(|tree| PartTree::Parsed(Box::new(tree)))
 }

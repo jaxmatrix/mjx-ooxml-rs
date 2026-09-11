@@ -8,7 +8,7 @@
 use crate::index::{count, index};
 use crate::{
     Deck, Emu, Error, ShapeBounds, ShapePath, Surface, TablePart, TableStyleDefinition,
-    TableStyleFormat, TableStylePart,
+    TableStyleFlags, TableStyleFormat, TableStylePart,
 };
 
 impl Deck {
@@ -319,6 +319,25 @@ impl Deck {
             .set_table_part(surface.to_model(), shape_idx.to_model(), part, on)?)
     }
 
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts of
+    /// its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers one flag;
+    /// this answers all six at once, which is the shape `applicable_parts` takes.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::table_style_flags`](mjx_pptx::Presentation::table_style_flags).
+    pub fn table_style_flags(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+    ) -> Result<TableStyleFlags, Error> {
+        Ok(self
+            .presentation
+            .table_style_flags(surface.to_model(), shape_idx.to_model())?)
+    }
+
     /// The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or
     /// `None` if it names none. Reading does not dirty the part.
     ///
@@ -392,9 +411,14 @@ impl Deck {
     }
 
     /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`), replacing
-    /// any inline or referenced style it had — the lean alternative to a shared `tableStyles.xml`
-    /// style: the whole look is spelled out in `definition` and travels with the table, so no shared
-    /// part, relationship or referenced GUID is involved. Marks only that part dirty.
+    /// any inline or referenced style it had: the whole look is spelled out in `definition` and
+    /// travels with the table. Marks only that part dirty.
+    ///
+    /// **This call** adds no shared `tableStyles.xml`, no relationship and no referenced GUID, and a
+    /// shared part the deck already has comes out of a save byte for byte as it went in. Whether the
+    /// package holds one at all depends on where the table came from: a table from
+    /// [`add_table`](Self::add_table) arrives with a `tableStyles.xml` beside it, and this call does
+    /// not delete it (MJXOFF-248).
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose

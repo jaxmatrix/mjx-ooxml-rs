@@ -12,7 +12,7 @@ use crate::codegen::naming::NameEngine;
 ///
 /// `wml.xsd` and `shared-math.xsd` have their own engines below, because they redeclare symbols
 /// these three already use — see the note there.
-pub const ENGINE: NameEngine = NameEngine {
+pub(crate) const ENGINE: NameEngine = NameEngine {
     type_overrides: TYPE_OVERRIDES,
     variant_overrides: VARIANT_OVERRIDES,
     abbreviations: ABBREVIATIONS,
@@ -152,10 +152,10 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "GregorianTransliteratedFrench",
     ),
     ("ST_AlgType", "typeAny", "Any"),
-    // `ST_PathFillMode` (`a:path@fill`): `norm` is the default "normal" fill. The rest
+    // `ST_PathFillMode` (`a:path@fill`, §20.1.10.37): `norm` is the default "normal" fill. The rest
     // (`none`, `lighten`, `lightenLess`, `darken`, `darkenLess`) auto-expand cleanly.
     ("ST_PathFillMode", "norm", "Normal"),
-    // `ST_ShapeType` (`a:prstGeom@prst`): expand the cryptic/abbreviated tokens. Well-formed tokens
+    // `ST_ShapeType` (`a:prstGeom@prst`, §20.1.10.56): expand the cryptic/abbreviated tokens. Well-formed tokens
     // (`flowChartProcess`, `actionButtonHome`, `hexagon`, `mathPlus`, …) auto-expand and need no row.
     // The exact wire token is preserved on each generated variant's doc comment.
     ("ST_ShapeType", "line", "StraightLine"),
@@ -208,7 +208,14 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "wedgeRoundRectCallout",
         "WedgeRoundedRectangleCallout",
     ),
-    // `ST_SchemeColorVal` (`a:schemeClr@val`): expand the cryptic theme-slot tokens. `accent1`..`accent6`
+    // `ST_SchemeColorVal` (`a:schemeClr@val`, §20.1.10.54): expand the cryptic theme-slot tokens.
+    // **`phClr` diverges from the section and is the one row here that does.** §20.1.10.54 titles it
+    // "Style Color" — "a color used in theme definitions which means to use the color of the
+    // style" — while `PlaceholderColor` reads the `ph` as *placeholder*, which is a guess the
+    // section does not support. Renaming a generated variant is an API break, so this is recorded
+    // rather than taken (MJXOFF-224); see
+    // `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md`.
+    // `accent1`..`accent6`
     // auto-expand and need no row.
     ("ST_SchemeColorVal", "bg1", "Background1"),
     ("ST_SchemeColorVal", "tx1", "Text1"),
@@ -221,7 +228,7 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_SchemeColorVal", "lt1", "Light1"),
     ("ST_SchemeColorVal", "dk2", "Dark2"),
     ("ST_SchemeColorVal", "lt2", "Light2"),
-    // `ST_PresetPatternVal` (`a:pattFill@prst`): expand the cryptic pattern tokens to the ECMA-376
+    // `ST_PresetPatternVal` (`a:pattFill@prst`, §20.1.10.51): expand the cryptic pattern tokens to the ECMA-376
     // prose names. `cross`/`plaid`/`sphere`/`weave`/`divot`/`shingle`/`wave`/`trellis` auto-expand
     // and need no row. Abbreviations: `pct`→Percent, `lt`→Light, `dk`→Dark, `nar`→Narrow,
     // `dash`→Dashed, `dn`→Downward, `up`→Upward, `wd`→Wide, `horz`→Horizontal, `vert`→Vertical,
@@ -276,7 +283,7 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_PresetPatternVal", "openDmnd", "OpenDiamond"),
     ("ST_PresetPatternVal", "dotDmnd", "DottedDiamond"),
     ("ST_PresetPatternVal", "zigZag", "ZigZag"),
-    // `ST_ColorSchemeIndex` (`a:clrScheme` slot names / `p:clrMap` targets): expand the cryptic
+    // `ST_ColorSchemeIndex` (`a:clrScheme` slot names / `p:clrMap` targets, §20.1.10.14): expand the cryptic
     // dark/light and hyperlink tokens. `accent1`..`accent6` auto-expand and need no row.
     ("ST_ColorSchemeIndex", "dk1", "Dark1"),
     ("ST_ColorSchemeIndex", "lt1", "Light1"),
@@ -293,11 +300,11 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_CompoundLine", "sng", "Single"),
     ("ST_CompoundLine", "dbl", "Double"),
     ("ST_CompoundLine", "tri", "Triple"),
-    // `ST_PenAlignment` (`a:ln@algn`): expand the pen-alignment tokens (§20.1.10.40). `in` is also a
+    // `ST_PenAlignment` (`a:ln@algn`): expand the pen-alignment tokens (§20.1.10.39). `in` is also a
     // Rust keyword, so it must not fall through to the mechanical `In`.
     ("ST_PenAlignment", "ctr", "Center"),
     ("ST_PenAlignment", "in", "Inset"),
-    // `ST_PresetLineDashVal` (`a:prstDash@val`): expand the abbreviated dash tokens (§20.1.10.48).
+    // `ST_PresetLineDashVal` (`a:prstDash@val`): expand the abbreviated dash tokens (§20.1.10.49).
     // `lg`→Large, `sys`→System; `solid`/`dot`/`dash`/`dashDot` auto-expand.
     ("ST_PresetLineDashVal", "lgDash", "LargeDash"),
     ("ST_PresetLineDashVal", "lgDashDot", "LargeDashDot"),
@@ -315,8 +322,13 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_LineEndLength", "sm", "Small"),
     ("ST_LineEndLength", "med", "Medium"),
     ("ST_LineEndLength", "lg", "Large"),
-    // `ST_PresetShadowVal` (`a:prstShdw@prst`, §20.1.10.50): 20 numbered preset shadows with no
-    // semantic name — `ShadowN` is the clearest faithful form (the mechanical split gives `Shdw1`).
+    // `ST_PresetShadowVal` (`a:prstShdw@prst`, §20.1.10.52): the 20 preset shadows. `ShadowN` keeps
+    // the token's own numbering (the mechanical split gives `Shdw1`), and it is faithful and
+    // unambiguous — but it is **not** self-explanatory, and the section does name every one of them
+    // (`shdw1` is "Top Left Drop Shadow", `shdw3` "Back Left Perspective Shadow", `shdw11` "Back
+    // Left Long Perspective Shadow"). Renaming twenty generated variants is an API break, so this
+    // is recorded rather than taken: `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md` carries
+    // it, and MJXOFF-224's audit register is where it is owned.
     ("ST_PresetShadowVal", "shdw1", "Shadow1"),
     ("ST_PresetShadowVal", "shdw2", "Shadow2"),
     ("ST_PresetShadowVal", "shdw3", "Shadow3"),
@@ -476,7 +488,7 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "wordArtVertRtl",
         "VerticalWordArtRightToLeft",
     ),
-    // `ST_TextHorzOverflowType` (`a:tcPr@horzOverflow`): §20.1.10.62.
+    // `ST_TextHorzOverflowType` (`a:tcPr@horzOverflow`): §20.1.10.69.
     ("ST_TextHorzOverflowType", "overflow", "Overflow"),
     ("ST_TextHorzOverflowType", "clip", "Clip"),
     ("ST_TextTabAlignType", "r", "Right"),
@@ -693,7 +705,7 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     // `ST_OnOffStyleType` (§20.1.10.36): `on`/`off` auto-expand; `def` means "follow parent / theme
     // settings", which the ECMA prose titles "Default".
     ("ST_OnOffStyleType", "def", "Default"),
-    // `ST_LightRigDirection` (`a:lightRig@dir`, §20.1.10.31): the compass-abbreviation tokens, as
+    // `ST_LightRigDirection` (`a:lightRig@dir`, §20.1.10.29): the compass-abbreviation tokens, as
     // `ST_RectAlignment` above (there is no `ctr` here — a light has a direction, not a centre).
     ("ST_LightRigDirection", "tl", "TopLeft"),
     ("ST_LightRigDirection", "t", "Top"),
@@ -703,7 +715,7 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_LightRigDirection", "bl", "BottomLeft"),
     ("ST_LightRigDirection", "b", "Bottom"),
     ("ST_LightRigDirection", "br", "BottomRight"),
-    // `ST_LightRigType` (`a:lightRig@rig`, §20.1.10.32): the `nPt` tokens abbreviate "point". Every
+    // `ST_LightRigType` (`a:lightRig@rig`, §20.1.10.30): the `nPt` tokens abbreviate "point". Every
     // other token (`legacyFlat1`, `brightRoom`, `sunset`, …) auto-expands cleanly.
     ("ST_LightRigType", "threePt", "ThreePoint"),
     ("ST_LightRigType", "twoPt", "TwoPoint"),
@@ -730,14 +742,14 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the WordprocessingML slice — `wml.xsd`, all 110 simple types.
-pub const WORDPROCESSINGML_ENGINE: NameEngine = NameEngine {
+pub(crate) const WORDPROCESSINGML_ENGINE: NameEngine = NameEngine {
     type_overrides: WORDPROCESSINGML_TYPE_OVERRIDES,
     variant_overrides: WORDPROCESSINGML_VARIANT_OVERRIDES,
     abbreviations: WORDPROCESSINGML_ABBREVIATIONS,
 };
 
 /// The naming engine for the Office Math slice — `shared-math.xsd`, all 14 simple types.
-pub const OFFICEMATH_ENGINE: NameEngine = NameEngine {
+pub(crate) const OFFICEMATH_ENGINE: NameEngine = NameEngine {
     type_overrides: OFFICEMATH_TYPE_OVERRIDES,
     variant_overrides: OFFICEMATH_VARIANT_OVERRIDES,
     abbreviations: &[],
@@ -852,7 +864,8 @@ const WORDPROCESSINGML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_TextEffect", "blinkBackground", "BlinkingBackground"),
     ("ST_TextEffect", "lights", "ColoredLights"),
     ("ST_TextEffect", "sparkle", "SparklingLights"),
-    // the two 3-D borders: the mechanical split lower-cases the `D`. Every other token of the 193,
+    // `ST_Border` (§17.18.2), the two 3-D borders: the mechanical split lower-cases the `D`. Every
+    // other token of the 193,
     // the art borders included, is already self-describing English.
     ("ST_Border", "threeDEmboss", "ThreeDEmboss"),
     ("ST_Border", "threeDEngrave", "ThreeDEngrave"),
@@ -1198,7 +1211,7 @@ const OFFICEMATH_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the SpreadsheetML slice — `sml.xsd`, all 96 simple types.
-pub const SPREADSHEETML_ENGINE: NameEngine = NameEngine {
+pub(crate) const SPREADSHEETML_ENGINE: NameEngine = NameEngine {
     type_overrides: SPREADSHEETML_TYPE_OVERRIDES,
     variant_overrides: SPREADSHEETML_VARIANT_OVERRIDES,
     abbreviations: SPREADSHEETML_ABBREVIATIONS,
@@ -1531,7 +1544,7 @@ const SPREADSHEETML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the DrawingML Diagram slice — `dml-diagram.xsd`, all 66 simple types.
-pub const DIAGRAM_ENGINE: NameEngine = NameEngine {
+pub(crate) const DIAGRAM_ENGINE: NameEngine = NameEngine {
     type_overrides: DIAGRAM_TYPE_OVERRIDES,
     variant_overrides: DIAGRAM_VARIANT_OVERRIDES,
     abbreviations: DIAGRAM_ABBREVIATIONS,
@@ -1874,18 +1887,21 @@ const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_ConnectorRouting", "stra", "Straight"),
 ];
 
-/// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
+/// Two-valued types → the `mjx_ooxml_types::support` normalizer module that handles all wire
+/// spellings.
 /// Modeled as Rust `bool`.
-pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
+pub(crate) const BOOL_TYPES: &[(&str, &str)] =
+    &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
 
 /// Three-valued (true / false / blank) types → normalizer module. Modeled as `Option<bool>`.
-pub const OPTIONAL_BOOL_TYPES: &[(&str, &str)] = &[("ST_TrueFalseBlank", "true_false_blank")];
+pub(crate) const OPTIONAL_BOOL_TYPES: &[(&str, &str)] =
+    &[("ST_TrueFalseBlank", "true_false_blank")];
 
 /// Types intentionally not emitted (subsumed by another representation).
-pub const SKIP_TYPES: &[&str] = &["ST_OnOff1"]; // the `on`/`off` half of the ST_OnOff union.
+pub(crate) const SKIP_TYPES: &[&str] = &["ST_OnOff1"]; // the `on`/`off` half of the ST_OnOff union.
 
 /// Maps an XSD numeric base to its Rust primitive, or `None` if not a plain numeric restriction.
-pub fn primitive_for(base: &str) -> Option<&'static str> {
+pub(crate) fn primitive_for(base: &str) -> Option<&'static str> {
     Some(match base {
         "xsd:unsignedLong" => "u64",
         "xsd:unsignedInt" => "u32",
@@ -1907,7 +1923,7 @@ pub fn primitive_for(base: &str) -> Option<&'static str> {
 }
 
 /// Looks up the boolean normalizer module for a type, and whether it is optional (three-valued).
-pub fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
+pub(crate) fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
     if let Some((_, f)) = BOOL_TYPES.iter().find(|(n, _)| *n == st_name) {
         return Some((f, false));
     }
@@ -1927,7 +1943,7 @@ pub fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
 /// Axis, not because an abbreviation table guessed it.
 ///
 /// Grow this list when a new model starts placing children; the table behind it is already there.
-pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
+pub(crate) const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
     // ---- DrawingML -------------------------------------------------------------------------
     (
         "CUSTOM_GEOMETRY_2D",
@@ -3208,7 +3224,7 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
 ///
 /// `emitted` is every simple type an engine's modules actually rendered; both tables are checked
 /// against it. Returns the offending rows as human-readable strings, empty when all are live.
-pub fn unused_overrides(
+pub(crate) fn unused_overrides(
     engine: &NameEngine,
     emitted: &[crate::codegen::xsd::SimpleType],
 ) -> Vec<String> {

@@ -2,6 +2,10 @@
 //! `http://schemas.openxmlformats.org/officeDocument/2006/math`): the equation markup Word embeds as
 //! `m:oMath`/`m:oMathPara`.
 //!
+//! **Start at [`guide`]** — this crate's page of the rank 2.2 guide set, whose index is
+//! `mjx_chart::guide`. It is hosted here because the three crates of that rank are siblings and
+//! none may name another.
+//!
 //! # What this crate models
 //!
 //! All 72 `shared-math.xsd` complex types. Structure: [`Math`] (`m:oMath`, `CT_OMath`),
@@ -86,6 +90,8 @@ mod math;
 mod objects;
 mod properties;
 mod support;
+
+pub mod guide;
 
 pub use arg::{Argument, ArgumentProperties};
 pub use leaf::{ControlProperties, RunProperties, Text};

@@ -1,6 +1,10 @@
 //! `mjx-xlsx` — the SpreadsheetML **package**: the container, the part graph, and the [`Workbook`] a
 //! caller holds.
 //!
+//! **Start at [`guide`]** — the Excel guide set, one page per feature area, including the two a
+//! caller wants before meeting a surprise: what a big sheet costs, and what this library
+//! deliberately refuses to do to a workbook.
+//!
 //! The entry point is [`Workbook`]: open a `.xlsx`'s container bytes with [`Workbook::open`], read
 //! its tabs with [`Workbook::sheets`] and its part graph with [`Workbook::parts`], and save with
 //! [`Workbook::save`]. A worksheet's cells are read with [`Workbook::worksheet_markup`] and one is

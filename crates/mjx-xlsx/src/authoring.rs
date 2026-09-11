@@ -145,16 +145,15 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if the
-    /// tab reaches no worksheet part, or [`XlsxError::Sml`] if the store refuses the edit.
+    /// tab reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet, or [`XlsxError::Sml`] if the store refuses the edit.
     pub fn set_cell_style(
         &mut self,
         index: usize,
         reference: CellReference,
         style: Option<u32>,
     ) -> Result<(), XlsxError> {
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         markup
             .sheet_data_or_insert()
             .set_cell_style(reference, style)?;
@@ -184,10 +183,10 @@ impl Workbook {
                 "xl/sharedStrings.xml".to_owned(),
             ));
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(mut table) = SharedStringTable::read_part(&document)? else {
             return Err(XlsxError::MalformedWorkbook(
                 "the shared-string part's root element is not x:sst",
@@ -302,10 +301,10 @@ impl Workbook {
         let Some(part) = self.parts().styles.clone() else {
             return Err(XlsxError::MissingWorkbookPart("xl/styles.xml".to_owned()));
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let mut document = mjx_xml::fidelity::parse(bytes)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(mut model) = StylesheetPart::read_root(&document.root, &document.interner)? else {
             return Err(XlsxError::MalformedWorkbook(
                 "the styles part's root element is not x:styleSheet",
@@ -343,7 +342,7 @@ impl Workbook {
     }
 
     /// The next free relationship id on `xl/workbook.xml`, one past the current maximum.
-    fn next_workbook_relationship_id(&self) -> String {
+    pub(crate) fn next_workbook_relationship_id(&self) -> String {
         let mut highest = 0u32;
         if let Some(relationships) = self.package().relationships_for(Some(self.workbook_part())) {
             for relationship in relationships.iter() {

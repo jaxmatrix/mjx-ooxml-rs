@@ -27,6 +27,47 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # The documentation gate (MJXOFF-199): every file path and crate-qualified symbol the prose
+      # names still resolves, and `docs/api/README.md` names every committed page and only those.
+      #
+      # It needs nothing this job does not already have — no `References/`, no LibreOffice, no
+      # Python — but it *does* need a real git checkout, because it derives its corpus from Git
+      # rather than from a hand-maintained list. `actions/checkout@v4` gives it one. Since
+      # MJXOFF-290 that corpus is the working tree (tracked plus untracked-and-not-ignored) and no
+      # longer the index, which changes nothing here — a fresh checkout has no untracked files —
+      # and changes everything on the branch, where the file a commit is about to add is the one
+      # file the gate most needs to see.
+      #
+      # The `test` step below already runs it as part of `--workspace`, and so does the
+      # `all-features` job: verified with `cargo test --workspace --no-run`, which lists
+      # `Executable tests/doc_gate.rs` in both modes. This step is named anyway, for two reasons.
+      # A prose error then reports as "doc-gate" in seconds rather than as one line inside a
+      # 3,000-test run — and, more to the point, MJXOFF-130 found `xtask/tests/` reachable by only
+      # one job and auditor pass 4 found `mjx-dml`'s preset-geometry sweep reachable by none
+      # (MJXOFF-197). A gate whose job is only implied is the gate that turns out not to run.
+      - name: doc-gate (paths, symbols and the index)
+        run: cargo test -p xtask --test doc_gate -- --nocapture
+      # The codegen drift check (MJXOFF-224). Named for the reason the doc-gate step above is:
+      # a gate whose job is only implied is the gate that turns out not to run.
+      #
+      # **This job can only run the schema-free half of it.** The full check regenerates
+      # `mjx-ooxml-types` and compares it with what is committed, which needs ECMA-376 **Part 1**
+      # (the Strict schema set, and `presetShapeDefinitions.xml`). So `MJX_REQUIRE_CODEGEN` is
+      # deliberately NOT set — setting it would redden this job rather than run the test — and the
+      # drift test skips here while the five beside it, which re-derive the committed output from
+      # the generator's own tables and need no schema at all, run. `--nocapture` so the skip notice
+      # is visible rather than implied.
+      #
+      # ⚠ **The reason changed with the client-platform merge and the old one is worth recording.**
+      # This said Part 1 was not downloaded at all — `fetch-ecma-schemas.sh`'s ARCHIVES held Part 4
+      # and Part 2 only — and predicted that growing ARCHIVES was MJXOFF-197's and that "this step
+      # is where the switch goes". MJXOFF-197 did grow it: Part 1 now comes down with the Strict
+      # schemas, `presetShapeDefinitions.xml` and `presetCellStyles.xml` in one 42 MB download.
+      # The switch still does not go here, because **this job has no `References/` at all** — the
+      # fetch runs in the schema job below, and the escape belongs wherever the full check is
+      # eventually run from, not here.
+      - name: codegen drift (schema-free tier; the full check needs References/)
+        run: cargo test -p xtask --test codegen_drift -- --nocapture
       # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
       # broken crate is invisible until the first is fixed — one round trip per defect.
       #
@@ -200,21 +241,35 @@ jobs:
       # The same harness pointed at the other two formats. `mjx-docx` and `mjx-xlsx` carry no model
       # code yet; these are the gates Phases C and D inherit, and they are what makes "the schema
       # gate covers Word" a fact instead of a sentence.
+      # `-p mjx-sml` is here for `tests/theme_index.rs`, which is not a schema gate but follows the
+      # same skip-without-References convention and is therefore only *required* where the tree
+      # exists. It derives SpreadsheetML's `@theme` position table from ECMA's own preset styles
+      # (MJXOFF-246); with no References/ it prints a notice and passes, which is why it has to run
+      # in this job rather than in `lint-test` to mean anything.
       - name: schema-validity suite (Word and Excel)
-        run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
+        run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate -p mjx-sml
 
-      # The validation harness and the Office-authored corpus. Both reach the gate, and both had
-      # their schema halves **skipping in every CI run** before this step existed: they live in
-      # `xtask/tests/`, which only `lint-test` ran, and `lint-test` has no `References/`. So
+      # The validation harness, the Office-authored corpus and the MCE/CT_Extension seam. All three
+      # reach the gate, and the first two had their schema halves **skipping in every CI run**
+      # before this step existed: they live in `xtask/tests/`, which only `lint-test` ran, and
+      # `lint-test` has no `References/`. So
       # `every_generated_artefact_is_schema_valid_and_in_child_order` validated nothing on CI, and
       # the MCE/CT_Extension reproduction (MJXOFF-196) returned early. That is precisely the
       # "green because it was skipped" shape this file's other jobs are written against.
       #
+      # `mce_extension_seam` replaced that reproduction when MJXOFF-196 was fixed, and it is named
+      # here for the same reason: without `References/` its two package cases assert child order
+      # alone and prove nothing about the schema.
+      #
       # MJX_REQUIRE_OFFICE_CORPUS is deliberately NOT set: the corpus is empty and no agent may fill
       # it. Set it here once `tests/office-authored/` has files, and an empty corpus becomes a
       # failure rather than a reported count.
-      - name: schema-validity suite (the validation harness and the Office corpus)
-        run: cargo test -p xtask --test validation_harness --test office_corpus
+      #
+      # `published_markup` (MJXOFF-250) is named here for exactly the reason this comment already
+      # gives: it derives from ECMA's published markup and skips without `References/`, so run under
+      # `lint-test` it would report green having compared nothing at all.
+      - name: schema-validity suite (the validation harness, the Office corpus and the MCE seam)
+        run: cargo test -p xtask --test validation_harness --test office_corpus --test mce_extension_seam --test published_markup
 
       # MJXOFF-197. The sweep over the *entire* normative preset-shape corpus — every guide of every
       # shape block of `presetShapeDefinitions.xml`, evaluated at a deliberately lopsided box — and

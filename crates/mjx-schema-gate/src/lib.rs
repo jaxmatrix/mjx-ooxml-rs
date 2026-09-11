@@ -1,5 +1,9 @@
 //! The ECMA-376 schema and child-order gate every format crate is held to.
 //!
+//! **This crate has no guide of its own**: it is test-only and sits outside the ranked graph.
+//! The guarantees it enforces are described from a caller's side in each format's *fidelity and
+//! gaps* page, and every prose page in this repository is listed from `docs/api/README.md`.
+//!
 //! **Test-only.** Nothing shipped depends on this crate. It is a `dev-dependency` of `mjx-pptx`,
 //! `mjx-docx` and `mjx-xlsx`, and a dependency of `xtask` — the host-only developer binary nothing
 //! depends on and nothing publishes, whose `validation-artefacts --ingest` reports the same schema
@@ -37,13 +41,15 @@ pub mod categories;
 pub mod harness;
 pub mod inspect;
 pub mod order;
+pub mod references;
 pub mod sweep;
 pub mod tolerances;
+pub mod wildcard_slots;
 
 pub use categories::{
-    categorise, child_order_tables_cover, ecma_376_namespaces, schema_for_namespace,
-    ForeignMarkupKey, ModeledSchema, NamespaceCategory, OrderingCoverage, PreservedForeignMarkup,
-    SchemaRef, SchemaSet, MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP,
+    categorise, child_order_tables_cover, ecma_376_namespaces, schema_for_namespace, ModeledSchema,
+    NamespaceCategory, OrderingCoverage, PreservedForeignMarkup, SchemaRef, SchemaSet, WrapperRoot,
+    MODELED_SCHEMAS, PRESERVED_FOREIGN_MARKUP, WRAPPER_ROOTS,
 };
 pub use harness::{harness, Harness, WorkDir, XML_NAMESPACE_SCHEMA};
 pub use inspect::{
@@ -60,8 +66,15 @@ pub use order::{
     assert_deck_is_in_schema_order, audit_deck_order, audit_order_report,
     parts_that_must_be_audited, AuditedPart, OrderAudit, MINIMUM_ELEMENTS_VISITED,
 };
+pub use references::{
+    assert_authored_package_resolves_every_reference, audit_package_references, DanglingReference,
+    ReferenceAudit,
+};
 pub use sweep::{assert_authored_parts_are_categorised, Sweep};
 pub use tolerances::{tolerances_for, ToleratedDeviation, TOLERATED_DEVIATIONS};
+pub use wildcard_slots::{
+    derive_wildcard_slots, is_wildcard_slot, DerivedWildcardSlot, WildcardSlot, WILDCARD_SLOTS,
+};
 
 /// Validates a committed fixture, allowing only the deviations [`TOLERATED_DEVIATIONS`] records for
 /// it, and returns its per-part rows so a caller can assert on them.

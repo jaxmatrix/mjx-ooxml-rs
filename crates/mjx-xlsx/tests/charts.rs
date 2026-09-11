@@ -27,6 +27,7 @@
 
 use mjx_chart::{ChartData, ChartKind, LegendPosition};
 use mjx_dml::spreadsheet_drawing::CellMarker;
+use mjx_ooxml_core::FromXml;
 use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 use mjx_opc::{Package, PartName};
 use mjx_sml::{CellReference, CellValue};
@@ -330,6 +331,85 @@ fn a_live_range_chart_declines_to_refresh_a_workbook_it_never_had() {
         workbook.detach_chart_workbook(0, 0),
         Err(XlsxError::ChartHasNoExternalData)
     ));
+}
+
+/// A data edit patches the chart's embedded workbook and leaves the rest of it alone (MJXOFF-208).
+///
+/// Excel's own surface reaches the same `mjx-chart` patcher `mjx-pptx` and `mjx-docx` do, so this is
+/// the third host proving the same property. Before MJXOFF-208 the whole embedded package was
+/// rebuilt by a call that only said *set series 0 to these numbers*.
+#[test]
+fn a_data_edit_patches_the_charts_embedded_workbook_and_keeps_the_rest_of_it() {
+    let mut workbook = Workbook::open(&producer_workbook()).expect("opens");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2"])
+        .series("Plan", [1.0, 2.0]);
+    let anchor = workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(0, 0, 10, 0),
+            CellMarker::new(5, 0, 25, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let embedded = PartName::new("/xl/embeddings/Microsoft_Excel_Sheet1.xlsx").expect("a name");
+    let before = Package::open(&workbook.save().expect("saves"))
+        .expect("reopens")
+        .part_bytes(&embedded)
+        .expect("the workbook part is there")
+        .to_vec();
+
+    workbook
+        .set_chart_series_values(0, anchor, 0, &[7.5, 8.5])
+        .expect("the values are rewritten");
+    let saved = workbook.save().expect("saves");
+    let after = Package::open(&saved)
+        .expect("reopens")
+        .part_bytes(&embedded)
+        .expect("the workbook part survives")
+        .to_vec();
+
+    let inner_before = Package::open(&before).expect("the embedded workbook opens");
+    let inner_after = Package::open(&after).expect("the patched workbook opens");
+    let names: Vec<String> = inner_before
+        .part_names()
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    assert_eq!(
+        names,
+        inner_after
+            .part_names()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        "a data edit must add and remove no part of the embedded workbook"
+    );
+    for name in &names {
+        if name == "/xl/worksheets/sheet1.xml" {
+            continue;
+        }
+        let part = PartName::new(name).expect("a part name");
+        assert_eq!(
+            inner_before.part_bytes(&part),
+            inner_after.part_bytes(&part),
+            "a data edit must leave {name} of the embedded workbook byte-identical"
+        );
+    }
+
+    let sheet = String::from_utf8_lossy(
+        inner_after
+            .part_bytes(&PartName::new("/xl/worksheets/sheet1.xml").expect("a name"))
+            .expect("the worksheet"),
+    )
+    .into_owned();
+    for value in ["7.5", "8.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the patched sheet holds {value}: {sheet}"
+        );
+    }
 }
 
 #[test]
@@ -1082,4 +1162,180 @@ fn a_series_whose_values_are_a_literal_says_it_cannot_be_compared_rather_than_th
         workbook.chart_series(0, anchor).expect("series")[0].values,
         [1.0, 2.0]
     );
+}
+
+// =================================================================================================
+// MJXOFF-200 — the theme a chart's scheme colours resolve against
+// =================================================================================================
+
+/// Every part of `bytes` registered as a theme.
+fn theme_parts(bytes: &[u8]) -> Vec<String> {
+    let package = Package::open(bytes).expect("the package opens");
+    let mut names: Vec<String> = package
+        .part_names()
+        .filter(|name| {
+            package.content_type_of(name)
+                == Some("application/vnd.openxmlformats-officedocument.theme+xml")
+        })
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// The decompressed bytes of one part.
+fn part_bytes_of(bytes: &[u8], part: &str) -> Vec<u8> {
+    let package = Package::open(bytes).expect("the package opens");
+    let name = PartName::new(part).expect("a part name");
+    package
+        .part_bytes(&name)
+        .unwrap_or_else(|| panic!("no part {part}"))
+        .to_vec()
+}
+
+/// A two-series bar chart, so more than one accent slot is actually indexed into.
+fn two_series_chart() -> ChartData {
+    ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2"])
+        .series("Plan", [1.0, 2.0])
+        .series("Actual", [3.0, 4.0])
+}
+
+/// **A chart added to a workbook with no theme gains one, and its accent slots resolve.**
+///
+/// `formulas.xlsx` carries no `xl/theme/theme1.xml`, which is the state a chart added to it would
+/// otherwise paint nothing in: the series carries no `c:spPr`, so its fill *is* whatever `accent1`
+/// resolves to. Asserting only that a theme part appeared would pass the day someone wrote an empty
+/// one, so the theme is read back through `mjx-dml` and the six accent slots are asserted.
+#[test]
+fn a_chart_added_to_a_workbook_with_no_theme_gains_one_its_colours_resolve_against() {
+    let original = mjx_fixtures::fixture("formulas.xlsx");
+    assert!(
+        theme_parts(&original).is_empty(),
+        "the premise: this fixture carries no theme"
+    );
+
+    let mut workbook = Workbook::open(&original).expect("the fixture opens");
+    workbook
+        .add_chart(
+            0,
+            &two_series_chart(),
+            CellMarker::new(0, 0, 10, 0),
+            CellMarker::new(5, 0, 25, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("the chart is added");
+    let bytes = workbook.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&bytes),
+        ["/xl/theme/theme1.xml"],
+        "exactly one theme, at the name Excel uses"
+    );
+
+    // The series states no fill of its own — the reason the theme has to be there.
+    let chart =
+        String::from_utf8_lossy(&part_bytes_of(&bytes, "/xl/charts/chart1.xml")).into_owned();
+    assert!(
+        !chart.contains("<c:spPr"),
+        "a series this library authors states no shape properties: {chart}"
+    );
+
+    let theme_bytes = part_bytes_of(&bytes, "/xl/theme/theme1.xml");
+    let parsed = mjx_xml::fidelity::parse(&theme_bytes).expect("the theme is well-formed");
+    let theme = mjx_dml::Theme::from_xml(&parsed.root, &parsed.interner).expect("it reads back");
+    let scheme = theme.color_scheme().expect("a:clrScheme");
+    for slot in [
+        mjx_dml::ColorSchemeSlot::Accent1,
+        mjx_dml::ColorSchemeSlot::Accent2,
+        mjx_dml::ColorSchemeSlot::Accent3,
+        mjx_dml::ColorSchemeSlot::Accent4,
+        mjx_dml::ColorSchemeSlot::Accent5,
+        mjx_dml::ColorSchemeSlot::Accent6,
+    ] {
+        assert!(
+            scheme.color(slot).is_some(),
+            "{slot:?} must resolve or the series is painted with no colour"
+        );
+    }
+
+    // Related from the workbook part, which is where Excel puts it.
+    let rels =
+        String::from_utf8_lossy(&part_bytes_of(&bytes, "/xl/_rels/workbook.xml.rels")).into_owned();
+    assert!(
+        rels.contains(
+            r#"Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme""#
+        ) && rels.contains(r#"Target="theme/theme1.xml""#),
+        "{rels}"
+    );
+}
+
+/// **A workbook that arrives with a theme keeps it, byte for byte.**
+///
+/// The half of MJXOFF-200 that matters more: a writer that emitted `xl/theme/theme1.xml`
+/// unconditionally would fix the invisible chart and destroy the branding of every real workbook
+/// this library opens and re-saves, and every other gate here would stay green while it did.
+///
+/// `chart_in_sheet.xlsx` is LibreOffice's own output and carries its own theme; the assertion is on
+/// that part's decompressed payload across an edit that walks right past it.
+///
+/// **Proved able to fail.** Dropping the `package_carries_a_theme` guard in
+/// `crates/mjx-xlsx/src/parts.rs` reddens this on `insert_part` refusing the duplicate; replacing
+/// the guard with an unconditional `replace_part_bytes` reddens the payload comparison itself.
+#[test]
+fn a_workbook_that_arrives_with_a_theme_keeps_it_byte_for_byte() {
+    let original = producer_workbook();
+    assert_eq!(
+        theme_parts(&original),
+        ["/xl/theme/theme1.xml"],
+        "the premise: this fixture carries a theme of its own"
+    );
+    let before = part_bytes_of(&original, "/xl/theme/theme1.xml");
+
+    let mut workbook = Workbook::open(&original).expect("the fixture opens");
+    workbook
+        .add_chart(
+            0,
+            &two_series_chart(),
+            CellMarker::new(0, 0, 10, 0),
+            CellMarker::new(5, 0, 25, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("the chart is added");
+    let saved = workbook.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&saved),
+        ["/xl/theme/theme1.xml"],
+        "no second theme is authored beside the workbook's own"
+    );
+    let after = part_bytes_of(&saved, "/xl/theme/theme1.xml");
+    assert!(
+        after == before,
+        "the workbook's own theme is not rewritten, re-serialized or replaced.\n  before: {}\n   after: {}",
+        String::from_utf8_lossy(&before),
+        String::from_utf8_lossy(&after),
+    );
+    assert_ne!(
+        before,
+        mjx_dml::default_theme_xml(),
+        "the fixture's theme really is a different one — otherwise the comparison above is vacuous"
+    );
+}
+
+/// A workbook authored from nothing carries a theme too, because its own `styles.xml` references
+/// one: font 0 says `<color theme="1"/>` and `<scheme val="minor"/>` (MJXOFF-198 §6, F5).
+#[test]
+fn a_blank_workbook_carries_the_theme_its_own_styles_reference() {
+    let bytes = Workbook::blank()
+        .expect("a blank workbook")
+        .save()
+        .expect("it saves");
+    assert_eq!(theme_parts(&bytes), ["/xl/theme/theme1.xml"]);
+
+    let styles = String::from_utf8_lossy(&part_bytes_of(&bytes, "/xl/styles.xml")).into_owned();
+    assert!(styles.contains(r#"<color theme="1"/>"#), "{styles}");
+    assert!(styles.contains(r#"<scheme val="minor"/>"#), "{styles}");
 }

@@ -365,9 +365,34 @@ fn invalid_worksheet_markup_is_caught_and_names_the_worksheet_part() {
 ///    below would prove nothing.
 ///
 /// The count is printed, because MJXOFF-102's report has to quote it.
+///
+/// **The corpus is the directory, never a list** (MJXOFF-252). This case used to edit two named
+/// fixtures; `xtask/tests/derived_rosters.rs` found that pair once the committed corpus became one
+/// of its populations, and there is no derivable population that is exactly those two. So it edits
+/// every committed `.xlsx` instead — strictly more than it asked for, and the same shape
+/// `every_pptx_fixture_is_schema_valid` already uses next door. All of them open, take the edit and
+/// save; a fixture that stops doing so is a finding, not a reason to name the ones that do.
+///
+/// Widening it turned one up straight away — `legacy_form_control.xlsx`, whose drawing part put its
+/// whole content inside an `mc:AlternateContent` — and it was registered as an exclusion until
+/// MJXOFF-272 made the ordering arm audit the same markup-compatibility-resolved view the schema arm
+/// validates. The register is gone; nothing here is held back from anything.
 #[test]
 fn the_edited_worksheet_is_reached_by_the_order_audit_and_the_count_is_quoted() {
-    for name in ["sample.xlsx", "worksheet_spine.xlsx"] {
+    let corpus = mjx_fixtures::package_fixtures_with_extension("xlsx");
+    assert!(
+        corpus.len() >= 2,
+        "the .xlsx corpus walk has stopped matching: it found {} fixture(s), so this case audits \
+         nothing and passes exactly as a working one does",
+        corpus.len()
+    );
+    println!(
+        "the order audit runs over {} edited .xlsx fixture(s)",
+        corpus.len()
+    );
+
+    for name in &corpus {
+        let name = name.as_str();
         let mut workbook = mjx_xlsx::Workbook::open(&fixture(name)).expect("open");
         workbook
             .set_cell_value(
@@ -407,7 +432,9 @@ fn the_edited_worksheet_is_reached_by_the_order_audit_and_the_count_is_quoted() 
         );
 
         // …and the edited workbook is still schema-valid, so the ordering walk is not the only thing
-        // watching this part.
+        // watching this part. Every fixture takes every step: the register that used to hold one of
+        // them back from the whole-package order assertion died with MJXOFF-272, which is what it
+        // was written to do.
         mjx_schema_gate::assert_deck_is_in_schema_order(&label, &saved);
         let Some(harness) = harness() else { continue };
         let tolerances = mjx_schema_gate::tolerances_for(name);
@@ -522,53 +549,50 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
 /// validated at all. MJXOFF-129 kept it rejected on purpose; MJXOFF-133 then found a hole in the
 /// guard beside it by mutating, seeing green, and instrumenting the arm to `panic!`.
 ///
-/// MJXOFF-114 (E5) is the first child to put such a part under `xl/`, and it puts two there at once:
-/// an Excel cell comment's box is a **VML drawing** at `xl/drawings/vmlDrawingN.vml`, and a form
-/// control's properties are an **`x14:formControlPr`** at `xl/ctrlPropsN.xml`. Both are legitimate —
-/// Word and PowerPoint carry the first routinely, which is exactly why *they* cannot adopt Excel's
-/// stricter rule — and neither will ever be validatable here: a `.vml` root is a bare `<xml>` in no
-/// namespace, and `x14` is a Microsoft extension ECMA-376 does not define.
+/// MJXOFF-114 (E5) is the first child to put such a part under `xl/`, and it put **two** there at
+/// once: an Excel cell comment's box is a **VML drawing** at `xl/drawings/vmlDrawingN.vml`, and a
+/// form control's properties are an **`x14:formControlPr`** at `xl/ctrlPropsN.xml`. One of the two
+/// is gone from this list again. MJXOFF-245 found that half of the VML row's reason had stopped
+/// being true — `vml-main.xsd` compiles through the gate's own driver schema, and only the bare
+/// `<xml>` wrapper root resists — so a `.vml` part is now validated **child by child** and reports
+/// `ValidatedPerChild`, which `account_for_part_under_xl` accepts as the validated part it is. The
+/// `x14` row stays: that namespace is a Microsoft extension ECMA-376 does not define and no schema
+/// in `References/` declares, which is a different kind of obstacle and still a real one.
 ///
 /// So the admission is a **named list**, not a category-wide relaxation, and each row carries a
 /// second key the category alone does not give:
 ///
 /// * `label` — the category-2 entry `mjx_schema_gate::categories` matched, so a *different*
 ///   preserved-foreign namespace appearing under `xl/` is still rejected;
-/// * `directory` and `extension` — where a part with that label is allowed to sit. **This half is
-///   load-bearing.** A `.xml` part under `xl/` that failed to declare its namespace at all reports
-///   `SkippedPreservedForeign` with the *VML* label, because `ForeignMarkupKey::NoNamespace` matches
-///   on the absence of a namespace and nothing else. Without the path key, a worksheet that lost its
-///   `xmlns` would sail through this gate as "a VML drawing part" — the exact false green the rule
-///   exists to catch, re-opened by the fix for it.
+/// * `directory` and `extension` — where a part with that label is allowed to sit.
+///
+/// The path key used to be load-bearing for a second reason as well, and that reason is now closed
+/// upstream instead: while the category-2 allowlist held an entry keyed on the *absence* of a
+/// namespace, a `.xml` part under `xl/` that failed to declare its `xmlns` reported
+/// `SkippedPreservedForeign` with the **VML** label, so a worksheet that lost its namespace could
+/// sail through as "a VML drawing part". MJXOFF-245 removed that key: a namespace-less root is a
+/// [wrapper root] or it is `Uncategorised`, and `Uncategorised` is a hard failure naming the part
+/// (`mjx_schema_gate::categories`' own
+/// `a_namespace_less_root_that_is_not_a_wrapper_is_uncategorised`). The path key is kept regardless
+/// — a row saying *where* its part may sit is worth having on its own — and
+/// `the_rule_still_rejects_every_shape_of_false_green` still feeds the rule a worksheet that lost
+/// its `xmlns`, now as the `Uncategorised` it has become.
 ///
 /// Every row is proved live by `every_preserved_foreign_part_on_the_allowlist_is_exercised`, and
-/// `the_rule_still_rejects_every_shape_of_false_green` feeds the rule both halves of each key
-/// separately, so a row that stopped discriminating fails rather than rotting.
-const PRESERVED_FOREIGN_PARTS_UNDER_XL: &[PreservedForeignUnderXl] = &[
-    PreservedForeignUnderXl {
-        label: "a VML drawing part",
-        directory: "/xl/drawings/",
-        extension: ".vml",
-        reason: "the legacy VML drawing that draws a sheet's cell-comment boxes, form controls and \
-                 OLE fallbacks (MJXOFF-114). Its root is a bare `<xml>` wrapper in **no namespace**, \
-                 which the VML schemas declare no global element for and which `vml-main.xsd` could \
-                 not validate anyway without an `xml.xsd` the Transitional set does not ship — see \
-                 `mjx_schema_gate::categories`' own entry. PowerPoint has carried one since \
-                 MJXOFF-110 at `ppt/drawings/`, outside this rule's reach; Excel's lives under `xl/` \
-                 and there is nowhere else to put it, because a worksheet's `legacyDrawing@r:id` \
-                 resolves relative to the sheet",
-    },
-    PreservedForeignUnderXl {
-        label: "a form control's properties part",
-        directory: "/xl/ctrlProps/",
-        extension: ".xml",
-        reason: "`x14:formControlPr` (MJXOFF-114) — Excel 2010's SpreadsheetML extension namespace, \
+/// `the_preserved_foreign_rows_admit_on_both_keys_and_neither_alone` feeds the rule both halves of
+/// each key separately, so a row that stopped discriminating fails rather than rotting.
+///
+/// [wrapper root]: mjx_schema_gate::WrapperRoot
+const PRESERVED_FOREIGN_PARTS_UNDER_XL: &[PreservedForeignUnderXl] = &[PreservedForeignUnderXl {
+    label: "a form control's properties part",
+    directory: "/xl/ctrlProps/",
+    extension: ".xml",
+    reason: "`x14:formControlPr` (MJXOFF-114) — Excel 2010's SpreadsheetML extension namespace, \
                  which ECMA-376 does not define and no schema in `References/` declares. Every \
                  `x:control` names one through a required `@r:id`, so a workbook with a form \
                  control cannot avoid carrying it, and `mjx-sml` holds the identifier without ever \
                  opening the part",
-    },
-];
+}];
 
 /// One row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`].
 struct PreservedForeignUnderXl {
@@ -599,7 +623,13 @@ impl PreservedForeignUnderXl {
 /// fixture produces. A guard whose only witness is the corpus is a guard nobody has seen fail.
 fn account_for_part_under_xl(row: &PartRow) -> Result<(), String> {
     match &row.outcome {
-        PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => Ok(()),
+        // `ValidatedPerChild` is a validated part, not a widening: a `.vml` wrapper's every child
+        // went through `xmllint` against `vml-main.xsd` (MJXOFF-245). What the wrapper itself is
+        // held to is nothing, which is why the row still has to *say* how many children it checked
+        // — `WrapperHeldNothing` falls to the catch-all below and reads as the skip it is.
+        PartOutcome::Validated(_)
+        | PartOutcome::ValidatedPerChild { .. }
+        | PartOutcome::Tolerated { .. } => Ok(()),
         // The one widening, and the whole of it: a payload that is not XML, whose content type
         // somebody has written a reason for.
         PartOutcome::SkippedBinary(content_type)
@@ -793,13 +823,18 @@ fn the_rule_still_rejects_every_shape_of_false_green() {
 /// is the discipline MJXOFF-133 established after finding that a guard whose witnesses all wear one
 /// costume tests one costume:
 ///
-/// * the **right label at the wrong path** — the load-bearing half. A `.xml` part under `xl/` that
-///   declared no namespace at all reports the *VML* label, because `ForeignMarkupKey::NoNamespace`
-///   matches the absence of a namespace and nothing else. A worksheet that lost its `xmlns` is the
-///   concrete case, and it must still fail;
+/// * the **right label at the wrong path** — a part carrying an admitted row's label from a
+///   directory that row does not name;
 /// * the **wrong label at the right path** — a preserved-foreign namespace nobody has written a
 ///   reason for, sitting where an admitted one sits;
-/// * a row's directory without its extension, and its extension without its directory.
+/// * a row's directory without its extension, and its extension without its directory;
+/// * and the case that used to arrive here wearing the **VML** label: a worksheet that lost its
+///   `xmlns`. It is a different outcome now. While the category-2 allowlist held an entry keyed on
+///   the absence of a namespace, such a part reported `SkippedPreservedForeign` as "a VML drawing
+///   part" and only this rule's *path* key stopped it; MJXOFF-245 made a namespace-less root either
+///   a wrapper root or `Uncategorised`, so it arrives as the hard failure it always was. The
+///   witness stays here, in the shape it now has, because the guard is what a later widening would
+///   have to get past.
 ///
 /// The accepting half is asserted too, so the case cannot pass by rejecting everything — and the
 /// arm it exercises was proved to execute by instrumenting it to `panic!` and watching this case
@@ -853,6 +888,30 @@ fn the_preserved_foreign_rows_admit_on_both_keys_and_neither_alone() {
             );
         }
     }
+
+    // A worksheet that lost its `xmlns`, in the shape MJXOFF-245 left it: `Uncategorised`, and
+    // rejected here as well as at the part.
+    let stray = account_for_part_under_xl(&row(
+        "/xl/worksheets/sheet1.xml",
+        PartOutcome::Uncategorised { namespace: None },
+    ))
+    .expect_err("a namespace-less worksheet must never be accounted for");
+    assert!(
+        stray.contains("/xl/worksheets/sheet1.xml"),
+        "the rejection must name the part: {stray}"
+    );
+
+    // …and a wrapper the per-child validator was handed nothing to check is not a pass either.
+    assert!(
+        account_for_part_under_xl(&row(
+            "/xl/drawings/vmlDrawing1.vml",
+            PartOutcome::WrapperHeldNothing {
+                root: "xml".to_owned()
+            },
+        ))
+        .is_err(),
+        "an empty wrapper validated nothing and must not be admitted as a validated part"
+    );
 }
 
 /// Every row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`] matches a part in the committed corpus.

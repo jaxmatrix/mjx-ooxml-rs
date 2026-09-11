@@ -38,7 +38,7 @@ struct Table {
 /// Renders the whole `child_order` module from the parsed schema set.
 ///
 /// `order` names the schemas to emit, by file stem, in the order their tables should appear.
-pub fn generate(set: &SchemaSet, stems: &[&str]) -> Result<String> {
+pub(crate) fn generate(set: &SchemaSet, stems: &[&str]) -> Result<String> {
     // Namespace URI → the `namespaces` constant name, derived from the file stem exactly as the
     // namespace table itself is.
     let mut namespace_consts: BTreeMap<&str, String> = BTreeMap::new();
@@ -84,6 +84,7 @@ pub fn generate(set: &SchemaSet, stems: &[&str]) -> Result<String> {
     for table in &tables {
         render_table(&mut s, table, &namespace_consts)?;
     }
+    render_all_tables(&mut s, &tables);
     render_find(&mut s, &tables);
     render_roots(&mut s, &tables);
     render_exports(&mut s, &tables)?;
@@ -191,6 +192,32 @@ fn render_table(
     }
     s.push_str("];\n\n");
     Ok(())
+}
+
+/// Renders `ALL_TABLES` — every generated table, in emission order.
+///
+/// It exists so that a sweep over *all* of them is derived rather than hand-listed. Before
+/// MJXOFF-224 the four suites in `crate::child_order` that check rank order, the unordered-type
+/// safety property and the content-model census each opened with a literal
+/// `[&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]]`, written when those were the only
+/// three tables. Six schemas joined afterwards and none of them joined that list, so 819 of the
+/// 1,335 complex types went unchecked while every test stayed green and every count stayed
+/// plausible — MJXOFF-88 §5's *structurally blind test* in its plainest form. A generated roster
+/// cannot be forgotten by the next schema to arrive.
+fn render_all_tables(s: &mut String, tables: &[Table]) {
+    s.push_str(
+        "/// Every generated child-order table, in emission order.\n\
+         ///\n\
+         /// A sweep over the whole generated corpus — a census, an audit, a property that must hold\n\
+         /// of every complex type — iterates this rather than naming the tables, so that a schema\n\
+         /// joining `CHILD_ORDER_SCHEMAS` joins the sweep with it.\n\
+         pub static ALL_TABLES: [&[ChildOrder]; ",
+    );
+    let _ = write!(s, "{}] = [\n", tables.len());
+    for table in tables {
+        let _ = write!(s, "    &{},\n", table.array);
+    }
+    s.push_str("];\n\n");
 }
 
 fn render_find(s: &mut String, tables: &[Table]) {

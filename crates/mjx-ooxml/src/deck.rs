@@ -10,11 +10,11 @@
 //! | `usize`                      | `u32`                  | one width on every target, host-independent |
 //! | `&PartName`                  | `&str`                 | a validated handle cannot cross the boundary and come back |
 //! | `Option<&[u8]>`              | `Option<Vec<u8>>`      | a borrow of the deck cannot outlive the call in a binding |
-//! | `Result<_, PptxError>`       | [`Result<_, Error>`](crate::Error) | sixty-five variants collapse to eleven codes |
+//! | `Result<_, PptxError>`       | [`Result<_, Error>`](crate::Error) | every variant collapses to one of eleven [`ErrorCode`]s |
 //!
 //! # What is not here, and why
 //!
-//! Sixteen of the surface's methods are deliberately absent. Each is unreachable through a foreign
+//! These `Presentation` methods are deliberately absent. Each is unreachable through a foreign
 //! function boundary, or reachable another way:
 //!
 //! - **`Presentation::shape`** returns a `ShapeCursor` holding `&'deck mut Presentation`. Neither
@@ -29,10 +29,23 @@
 //! - **`chart_rel_id`, `picture_image_rel_id`, `ole_object_rel_id`, `ole_snapshot_rel_id`,
 //!   `activex_control_rel_id`, `activex_snapshot_rel_id`** hand out relationship ids for content
 //!   whose bytes are readable directly (`chart_part_bytes`, `picture_image_bytes`, …).
+//! - **`blank_with_properties`** takes an `mjx_opc::doc_props::CoreProperties` and an
+//!   `ExtendedProperties`, so an authored deck can carry a title, a creator and a created time.
+//!   Nothing on this facade sets them, and neither binding can — the one entry on this list that is
+//!   a **gap rather than a decision**. `Deck::blank` writes both `docProps` parts with the
+//!   library's own defaults, and a deck opened from a file keeps the ones it came with, untouched.
+//! - **`from_package`** takes an `mjx_opc::Package`, which this facade seals for the reason
+//!   [`Deck::presentation_mut`]'s own documentation gives.
 //!
 //! Part-addressed readers that are the **only** door to their content — the ink, VML and diagram
 //! byte windows — are kept, with `&str` part names. [`Deck::presentation_mut`] is the Rust-only
 //! escape hatch to everything above; bindings do not expose it.
+//!
+//! **This list is checked, not trusted.** `xtask/tests/facade_curation.rs` compares it against the
+//! real difference between the two surfaces, in both directions: a `Presentation` method added and
+//! not projected fails there until somebody says which of these it is, and an entry naming a method
+//! since projected or since deleted fails there too. It replaced a count in this paragraph that said
+//! *sixteen* when the difference was **eighteen** (MJXOFF-214).
 //!
 //! # Everything else is here
 //!

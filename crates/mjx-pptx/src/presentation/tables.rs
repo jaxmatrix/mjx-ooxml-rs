@@ -2,8 +2,9 @@
 //! whole-column edits, and the table style a table draws itself with.
 
 use mjx_dml::{
-    Emu, Table, TableColumn, TablePart, TablePartStyle, TableProperties, TableRow, TableStyle,
-    TableStyleFlags, TableStyleList, TableStylePart,
+    ColorSpec, ColorTransform, Emu, FillSpec, Fraction, OnOffStyle, SchemeColor, Table,
+    TableColumn, TablePart, TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleFlags,
+    TableStyleList, TableStylePart,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
@@ -45,6 +46,28 @@ impl Presentation {
     /// The table is a shape: move it with [`set_shape_bounds`](Self::set_shape_bounds), and drop it
     /// with [`remove_shape`](Self::remove_shape).
     ///
+    /// # The style it points at, and whose it is
+    ///
+    /// The table is born with `firstRow` and `bandRow` on, which is what PowerPoint writes for a new
+    /// table — and those flags say nothing on their own. They name *parts of a table style* to
+    /// emphasise, so a table that turns them on and names no style has asked for two parts of
+    /// nothing and renders unstyled. PowerPoint writes both halves; until MJXOFF-232 this wrote one.
+    ///
+    /// So a style id is always written, and **whose style it is depends on what the deck already
+    /// carries**:
+    ///
+    /// * A deck whose `tableStyles.xml` already names a default (`a:tblStyleLst@def`) that the part
+    ///   really defines gets **that** id. Nothing is authored and no part is dirtied — the deck's
+    ///   own default is the answer, and overriding it with ours would be imposing our look on a
+    ///   document that already stated one.
+    /// * Any other deck gets a default style authored into `tableStyles.xml` (creating the part if
+    ///   there is none), **drawn entirely from the deck's own theme** — the header row is `accent1`
+    ///   with `lt1` text, the banded rows are `accent1` lightened. Not one literal colour is
+    ///   written, so a table in a deck branded green comes out green.
+    ///
+    /// Point the table somewhere else afterwards with [`set_table_style`](Self::set_table_style) or
+    /// [`set_inline_table_style`](Self::set_inline_table_style); either replaces the reference.
+    ///
     /// # Errors
     /// Returns [`PptxError::InvalidTableSize`] if either dimension is zero — a table with no cells
     /// is not something PowerPoint will open — or another [`PptxError`] if the surface index is out
@@ -60,17 +83,50 @@ impl Presentation {
             return Err(PptxError::InvalidTableSize { rows, columns });
         }
         let surface = surface.into();
+        // Before the slide part is borrowed: this may create or edit `tableStyles.xml`.
+        let style_id = self.ensure_a_table_style_to_point_at()?;
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
 
         let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
-        let frame = build_table_frame(interner, next_id, rows, columns, bounds);
+        let frame = build_table_frame(interner, next_id, rows, columns, bounds, &style_id);
         sp_tree.children.push(RawNode::Element(frame));
         sp_tree.empty = false;
 
         Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
+    /// The GUID [`add_table`](Self::add_table) points a new table at: the deck's own default if it
+    /// has one, else [`DEFAULT_TABLE_STYLE_ID`], authored on first use.
+    ///
+    /// The deck's own default wins outright, and is read without dirtying anything. Only when the
+    /// deck states no usable default is a style written, and it is written **once**: a second
+    /// `add_table` finds it already there and returns without touching the part, so a deck with
+    /// twenty tables carries one style and one dirty part rather than twenty rewrites of the same
+    /// bytes.
+    fn ensure_a_table_style_to_point_at(&mut self) -> Result<String, PptxError> {
+        if let Some(part) = self.table_styles_part()? {
+            let doc = self.package.part_tree(&part)?;
+            let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
+            // A `def` naming a style the part does not define is a dangling default — PowerPoint
+            // resolves those against its own built-in gallery and this package cannot, so it is not
+            // an answer we may hand back.
+            if let Ok(default) = list.default_style_id(&doc.interner) {
+                if list.style(&doc.interner, default.as_ref()).is_some() {
+                    return Ok(default.into_owned());
+                }
+            }
+            if list.style(&doc.interner, DEFAULT_TABLE_STYLE_ID).is_some() {
+                return Ok(DEFAULT_TABLE_STYLE_ID.to_owned());
+            }
+        }
+        self.create_table_style(DEFAULT_TABLE_STYLE_ID, DEFAULT_TABLE_STYLE_NAME)?;
+        for (part, format) in default_table_style_parts() {
+            self.format_table_style_part(DEFAULT_TABLE_STYLE_ID, part, &format)?;
+        }
+        Ok(DEFAULT_TABLE_STYLE_ID.to_owned())
     }
 
     /// The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`.
@@ -494,6 +550,28 @@ impl Presentation {
         })
     }
 
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts
+    /// of its style (`firstRow`, `bandRow`, …) it asks to be emphasised.
+    ///
+    /// [`table_part`](Self::table_part) answers one flag; this answers all six at once, which is
+    /// what a caller deciding how to *draw* the table needs, because
+    /// [`applicable_parts`](mjx_dml::applicable_parts) takes the whole set. Reading does not dirty
+    /// the part.
+    ///
+    /// A table declaring no `a:tblPr` at all has every flag off.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn table_style_flags(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<TableStyleFlags, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            Ok(table_flags(table, interner))
+        })
+    }
+
     /// The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or
     /// `None` if it names none. Reading does not dirty the part.
     ///
@@ -584,9 +662,28 @@ impl Presentation {
     }
 
     /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`), replacing
-    /// any inline or referenced style it had — the lean alternative to a shared `tableStyles.xml`
-    /// style: the whole look is spelled out in `definition` and travels with the table, so no shared
-    /// part, relationship or referenced GUID is involved. Marks only that part dirty.
+    /// any inline or referenced style it had: the whole look is spelled out in `definition` and
+    /// travels with the table. Marks only that part dirty.
+    ///
+    /// # What "no shared part" means, and when it is a fact about the package
+    ///
+    /// **This call** adds no shared part, no relationship and no referenced GUID — it writes one
+    /// element into the slide, and the `tableStyles.xml` a deck already has comes out of a save byte
+    /// for byte as it went in. Whether the *package* then holds a shared part at all is a separate
+    /// question, and the answer depends on where the table came from (MJXOFF-248):
+    ///
+    /// - a table from [`add_table`](Self::add_table) arrives with a `tableStyles.xml` beside it,
+    ///   because the `firstRow` / `bandRow` flags that call turns on need a style to emphasise
+    ///   (MJXOFF-232). Pointing that table at an inline style afterwards leaves the shared part in
+    ///   place, holding a style nothing points at. It is one small XML file, PowerPoint writes one
+    ///   into every deck that has a table, and this call does not delete it — a part a caller may be
+    ///   about to point another table at is not ours to garbage-collect;
+    /// - a table in a deck that **arrived** without a shared part keeps a package with none, which is
+    ///   the whole sentence above as a property of the file.
+    ///
+    /// `crates/mjx-pptx/tests/table_styles.rs` holds both halves apart:
+    /// `an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part` asserts the first,
+    /// `the_lean_shape_is_reachable_for_a_table_from_a_deck_that_has_no_shared_part` the second.
     ///
     /// A styled part renders only when the table declares it: pair this with
     /// [`set_table_part`](Self::set_table_part) to turn on the `firstRow` / `bandRow` / … flags a part
@@ -781,6 +878,56 @@ fn table_properties_slot<'a>(
     }
 }
 
+/// The GUID of the table style [`Presentation::add_table`] authors when the deck states no default
+/// of its own.
+///
+/// A GUID of this project's own rather than one of PowerPoint's built-in style ids. A built-in id
+/// would be shorter to write and would resolve *only inside PowerPoint* — it names an entry in a
+/// gallery that is not in the file, so this library's own `with_table_style` and every
+/// `effective_cell_*` reader would see nothing, and so would every other consumer. The style this
+/// names is in the package, which is what makes the reference resolve for everyone.
+pub(crate) const DEFAULT_TABLE_STYLE_ID: &str = "{9F6E9C1B-0B4E-4A1E-9B3D-6C2A8F4D7E10}";
+
+/// The gallery name of [`DEFAULT_TABLE_STYLE_ID`]. It says what the style *does* rather than naming
+/// a colour, because it has no colour of its own — every one of them comes from the deck's theme.
+pub(crate) const DEFAULT_TABLE_STYLE_NAME: &str = "Themed Header and Banded Rows";
+
+/// The parts of [`DEFAULT_TABLE_STYLE_ID`], and the formatting each carries.
+///
+/// **Not one literal colour.** The header row is `accent1` with `lt1` text; the first horizontal
+/// band is `accent1` with its luminance modulated to 20% and offset by 80%, which is the
+/// *Lighter 80%* of Office's own colour picker and the transform pair PowerPoint's built-in table
+/// styles use for banding. A deck opened in a template branded green therefore draws a green table,
+/// which is the whole point: [`Presentation::add_table`] authors a default only where the deck
+/// states none, and a default that pinned a colour would override the branding of whoever opens the
+/// file.
+///
+/// The two parts are exactly the two flags [`build_table_frame`] turns on — `firstRow` and
+/// `bandRow` — so the style says something about every part the table asks for and nothing about a
+/// part it does not.
+fn default_table_style_parts() -> [(TableStylePart, TableStyleFormat); 2] {
+    let accent = ColorSpec::Scheme(SchemeColor::Accent1);
+    let lighter = accent
+        .clone()
+        .with_transform(ColorTransform::LuminanceModulation(Fraction::from_ratio(
+            0.2,
+        )))
+        .with_transform(ColorTransform::LuminanceOffset(Fraction::from_ratio(0.8)));
+    [
+        (
+            TableStylePart::FirstRow,
+            TableStyleFormat::new()
+                .with_fill(FillSpec::Solid(accent))
+                .with_bold(OnOffStyle::On)
+                .with_text_color(ColorSpec::Scheme(SchemeColor::Light1)),
+        ),
+        (
+            TableStylePart::Band1Horizontal,
+            TableStyleFormat::new().with_fill(FillSpec::Solid(lighter)),
+        ),
+    ]
+}
+
 /// The table's banding/emphasis flags, or all-false when it declares no `a:tblPr`.
 pub(super) fn table_flags(table: &Table, interner: &Interner) -> TableStyleFlags {
     table
@@ -795,13 +942,16 @@ pub(super) fn table_flags(table: &Table, interner: &Interner) -> TableStyleFlags
 /// cell gets an `a:txBody` with one empty paragraph, because PowerPoint expects a cell to have one
 /// and a caller's first act is to put text in it. `firstRow` and `bandRow` are what PowerPoint
 /// itself writes for a new table: they claim nothing about appearance on their own, they tell a
-/// table style which parts to emphasize.
+/// table style which parts to emphasize — and `style_id` is the style they tell, written as an
+/// `a:tableStyleId` beside them, because PowerPoint writes both halves and two flags with no style
+/// to resolve against emphasize two parts of nothing (MJXOFF-232).
 pub(super) fn build_table_frame(
     interner: &mut Interner,
     id: u32,
     rows: usize,
     columns: usize,
     bounds: ShapeBounds,
+    style_id: &str,
 ) -> RawElement {
     // p:nvGraphicFramePr — cNvPr, cNvGraphicFramePr (locked against grouping, as Office writes it),
     // and an empty nvPr.
@@ -869,7 +1019,23 @@ pub(super) fn build_table_frame(
         build::attr(interner, "firstRow", "1"),
         build::attr(interner, "bandRow", "1"),
     ];
-    let tbl_pr = build::leaf(interner, "a", DML_MAIN, "tblPr", tbl_pr_attrs);
+    // `CT_TableProperties` is a sequence, and `a:tableStyleId` is its last element before `extLst`.
+    let style_reference = build::text_leaf(
+        interner,
+        "a",
+        DML_MAIN,
+        "tableStyleId",
+        Vec::new(),
+        style_id,
+    );
+    let tbl_pr = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "tblPr",
+        tbl_pr_attrs,
+        vec![RawNode::Element(style_reference)],
+    );
     let mut table_children = vec![RawNode::Element(tbl_pr), RawNode::Element(grid)];
     table_children.extend(table_rows);
     let table = build::node(interner, "a", DML_MAIN, "tbl", Vec::new(), table_children);

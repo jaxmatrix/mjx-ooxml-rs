@@ -94,7 +94,8 @@ fn ole_object_part_bytes_resolves_to_the_verbatim_embedded_part() {
     let mut pres = Presentation::open(&bytes).expect("open");
     assert_eq!(
         pres.ole_object_part_bytes(OLE_SURFACE, OLE_SHAPE)
-            .expect("read"),
+            .expect("read")
+            .as_deref(),
         Some(embedded.as_slice()),
         "the resolved bytes are exactly the package's embedded object part"
     );
@@ -122,7 +123,8 @@ fn ole_snapshot_image_bytes_resolves_to_the_verbatim_snapshot() {
     );
     assert_eq!(
         pres.ole_snapshot_image_bytes(OLE_SURFACE, OLE_SHAPE)
-            .expect("read"),
+            .expect("read")
+            .as_deref(),
         Some(snapshot.as_slice()),
         "the resolved bytes are exactly the package's snapshot image"
     );
@@ -276,7 +278,7 @@ fn replacing_an_external_ole_object_resolves_it_in_package() {
         reopened
             .ole_object_part_bytes(OLE_SURFACE, OLE_SHAPE)
             .expect("bytes")
-            .map(<[u8]>::to_vec),
+            .map(std::borrow::Cow::into_owned),
         Some(default_placeholder_ole()),
         "the object data is the default placeholder"
     );
@@ -300,7 +302,7 @@ fn replacing_an_ole_object_can_use_caller_supplied_bytes() {
         reopened
             .ole_object_part_bytes(OLE_SURFACE, OLE_SHAPE)
             .expect("bytes")
-            .map(<[u8]>::to_vec),
+            .map(std::borrow::Cow::into_owned),
         Some(custom)
     );
 }
@@ -366,12 +368,16 @@ fn an_authored_ole_object_reads_back_as_one() {
         Some("Excel.Sheet.12")
     );
     assert_eq!(
-        pres.ole_object_part_bytes(0, shape).expect("bytes"),
+        pres.ole_object_part_bytes(0, shape)
+            .expect("bytes")
+            .as_deref(),
         Some(payload.as_slice()),
         "the object's data is stored verbatim"
     );
     assert_eq!(
-        pres.ole_snapshot_image_bytes(0, shape).expect("snapshot"),
+        pres.ole_snapshot_image_bytes(0, shape)
+            .expect("snapshot")
+            .as_deref(),
         Some(TINY_PNG),
         "and so is the snapshot a consumer draws in its place"
     );
@@ -385,7 +391,10 @@ fn an_authored_ole_object_reads_back_as_one() {
     // The graph survives a save/reopen.
     let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
     assert_eq!(
-        reopened.ole_object_part_bytes(0, shape).expect("bytes"),
+        reopened
+            .ole_object_part_bytes(0, shape)
+            .expect("bytes")
+            .as_deref(),
         Some(payload.as_slice())
     );
 }
@@ -413,7 +422,9 @@ fn an_authored_ole_object_can_embed_a_whole_package_or_link_out() {
         )
         .expect("add embedded package");
     assert_eq!(
-        pres.ole_object_part_bytes(0, embedded).expect("bytes"),
+        pres.ole_object_part_bytes(0, embedded)
+            .expect("bytes")
+            .as_deref(),
         Some(workbook.as_slice()),
         "an embedded package is stored beside the stream embeddings"
     );
@@ -560,7 +571,8 @@ fn replacing_the_snapshot_image_leaves_the_slide_markup_alone() {
     assert_eq!(
         reopened
             .ole_snapshot_image_bytes(OLE_SURFACE, OLE_SHAPE)
-            .expect("snapshot"),
+            .expect("snapshot")
+            .as_deref(),
         Some(TINY_PNG),
         "the frame now draws the new image"
     );

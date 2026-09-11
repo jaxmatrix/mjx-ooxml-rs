@@ -121,11 +121,12 @@ impl SharedStringTable {
             .store(format!(" xmlns=\"{}\"", SML.transitional).as_bytes())?;
         // `self_closing` is `true` so that a table with no entry writes `<sst … count="0"
         // uniqueCount="0"/>` rather than `<sst …></sst>`. Both are the same infoset and both are
-        // valid; the self-closing form is what Excel writes for an empty table and what
-        // `mjx-chart`'s writer emits, and MJXOFF-112's parity gate compares the two byte for byte
-        // in `crates/mjx-chart/tests/workbook_parity.rs`. It decides the *empty* form only — the
-        // writer takes the full form the moment there is an entry to put between the tags — so the
-        // non-empty parity this file already pins is untouched.
+        // valid; the self-closing form is what Excel writes for an empty table, and it is the form
+        // MJXOFF-112's parity gate pinned against `mjx-chart`'s own writer while that writer still
+        // existed — MJXOFF-99 has since removed both, leaving this the workspace's one
+        // SpreadsheetML writer. It decides the *empty* form only — the writer takes the full form
+        // the moment there is an entry to put between the tags — so the non-empty parity this file
+        // already pins is untouched.
         Ok(Self {
             items,
             extent: TextSpan::NONE,

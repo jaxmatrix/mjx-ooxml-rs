@@ -5697,6 +5697,10 @@ pub fn adjustable_shapes() -> &'static [PresetShapeType] {
 /// values already bound, and every bound becomes a number.
 ///
 /// Empty for a shape whose bounds are all literals, and for a shape with no adjustments.
+///
+/// This table is a deliberate slice of the geometry file rather than all of it: **334 guides**
+/// across 46 shapes, being exactly what an adjustment's domain is resolved from. The
+/// drawing paths are a rendering concern and are not here.
 #[must_use]
 pub fn adjustment_bound_guides_of(
     shape: PresetShapeType,

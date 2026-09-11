@@ -1,5 +1,10 @@
 //! `mjx-chart` — DrawingML charts (shared by all formats).
 //!
+//! **Start at [`guide`]** — the rank 2.2 guide set, hosted here and covering `mjx-omml` and
+//! `mjx-vml` as well as this crate, because the three are one thing: the markup that sits *on
+//! top of* DrawingML and SpreadsheetML rather than beside them. Every item below carries its own
+//! doc comment; the guide is the story around them.
+//!
 //! A chart lives in its own part (`/ppt/charts/chartN.xml`), rooted at `c:chartSpace`, which a
 //! `p:graphicFrame` references by relationship id. This crate models that part. It derives the
 //! chart-space spine `c:chartSpace → c:chart → c:plotArea` and the common plot types — bar
@@ -75,6 +80,8 @@ mod plot;
 mod space;
 mod view;
 
+pub mod guide;
+
 pub use author::{ChartData, ChartDataError, ChartRanges, ChartSeriesRange};
 pub use axis::{
     Axis, AxisContent, AxisKind, AxisOrientation, AxisPosition, BlankDisplay, ChartTitle,
@@ -94,7 +101,11 @@ pub use decoration::{
     ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorBars, ErrorBarsContent, ErrorValueType,
     Trendline, TrendlineContent, TrendlineKind, TrendlineSpec,
 };
-pub use embedding::{embedded_workbook_for_chart_data, embedded_workbook_for_chart_space};
+pub use embedding::{
+    apply_workbook_patch, embedded_workbook_for_chart_data, embedded_workbook_for_chart_space,
+    embedded_workbook_part, plan_workbook_patch, ChartWorkbookError, ReferenceProblem,
+    WorkbookPatch, WorkbookPatchPlan,
+};
 pub use ops::ChartAccessError;
 pub use plot::{
     Area3DChart, AreaChart, Bar3DChart, BarChart, BarDirection, BarGrouping, BubbleChart,

@@ -566,10 +566,10 @@ impl Workbook {
         part: &PartName,
         read: impl FnOnce(&RawElement, &Interner, Option<&str>) -> Result<Option<T>, SmlError>,
     ) -> Result<Option<T>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let prefix = mjx_sml::relationship_prefix(&document.root, &document.interner);
         Ok(read(&document.root, &document.interner, prefix)?)
     }
@@ -577,10 +577,10 @@ impl Workbook {
     /// Every `externalReference@r:id` `xl/workbook.xml` lists, in document order — the numbering a
     /// formula's `[n]` uses.
     fn external_reference_ids(&self) -> Result<Vec<String>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(self.workbook_part()) else {
+        let Some(bytes) = self.package().part_payload(self.workbook_part()) else {
             return Ok(Vec::new());
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(model) = WorkbookPart::read_root(&document.root, &document.interner)? else {
             return Ok(Vec::new());
         };

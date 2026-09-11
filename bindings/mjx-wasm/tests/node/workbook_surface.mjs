@@ -14,11 +14,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   AxisOrientation,
+  CellFormatSpec,
   CellWrite,
   ChartData,
   ChartKind,
   ChartLabelScope,
   ChartRangeSeries,
+  Color,
+  ColorSchemeSlot,
   ColorSpec,
   DataLabelSpec,
   ErrorBarSpec,
@@ -29,6 +32,7 @@ import {
   LegendPosition,
   LineSpec,
   LineWidth,
+  PatternFillSpec,
   ResizingBehavior,
   SheetKind,
   TrendlineKind,
@@ -758,6 +762,7 @@ test("removing an Excel chart binding is caught by this suite", () => {
       "chartLegend",
       "chartWorkbooks",
       "refreshChartWorkbook",
+      "regenerateChartWorkbook",
       "detachChartWorkbook",
       "chartSeriesReferences",
       "chartSeriesFromCells",
@@ -775,4 +780,147 @@ test("removing an Excel chart binding is caught by this suite", () => {
   } finally {
     workbook.free();
   }
+});
+
+// -----------------------------------------------------------------------------------------------
+// `CellFormatSpec`: all twelve `x:xf` attributes, readable and writable (MJXOFF-226)
+// -----------------------------------------------------------------------------------------------
+
+test("every x:xf attribute reads back its own value", () => {
+  scope((owned) => {
+    // Five different numbers on purpose: wire any of the five getters to a neighbouring field and
+    // exactly one of these equalities fails, which a spec built from one repeated number could not
+    // show. Until MJXOFF-226 only the first four were readable here at all.
+    const spec = owned.keep(
+      owned.keep(
+        owned.keep(
+          owned.keep(
+            owned.keep(owned.keep(new CellFormatSpec()).withNumberFormatId(11)).withFontIndex(22),
+          ).withFillIndex(33),
+        ).withBorderIndex(44),
+      ).withCellStyleFormatIndex(55),
+    ).withQuotePrefix(true);
+    assert.equal(spec.numberFormatId, 11);
+    assert.equal(spec.fontIndex, 22);
+    assert.equal(spec.fillIndex, 33);
+    assert.equal(spec.borderIndex, 44);
+    assert.equal(spec.cellStyleFormatIndex, 55);
+    assert.equal(spec.textIsQuotePrefixed, true);
+  });
+});
+
+// Every flag named the way a caller would write it, rather than reached by string index: a
+// bracket lookup would exercise these twelve members without any test source ever naming them,
+// which is exactly what `xtask/tests/binding_projection.rs` counts.
+const APPLY_FLAGS = [
+  {
+    name: "appliesNumberFormat",
+    state: (spec, value) => spec.withAppliesNumberFormat(value),
+    read: (spec) => spec.appliesNumberFormat,
+  },
+  {
+    name: "appliesFont",
+    state: (spec, value) => spec.withAppliesFont(value),
+    read: (spec) => spec.appliesFont,
+  },
+  {
+    name: "appliesFill",
+    state: (spec, value) => spec.withAppliesFill(value),
+    read: (spec) => spec.appliesFill,
+  },
+  {
+    name: "appliesBorder",
+    state: (spec, value) => spec.withAppliesBorder(value),
+    read: (spec) => spec.appliesBorder,
+  },
+  {
+    name: "appliesAlignment",
+    state: (spec, value) => spec.withAppliesAlignment(value),
+    read: (spec) => spec.appliesAlignment,
+  },
+  {
+    name: "appliesProtection",
+    state: (spec, value) => spec.withAppliesProtection(value),
+    read: (spec) => spec.appliesProtection,
+  },
+];
+
+for (const stated of APPLY_FLAGS) {
+  for (const value of [true, false]) {
+    test(`${stated.name} states that flag and no other, at ${value}`, () => {
+      scope((owned) => {
+        // One flag at a time, because six booleans cannot be told apart by giving them six
+        // distinct values. The `false` round is not redundant: §18.8.9 makes an absent `applyX`
+        // *participate* and `applyX="0"` *suppress*, so a projection that collapsed the three
+        // values to two would pass the `true` round and fail this one. Before MJXOFF-226 the six
+        // could only ever be set to `true`, implied by an index builder, and two of them —
+        // `applyAlignment` and `applyProtection` — could not be reached from JavaScript at all.
+        const spec = owned.keep(stated.state(owned.keep(new CellFormatSpec()), value));
+        for (const flag of APPLY_FLAGS) {
+          const expected = flag.name === stated.name ? value : undefined;
+          assert.equal(flag.read(spec), expected, `${stated.name}=${value} showed on ${flag.name}`);
+        }
+      });
+    });
+  }
+}
+
+test("a theme slot names the position the numeric constructor takes", () => {
+  scope((owned) => {
+    // `Color.fromTheme` states the file's own number and `Color.fromThemeSlot` names the slot. What
+    // this asserts is the *property* the projection has to have, never the table itself: the one
+    // place SpreadsheetML's `@theme` mapping is decided is `mjx_sml::styles::theme_color_position`,
+    // and a literal here would be a second copy of that decision sitting where nothing checks it.
+    // MJXOFF-246 is what taught that — a writer and a resolver each stating the mapping in their own
+    // words drifted apart and the library read the default font colour of every workbook it authored
+    // as white.
+    //
+    // A wasm enumeration *is* its ordinal in JavaScript, which makes the sharp claim writable with no
+    // number at all: `Dark1`'s position is **not** its ordinal, because the two dark/light pairs are
+    // swapped against the sequence order §20.1.6.2 prints for `clrScheme`'s children. A binding that
+    // projected the ordinal instead of calling `theme_color_position` — the single most likely way to
+    // get this wrong — passes on `Accent1` and every slot after it and fails right here.
+    const slots = [
+      ColorSchemeSlot.Dark1,
+      ColorSchemeSlot.Light1,
+      ColorSchemeSlot.Dark2,
+      ColorSchemeSlot.Light2,
+      ColorSchemeSlot.Accent1,
+      ColorSchemeSlot.Accent2,
+      ColorSchemeSlot.Accent3,
+      ColorSchemeSlot.Accent4,
+      ColorSchemeSlot.Accent5,
+      ColorSchemeSlot.Accent6,
+      ColorSchemeSlot.Hyperlink,
+      ColorSchemeSlot.FollowedHyperlink,
+    ];
+    const positions = slots.map((slot) => owned.keep(Color.fromThemeSlot(slot)).theme);
+    assert.deepEqual(
+      [...positions].sort((a, b) => a - b),
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "the twelve slots must occupy the twelve positions exactly once each",
+    );
+    assert.notEqual(
+      positions[slots.indexOf(ColorSchemeSlot.Dark1)],
+      ColorSchemeSlot.Dark1,
+      "`Dark1`'s position is not its ordinal — see MJXOFF-246",
+    );
+
+    const bySlot = owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Accent1));
+    assert.equal(bySlot.tint, undefined);
+    assert.equal(bySlot.rgb, undefined);
+    assert.equal(
+      owned.keep(Color.fromThemeSlot(ColorSchemeSlot.Dark1, -0.25)).theme,
+      positions[slots.indexOf(ColorSchemeSlot.Dark1)],
+      "a tint must not move the position",
+    );
+
+    // The same claim one level up: the fill pins nothing, which is the whole point of it beside
+    // `solid`.
+    const fill = owned.keep(PatternFillSpec.solidFromTheme(ColorSchemeSlot.Accent2, 0.4));
+    const foreground = owned.keep(fill.foreground);
+    assert.equal(foreground.theme, positions[slots.indexOf(ColorSchemeSlot.Accent2)]);
+    assert.equal(foreground.tint, 0.4);
+    assert.equal(foreground.rgb, undefined, "a theme-following fill pins no literal");
+  });
 });

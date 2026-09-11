@@ -49,7 +49,7 @@ const XSD: &str = "http://www.w3.org/2001/XMLSchema";
 
 /// One particle of a content model.
 #[derive(Debug, Clone)]
-pub enum Particle {
+pub(crate) enum Particle {
     /// `xsd:sequence` — its members occur in the order written.
     Sequence(Vec<Particle>),
     /// `xsd:choice` — exactly one of its branches occurs.
@@ -84,7 +84,7 @@ pub enum Particle {
 
 /// How a `complexContent` type derives its content model from its base type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DerivationKind {
+pub(crate) enum DerivationKind {
     /// `xsd:extension` — the base's resolved particle is followed by this type's own.
     Extension,
     /// `xsd:restriction` — this type's own particle stands alone; the base's is discarded.
@@ -93,7 +93,7 @@ pub enum DerivationKind {
 
 /// One element occurrence inside a content model.
 #[derive(Debug, Clone)]
-pub struct ElementParticle {
+pub(crate) struct ElementParticle {
     /// The element's namespace URI.
     pub namespace: String,
     /// The element's local name.
@@ -106,7 +106,7 @@ pub struct ElementParticle {
 
 /// How a complex type constrains the order of its children.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContentModel {
+pub(crate) enum ContentModel {
     /// The type declares no child elements at all.
     Empty,
     /// `xsd:sequence` — children must appear in the order the schema declares.
@@ -119,7 +119,7 @@ pub enum ContentModel {
 
 /// One flattened child slot of a complex type.
 #[derive(Debug, Clone)]
-pub struct Slot {
+pub(crate) struct Slot {
     /// The child element's namespace URI.
     pub namespace: String,
     /// The child element's local name.
@@ -137,7 +137,7 @@ pub struct Slot {
 
 /// A complex type's flattened content model.
 #[derive(Debug, Clone)]
-pub struct FlatType {
+pub(crate) struct FlatType {
     /// The XSD symbol, e.g. `CT_TextListStyle`.
     pub symbol: String,
     /// How the type constrains child order.
@@ -148,7 +148,7 @@ pub struct FlatType {
 
 /// One parsed schema document.
 #[derive(Debug)]
-pub struct Schema {
+pub(crate) struct Schema {
     /// The schema file name, e.g. `dml-main.xsd` — used in the generated provenance comment.
     pub file: String,
     /// The schema's `targetNamespace`.
@@ -165,7 +165,7 @@ pub struct Schema {
 
 impl Schema {
     /// The schema's global element declarations, as `(local, type QName)`, sorted by local name.
-    pub fn global_elements(&self) -> impl Iterator<Item = (&str, &str)> {
+    pub(crate) fn global_elements(&self) -> impl Iterator<Item = (&str, &str)> {
         self.global_elements
             .iter()
             .map(|(local, ty)| (local.as_str(), ty.as_str()))
@@ -173,7 +173,7 @@ impl Schema {
 }
 
 /// Parses one schema document into its named complex types, groups and global elements.
-pub fn parse(file: &str, xsd: &[u8]) -> Result<Schema> {
+pub(crate) fn parse(file: &str, xsd: &[u8]) -> Result<Schema> {
     let document = mjx_xml::fidelity::parse(xsd).with_context(|| format!("parsing {file}"))?;
     let interner = &document.interner;
     let root = &document.root;
@@ -418,18 +418,19 @@ fn repeats(element: &RawElement, interner: &Interner) -> bool {
 
 /// Every parsed schema, keyed by target namespace, so cross-schema group and element references
 /// resolve.
-pub struct SchemaSet {
+#[derive(Debug)]
+pub(crate) struct SchemaSet {
     schemas: Vec<Schema>,
 }
 
 impl SchemaSet {
     /// Builds a set from parsed schemas.
-    pub fn new(schemas: Vec<Schema>) -> Self {
+    pub(crate) fn new(schemas: Vec<Schema>) -> Self {
         Self { schemas }
     }
 
     /// The schemas in the set, in the order they were given.
-    pub fn schemas(&self) -> &[Schema] {
+    pub(crate) fn schemas(&self) -> &[Schema] {
         &self.schemas
     }
 
@@ -440,7 +441,7 @@ impl SchemaSet {
     }
 
     /// Flattens every complex type of `schema`, in document order.
-    pub fn flatten_schema(&self, schema: &Schema) -> Result<Vec<FlatType>> {
+    pub(crate) fn flatten_schema(&self, schema: &Schema) -> Result<Vec<FlatType>> {
         schema
             .complex_types
             .iter()

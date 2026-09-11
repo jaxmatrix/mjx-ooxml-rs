@@ -1,5 +1,9 @@
 //! `mjx-opc` — the Open Packaging Conventions (OPC) layer for mjx-ooxml-rs.
 //!
+//! **Start at [`guide`]** — one guide set over the whole packaging tier (`mjx-opc`, `mjx-mce`,
+//! `mjx-xml` and `mjx-ooxml-core`), hosted here because the fidelity mechanism is spread across
+//! all four and no one of them can be read alone.
+//!
 //! An OOXML file (`.pptx` / `.docx` / `.xlsx`) is a ZIP container of *parts* described by two kinds
 //! of control stream: `[Content_Types].xml` (part → content-type) and `_rels/*.rels` (typed links
 //! between parts). This crate models that container generically, with no knowledge of
@@ -38,9 +42,11 @@
 mod content_types;
 pub mod doc_props;
 mod error;
+pub mod guide;
 mod media;
 mod name;
 mod package;
+mod percent;
 mod rels;
 mod validate;
 

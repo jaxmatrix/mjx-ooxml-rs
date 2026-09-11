@@ -3,15 +3,22 @@
 
 mod child_order;
 mod complex;
-mod emit;
 mod geometry;
 mod namespaces;
-mod naming;
 mod spec;
 /// The design-token pipeline (MJXOFF-156). It shares this module's `rustfmt`, its plain writer and
 /// its committed-output convention, and adds a subcommand rather than a second generator.
-pub(crate) mod tokens;
+pub mod tokens;
 mod xsd;
+
+// These two are `pub` rather than private since MJXOFF-224, and only these two. This module tree
+// moved into `xtask`'s library target so `xtask/tests/codegen_drift.rs` can be written against the
+// generator's own tables rather than a text rendering of them, and [`SimpleTypeModule`] names
+// [`emit::Selection`] and [`naming::NameEngine`] in its public fields — a table whose field types
+// are private cannot be read from a test. The other six stay private: nothing outside needs them,
+// and every item made public is an item rustdoc then holds to CI's `-D warnings`.
+pub mod emit;
+pub mod naming;
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -37,10 +44,83 @@ pub(crate) const GEOMETRIES_XML: &str =
 /// `mjx_ooxml_types::drawingml::PresetGuide`, so a shape's `gdLst` has one shape in this workspace
 /// and not two.
 pub(crate) const PRESET_GEOMETRY_RS: &str = "crates/mjx-geometry/src/generated.rs";
+/// One file this generator owns: where it belongs under the workspace root, and its exact
+/// contents.
+///
+/// Generation and *writing* are separate so that the same bytes can be compared against what is
+/// committed instead of overwriting it — see [`check`]. Nothing else re-derives this crate, so
+/// without that separation a generator defect is frozen into the repository rather than failing on
+/// the next build, and the committed file (the only artefact anyone reads) makes a defect
+/// indistinguishable from a deliberate choice.
+#[derive(Debug)]
+pub struct Artefact {
+    /// Absolute path of the committed file.
+    pub path: PathBuf,
+    /// Exactly the bytes that file should hold, rustfmt already applied where it applies.
+    pub contents: String,
+}
+
+/// Whether the local `References/` tree holds everything this generator reads.
+///
+/// Three trees are needed and two of them are ECMA-376 **Part 1**, which
+/// `.github/scripts/fetch-ecma-schemas.sh` does not download — its `ARCHIVES` holds Part 4
+/// (Transitional) and Part 2 (OPC) only. That is why [`check`] is a local-or-gated check rather
+/// than a CI job; see `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md`.
+#[must_use]
+pub fn references_are_present(root: &Path) -> bool {
+    root.join(STRICT_DIR).is_dir()
+        && root.join(TRANSITIONAL_DIR).is_dir()
+        && root.join(GEOMETRIES_XML).is_file()
+}
 
 /// Regenerates the `mjx-ooxml-types` source from the reference schemas.
 pub fn run() -> Result<()> {
     let root = workspace_root();
+    let artefacts = artefacts(&root)?;
+    for artefact in &artefacts {
+        if let Some(parent) = artefact.path.parent() {
+            std::fs::create_dir_all(parent).context("creating generated/ dir")?;
+        }
+        write_plain(&artefact.path, &artefact.contents)?;
+    }
+    println!("codegen: wrote {}", artefact_list(&artefacts));
+    Ok(())
+}
+
+/// Reports whether the committed output is what this generator produces today, and writes nothing.
+///
+/// This is the answer to the question the committed-output decision leaves open. It needs the same
+/// local `References/` tree `run` does — see [`references_are_present`].
+pub fn check() -> Result<()> {
+    let root = workspace_root();
+    let artefacts = artefacts(&root)?;
+    let mut stale = Vec::new();
+    for artefact in &artefacts {
+        let committed = std::fs::read_to_string(&artefact.path)
+            .with_context(|| format!("reading committed {}", artefact.path.display()))?;
+        if committed != artefact.contents {
+            stale.push(display_path(&root, &artefact.path));
+        }
+    }
+    if !stale.is_empty() {
+        bail!(
+            "{} of {} generated artefact(s) differ from what the generator produces today:\n  {}\n\
+             Run `cargo run -p xtask -- codegen` and commit the result.",
+            stale.len(),
+            artefacts.len(),
+            stale.join("\n  ")
+        );
+    }
+    println!(
+        "codegen --check: {} artefact(s) match the generator: {}",
+        artefacts.len(),
+        artefact_list(&artefacts)
+    );
+    Ok(())
+}
+
+/// Renders every committed artefact, in emission order. Pure apart from reading `References/`.
+pub fn artefacts(root: &Path) -> Result<Vec<Artefact>> {
     let strict_dir = root.join(STRICT_DIR);
     let transitional_dir = root.join(TRANSITIONAL_DIR);
     if !transitional_dir.is_dir() {
@@ -51,11 +131,11 @@ pub fn run() -> Result<()> {
     }
 
     let out_dir = root.join("crates/mjx-ooxml-types/src/generated");
-    std::fs::create_dir_all(&out_dir).context("creating generated/ dir")?;
+    let mut out = Vec::new();
 
     // 1. namespace table (both worlds)
     let ns_src = namespaces::generate(&strict_dir, &transitional_dir)?;
-    write_generated(&out_dir.join("namespaces.rs"), &ns_src)?;
+    out.push(rust_artefact(out_dir.join("namespaces.rs"), &ns_src)?);
 
     // 2–3. the simple-type modules: one per schema, each with its own naming tables.
     let mut modules: Vec<(&SimpleTypeModule, emit::EmittedModule)> = Vec::new();
@@ -90,17 +170,22 @@ pub fn run() -> Result<()> {
             // ranks up. It is written from here, and not from a second subcommand, because it is
             // the *same* parse of the *same* file that produced the adjustment table above, and the
             // `ST_ShapeType` values it is checked against are this module's own.
+            //
+            // ⚠ It is an artefact rather than a direct write, and that is the merge of MJXOFF-224
+            // into this: `check` compares what the generator produces against what is committed,
+            // so a table that wrote itself here would be modified BY the check that exists to
+            // report whether it is current.
             let shape_tokens = enumeration_values(&emitted, "ST_ShapeType")?;
-            write_generated(
-                &root.join(PRESET_GEOMETRY_RS),
+            out.push(rust_artefact(
+                root.join(PRESET_GEOMETRY_RS),
                 &geometry::emit_preset_geometry(&geometries_xml, &shape_tokens)?,
-            )?;
+            )?);
         }
 
-        write_generated(
-            &out_dir.join(format!("{}.rs", module.module)),
+        out.push(rust_artefact(
+            out_dir.join(format!("{}.rs", module.module)),
             &emitted.source,
-        )?;
+        )?);
         modules.push((module, emitted));
     }
 
@@ -122,31 +207,44 @@ pub fn run() -> Result<()> {
     }
     let set = complex::SchemaSet::new(schemas);
     let child_order_src = child_order::generate(&set, CHILD_ORDER_SCHEMAS)?;
-    write_generated(&out_dir.join("child_order.rs"), &child_order_src)?;
+    out.push(rust_artefact(
+        out_dir.join("child_order.rs"),
+        &child_order_src,
+    )?);
 
     // 4. the generated module root — derived from the module table, so a new module cannot be
     //    emitted and left unreachable.
-    write_generated(&out_dir.join("mod.rs"), &generated_module_root())?;
+    out.push(rust_artefact(
+        out_dir.join("mod.rs"),
+        &generated_module_root(),
+    )?);
 
     // 5. coverage manifest (which schemas are generated vs pending), over every schema in the set
     let stems = namespaces::schema_stems(&transitional_dir)?;
-    write_plain(
-        &root.join("crates/mjx-ooxml-types/COVERAGE.md"),
-        &coverage_manifest(&stems, &modules)?,
-    )?;
+    out.push(Artefact {
+        path: root.join("crates/mjx-ooxml-types/COVERAGE.md"),
+        contents: coverage_manifest(&stems, &modules)?,
+    });
 
-    let mut written: Vec<&str> = SIMPLE_TYPE_MODULES.iter().map(|m| m.module).collect();
-    written.sort_unstable();
-    println!(
-        "codegen: wrote {PRESET_GEOMETRY_RS}, child_order.rs, namespaces.rs, {}, mod.rs, \
-         COVERAGE.md",
-        written
-            .iter()
-            .map(|m| format!("{m}.rs"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    Ok(())
+    Ok(out)
+}
+
+/// The artefacts' file names, in emission order — what `run` and `check` print.
+fn artefact_list(artefacts: &[Artefact]) -> String {
+    artefacts
+        .iter()
+        .filter_map(|a| a.path.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A path relative to the workspace root, for a message a person reads.
+fn display_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
 }
 
 /// One generated simple-type module: which schema it reads, which types it takes, and the naming
@@ -155,24 +253,25 @@ pub fn run() -> Result<()> {
 /// This is the single list the emission, the generated `mod.rs` and the coverage manifest are all
 /// driven from, so a schema cannot be generated without appearing in the manifest, and cannot
 /// appear in the manifest claiming coverage it does not have.
-struct SimpleTypeModule {
+#[derive(Debug)]
+pub struct SimpleTypeModule {
     /// The schema file stem in the Transitional set, e.g. `wml`.
-    stem: &'static str,
+    pub stem: &'static str,
     /// The generated module (and file) name, e.g. `wordprocessingml`.
-    module: &'static str,
+    pub module: &'static str,
     /// `pub` when the crate re-exports the module whole; `pub(crate)` when a hand-written module
     /// re-exports it item by item, so the public surface stays curated.
-    visibility: &'static str,
+    pub visibility: &'static str,
     /// The module's `//!` doc block.
-    module_doc: &'static str,
+    pub module_doc: &'static str,
     /// The naming tables. `ST_*` symbols are schema-scoped, so this is per schema.
-    engine: &'static NameEngine,
+    pub engine: &'static NameEngine,
     /// Every type, or the curated slice.
-    selection: emit::Selection<'static>,
+    pub selection: emit::Selection<'static>,
 }
 
 /// The generated simple-type modules, in emission order.
-const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
+pub const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
     SimpleTypeModule {
         stem: "shared-commonSimpleTypes",
         module: "shared",
@@ -307,18 +406,18 @@ fn generated_module_root() -> String {
 /// `shared-math` joined with MJXOFF-134 (C17): `mjx-omml` models all 72 `shared-math.xsd` complex
 /// types and writes `m:oMath`/`m:oMathPara`/every math object from a typed model, so a part carrying
 /// an equation is now ordered by construction too. It **left**
-/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to get a table of its own here — exactly the move that
+/// `CHILD_ORDER_SCHEMA_DEPENDENCIES` to get a table of its own here — exactly the move that
 /// list's own doc comment describes for `dml-wordprocessingDrawing`.
 ///
 /// `dml-spreadsheetDrawing` joined with MJXOFF-107 (E3), and **left**
-/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to do it — the third schema to make that move, after
+/// `CHILD_ORDER_SCHEMA_DEPENDENCIES` to do it — the third schema to make that move, after
 /// `dml-wordprocessingDrawing` and `shared-math`. It was parsed as a dependency from MJXOFF-132
 /// onward because `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element `ref`; it now
 /// has a table of its own because `mjx-dml::spreadsheet_drawing` writes `xdr:wsDr` and all three
 /// anchor modes from a typed model, and `CT_TwoCellAnchor`'s own sequence
 /// (`from`, `to`, the object choice, `clientData`) is an ordering no writer should be spelling out
 /// by hand.
-const CHILD_ORDER_SCHEMAS: &[&str] = &[
+pub const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "dml-main",
     "pml",
     "dml-chart",
@@ -428,7 +527,9 @@ fn enumeration_values(module: &emit::EmittedModule, name: &str) -> Result<Vec<St
     }
 }
 
-pub(crate) fn workspace_root() -> PathBuf {
+/// The workspace root, derived from this crate's manifest directory. Public for the same reason
+/// [`write_plain`] is: the binary's `ledger` module resolves its paths against the same root.
+pub fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is the xtask crate dir; the workspace root is its parent.
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -436,13 +537,16 @@ pub(crate) fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Formats source with rustfmt, then writes it.
-fn write_generated(path: &Path, src: &str) -> Result<()> {
-    let formatted = rustfmt(src).with_context(|| format!("formatting {}", path.display()))?;
-    write_plain(path, &formatted)
+/// A Rust artefact: the emitted source with rustfmt already applied, so that what `run` writes and
+/// what `check` compares against are the same bytes rather than two spellings of them.
+fn rust_artefact(path: PathBuf, src: &str) -> Result<Artefact> {
+    let contents = rustfmt(src).with_context(|| format!("formatting {}", path.display()))?;
+    Ok(Artefact { path, contents })
 }
 
-pub(crate) fn write_plain(path: &Path, contents: &str) -> Result<()> {
+/// Writes a file verbatim, creating its parent directory. Public because the binary's `ledger`
+/// module writes its artefact through the same helper the generator uses.
+pub fn write_plain(path: &Path, contents: &str) -> Result<()> {
     std::fs::write(path, contents).with_context(|| format!("writing {}", path.display()))
 }
 
@@ -489,6 +593,9 @@ fn coverage_manifest(
             bail!("`UNCOVERED_SCHEMAS` names `{stem}` twice");
         }
     }
+    // …and a claim nothing can reach any more is worse than a typo, because it still reads as a
+    // claim. See `check_uncovered_schemas_are_live`.
+    check_uncovered_schemas_are_live()?;
 
     let mut s = String::new();
     s.push_str("# Generated-type coverage\n\n");
@@ -562,6 +669,69 @@ enum Table {
     ChildOrder,
 }
 
+/// Fails when an [`UNCOVERED_SCHEMAS`] row, or one of its two notes, has stopped being reachable.
+///
+/// **This closes MJXOFF-88 §9 B10.** `UNCOVERED_SCHEMAS` writes prose straight into `COVERAGE.md`, a
+/// shipped document, and until MJXOFF-224 the only things checked about a row were that its stem is
+/// in the Transitional set and that no stem appears twice. Nothing failed when a row's *claim*
+/// stopped being true — so a note reading `not modelled` could outlive the schema being generated,
+/// and a note reading `generated — every complex type` could outlive the schema leaving
+/// [`CHILD_ORDER_SCHEMAS`], at which point `uncovered_note` would print it and the document would
+/// report coverage that does not exist.
+///
+/// What is enforced is the rule the table's own doc comment already stated and nothing tested:
+///
+/// * **a schema covered in both tables has no row at all** — its prose can never be read again, so
+///   keeping it is keeping an assertion nobody will ever see fail;
+/// * **a note is empty exactly for the column that covers the schema**, and non-empty exactly for
+///   the column that does not. `uncovered_note` already rejected an empty note it needed; this
+///   rejects a note it will never need.
+/// * **a live note never opens with `generated`**, because by construction its table does not
+///   generate that schema.
+///
+/// It needs no schemas — everything it compares is a `const` — so `xtask/tests/codegen_drift.rs`
+/// runs it on every push, not only where `References/` is present.
+///
+/// **What it cannot do** is tell you that a note's *sentence* has stopped being true. That
+/// `bibliography sources are preserved verbatim, never authored` is prose about `mjx-docx`, and no
+/// check here reads `mjx-docx`. Every `not modelled — …` note is a claim a person made on a date.
+pub fn check_uncovered_schemas_are_live() -> Result<()> {
+    for (stem, simple_note, child_note) in UNCOVERED_SCHEMAS {
+        let simple_covered = SIMPLE_TYPE_MODULES.iter().any(|m| m.stem == *stem);
+        let child_covered = CHILD_ORDER_SCHEMAS.contains(stem);
+        if simple_covered && child_covered {
+            bail!(
+                "`UNCOVERED_SCHEMAS` still has a row for `{stem}`, which is now covered in both \
+                 tables — neither of its notes can ever be read again. Delete the row."
+            );
+        }
+        for (covered, note, column) in [
+            (simple_covered, *simple_note, "simple-type"),
+            (child_covered, *child_note, "child-order"),
+        ] {
+            if covered && !note.is_empty() {
+                bail!(
+                    "`{stem}`'s {column} note says {note:?}, but that table covers `{stem}` and \
+                     computes its status directly — the note is unreachable. Empty it."
+                );
+            }
+            if !covered && note.is_empty() {
+                bail!(
+                    "`{stem}` has an empty {column} note, but that table does not cover it — an \
+                     empty note means \"covered here, see the other column\""
+                );
+            }
+            if !covered && note.starts_with("generated") {
+                bail!(
+                    "`{stem}`'s {column} note opens with \"generated\", but that table does not \
+                     generate `{stem}` — `COVERAGE.md` would report coverage that does not exist"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The curated note for a schema a table does not cover.
 fn uncovered_note(stem: &str, table: Table) -> Result<String> {
     let row = UNCOVERED_SCHEMAS
@@ -592,17 +762,22 @@ fn uncovered_note(stem: &str, table: Table) -> Result<String> {
 /// A row is needed for every schema not generated in that table, and only for those: a schema that
 /// gains coverage in **both** tables has its row removed (MJXOFF-132 took `sml`'s and the dead one
 /// MJXOFF-134 left behind for `shared-math`), and a schema that arrives without one fails the
-/// generator. Removing the row is not tidying — it is what makes coverage load-bearing: withdraw
+/// generator. Since MJXOFF-224 that first half is enforced rather than merely written here —
+/// [`check_uncovered_schemas_are_live`] — which is what found `pml`, `wml` and `dml-main` still
+/// carrying rows neither of whose notes could ever be read, and `dml-chart` carrying a child-order
+/// note saying `generated` about a column computed elsewhere. Removing the row is not tidying — it is what makes coverage load-bearing: withdraw
 /// `sml` from [`CHILD_ORDER_SCHEMAS`] now and this generator refuses to run rather than quietly
 /// reporting a schema as pending again. `pending, owned by MJXOFF-N` names the work item that closes the gap — the same
 /// ownership `mjx-schema-gate`'s `OrderingCoverage::Pending` states for the namespaces it
 /// categorises, and `crates/mjx-schema-gate/src/categories.rs` has a test that the two agree.
-const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
+pub const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
     (
         "dml-chart",
         "pending — charts are written through `mjx-chart`'s model, which uses no `ST_*` \
          enumeration of its own yet",
-        "generated — every complex type",
+        // Covered by `CHILD_ORDER_SCHEMAS`, so this column is computed and the note would never be
+        // read; `check_uncovered_schemas_are_live` is what keeps it empty.
+        "",
     ),
     (
         "dml-chartDrawing",
@@ -624,7 +799,6 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
          member to rank, so there is no placement decision a generated table could inform that the \
          hand-written order does not already get right",
     ),
-    ("pml", "", "generated — every complex type"),
     (
         "shared-additionalCharacteristics",
         "not modelled — a document-characteristics part this workspace neither reads nor writes",
@@ -697,11 +871,6 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — as for `vml-main`",
         "not modelled — as for `vml-main`",
     ),
-    // `wml`'s child-order note is unused now that CHILD_ORDER_SCHEMAS contains it (its column is
-    // computed directly, the same as `dml-main`'s row below) — kept accurate rather than stale, on
-    // the same convention that row already follows.
-    ("wml", "", "generated — every complex type"),
-    ("dml-main", "", "generated — every complex type"),
     (
         "shared-commonSimpleTypes",
         "",

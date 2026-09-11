@@ -1,5 +1,9 @@
 //! `mjx-xml` — the XML layer for mjx-ooxml-rs.
 //!
+//! **This crate has no guide of its own.** It is covered by the packaging tier's guide set,
+//! whose index is `crates/mjx-opc/docs/guide/README.md` (`mjx_opc::guide` under `cargo doc`);
+//! `crates/mjx-opc/docs/guide/the_preservation_tree.md` is the page about this crate's readers.
+//!
 //! This crate is the **only** place `quick-xml` is used, so the XML backend stays swappable and the
 //! rest of the workspace depends on our own stable types. It exposes two readers for two jobs.
 //!

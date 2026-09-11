@@ -116,7 +116,8 @@ fn a_picture_survives_a_save_and_reopen() {
     assert_eq!(
         reopened
             .picture_image_bytes(0, picture)
-            .expect("image bytes"),
+            .expect("image bytes")
+            .as_deref(),
         Some(TINY_PNG),
         "the picture still shows the bytes it was given"
     );
@@ -202,7 +203,9 @@ fn picture_image_rel_id_and_bytes_resolve_to_the_stored_part() {
         .expect("rel id")
         .expect("the picture embeds an image");
     assert_eq!(
-        pres.picture_image_bytes(0, picture).expect("bytes"),
+        pres.picture_image_bytes(0, picture)
+            .expect("bytes")
+            .as_deref(),
         Some(TINY_PNG)
     );
 
@@ -234,7 +237,9 @@ fn setting_a_picture_image_swaps_the_embed_and_keeps_the_old_part() {
         "the embed must point at the new image"
     );
     assert_eq!(
-        pres.picture_image_bytes(0, picture).expect("bytes"),
+        pres.picture_image_bytes(0, picture)
+            .expect("bytes")
+            .as_deref(),
         Some(OTHER_PNG)
     );
 
@@ -430,7 +435,7 @@ fn an_internally_linked_image_still_resolves_to_bytes() {
         "an internal link still names its in-package target"
     );
     assert_eq!(
-        pres.picture_image_bytes(0, idx).expect("bytes"),
+        pres.picture_image_bytes(0, idx).expect("bytes").as_deref(),
         Some(TINY_PNG),
         "an in-package link resolves to the stored bytes"
     );
@@ -472,7 +477,7 @@ fn replacing_a_linked_image_embeds_the_default_and_drops_the_link() {
         "the picture must no longer link its image"
     );
     assert_eq!(
-        pres.picture_image_bytes(0, idx).expect("bytes"),
+        pres.picture_image_bytes(0, idx).expect("bytes").as_deref(),
         Some(DEFAULT_PLACEHOLDER_IMAGE),
         "the default placeholder must be embedded"
     );
@@ -494,7 +499,7 @@ fn replacing_a_linked_image_can_use_caller_supplied_bytes() {
         .expect("replace with caller bytes");
 
     assert_eq!(
-        pres.picture_image_bytes(0, idx).expect("bytes"),
+        pres.picture_image_bytes(0, idx).expect("bytes").as_deref(),
         Some(OTHER_PNG),
         "the caller's bytes must be embedded, not the default"
     );

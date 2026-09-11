@@ -40,6 +40,16 @@ same one PowerPoint gets:
   extreme case: all 98 of `CT_Settings`' children are modelled, and an element in a namespace this
   crate has never met falls into `SettingsContent::Raw` **in its original position relative to its
   known neighbours** — never dropped, never reordered.
+
+  A type that writes its own `FromXml`/`ToXml` is outside `mjx-derive`'s codegen guarantee by
+  definition, and this crate does that for every preserving type — the same reader and the same
+  writer, typed out again rather than shared through a macro. So the risk is a **mistyped copy**, and
+  `tests/serialization_ledger.rs` is the gate for it: it reads this crate's own sources and compares
+  each body against the canonical text character for character, in both directions, requiring the
+  bucket field to agree across the pair. Anything genuinely different carries a ledger row with an
+  idiom checked against its own body. It found three losses on its first run (MJXOFF-218) —
+  `Control` kept no children at all and hard-coded its self-closing flag, and `WordprocessingShape`
+  and `TextboxInfo` re-emitted `<wp:wsp/>` as `<wp:wsp></wp:wsp>`.
 - **Markup Compatibility.** `mc:AlternateContent`, `mc:Ignorable` and `mc:ProcessContent` are
   preserved on write and resolved non-destructively on read. `sample.docx`'s own root carries eleven
   namespace declarations and `mc:Ignorable="w14 wp14 w15"`; `tests/roundtrip.rs` forces the typed

@@ -31,10 +31,34 @@
 //! a part out of `xsd:sequence` are this library's and fail. A defect the file arrived with, and a
 //! part its producer wrote that the XSDs reject, are the file's and are printed instead — A7b's
 //! scope rule in one direction, and MJXOFF-103's Apache POI measurement in the other.
+//!
+//! # The two checks that build a typed element (MJXOFF-278)
+//!
+//! Everything in the paragraph above is about **bytes**, and for a long time so was every check the
+//! engine had — including `facade`, which opens the document and saves it back with no edit in
+//! between, so part-level laziness re-emits every part from raw bytes and no `FromXml` ever runs.
+//! `model` and `edit` are the two that cannot pass that way, and this suite holds them to it three
+//! times over:
+//!
+//! * [`a_corruption_the_byte_checks_hold_is_caught_by_the_model`] is the thesis of MJXOFF-278 turned
+//!   into an assertion. It renames one `a:tbl` inside a graphic frame that still declares the table
+//!   URI, then asserts that **every** byte check holds on the result and that `model` alone fails.
+//!   Without the model check that file is a clean report.
+//! * [`the_model_and_edit_checks_read_and_write_something_on_every_committed_fixture`] is the
+//!   anti-vacuity: a check that reads nothing passes trivially, so **every** committed package
+//!   fixture is walked — a population derived, not listed — and each format must still hold at least
+//!   one the model can edit.
+//! * [`the_typed_model_has_never_run_against_a_file_office_wrote`] is the absence, said out loud on
+//!   every run. The corpus is empty, so these two checks have never met markup Office authored — the
+//!   one thing they exist for — and a suite that did not print that would be a green nobody could
+//!   read correctly.
 
 use std::path::PathBuf;
 
-use xtask::validation::{corpus_directory, corpus_files, ingest, report, ArtefactFormat, Verdict};
+use mjx_ooxml_core::{Interner, RawElement, RawNode};
+use xtask::validation::{
+    corpus_directory, corpus_files, ingest, model_findings, report, ArtefactFormat, Verdict,
+};
 
 /// The corpus, or a hard failure when `MJX_REQUIRE_OFFICE_CORPUS` says there must be one.
 ///
@@ -206,6 +230,62 @@ fn corruptions() -> Vec<(&'static str, &'static str, Vec<u8>)> {
     ]
 }
 
+/// MJXOFF-273's third clause: the report a person reads must say which of the two empty roots it
+/// saw, and must not call either one a finding.
+///
+/// `legacy_form_control.xlsx` is the emptied case — an `xdr:wsDr` whose only child is an
+/// `mc:AlternateContent` with a losing `a14` choice and no `mc:Fallback` — and `charts.pptx` is the
+/// empty one. The verdict assertion is as load-bearing as the text: auditing the losing choice would
+/// mean faulting a producer's extension markup against schemas that do not describe it, so a
+/// `Reported` here would put a permanent yellow on essentially every Office-authored drawing. It is
+/// recorded, not reported.
+#[test]
+fn the_ingest_report_tells_an_emptied_root_from_an_empty_one() {
+    let emptied = report(
+        "legacy_form_control.xlsx",
+        ArtefactFormat::Workbook,
+        None,
+        &mjx_fixtures::fixture("legacy_form_control.xlsx"),
+    );
+    let finding = emptied
+        .finding("child order")
+        .expect("the workbook is audited, so the report has a child-order finding");
+    assert!(
+        matches!(finding.verdict, Verdict::Held),
+        "an emptied root is not a defect and must not be dressed as one — the verdict came back \
+         `{:?}` with: {}",
+        finding.verdict,
+        finding.detail
+    );
+    assert!(
+        finding.detail.contains("/xl/drawings/drawing1.xml"),
+        "but the report must still name it, or a reader cannot tell this complete audit was \
+         complete over nothing the file contains: {}",
+        finding.detail
+    );
+
+    let empty = report(
+        "charts.pptx",
+        ArtefactFormat::Presentation,
+        None,
+        &mjx_fixtures::fixture("charts.pptx"),
+    );
+    let finding = empty
+        .finding("child order")
+        .expect("the deck is audited, so the report has a child-order finding");
+    assert!(
+        matches!(finding.verdict, Verdict::Held),
+        "and a deck whose only bare root is a genuinely empty a:tblStyleLst holds: {}",
+        finding.detail
+    );
+    assert!(
+        !finding.detail.contains("resolution removed"),
+        "with nothing said about resolution removing anything — a clause on every empty part is \
+         noise, not a distinction: {}",
+        finding.detail
+    );
+}
+
 #[test]
 fn a_package_this_suite_corrupts_fails_the_checks_that_matter() {
     for (what, check, bytes) in corruptions() {
@@ -266,152 +346,8 @@ fn the_same_engine_holds_a_package_that_is_not_corrupted() {
     );
 }
 
-// ---------------------------------------------------------------------------------------------
-// The seam the first Office-authored workbook will hit
-// ---------------------------------------------------------------------------------------------
-
-/// The SpreadsheetML namespace, as every part of this reproduction spells it.
-const SML_NAMESPACE: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-
-/// One worksheet in **three** views: as a producer writes it, with only the markup-compatibility
-/// *attributes* taken off, and as markup-compatibility resolution leaves it.
-///
-/// Authored here, for this reproduction, and **not** presented as anything Office wrote — that
-/// distinction is the whole value of `tests/office-authored/`. The shape is the one every modern
-/// Office workbook and every modern Office chart carries: an `<ext>` whose only child is in a
-/// namespace the root declares `mc:Ignorable`.
-///
-/// The middle view is what makes the diagnosis complete rather than a bare failure. It is the same
-/// document with the `mc:Ignorable` attribute and the `xmlns:mc` binding removed and the ignorable
-/// *content* left in place — and it validates, because `CT_Extension`'s wildcard is
-/// `processContents="lax"` and no schema for that namespace is loaded. So the schema does not object
-/// to the extension; it objects to the **hole** resolution leaves where the extension was.
-fn the_three_views() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-    let extension = "<extLst><ext uri=\"{2C3FCC01-B0D6-4A2A-9C1A-000000000001}\">\
-                     <demo:note weight=\"3\">an extension only its author understands</demo:note>\
-                     </ext></extLst>";
-    let as_written = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n\
-         <worksheet xmlns=\"{SML_NAMESPACE}\" \
-         xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" \
-         xmlns:demo=\"urn:mjx:demo\" mc:Ignorable=\"demo\">\
-         <sheetData><row r=\"1\"><c r=\"A1\"><v>1</v>{extension}</c></row></sheetData></worksheet>\n"
-    )
-    .into_bytes();
-    let without_compatibility_attributes = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n\
-         <worksheet xmlns=\"{SML_NAMESPACE}\" xmlns:demo=\"urn:mjx:demo\">\
-         <sheetData><row r=\"1\"><c r=\"A1\"><v>1</v>{extension}</c></row></sheetData></worksheet>\n"
-    )
-    .into_bytes();
-
-    let document = mjx_xml::fidelity::parse(&as_written).expect("the authored worksheet parses");
-    let resolved = mjx_schema_gate::markup_compatibility_resolved(&document)
-        .expect("nothing here is an unsatisfied mc:MustUnderstand");
-    (as_written, without_compatibility_attributes, resolved)
-}
-
-#[test]
-fn markup_compatibility_resolution_empties_the_extension_it_was_meant_to_ignore() {
-    let (as_written, _, resolved) = the_three_views();
-    let text = String::from_utf8(resolved).expect("the resolved view is UTF-8");
-    assert!(
-        String::from_utf8_lossy(&as_written).contains("demo:note"),
-        "the reproduction no longer carries an ignorable child, so it reproduces nothing"
-    );
-    assert!(
-        !text.contains("demo:note"),
-        "markup-compatibility resolution kept the ignorable child, so the seam this test documents \
-         has changed shape:\n{text}"
-    );
-    assert!(
-        text.contains("<ext"),
-        "the extension itself was removed as well as its content, which is not what MCE says and \
-         not the defect recorded here:\n{text}"
-    );
-    println!("MCE resolution leaves: {}", text.trim());
-}
-
-/// The composition defect itself: the view MCE mandates is the view the schema rejects.
-///
-/// **This test fails when somebody fixes the seam, and that is the point.** It is written against a
-/// defect rather than against a feature, so its own red is the signal that the defect is gone and
-/// this file, `ingest.rs`'s module documentation and the corpus README can all lose a paragraph.
-///
-/// It is *not* a tolerance. A tolerance in `crates/mjx-schema-gate/src/tolerances.rs` is for one
-/// file and one message, and never for markup we author — and this is neither file-specific nor the
-/// producer's fault. `sml.xsd` and `dml-chart.xsd` both declare `CT_Extension`'s wildcard as a bare
-/// `<xsd:any processContents="lax"/>`, whose `minOccurs` therefore defaults to 1; `pml.xsd`'s copy
-/// and `dml-main.xsd`'s `CT_OfficeArtExtension` say `minOccurs="0"` and are unaffected. So the
-/// defect reaches every format, through charts, and not Excel alone.
-///
-/// The three views together are the diagnosis:
-///
-/// | View | Verdict | What it establishes |
-/// |---|---|---|
-/// | as a producer writes it | rejected — `mc:Ignorable` *is not allowed* | why the gate resolves at all |
-/// | compatibility attributes removed, content kept | validates | the schema does not object to the extension |
-/// | fully resolved | rejected — *Missing child element(s)* | it objects to the hole resolution leaves |
-#[test]
-fn the_resolved_view_of_an_ignorable_extension_is_rejected_by_the_schema_that_admits_the_original()
-{
-    let Some(harness) = mjx_schema_gate::harness() else {
-        println!(
-            "skipped: no References/ tree or no xmllint. MJX_REQUIRE_SCHEMA=1 makes that a failure."
-        );
-        return;
-    };
-    let schema = mjx_schema_gate::schema_for_namespace(SML_NAMESPACE)
-        .expect("SpreadsheetML is a modelled schema");
-    let work = mjx_schema_gate::WorkDir::new("office-corpus-mce-seam");
-    let (as_written, kept, resolved) = the_three_views();
-
-    let verdict = |name: &str, bytes: &[u8]| -> Option<String> {
-        let path = work.path().join(name);
-        std::fs::write(&path, bytes).expect("writing a view");
-        harness.validate(schema, SML_NAMESPACE, &path)
-    };
-
-    let written_report = verdict("as-written.xml", &as_written).unwrap_or_else(|| {
-        panic!(
-            "the worksheet as a producer writes it validates with `mc:Ignorable` still on it, so \
-             the gate has no reason to resolve markup compatibility and this whole seam is gone"
-        )
-    });
-    assert!(
-        written_report.contains("Ignorable"),
-        "the authored view fails for a reason other than its compatibility \
-         attribute:\n{written_report}"
-    );
-
-    assert!(
-        verdict("content-kept.xml", &kept).is_none(),
-        "the schema rejects the extension itself, not the hole resolution leaves — the diagnosis \
-         recorded here is wrong:\n{}",
-        verdict("content-kept.xml", &kept).unwrap_or_default()
-    );
-
-    let resolved_report = verdict("mce-resolved.xml", &resolved).unwrap_or_else(|| {
-        panic!(
-            "the resolved view validates. The MCE/CT_Extension seam defect is fixed — delete this \
-             test, the paragraph in xtask/src/validation/ingest.rs and the one in \
-             tests/office-authored/README.md, and close MJXOFF-196."
-        )
-    });
-    assert!(
-        resolved_report.contains("Missing child element(s)"),
-        "the resolved view fails for a different reason than the one recorded \
-         here:\n{resolved_report}"
-    );
-    println!(
-        "the MCE/CT_Extension seam, reproduced:\n  as written:        {}\n  content kept:      \
-         validates\n  MCE-resolved:      {}",
-        written_report.trim(),
-        resolved_report.trim()
-    );
-}
-
-/// Where the reproduction above says the corpus lives, so a reader of this file can find it.
+/// Where every document in this repository says the corpus lives, so a reader of this file can
+/// find it.
 #[test]
 fn the_corpus_directory_is_where_every_document_says_it_is() {
     let directory = corpus_directory();
@@ -428,4 +364,251 @@ fn the_corpus_directory_is_where_every_document_says_it_is() {
         directory.display()
     );
     let _: PathBuf = directory;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The two checks that build a typed element (MJXOFF-278)
+// ---------------------------------------------------------------------------------------------
+
+/// Renames the first descendant of `element` whose local name is `local`, and says whether it found
+/// one.
+///
+/// One rename is enough to break both tags: the fidelity tree holds an element once, so its start
+/// and end tags are re-emitted from the same name and the result is still well-formed XML — which is
+/// the whole point. A corruption that made the part unparseable would be caught by `xml tree` and
+/// would prove nothing about the model.
+fn rename_first(element: &mut RawElement, interner: &mut Interner, local: &str, to: &str) -> bool {
+    if interner.resolve(element.name.local) == local {
+        element.name.local = interner.intern(to);
+        return true;
+    }
+    for child in &mut element.children {
+        if let RawNode::Element(child) = child {
+            if rename_first(child, interner, local, to) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Every check the ingest ran that is about **bytes** and runs everywhere, in the order the report
+/// prints them.
+///
+/// `schema` is deliberately not here, for the reason `corruptions()` gives above: it needs
+/// `References/` and `xmllint`, it skips without them, and a corruption caught only by a check that
+/// skips on CI is a corruption nothing catches. It happens to catch this one where the schemas are
+/// present — the `a:tblish` has no global element declaration — which is exactly why the list has to
+/// say what it means by "every byte check" rather than being "all of them".
+const BYTE_CHECKS: [&str; 6] = [
+    "opens",
+    "round-trip",
+    "xml tree",
+    "facade",
+    "package",
+    "child order",
+];
+
+/// MJXOFF-278's thesis, as an assertion: a deck every byte check holds, and no reader of ours can
+/// read.
+///
+/// `tables.pptx` frames a table, and the frame's `a:graphicData@uri` is what says so. Renaming the
+/// `a:tbl` inside it leaves that declaration standing over markup that is no longer a table: the ZIP
+/// is sound, every payload round-trips, the fidelity tree re-serializes byte for byte, the facade
+/// opens and re-saves it unchanged — **because it edits nothing and laziness re-emits raw bytes** —
+/// the package invariants hold and no child is out of `xsd:sequence`. Six green checks over a file
+/// whose own `graphic_frame_kind` hands `table_dimensions` an address it cannot read.
+///
+/// This is the file the report used to call clean. Both halves of the assertion matter: if the byte
+/// checks ever start catching it, this test has stopped proving what it was written to prove.
+#[test]
+fn a_corruption_the_byte_checks_hold_is_caught_by_the_model() {
+    let sound = mjx_fixtures::fixture("tables.pptx");
+    let mut package = mjx_opc::Package::open(&sound).expect("opening tables.pptx");
+    let part = mjx_opc::PartName::new("/ppt/slides/slide1.xml").expect("a part name");
+    {
+        let tree = package.part_tree_mut(&part).expect("the slide tree");
+        assert!(
+            rename_first(&mut tree.root, &mut tree.interner, "tbl", "tblish"),
+            "tables.pptx no longer frames a table on slide 1, so this corruption corrupts nothing"
+        );
+    }
+    let bytes = package.save_unchecked().expect("saving the edited package");
+
+    let report = report(
+        "a-table-that-is-not-one.pptx",
+        ArtefactFormat::Presentation,
+        None,
+        &bytes,
+    );
+    print!("{}", report.render());
+
+    for check in BYTE_CHECKS {
+        let finding = report
+            .finding(check)
+            .unwrap_or_else(|| panic!("the report has no `{check}` finding:\n{}", report.render()));
+        assert!(
+            matches!(finding.verdict, Verdict::Held),
+            "`{check}` came back `{}` on the corruption. Every byte check holding is half of what \
+             this test proves — a file the container checks reject says nothing about whether the \
+             typed model is ever built:\n{}",
+            finding.verdict.label(),
+            report.render()
+        );
+    }
+
+    let model = report
+        .finding("model")
+        .unwrap_or_else(|| panic!("the report has no `model` finding:\n{}", report.render()));
+    assert!(
+        matches!(model.verdict, Verdict::Failed),
+        "`model` came back `{}` on a graphic frame that declares a table and holds none. A model \
+         check that cannot fail is the `facade` check with a different name:\n{}",
+        model.verdict.label(),
+        report.render()
+    );
+    assert!(
+        model.detail.contains("table"),
+        "and it must name the address it could not read, or a reader cannot act on it: {}",
+        model.detail
+    );
+}
+
+/// The anti-vacuity, over **every committed package fixture**: a walk that reads nothing, and an
+/// edit that writes nothing, both pass without ever building a typed element.
+///
+/// The corpus is derived rather than listed — `mjx_fixtures::package_fixtures_with_extension` over
+/// `ArtefactFormat::all()` — because three hand-picked fixtures is exactly the shape
+/// `xtask/tests/derived_rosters.rs` refuses, and because sweeping all of them is what turned up the
+/// two things a sample of three would have missed: a `w:sdt` slot that holds no run, and a `numId`
+/// two committed documents reference and their own `word/numbering.xml` does not define.
+///
+/// The floors are per format and phrased as *the sweep has stopped reading*, never as an exact
+/// total. Fixtures gain and lose content; a hard-coded count would be a test of the corpus rather
+/// than of the walk. What is asserted of **every** fixture is the pair that cannot be traded away:
+/// the model must not fault, and reading must leave every part alone.
+#[test]
+fn the_model_and_edit_checks_read_and_write_something_on_every_committed_fixture() {
+    for format in ArtefactFormat::all() {
+        let names = mjx_fixtures::package_fixtures_with_extension(format.extension());
+        assert!(
+            !names.is_empty(),
+            "no committed .{} fixture at all, so this format's half of the sweep runs over nothing",
+            format.extension()
+        );
+        let mut walked = 0usize;
+        let mut edited = 0usize;
+        let mut skipped = Vec::new();
+        for name in &names {
+            let bytes = mjx_fixtures::fixture(name);
+            let package = mjx_opc::Package::open(&bytes)
+                .unwrap_or_else(|error| panic!("{name}: not a package: {error}"));
+            let findings = model_findings(format, &package, &bytes);
+            let model = findings
+                .iter()
+                .find(|finding| finding.check == "model")
+                .unwrap_or_else(|| panic!("{name}: no `model` finding"));
+            assert!(
+                !matches!(model.verdict, Verdict::Failed),
+                "{name}: the typed model refused an address one of our own readers produced — {}",
+                model.detail
+            );
+            assert!(
+                !matches!(model.verdict, Verdict::Skipped),
+                "{name}: the `model` check skipped. It needs no tool and no schema tree, so a skip \
+                 here can only be a check that stopped running"
+            );
+            assert!(
+                model.detail.contains("reading dirtied nothing"),
+                "{name}: the walk did not establish that reading left every part alone, and every \
+                 byte comparison downstream of a read depends on it: {}",
+                model.detail
+            );
+            walked += 1;
+
+            let edit = findings
+                .iter()
+                .find(|finding| finding.check == "edit")
+                .unwrap_or_else(|| panic!("{name}: no `edit` finding"));
+            match edit.verdict {
+                Verdict::Held => edited += 1,
+                Verdict::Skipped => skipped.push(name.as_str()),
+                other => panic!(
+                    "{name}: an edit through the typed model came back `{}` — {}",
+                    other.label(),
+                    edit.detail
+                ),
+            }
+            println!("{name}\n  model {}\n  edit  {}", model.detail, edit.detail);
+        }
+        assert_eq!(
+            walked,
+            names.len(),
+            "the .{} sweep walked {walked} of {} fixture(s)",
+            format.extension(),
+            names.len()
+        );
+        assert!(
+            edited > 0,
+            "not one committed .{} fixture held anything the typed model could edit. The sweep has \
+             stopped measuring the sharpest thing in the ingest, and a report of nothing but skips \
+             is not a green. Skipped: {skipped:?}",
+            format.extension()
+        );
+        println!(
+            "the typed model walked all {} committed .{} fixture(s) and edited {edited} of them; \
+             {} held nothing editable without moving more than one text leaf: {skipped:?}",
+            names.len(),
+            format.extension(),
+            skipped.len()
+        );
+    }
+}
+
+/// What the two new checks have **not** been run against, said on every run.
+///
+/// `tests/office-authored/` is empty, no agent may fill it, and until somebody re-saves something
+/// out of Microsoft Office the typed model has still only ever read markup this project or
+/// LibreOffice wrote. That is the honest state, and it is worth nothing unless it is *visible*: a
+/// skip that reports as a pass is the defect this whole phase has been deleting. So the count is
+/// printed, named, and `MJX_REQUIRE_OFFICE_CORPUS=1` turns it into a failure the day CI should
+/// expect files — the same arrangement `MJX_REQUIRE_SCHEMA` and `MJX_REQUIRE_SOFFICE` make.
+///
+/// **The test's own name is the part that is visible without `--nocapture`.** `cargo test` swallows
+/// a passing test's stdout, so a line printed here is read by whoever asks for it; a line in the
+/// test list is read by everybody. The day a file arrives, this name is wrong and has to be
+/// changed, which is the point.
+#[test]
+fn the_typed_model_has_never_run_against_a_file_office_wrote() {
+    let files = corpus();
+    let mut read = 0usize;
+    for file in &files {
+        let report = ingest(&file.path, file.area).expect("ingesting a corpus file");
+        let model = report
+            .finding("model")
+            .unwrap_or_else(|| panic!("{}: no `model` finding", file.name));
+        println!("{}\n  model {}", file.name, model.detail);
+        if matches!(model.verdict, Verdict::Held | Verdict::Reported) {
+            read += 1;
+        }
+        assert!(
+            !matches!(model.verdict, Verdict::Skipped),
+            "{}: the `model` check skipped. It has no tool and no schema tree to be missing — a \
+             skip here can only be a check that stopped running",
+            file.name
+        );
+    }
+    println!(
+        "the typed model has been walked over {read} of {} Office-authored file(s) in {}",
+        files.len(),
+        corpus_directory().display()
+    );
+    if files.is_empty() {
+        println!(
+            "NOT ONE — the corpus is empty, so `model` and `edit` have still only ever read markup \
+             this project or LibreOffice wrote, which is exactly the weakness MJXOFF-130 and \
+             MJXOFF-278 exist to retire. docs/validation/06-the-office-pass.md is how a person \
+             fills it; no agent may."
+        );
+    }
 }

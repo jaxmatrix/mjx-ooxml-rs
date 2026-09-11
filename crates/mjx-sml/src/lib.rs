@@ -1,6 +1,12 @@
 //! `mjx-sml` — the SpreadsheetML **markup** model: cells, rows, sheet data, shared strings, styles,
 //! number formats and formulas-as-text.
 //!
+//! **Start at [`guide`]** — six narrative pages written for a caller holding a part rather than for
+//! a reader touring sixteen hundred declarations. Two of them, [`guide::the_cell_store`] and
+//! [`guide::shared_strings`], are MJXOFF-95's and MJXOFF-97's decision records with the numbers and
+//! the machine attached. Every item below carries its own doc comment; the guide is the story
+//! around them, and [`guide::fidelity_and_gaps`] is what to read before relying on any of it.
+//!
 //! # Why SpreadsheetML is shared markup, not a format
 //!
 //! A `.xlsx` package is Excel's, but SpreadsheetML is not. An authored PowerPoint chart embeds a
@@ -94,6 +100,8 @@
 
 pub(crate) mod arena;
 pub(crate) mod leaf;
+#[cfg(test)]
+pub(crate) mod prose;
 
 pub mod address;
 pub mod cells;
@@ -102,6 +110,7 @@ pub mod error;
 pub mod features;
 pub mod font;
 pub mod formula;
+pub mod guide;
 pub mod preserved;
 pub mod sheets;
 pub mod strings;

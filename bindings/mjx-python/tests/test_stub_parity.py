@@ -104,20 +104,41 @@ def test_every_class_agrees_member_for_member(stub: ast.Module) -> None:
 
 
 def test_the_deck_declares_every_bound_method(stub: ast.Module) -> None:
-    """The one class the whole binding is about, checked explicitly and counted."""
+    """The one class the whole binding is about, checked in both directions."""
     node = stub_classes(stub)["Deck"]
     declared = stub_members(node) - UNIVERSAL
     actual = runtime_members(mjx_ooxml.Deck)
-    assert declared == actual
-    # Six lifecycle methods plus the delegated surface. The count is stated so that a method
-    # silently dropped from the generator is a failure rather than a smaller number nobody reads.
-    # 253 until MJXOFF-118, which found `chart_series_references` bound on `Workbook` alone and
-    # projected it from `Deck` and `Document` too. This number is a *checked* count — it is
-    # re-derived from the compiled module on every run, which is what separates it from the prose
-    # counts MJXOFF-118 deleted elsewhere for having quietly stopped being true.
-    assert len(actual) == 254, (
-        f"expected 254 methods on Deck without the `vml` feature, found {len(actual)}"
+    # The real check, and it is bidirectional: a method the module binds and the stub omits fails
+    # here, and so does one the stub declares and the module does not.
+    assert declared == actual, (
+        "the stub and the compiled `Deck` disagree:\n"
+        f"  only in the module: {sorted(actual - declared)}\n"
+        f"  only in the stub:   {sorted(declared - actual)}"
     )
+
+    # And the anti-vacuity floor beneath it, stated as *the walk is still matching* rather than as
+    # *the surface is exactly this size*.
+    #
+    # It was an exact count — `len(actual) == 255` — until MJXOFF-223 and MJXOFF-228 grew `Deck` by
+    # four methods and it failed for the one reason it must never fail: the surface legitimately
+    # changed. An exact total here is `doc_gate.rs`'s own warning made flesh — *"a floor pinned to
+    # the exact corpus size fires before the assertion it guards"* — because a reader who meets
+    # `expected 255, found 259` learns nothing about whether `declared == actual` held, edits the
+    # digit, and re-arms the trap for the next method anybody adds. The three previous editors of
+    # this line each left a note saying which ticket bumped it, which is the ledger of a habit
+    # rather than a check.
+    #
+    # What the floor is actually for is the shape both comparisons above are blind to: an extractor
+    # that stops matching makes `declared` and `actual` **both** empty and the equality trivially
+    # true. So each side is floored separately, the way `xtask/tests/facade_curation.rs` floors a
+    # facade and its model, and the number is chosen to be implausibly small rather than nearly
+    # right — `Deck`'s surface runs to several hundred methods, so anything under 200 means
+    # `dir()` or the stub walk has died, not that somebody removed a few.
+    for label, members in (("the compiled module", actual), ("the stub", declared)):
+        assert len(members) >= 200, (
+            f"only {len(members)} method(s) were found on `Deck` in {label}; the walk has stopped "
+            "matching, and the comparison above would pass on almost nothing"
+        )
 
 
 def test_the_module_docstring_and_version_are_present() -> None:
@@ -138,7 +159,12 @@ def test_every_public_class_carries_a_docstring() -> None:
 
 
 def test_every_deck_method_carries_a_docstring() -> None:
-    """The docstrings are `mjx-ooxml`'s own summaries, so they cannot drift from the Rust."""
+    """A method with no `help()` is a method a Python caller has to read Rust to use.
+
+    This asks only that the prose *exists*. What it says is `test_stub_docs.py`'s subject: PyO3
+    compiles each `///` comment into `__doc__`, so the sentence here cannot drift from the Rust —
+    but until MJXOFF-234 the *committed stub's* copy of it could, and did.
+    """
     undocumented = [
         name
         for name in runtime_members(mjx_ooxml.Deck)

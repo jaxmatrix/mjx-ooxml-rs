@@ -16,7 +16,7 @@ use mjx_dml::{ColorSpec, FillSpec};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_pptx::{
-    Cells, ChartData, ChartKind, Geometry, Hyperlink, Package, Presentation, ShapeBounds,
+    Cells, ChartData, ChartKind, Geometry, Hyperlink, Package, PartName, Presentation, ShapeBounds,
     ShapeKind, SlideSize, Surface, DEFAULT_PLACEHOLDER_IMAGE,
 };
 
@@ -197,7 +197,8 @@ fn every_seam_of_the_surface_is_reachable_on_the_re_exported_presentation() {
         .expect("a picture");
     assert_eq!(
         deck.picture_image_bytes(slide, picture)
-            .expect("image bytes"),
+            .expect("image bytes")
+            .as_deref(),
         Some(png)
     );
 
@@ -269,5 +270,48 @@ fn from_package_resolves_the_same_deck_open_does() {
         resolved.save().expect("save"),
         opened.save().expect("save"),
         "and it saves the same container bytes"
+    );
+}
+
+/// The third case `from_package`'s own doc comment advertises — a package **authored part by part**
+/// — and the one that did not work.
+///
+/// A package a caller has edited through `part_tree_mut` holds its presentation part as a dirty
+/// tree: present, correct, and with no stored bytes left. `Package::part_bytes` answers `None` for
+/// that exactly as it does for a part that is not there, and the constructor used to read the two as
+/// one and refuse with `MissingPresentationPart` naming a part it was holding (MJXOFF-222).
+///
+/// **The mutation is what makes this test worth anything.** A case that only opens a file and calls
+/// `from_package` is green before the fix and after it, because the part is `Raw` in both; the
+/// `part_tree_mut` below is the whole point, and the `part_bytes` assertion beside it is there so
+/// that a future change which stops dirtying the part fails here rather than passing vacuously.
+#[test]
+fn from_package_accepts_a_package_whose_presentation_part_has_been_edited() {
+    let bytes = fixture("layouts.pptx");
+    let mut package = Package::open(&bytes).expect("open the package");
+    let part = PartName::new("/ppt/presentation.xml").expect("a part name");
+
+    // Dirty the main part the way any typed edit does. Nothing about it is changed: what matters is
+    // the copy-on-write state it is left in.
+    package
+        .part_tree_mut(&part)
+        .expect("the presentation part parses");
+    assert!(
+        package.part_bytes(&part).is_none(),
+        "the premise: `part_tree_mut` leaves the part with no stored bytes"
+    );
+    assert!(
+        package.contains_part(&part),
+        "…and the part is nonetheless present"
+    );
+
+    let mut resolved =
+        Presentation::from_package(package).expect("a dirty main part is still a presentation");
+    let mut opened = Presentation::open(&bytes).expect("open the bytes");
+    assert_eq!(resolved.slide_count(), opened.slide_count());
+    assert_eq!(
+        resolved.shapes(0).expect("shapes"),
+        opened.shapes(0).expect("shapes"),
+        "and it resolves to the same deck the untouched package does"
     );
 }

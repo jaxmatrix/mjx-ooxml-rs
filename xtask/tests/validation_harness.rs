@@ -9,13 +9,16 @@
 //! 2. **Schema validity, package validity and child order** over every artefact, with the ordering
 //!    audit's per-part `elements_visited` counts printed — *an audit that visits nothing passes
 //!    vacuously*, so the counts are asserted, not merely produced.
-//! 3. **Skips are named.** `PartOutcome::SkippedPreservedForeign` is indistinguishable from passing
+//! 3. **Every reference an authored artefact makes resolves** (MJXOFF-200) — the fourth gate, and
+//!    the one that asks whether a part we did *not* write should have existed. The other three are
+//!    all green over a package whose chart paints nothing.
+//! 4. **Skips are named.** `PartOutcome::SkippedPreservedForeign` is indistinguishable from passing
 //!    at a glance, so the labels skipped across the whole generated set are pinned: a *new* skip
 //!    fails here rather than quietly widening what the gate tolerates.
-//! 4. **Determinism.** Two runs into two directories produce byte-identical files. Without this the
+//! 5. **Determinism.** Two runs into two directories produce byte-identical files. Without this the
 //!    three-language comparison in the two bindings is meaningless and every future diff is noise.
-//! 5. **The edit variants skipped by name**, and the run said so on stdout — never a silent absence.
-//! 6. **One LibreOffice conversion per format**, as a canary. One conversion of the artefacts this
+//! 6. **The edit variants skipped by name**, and the run said so on stdout — never a silent absence.
+//! 7. **One LibreOffice conversion per format**, as a canary. One conversion of the artefacts this
 //!    harness produced, deliberately not a sweep: a conversion proves a file opens and proves
 //!    nothing about what it looks like. **No verdict is recorded anywhere in this file.**
 //!
@@ -32,8 +35,8 @@ use std::sync::OnceLock;
 
 use mjx_opc::Package;
 use mjx_schema_gate::{
-    assert_authored_deck_is_schema_valid, audit_deck_order, audit_order_report, harness,
-    inspect_deck, outcome_table, PartOutcome,
+    assert_authored_deck_is_schema_valid, assert_authored_package_resolves_every_reference,
+    audit_deck_order, audit_order_report, harness, inspect_deck, outcome_table, PartOutcome,
 };
 use xtask::validation::{corpus_directory, original_for, Area, Variant, AREAS};
 
@@ -334,6 +337,41 @@ fn every_generated_artefact_is_a_valid_package() {
     println!("package validator: {checked} generated artefact(s) validated");
 }
 
+/// **Every reference an authored artefact's own content makes resolves to something present**
+/// (MJXOFF-200).
+///
+/// The fourth machine gate, and the one that closes a class the other three cannot see. Schema
+/// validity asks whether each part is well-typed; the package validator asks whether the OPC
+/// invariants hold; the ordering audit asks whether children are in `xsd:sequence`. **None of them
+/// asks whether a part we did not write should have existed** — which is how `v-docx-04-authored.docx`
+/// was generated, validated and shipped for months with a chart that painted its title, its axes,
+/// its labels, its legend text and no bars at all.
+///
+/// Only the **authored** variants are held to it. An edited artefact is mostly an Office original's
+/// own bytes, and a reference that file arrived with is not one this library made — the same
+/// distinction `Inherited` draws for the other three gates.
+#[test]
+fn every_authored_artefact_resolves_every_reference_it_makes() {
+    let (directory, _) = generated();
+    let mut checked = 0usize;
+    for area in AREAS {
+        let name = area.artefact_name(Variant::Authored);
+        let path = directory.join(&name);
+        if !path.is_file() {
+            continue;
+        }
+        let bytes = std::fs::read(&path).expect("reading a generated artefact");
+        assert_authored_package_resolves_every_reference(&name, &bytes);
+        checked += 1;
+    }
+    assert_eq!(
+        checked,
+        AREAS.len(),
+        "every catalogue entry has an authored artefact, so every one is audited"
+    );
+    println!("reference gate: {checked} authored artefact(s) resolve every reference they make");
+}
+
 #[test]
 fn the_ordering_audit_visits_real_structure_in_every_artefact() {
     let (directory, _) = generated();
@@ -392,7 +430,13 @@ fn the_ordering_audit_visits_real_structure_in_every_artefact() {
 /// A skip is indistinguishable from a pass at a glance, so the *set* is asserted rather than the
 /// count: a part that starts skipping under a label not listed here fails, which is the only way a
 /// new silent skip becomes visible.
-const EXPECTED_FOREIGN_SKIPS: &[&str] = &["a VML drawing part"];
+///
+/// **It is empty, and that is the claim.** It held `"a VML drawing part"` until MJXOFF-245, which
+/// found that half the reason such a part was skipped had stopped being true and moved `.vml` into
+/// the category whose parts are validated child by child. So no part of any generated artefact is
+/// skipped as foreign markup at all, and the case below asserts that directly rather than leaving a
+/// row nothing produces.
+const EXPECTED_FOREIGN_SKIPS: &[&str] = &[];
 
 #[test]
 fn every_skip_in_the_generated_set_is_reported_by_name() {
@@ -403,6 +447,7 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
     let (directory, _) = generated();
     let mut skipped_labels = BTreeSet::new();
     let mut binary_skips = 0usize;
+    let mut wrappers_validated: Vec<String> = Vec::new();
     for area in AREAS {
         for variant in Variant::all() {
             let name = area.artefact_name(variant);
@@ -419,6 +464,14 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
                         skipped_labels.insert(*label);
                     }
                     PartOutcome::SkippedBinary(_) => binary_skips += 1,
+                    PartOutcome::ValidatedPerChild { root, children, .. } => {
+                        wrappers_validated.push(format!("{}: <{root}> ×{children}", row.name));
+                    }
+                    PartOutcome::WrapperHeldNothing { root } => panic!(
+                        "{name} {}: <{root}> was handed to the per-child validator with no child \
+                         in it, which validates nothing",
+                        row.name
+                    ),
                     PartOutcome::Uncategorised { namespace } => panic!(
                         "{name} {}: root namespace {namespace:?} is on no list",
                         row.name
@@ -434,8 +487,17 @@ fn every_skip_in_the_generated_set_is_reported_by_name() {
         "a part in the generated set skipped under a label this file does not pin: {:?}",
         skipped_labels.difference(&expected).collect::<Vec<_>>()
     );
+    // The other direction, so an empty `EXPECTED_FOREIGN_SKIPS` is a statement rather than a
+    // vacuity: the `.vml` parts the generated set carries must have been *validated*, child by
+    // child, and not merely have stopped reporting a skip.
+    assert!(
+        !wrappers_validated.is_empty(),
+        "no wrapper root was validated child by child across the generated set — the artefacts \
+         that carry a `.vml` part have stopped carrying one, or the scanner has stopped matching"
+    );
     println!(
-        "skips: preserved-foreign {skipped_labels:?}, binary payloads {binary_skips} — all named"
+        "skips: preserved-foreign {skipped_labels:?}, binary payloads {binary_skips} — all named\n\
+         wrappers validated child by child: {wrappers_validated:?}"
     );
 }
 

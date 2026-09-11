@@ -1,5 +1,8 @@
 //! `mjx_ooxml` for Python — the whole PowerPoint surface, as an extension module.
 //!
+//! **Start at [`guide`]** — one guide set over both bindings, hosted here: the mapping rules,
+//! what is not projected, and how much of the surface the suites actually exercise.
+//!
 //! ```python
 //! import mjx_ooxml
 //!
@@ -86,6 +89,7 @@ pub mod enums;
 pub mod errors;
 pub mod format;
 pub mod geometry;
+pub mod guide;
 pub mod measures;
 pub mod paint;
 pub mod spreadsheet;

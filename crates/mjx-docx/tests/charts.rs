@@ -316,6 +316,150 @@ fn a_chart_a_third_party_producer_wrote_is_reachable_the_way_word_reaches_it() {
     assert!(!workbooks[0].external);
 }
 
+/// The part name of `chart_in_word.docx`'s embedded workbook — a name this library would never
+/// have generated, which is half of why the fixture is worth having.
+const PRODUCER_WORKBOOK: &str = "/word/embeddings/Microsoft_Excel_Worksheet1.xlsx";
+
+/// The part name every chart this library authors into a Word document embeds its workbook at.
+const AUTHORED_WORKBOOK: &str = "/word/embeddings/Microsoft_Excel_Sheet1.xlsx";
+
+/// Every part *inside* the fixture's embedded workbook, as `(name, decompressed payload)`.
+fn embedded_workbook_payloads(document_bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    part_payloads(&part_bytes_of(document_bytes, PRODUCER_WORKBOOK))
+}
+
+#[test]
+fn a_data_edit_patches_the_producers_workbook_and_leaves_the_rest_of_it_alone() {
+    // MJXOFF-208. Until that child, this call regenerated the workbook: a fresh one-sheet package
+    // over the part Apache POI wrote, so the sheet's own name, its styles, its string table, its
+    // page margins, its document properties and the second series' whole column were discarded by a
+    // call that only said "set series 0 to these four numbers". Every assertion below is one of the
+    // things that used to be lost.
+    let original = producer_docx();
+    let before = embedded_workbook_payloads(&original);
+    assert!(
+        before.len() >= 8,
+        "the fixture's workbook should carry a real part graph, not a stub: {:?}",
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    document
+        .set_chart_series_values(chart, 0, &[1.5, 2.5, 3.5, 4.5])
+        .expect("the values are rewritten");
+    let saved = document.save().expect("it saves");
+    let after = embedded_workbook_payloads(&saved);
+
+    // 1. The workbook still holds exactly the parts it arrived with — the regeneration wrote five
+    //    and dropped `docProps`, so this alone reddens if the destructive branch comes back.
+    assert_eq!(
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        after.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        "a data edit must add and remove no part of the embedded workbook"
+    );
+
+    // 2. Every part but the one worksheet the edit landed in is byte-identical.
+    for ((name, payload), (_, after_payload)) in before.iter().zip(after.iter()) {
+        if name == "/xl/worksheets/sheet1.xml" {
+            continue;
+        }
+        assert_eq!(
+            String::from_utf8_lossy(payload),
+            String::from_utf8_lossy(after_payload),
+            "a data edit must leave {name} of the embedded workbook byte-identical"
+        );
+    }
+
+    // 3. The worksheet holds the new numbers, in the cells the chart's own `c:f` names.
+    let sheet = workbook_part_text(&saved, PRODUCER_WORKBOOK, "/xl/worksheets/sheet1.xml");
+    for value in ["1.5", "2.5", "3.5", "4.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the workbook holds the new value {value}: {sheet}"
+        );
+    }
+    assert!(
+        !sheet.contains("<v>12.5</v>"),
+        "series 0's old first value is gone: {sheet}"
+    );
+
+    // 4. And everything else in that worksheet survived: the *other* series' column, the category
+    //    column, the styles each cell names, the sheet view and the page margins.
+    for kept in [
+        r#"<c r="C2" t="n" s="0"><v>9.0</v></c>"#,
+        r#"<c r="C5" t="n" s="0"><v>16.5</v></c>"#,
+        r#"<c r="A2" t="n" s="0"><v>9.0</v></c>"#,
+        r#"<sheetView workbookViewId="0" tabSelected="true"/>"#,
+        r#"<pageMargins bottom="0.75" footer="0.3" header="0.3" left="0.7" right="0.7" top="0.75"/>"#,
+    ] {
+        assert!(
+            sheet.contains(kept),
+            "a data edit must leave `{kept}` in the producer's worksheet: {sheet}"
+        );
+    }
+}
+
+#[test]
+fn regenerating_the_producers_workbook_is_the_explicit_opt_in_and_still_discards_it() {
+    // The other half of MJXOFF-208: the destructive branch did not disappear, it grew a name that
+    // says what it does and stopped being what a data edit reaches for. This case is what keeps the
+    // one above honest — it shows the two calls genuinely differ.
+    let original = producer_docx();
+    let before = embedded_workbook_payloads(&original);
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    assert!(
+        document
+            .regenerate_chart_workbook(chart)
+            .expect("it regenerates"),
+        "the fixture's chart has a workbook to replace"
+    );
+    let after = embedded_workbook_payloads(&document.save().expect("it saves"));
+
+    assert_ne!(
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        after.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        "regenerating writes a different package — which is exactly why it is not the default"
+    );
+}
+
+#[test]
+fn a_reference_this_library_will_not_write_refuses_and_changes_neither_part() {
+    // The refusal is the other branch of "patch, or refuse": never a quiet fall back to
+    // regenerating, which is the content loss the patch exists to prevent. Here the chart's `c:f`
+    // is rewritten to name a sheet the embedded workbook does not have.
+    let original = producer_docx();
+    let chart_part = "/word/charts/chart1.xml";
+    let rewritten = part_text(&original, chart_part).replace("Sheet0!", "NoSuchSheet!");
+    let document = Document::open(&original).expect("the fixture opens");
+    let mut document = with_part_replaced(&document, chart_part, rewritten.into_bytes());
+    let before = document.save().expect("it saves");
+
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    let failure = document
+        .set_chart_series_values(chart, 0, &[1.5, 2.5, 3.5, 4.5])
+        .expect_err("a reference naming no sheet of the workbook is refused");
+    assert!(
+        matches!(
+            &failure,
+            DocxError::ChartAccess(mjx_chart::ChartAccessError::EmbeddedWorkbookNotWritable {
+                problem: mjx_chart::ReferenceProblem::NoSuchSheet,
+                ..
+            })
+        ),
+        "{failure:?}"
+    );
+
+    let after = document.save().expect("it saves");
+    assert_eq!(
+        part_payloads(&before),
+        part_payloads(&after),
+        "a refused edit leaves the chart part and the workbook exactly as they were"
+    );
+}
+
 // =================================================================================================
 // Authoring
 // =================================================================================================
@@ -348,10 +492,18 @@ fn an_authored_chart_writes_three_parts_and_a_run_that_references_it() {
             && !before.contains(&"/word/_rels/document.xml.rels".to_owned()),
         "the document's own .rels is created by the chart's relationship: before {before:?}"
     );
+    // And five, not four: the series carries no `c:spPr`, so its fill comes from the theme's
+    // `accent1`, and a blank document has no theme for it to come from. MJXOFF-200 is the bug that
+    // was: title, axes and legend text painted and no bars at all.
+    assert!(
+        after.contains(&"/word/theme/theme1.xml".to_owned())
+            && !before.contains(&"/word/theme/theme1.xml".to_owned()),
+        "the chart's scheme colours need a theme to resolve against: before {before:?}"
+    );
     assert_eq!(
         after.len(),
-        before.len() + 4,
-        "those four parts and no others: {after:?}"
+        before.len() + 5,
+        "those five parts and no others: {after:?}"
     );
 
     // The run really references the chart part, through a `wp:inline` — not through anything a
@@ -422,11 +574,27 @@ fn an_unnamed_series_still_leaves_the_data_where_the_formulas_point() {
         [None],
         "the header row now has nothing at all to write"
     );
+    // MJXOFF-208 moved the layout claim below onto the method that still makes it. `refresh` now
+    // *patches* the cells the chart's `c:f` names and writes nothing else — so the blank header row
+    // is not its to write or to remove, and this case would be asserting nothing about the writer it
+    // is named for. `regenerate_chart_workbook` is that writer, under the name that says so.
+    let before_patch = part_bytes_of(&document.save().expect("it saves"), AUTHORED_WORKBOOK);
     assert!(
         document
             .refresh_chart_workbook(drawing)
-            .expect("the workbook refreshes"),
-        "there is an embedded workbook to refresh"
+            .expect("the patch runs"),
+        "there is an embedded workbook, and `refresh` says so even with nothing to change"
+    );
+    assert_eq!(
+        part_bytes_of(&document.save().expect("it saves"), AUTHORED_WORKBOOK),
+        before_patch,
+        "the workbook already holds what the chart draws, so patching leaves the part untouched"
+    );
+    assert!(
+        document
+            .regenerate_chart_workbook(drawing)
+            .expect("the workbook is rebuilt"),
+        "there is an embedded workbook to rebuild"
     );
 
     let bytes = document.save().expect("it saves");
@@ -557,8 +725,17 @@ fn a_chart_with_nothing_to_draw_is_refused_before_a_part_is_written() {
 // Editing, and tier-3 edit isolation
 // =================================================================================================
 
+/// **Adding a chart adds exactly its own parts, changes exactly the three that reach them, and
+/// leaves every other part byte-identical.**
+///
+/// This case used to iterate the *before* map alone, which made it **structurally blind to an added
+/// part**: a chart that quietly brought a fourth part with it, or a writer that overwrote a theme
+/// while it was there, passed it unread. MJXOFF-198 §5 named it as the shape of a test that reads as
+/// proof and is not one. It now asserts the added set as well, and the general form of the same
+/// property — every fixture of the corpus against every mutating method of the facade — is
+/// `crates/mjx-ooxml/tests/preservation/`.
 #[test]
-fn adding_a_chart_leaves_every_other_part_byte_identical() {
+fn adding_a_chart_adds_exactly_its_own_parts_and_leaves_every_other_one_byte_identical() {
     let document = blank_with_a_paragraph();
     let before_bytes = document.save().expect("it saves");
     let before = part_payloads(&before_bytes);
@@ -568,6 +745,36 @@ fn adding_a_chart_leaves_every_other_part_byte_identical() {
         .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
         .expect("the chart is added");
     let after = part_payloads(&document.save().expect("it saves"));
+
+    let added: Vec<&str> = after
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !before.iter().any(|(old, _)| old == name))
+        .collect();
+    assert_eq!(
+        added,
+        [
+            // A blank document relates to nothing, so the document's own relationship stream is
+            // itself one of the parts a chart brings.
+            "/word/_rels/document.xml.rels",
+            "/word/charts/_rels/chart1.xml.rels",
+            "/word/charts/chart1.xml",
+            "/word/embeddings/Microsoft_Excel_Sheet1.xlsx",
+            "/word/theme/theme1.xml",
+        ],
+        "exactly the parts a chart needs, plus the theme its colours resolve against (MJXOFF-200) — \
+         a blank document carries none"
+    );
+
+    let removed: Vec<&str> = before
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !after.iter().any(|(new, _)| new == name))
+        .collect();
+    assert!(
+        removed.is_empty(),
+        "adding a chart removes nothing: {removed:?}"
+    );
 
     for (name, payload) in &before {
         let Some((_, after_payload)) = after.iter().find(|(n, _)| n == name) else {
@@ -1031,5 +1238,144 @@ fn the_word_chart_constants_are_the_same_strings_powerpoint_uses() {
     assert_eq!(
         mjx_docx::constants::CONTENT_TYPE_CHART,
         "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
+    );
+}
+
+// =================================================================================================
+// MJXOFF-200 — the theme a chart's scheme colours resolve against
+// =================================================================================================
+
+/// Every part of `bytes` registered as a theme.
+fn theme_parts(bytes: &[u8]) -> Vec<String> {
+    let package = Package::open(bytes).expect("the package opens");
+    let mut names: Vec<String> = package
+        .part_names()
+        .filter(|name| {
+            package.content_type_of(name)
+                == Some("application/vnd.openxmlformats-officedocument.theme+xml")
+        })
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// **The chart authored into a document with no theme gains one, and its `accent1` resolves.**
+///
+/// The distinction the assertion turns on is the one MJXOFF-200 is about: the series carries **no**
+/// `c:spPr`, deliberately, so its fill is whatever `accent1` resolves to. A test that only asserted
+/// "a theme part exists" would pass the day someone wrote an empty one, and the chart would still
+/// paint no bars. So this reads the theme back through `mjx-dml`'s own reader and asserts the six
+/// accent slots a chart's series actually index into.
+#[test]
+fn a_chart_authored_into_a_document_with_no_theme_gains_one_its_colours_resolve_against() {
+    let mut document = blank_with_a_paragraph();
+    assert!(
+        theme_parts(&document.save().expect("it saves")).is_empty(),
+        "the premise: a blank document carries no theme"
+    );
+
+    document
+        .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
+        .expect("the chart is added");
+    let bytes = document.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&bytes),
+        ["/word/theme/theme1.xml"],
+        "exactly one theme, at the name Word uses"
+    );
+
+    // The series states no fill of its own. That is the whole reason the theme has to be there, and
+    // it is what lets a host document's brand win instead of ours.
+    let chart = part_text(&bytes, "/word/charts/chart1.xml");
+    assert!(
+        !chart.contains("<c:spPr"),
+        "a series this library authors states no shape properties: {chart}"
+    );
+
+    // So `accent1` has to resolve to a colour, and so do the other five a multi-series chart walks.
+    let theme_text = part_text(&bytes, "/word/theme/theme1.xml");
+    let parsed = mjx_xml::fidelity::parse(theme_text.as_bytes()).expect("the theme is well-formed");
+    let theme = mjx_dml::Theme::from_xml(&parsed.root, &parsed.interner).expect("it reads back");
+    let scheme = theme.color_scheme().expect("a:clrScheme");
+    for slot in [
+        mjx_dml::ColorSchemeSlot::Accent1,
+        mjx_dml::ColorSchemeSlot::Accent2,
+        mjx_dml::ColorSchemeSlot::Accent3,
+        mjx_dml::ColorSchemeSlot::Accent4,
+        mjx_dml::ColorSchemeSlot::Accent5,
+        mjx_dml::ColorSchemeSlot::Accent6,
+    ] {
+        assert!(
+            scheme.color(slot).is_some(),
+            "{slot:?} must resolve or the series is painted with no colour"
+        );
+    }
+
+    // The theme is related from the document part, which is where Word puts it and how a consumer
+    // walking the package finds it.
+    let rels = part_text(&bytes, "/word/_rels/document.xml.rels");
+    assert!(
+        rels.contains(
+            r#"Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme""#
+        ) && rels.contains(r#"Target="theme/theme1.xml""#),
+        "{rels}"
+    );
+}
+
+/// **A document that arrives with a theme keeps it, byte for byte.**
+///
+/// This is the test MJXOFF-200's decision comment says will be forgotten, and it is the one that
+/// matters more: a writer that emitted `word/theme/theme1.xml` unconditionally would fix the
+/// invisible chart and **destroy the branding of every real document this library opens and
+/// re-saves**, and every other gate in this repository would stay green while it did.
+///
+/// `sample.docx` is LibreOffice's own output and ships `word/theme/theme1.xml`; the assertion is on
+/// that part's decompressed payload before and after an edit that goes right past it.
+///
+/// **Proved able to fail.** Removing the `package_carries_a_theme` guard in
+/// `crates/mjx-docx/src/document/parts.rs` — so that `ensure_theme_part` writes unconditionally —
+/// turns this red with `insert_part` refusing the duplicate; making it overwrite instead reddens the
+/// payload comparison directly. Neither mutation is visible to any other case in this workspace.
+#[test]
+fn a_document_that_arrives_with_a_theme_keeps_it_byte_for_byte() {
+    let original = mjx_fixtures::fixture("sample.docx");
+    assert_eq!(
+        theme_parts(&original),
+        ["/word/theme/theme1.xml"],
+        "the premise: this fixture carries a theme of its own"
+    );
+    let before = part_bytes_of(&original, "/word/theme/theme1.xml");
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    document
+        .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
+        .expect("the chart is added");
+    let after_bytes = document.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&after_bytes),
+        ["/word/theme/theme1.xml"],
+        "no second theme is authored beside the document's own"
+    );
+    let after = part_bytes_of(&after_bytes, "/word/theme/theme1.xml");
+    assert!(
+        after == before,
+        "the document's own theme is not rewritten, re-serialized or replaced.\n  before: {}\n   after: {}",
+        String::from_utf8_lossy(&before),
+        String::from_utf8_lossy(&after),
+    );
+    assert_ne!(
+        before,
+        mjx_dml::default_theme_xml(),
+        "the fixture's theme really is a different one — otherwise the comparison above is vacuous"
+    );
+
+    // The chart still landed, so the edit under test was a real one.
+    assert_eq!(
+        theme_parts(&after_bytes).len()
+            + usize::from(part_text(&after_bytes, "/word/charts/chart1.xml").contains("<c:chart")),
+        2
     );
 }

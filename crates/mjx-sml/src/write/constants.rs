@@ -33,7 +33,7 @@ pub const XML_DECLARATION: &str = concat!(
 /// The default sheet name, and the one a chart's synthesized `c:f` formulas (`Sheet1!$A$2:$A$4`)
 /// qualify their ranges with.
 ///
-/// Identical to `mjx_chart::DEFAULT_SHEET_NAME`, which MJXOFF-99 removes in favour of this.
+/// Identical to `mjx_chart::DEFAULT_SHEET_NAME`, which MJXOFF-99 removed in favour of this.
 pub const DEFAULT_SHEET_NAME: &str = "Sheet1";
 
 /// `/xl/workbook.xml` — the part the package root's `officeDocument` relationship names.
@@ -44,6 +44,9 @@ pub const SHARED_STRINGS_PART: &str = "/xl/sharedStrings.xml";
 
 /// `/xl/styles.xml`.
 pub const STYLES_PART: &str = "/xl/styles.xml";
+
+/// `/xl/theme/theme1.xml` — the DrawingML theme the authored workbook's font 0 follows.
+pub const THEME_PART: &str = "/xl/theme/theme1.xml";
 
 /// The name of the `index`-th worksheet part, one-based on the wire: `/xl/worksheets/sheet1.xml`.
 ///
@@ -104,3 +107,18 @@ pub const REL_SHARED_STRINGS: &str =
 /// The relationship type from the workbook part to the styles part (§12.3.20).
 pub const REL_STYLES: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+
+/// The content type of a theme part (DrawingML, Part 1 §14.2.7).
+///
+/// Not SpreadsheetML: the identical part appears in a `.pptx`, a `.docx` and a `.xlsx` alike, which
+/// is why the *markup* is [`mjx_dml::default_theme_xml`] and only the packaging strings are here.
+/// `mjx-pptx`, `mjx-docx` and `mjx-xlsx` each declare their own copy of this string for the reason
+/// their own doc comments give — reaching across for it would be a sideways crate edge — and this is
+/// the copy the tier that *authors* a workbook package uses.
+pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
+
+/// The relationship type from the workbook part to a theme part (Part 1 §14.2.7).
+///
+/// Declared here for the same reason [`CONTENT_TYPE_THEME`] is.
+pub const REL_THEME: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";

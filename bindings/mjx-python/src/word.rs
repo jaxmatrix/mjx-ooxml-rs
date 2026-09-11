@@ -36,11 +36,12 @@ value_class! {
     /// A resolved font reference, per script slot.
     EffectiveFonts(ooxml::EffectiveFonts), derive(PartialEq, Eq);
 
-    /// The curated subset of a run's effective character formatting — see this module's own doc
-    /// comment for which fields, and why not all of them.
+    /// The curated subset of a run's effective character formatting — see the guide's *What is not
+    /// projected* for which fields, and why not all of them.
     EffectiveCharacterProperties(ooxml::EffectiveCharacterProperties), derive(PartialEq);
 
-    /// The curated subset of a paragraph's effective layout — see this module's own doc comment.
+    /// The curated subset of a paragraph's effective layout — see the guide's *What is not
+    /// projected*.
     EffectiveParagraphProperties(ooxml::EffectiveParagraphProperties), derive(PartialEq);
 
     /// A resolved cell/table shading: the pattern's own colour and the background it draws over.
@@ -243,7 +244,7 @@ impl EffectiveFonts {
 
 #[pymethods]
 impl EffectiveCharacterProperties {
-    /// Bold, resolved (XOR-combined across the style chain — see the guide).
+    /// Bold, resolved (XOR-combined across the style chain, per ECMA-376 Part 1 §17.7.3).
     #[getter]
     fn bold(&self) -> Option<bool> {
         self.0.bold
@@ -561,7 +562,7 @@ impl Field {
 #[pymethods]
 impl GridDiscrepancy {
     /// Which kind of discrepancy this is: `"RowWidthMismatch"`, `"OrphanedVerticalMerge"` or
-    /// `"EmptyRow"`.
+    /// `"EmptyRow"` — or `"Unknown"` for a discrepancy a later build names and this one does not.
     #[getter]
     fn kind(&self) -> &'static str {
         match self.0 {

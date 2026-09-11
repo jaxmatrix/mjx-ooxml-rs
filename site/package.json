@@ -1,0 +1,34 @@
+{
+  "name": "mjx-ooxml-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The mjx-ooxml user guide, in Rust, Python and TypeScript.",
+  "scripts": {
+    "generate": "cargo run -p xtask -- docs-site",
+    "prestart": "npm run generate",
+    "start": "docusaurus start",
+    "prebuild": "npm run generate",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@mdx-js/react": "^3.0.0",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "@docusaurus/tsconfig": "3.10.2",
+    "@docusaurus/types": "3.10.2",
+    "typescript": "~5.6.2"
+  },
+  "engines": {
+    "node": ">=20.0"
+  }
+}

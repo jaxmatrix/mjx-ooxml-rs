@@ -52,8 +52,8 @@ use crate::content::{
 };
 use crate::enums::{
     ActiveXPersistence, AxisOrientation, CellBorder, ChartKind, DiagramPartKind, GraphicFrameKind,
-    LegendPosition, PlaceholderType, PresetShapeType, ShapeKind, SlideLayoutKind, TablePart,
-    TableStylePart, TargetMode, TextAnchoring, TextDirection,
+    LegendPosition, PlaceholderType, PresetShapeType, SchemeColor, ShapeKind, SlideLayoutKind,
+    TablePart, TableStylePart, TargetMode, TextAnchoring, TextDirection,
 };
 use crate::errors::to_py_err;
 use crate::format::Format;
@@ -61,11 +61,11 @@ use crate::geometry::{
     BoundedAdjustment, CellMargins, Geometry, GuideContext, ShapeBounds, SlideSize, Transform2D,
 };
 use crate::measures::{Emu, IndentLevel};
-use crate::paint::{ColorMap, EffectListSpec, FillSpec, LineSpec};
+use crate::paint::{ColorMap, EffectListSpec, FillSpec, LineSpec, ResolvedColor};
 use crate::support::{as_str_slice, RangeArg};
-use crate::tables::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
+use crate::tables::{CellFormat, Cells, TableStyleDefinition, TableStyleFlags, TableStyleFormat};
 use crate::text::{CharacterPropertiesSpec, ParagraphPropertiesSpec, ThemeInfo};
-use crate::three_d::{Scene3DSpec, Shape3DSpec};
+use crate::three_d::{Backdrop, Scene3DSpec, Shape3DSpec};
 
 /// An open PowerPoint deck.
 ///
@@ -121,7 +121,7 @@ impl Deck {
     /// materialised are serialised from the model. The interpreter lock is released for the write.
     ///
     /// Raises `InvalidDocumentError` rather than emitting a file PowerPoint would offer to repair.
-    /// [`save_unchecked`](Deck::save_unchecked) is the deliberate override.
+    /// `save_unchecked` is the deliberate override.
     fn save<'py>(&self, python: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         python
             .detach(|| self.inner.save())
@@ -309,6 +309,51 @@ impl Deck {
             .map(|value| value.map(Scene3DSpec))
     }
 
+    /// The plane shadows and reflections fall on in shape `shape_idx`'s 3-D scene
+    /// (`a:scene3d > a:backdrop`), or `None` when the shape has no scene, or a scene that states no
+    /// backdrop — which almost every scene is. It is read separately from `shape_scene_3d` because a
+    /// scene rebuilt from a `Scene3DSpec` drops what the spec does not carry: the backdrop survives
+    /// an edit by staying verbatim, and this is how a caller sees what is being preserved.
+    fn shape_backdrop(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+    ) -> PyResult<Option<Backdrop>> {
+        self.inner
+            .shape_backdrop(surface.0, shape_idx.0)
+            .map_err(to_py_err)
+            .map(|value| value.map(Backdrop))
+    }
+
+    /// What a DrawingML scheme colour — `a:schemeClr@val` — actually paints on `surface`, as
+    /// concrete `RRGGBB`: the surface's colour map turns the token into a scheme slot and its theme
+    /// turns the slot into RGB. `None` for `SchemeColor.PlaceholderColor`, for a surface with no
+    /// master in its chain, and for a slot the theme leaves undefined. The alpha is always `1.0`.
+    fn resolved_scheme_color(
+        &mut self,
+        surface: SurfaceArg,
+        color: SchemeColor,
+    ) -> PyResult<Option<ResolvedColor>> {
+        self.inner
+            .resolved_scheme_color(surface.0, color.into())
+            .map_err(to_py_err)
+            .map(|value| value.map(ResolvedColor))
+    }
+
+    /// Every emphasis flag the table shape `shape_idx` frames turns on, in one read — which parts
+    /// of its style (`firstRow`, `bandRow`, …) it asks to be emphasised. `table_part` answers one
+    /// flag; this answers all six at once.
+    fn table_style_flags(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+    ) -> PyResult<TableStyleFlags> {
+        self.inner
+            .table_style_flags(surface.0, shape_idx.0)
+            .map_err(to_py_err)
+            .map(TableStyleFlags)
+    }
+
     /// Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free `Scene3DSpec`,
     /// rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place, or inserting a new
     /// one after any geometry, fill, outline, and effects, before `a:sp3d`). Rebuilding from a spec
@@ -462,6 +507,25 @@ impl Deck {
             .shape_adjustments(surface.0, shape_idx.0, size.0)
             .map_err(to_py_err)
             .map(|values| values.into_iter().map(BoundedAdjustment).collect())
+    }
+
+    /// Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries
+    /// of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+    /// adjustment not named is left exactly as it was, and so are the `prst` token and every other
+    /// property of the shape. Marks only that slide part dirty.
+    fn set_shape_adjustments(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+        adjustments: Vec<(String, i32)>,
+    ) -> PyResult<()> {
+        let borrowed: Vec<(&str, i32)> = adjustments
+            .iter()
+            .map(|(name, value)| (name.as_str(), *value))
+            .collect();
+        self.inner
+            .set_shape_adjustments(surface.0, shape_idx.0, &borrowed)
+            .map_err(to_py_err)
     }
 
     /// Sets the geometry of shape `shape_idx` on `surface` from a `Geometry`: a preset shape
@@ -1482,8 +1546,12 @@ impl Deck {
             .map_err(to_py_err)
     }
 
-    /// Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface` references so
-    /// its cells hold exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+    /// references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+    /// answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives. `regenerate_chart_workbook`
+    /// is the one that replaces the workbook wholesale.
     fn refresh_chart_workbook(
         &mut self,
         surface: SurfaceArg,
@@ -1491,6 +1559,18 @@ impl Deck {
     ) -> PyResult<bool> {
         self.inner
             .refresh_chart_workbook(surface.0, shape_idx.0)
+            .map_err(to_py_err)
+    }
+
+    /// Replaces the embedded workbook of the chart the frame `shape_idx` on `surface` references
+    /// with a freshly built one, discarding whatever it held. Answers whether it replaced one.
+    fn regenerate_chart_workbook(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+    ) -> PyResult<bool> {
+        self.inner
+            .regenerate_chart_workbook(surface.0, shape_idx.0)
             .map_err(to_py_err)
     }
 
@@ -2863,6 +2943,10 @@ impl Deck {
     /// Removes slide `slide_idx` from the deck, unwiring it completely: the `p:sldId` naming it,
     /// the presentation's relationship to it, the slide part, its own `.rels`, and its content-type
     /// `Override`.
+    ///
+    /// Every reference to the slide goes with it: a slide that hyperlinks to the removed one keeps
+    /// its text and loses the link, and a custom show loses its entry for it. Anything less leaves a
+    /// relationship pointing at a part that is no longer there, which `save` refuses.
     fn remove_slide(&mut self, slide_idx: u32) -> PyResult<()> {
         self.inner.remove_slide(slide_idx).map_err(to_py_err)
     }
@@ -3121,11 +3205,14 @@ impl Deck {
             .map_err(to_py_err)
     }
 
-    /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`),
-    /// replacing any inline or referenced style it had — the lean alternative to a shared
-    /// `tableStyles.xml` style: the whole look is spelled out in `definition` and travels with the
-    /// table, so no shared part, relationship or referenced GUID is involved. Marks only that part
-    /// dirty.
+    /// Gives the table shape `shape_idx` frames its own inline style (`a:tableStyle`), replacing
+    /// any inline or referenced style it had: the whole look is spelled out in `definition` and
+    /// travels with the table. Marks only that part dirty.
+    ///
+    /// This call adds no shared `tableStyles.xml`, no relationship and no referenced GUID, and a
+    /// shared part the deck already has comes out of a save byte for byte as it went in. Whether the
+    /// package holds one at all depends on where the table came from: a table from `add_table`
+    /// arrives with a `tableStyles.xml` beside it, and this call does not delete it.
     fn set_inline_table_style(
         &mut self,
         surface: SurfaceArg,

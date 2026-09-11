@@ -33,14 +33,14 @@ documented gap is never mistaken for a validation failure**.
 |---|---|---|---|
 | `V-PPTX-01` | high | *Built, not yet verified* — **the 0.0.58 text-inheritance change** (owners `MJX-211` R1, `MJX-208`) | The pass's first job. `V-PPTX-01.1` |
 | `V-PPTX-01` | high | *Non-goal* — **a font slot the theme does not define keeps its reference** | Interrogated, not reported: `V-PPTX-01.8` asks whether the documentation is right |
-| `V-PPTX-02` | medium | *Built, not yet verified* — **`comp` / `gray` / `gamma` / `invGamma` colour transforms** (owner `MJX-211` R3) | `V-PPTX-02.4`, and it is **blocked**: no facade call authors a colour transform |
+| `V-PPTX-02` | medium | *Built, not yet verified* — **`comp` / `gray` / `gamma` / `invGamma` colour transforms** (owner `MJX-211` R3) | `V-PPTX-02.4`. It was **blocked** — no facade call could author a colour transform at all — until `MJXOFF-219`; the artefact now carries two rows of swatches and the entry is the pass's to answer |
 | `V-PPTX-02` | medium | *Non-goal* — **InkML strokes**, **an ActiveX control's `ax:ocxPr`**, **a SmartArt layout is not run**, **VML geometry is preserved, not evaluated** | Non-goals. The legacy checks look at what is *preserved and referenced*, never at an evaluated stroke, property bag, layout or path |
 | `V-PPTX-03` | high | *Non-goal* — **`extLst` is never modelled** | Non-goal. `V-PPTX-03.5` checks the extension survives and stays where the sequence puts it, which is the whole claim |
-| `V-PPTX-04` | medium | *Non-goal* — **a chart's workbook is regenerated, not patched**; **chart colour and style parts are preserved, not modelled** | Non-goals, and R4 is exactly the claim that regenerating is safe |
+| `V-PPTX-04` | medium | *Non-goal* — **chart colour and style parts are preserved, not modelled**. The workbook non-goal beside it is **retired**: MJXOFF-208 made a data edit *patch* the embedded workbook | R4 is now the claim that patching leaves the rest of a producer's workbook alone |
 | `V-PPTX-05` | low | neither list | Plain modelled markup |
 | `V-PPTX-06` | low | neither list | Plain modelled markup |
 | `V-PPTX-07` | medium | *Non-goal* — **a transform naming a rotation but not both `a:off` and `a:ext` answers `None`** | R7, and the one place this pass interrogates a non-goal on purpose: `V-PPTX-07.6` |
-| `V-PPTX-08` | medium | *Non-goal* — **a chart's workbook is regenerated, not patched** | As `V-PPTX-04`; `V-PPTX-08.10` is the detached-workbook half of it |
+| `V-PPTX-08` | medium | the workbook non-goal is **retired** (MJXOFF-208) | As `V-PPTX-04`; `V-PPTX-08.10` is the detached-workbook half of it |
 | every area | — | *Built, not yet verified* — **every fixture is hand-crafted** | R2. Retired for all of them at once by `MJXOFF-130`, and this pass is what feeds it |
 
 ## `V-PPTX-01` · `text-inheritance` — text, paragraph and run properties, and what they inherit
@@ -203,15 +203,16 @@ questions about what is on the slide.
   Calls: `Deck::shape_effects` · `Deck.shape_effects` · `Deck.shapeEffects`
   Result: — · — · — · —
 
-#### V-PPTX-02.4 — the four colour transforms against PowerPoint's eyedropper
+#### V-PPTX-02.4 — the colour transforms against PowerPoint's eyedropper
 
 - **Risk** high — **R3**.
-- **Shipped by** implemented from the ECMA-376 prose; the gaps page names `MJX-211` R3 as its owner.
-- **Artefact** none — **blocked** on `MJXOFF-130`. `ColorSpec` carries a colour's *kind* and value and no transform children, so no facade call authors a `comp`, `gray`, `gamma` or `invGamma`, and no committed fixture contains one.
-- **Object** a `a:solidFill` whose colour carries one of the four transforms.
-- **Action** read what `effective_shape_fill` answers, then sample the rendered shape with PowerPoint's eyedropper.
-- **Expect** the two RGB values agree. These four are implemented from the prose and unit-tested against it, never against a renderer; a disagreement here is the third-highest-risk finding this pass can make.
+- **Shipped by** implemented from the ECMA-376 prose; the gaps page names `MJX-211` R3 as its owner. The artefact is `MJXOFF-219`'s: until it, `ColorSpec` carried a colour's *kind* and value and **no transform children**, so no facade call could author a `comp`, `gray`, `gamma` or `invGamma` — and no committed fixture contains one either. This was the only entry in the pass with no artefact at all.
+- **Artefact** `v-pptx-02-authored.pptx`
+- **Object** the two rows of swatches below the three shapes at the top. The **upper** row is a fixed `4472C4` under `comp`, `gray`, `gamma`, `invGamma` and `inv`, led by an untransformed `4472C4`; the **lower** row is the theme's accent 1 under `tint 50%`, `shade 50%`, `satMod 150%`, `lumMod 60% + lumOff 40%` and `alpha 50%`, led by an untransformed accent 1. Each swatch carries its own label.
+- **Action** read what `effective_shape_fill` answers for each swatch — the harness calls it on all twelve as it writes them — then sample each rendered shape with PowerPoint's eyedropper. Compare each swatch against the baseline at the start of its row.
+- **Expect** the two RGB values agree, swatch by swatch. **The two rows are not equally at risk, and that is why both are here.** The lower row is `lumMod`/`shade`/`tint`/`alpha`/`sat*`, which follow the widely-adopted Apache-POI and LibreOffice algorithm and are value-pinned in `crates/mjx-dml/tests/resolve_model.rs`; a disagreement there is surprising. The upper row is the four (five, with `inv`) that `crates/mjx-dml/src/resolve.rs` says follow *a documented interpretation* and are **not** guaranteed pixel-identical to Office — implemented from the prose and unit-tested against it, never against a renderer. A disagreement in the upper row is the third-highest-risk finding this pass can make, and being able to author these transforms is not evidence that resolving them is right.
   Calls: `Deck::effective_shape_fill` · `Deck.effective_shape_fill` · `Deck.effectiveShapeFill`
+  Calls: `Deck::set_shape_fill` · `Deck.set_shape_fill` · `Deck.setShapeFill`
   Result: — · — · — · —
 
 #### V-PPTX-02.5 — the seven rewritten fixtures, and the colour mapping the schema gate rewrote
@@ -418,6 +419,49 @@ reorganised by `MJXOFF-60`.
   Calls: `Deck::set_table_style` · `Deck.set_table_style` · `Deck.setTableStyle`
   Result: — · — · — · —
 
+#### V-PPTX-03.6 — the style a new table is born pointing at, and whose colours it uses
+
+- **Risk** high — **R6**, and the check MJXOFF-232 exists for. It is the one question in this area no
+  machine here can answer, because it is *what PowerPoint does with the emphasis flags*.
+- **Shipped by** `MJXOFF-232`.
+- **Artefact** `v-pptx-03-authored.pptx`
+- **Object** the **second** style in `ppt/tableStyles.xml` — `{9F6E9C1B-0B4E-4A1E-9B3D-6C2A8F4D7E10}`,
+  named *Themed Header and Banded Rows*. It is what `Deck::add_table` authors and points every new
+  table at, and it is also this file's `a:tblStyleLst@def`. Not one of its colours is a literal: the
+  header row is `<a:schemeClr val="accent1"/>` with `<a:schemeClr val="lt1"/>` text, and the first
+  horizontal band is `accent1` with `lumMod="20000" lumOff="80000"`.
+  **The table in this artefact does not use it** — `V-PPTX-03.2` repoints that table at *mjx
+  validation* — so this check is about the style as it sits in the gallery.
+- **Action** open Table Design → Table Styles and find *Themed Header and Banded Rows* in the gallery.
+  Apply it to the table. Then Design → Variants → Colours and switch the deck's theme to a visibly
+  different palette.
+- **Expect** the header row fills with the theme's **accent 1** and its text with **light 1**; the
+  first, third … data rows fill with accent 1 at **Lighter 80%**. After the theme change **every one
+  of those colours moves with it** — that is the whole claim, and a style that had pinned `4472C4`
+  would stay blue in a deck rebranded green. Record whether PowerPoint lists the style in the gallery
+  under its name, and whether the banding follows `bandRow`.
+  Calls: `Deck::add_table` · `Deck.add_table` · `Deck.addTable`
+  Result: — · — · — · —
+
+#### V-PPTX-03.7 — the emphasis flags a table is born with, and what they resolve against
+
+- **Risk** high — the half no gate in this repository could see before MJXOFF-232, and the reason the
+  fix needed a person: *what does PowerPoint do with `firstRow="1" bandRow="1"` when nothing resolves
+  them?*
+- **Shipped by** `MJXOFF-232`.
+- **Artefact** `v-pptx-03-authored.pptx`
+- **Object** the table's `a:tblPr`, which reads `firstRow="1" bandRow="1"` and carries an
+  `a:tableStyleId`. Until MJXOFF-232 it carried the two flags and **no** style id at all.
+- **Action** select the table and read Table Design → the *Header Row* and *Banded Rows* checkboxes.
+- **Expect** both are **ticked**, and both are visibly doing something. The old behaviour to compare
+  against is a table with the same two boxes ticked and no styling anywhere — if PowerPoint had
+  silently supplied a built-in style for an unresolved reference, the defect would have been
+  cosmetic in this renderer and real in every other one; if it rendered unstyled, the fix is load
+  bearing. **Record which.**
+  Calls: `Deck::add_table` · `Deck.add_table` · `Deck.addTable`
+  Calls: `Deck::table_part` · `Deck.table_part` · `Deck.tablePart`
+  Result: — · — · — · —
+
 #### V-PPTX-03.3 — cell anchoring, margins and a single cell border
 
 - **Risk** medium.
@@ -491,7 +535,7 @@ Risk **medium** — **R4**. Shipped by `MJXOFF-57`, with the workbook writer mov
 - **Artefact** `v-pptx-04-authored.pptx`, `v-docx-04-authored.docx`, `v-xlsx-04-authored.xlsx`
 - **Object** the embedded workbook of each, and — for Excel — the live range the chart reads instead.
 - **Action** open *Edit Data* in each of the three, and confirm the numbers agree with the chart.
-- **Expect** all three agree. A data edit **regenerates** the embedded workbook from the chart's own data rather than patching the one that was there; that is a documented non-goal with a reason (reconciling an arbitrary third-party workbook is a merge problem with no correct answer), and `detach_chart_workbook` is the escape hatch. Exactly **one** SpreadsheetML writer ships, in `mjx-sml`.
+- **Expect** all three agree. Since MJXOFF-208 a data edit **patches** the embedded workbook: the new numbers go into the cells the series' own `c:f` names, and every other sheet, cell format, defined name and macro the workbook carried is left exactly as it was. A `c:f` this library will not write over is refused by name rather than rebuilt over; `regenerate_chart_workbook` is the explicit opt-in that does replace the workbook wholesale, and `detach_chart_workbook` drops the reference instead. Exactly **one** SpreadsheetML writer ships, in `mjx-sml`.
   Calls: `Deck::refresh_chart_workbook` · `Deck.refresh_chart_workbook` · `Deck.refreshChartWorkbook`
   Calls: `Document::add_chart` · `Document.add_chart` · `Document.addChart`
   Calls: `Workbook::add_range_chart` · `Workbook.add_range_chart` · `Workbook.addRangeChart`

@@ -25,6 +25,8 @@ from mjx_ooxml import (
     ChartKind,
     ChartLabelScope,
     ColorSpec,
+    ColorTransform,
+    ColorTransformKind,
     DataLabelSpec,
     Deck,
     EffectListSpec,
@@ -44,6 +46,7 @@ from mjx_ooxml import (
     LineWidth,
     ParagraphPropertiesSpec,
     PresetShapeType,
+    SchemeColor,
     ShapeBounds,
     ShapeGeometry,
     ShapeKind,
@@ -55,6 +58,8 @@ from mjx_ooxml import (
     TrendlineKind,
     TrendlineSpec,
 )
+
+from opc import part_payloads
 
 
 @pytest.fixture
@@ -296,6 +301,15 @@ def test_bounds_transforms_and_geometry(deck: Deck) -> None:
     )
     assert adjustments and adjustments[0].spec.wire_name == "adj"
 
+    # The writing half, in the reader's own vocabulary: a wire name and a value in spec units.
+    # `12_345` is not a value the typed `Fraction` path would produce from a round ratio, so a
+    # method wired to `set_shape_geometry` could not leave it there.
+    deck.set_shape_adjustments(0, shape, [("adj", 12_345)])
+    restated = deck.shape_adjustments(
+        0, shape, GuideContext.from_extents(Emu.from_inches(4), Emu.from_inches(1))
+    )
+    assert restated[0].value == pytest.approx(12_345)
+
 
 def test_an_angle_adjustment_is_refused_where_a_proportion_was_wanted() -> None:
     """The preset table keeps the units: an `Angle` cannot stand in for a `Fraction`."""
@@ -449,6 +463,7 @@ def test_removing_a_deck_chart_binding_is_caught_by_this_suite(deck: Deck) -> No
         "chart_legend",
         "chart_workbooks",
         "refresh_chart_workbook",
+        "regenerate_chart_workbook",
         "detach_chart_workbook",
         "set_chart_series_values",
         "set_chart_series_categories",
@@ -547,3 +562,142 @@ def test_the_three_dimensional_properties(deck: Deck) -> None:
     assert deck.shape_3d_properties(0, shape) is not None, (
         "clearing the scene must not clear the shape's own 3-D properties"
     )
+
+
+def test_every_colour_transform_in_the_group_reaches_python() -> None:
+    """`EG_ColorTransform` has twenty-eight members and Python can build every one (MJXOFF-219).
+
+    A Python enumeration cannot carry per-member data, so the group arrives as a
+    `ColorTransformKind` — which `test_enums.py` already holds to its Rust member names in both
+    directions — plus three constructors that say what the member carries. This asserts the join:
+    every kind is built by exactly one of the three, and none of them invents a transform for a kind
+    that does not take that value.
+    """
+    kinds = [
+        getattr(ColorTransformKind, name)
+        for name in dir(ColorTransformKind)
+        if not name.startswith("_") and name != "Other"
+    ]
+    assert len(kinds) == 28, "EG_ColorTransform has twenty-eight members"
+
+    for kind in kinds:
+        built = [
+            candidate
+            for candidate in (
+                ColorTransform.percentage(kind, Fraction.of(0.5)),
+                ColorTransform.angle(kind, Angle.from_degrees(30.0)),
+                ColorTransform.marker(kind),
+            )
+            if candidate is not None
+        ]
+        assert len(built) == 1, f"{kind} is built by {len(built)} constructors, not one"
+        assert built[0].kind == kind
+        assert built[0].name, "every member names an element"
+
+    # `Other` is not a member of the group: none of the three build it, and the bucket that does
+    # keeps the element name and the raw value a file carried.
+    assert ColorTransform.percentage(ColorTransformKind.Other, Fraction.of(1.0)) is None
+    assert ColorTransform.marker(ColorTransformKind.Other) is None
+    kept = ColorTransform.other("futureTransform", "3")
+    assert kept.kind == ColorTransformKind.Other
+    assert kept.name == "futureTransform"
+    assert kept.value == "3"
+    assert kept.percentage_value is None and kept.angle_value is None
+
+
+def _built(candidate: ColorTransform | None) -> ColorTransform:
+    """A constructor answers `None` when the kind does not take that value; here that is a failure
+    rather than a colour that quietly loses its transform.
+    """
+    assert candidate is not None, "the kind takes this value"
+    return candidate
+
+
+def test_a_transformed_colour_is_still_the_colour_underneath() -> None:
+    """The builders append, and `base` sees through them (MJXOFF-219)."""
+    accent = ColorSpec.scheme(SchemeColor.Accent1)
+    lighter = accent.with_luminance_modulation(Fraction.of(0.6)).with_luminance_offset(
+        Fraction.of(0.4)
+    )
+
+    assert lighter.base == accent
+    assert lighter.kind == accent.kind
+    assert lighter.scheme_color == SchemeColor.Accent1
+    assert [transform.kind for transform in lighter.transforms] == [
+        ColorTransformKind.LuminanceModulation,
+        ColorTransformKind.LuminanceOffset,
+    ]
+    values = [transform.percentage_value for transform in lighter.transforms]
+    assert values[0] is not None and values[0].ratio == pytest.approx(0.6)
+    assert values[1] is not None and values[1].ratio == pytest.approx(0.4)
+
+    # Order is part of the markup: the same two transforms the other way round are another colour.
+    reversed_order = accent.with_luminance_offset(Fraction.of(0.4)).with_luminance_modulation(
+        Fraction.of(0.6)
+    )
+    assert reversed_order != lighter
+    assert accent.transforms == []
+
+    # The generic builder reaches what the six conveniences do not — including the four
+    # `V-PPTX-02.4` names, none of which any convenience covers.
+    gamma = ColorSpec.srgb("4472C4").with_transform(
+        _built(ColorTransform.marker(ColorTransformKind.InverseGamma))
+    )
+    assert gamma.srgb_value == "4472C4"
+    assert [transform.kind for transform in gamma.transforms] == [
+        ColorTransformKind.InverseGamma
+    ]
+
+    turned = ColorSpec.srgb("4472C4").with_transform(
+        _built(ColorTransform.angle(ColorTransformKind.HueOffset, Angle.from_degrees(30.0)))
+    )
+    angle = turned.transforms[0].angle_value
+    assert angle is not None and angle.degrees == pytest.approx(30.0)
+
+
+def test_a_colour_transform_reaches_the_file_and_comes_back(deck: Deck) -> None:
+    """The surface is not decorative: a transform authored through the facade is in the saved part,
+    and reading the deck back answers it (MJXOFF-219).
+    """
+    shape = deck.add_shape(
+        0, PresetShapeType.Rectangle, ShapeBounds.from_inches(1, 1, 2, 2)
+    )
+    deck.set_shape_fill(
+        0,
+        shape,
+        FillSpec.solid(ColorSpec.scheme(SchemeColor.Accent1).with_tint(Fraction.of(0.5))),
+    )
+    slide = part_payloads(deck.save())["ppt/slides/slide1.xml"].decode("utf-8")
+    assert '<a:schemeClr val="accent1"><a:tint val="50000"/></a:schemeClr>' in slide
+
+    fill = deck.shape_fill(0, shape)
+    assert fill is not None and fill.color is not None
+    assert [transform.kind for transform in fill.color.transforms] == [
+        ColorTransformKind.Tint
+    ]
+
+
+def test_the_three_types_nothing_used_to_produce(deck: Deck) -> None:
+    """MJXOFF-228: `ResolvedColor`, `TableStyleFlags` and `Backdrop`.
+
+    All three were exported by this module and returned, taken and constructed by nothing — so a
+    caller could name the type and never obtain a value of it. `Backdrop` was not even on the
+    ticket; `xtask/tests/facade_curation.rs`'s `every_exported_class_is_obtainable_from_some_other_call`
+    is what found it, and is what stops a fourth appearing.
+    """
+    accent = deck.resolved_scheme_color(0, SchemeColor.Accent1)
+    assert accent is not None
+    assert accent.to_hex() == "4472C4"
+    assert accent.alpha == 1.0
+    # `phClr` is not a scheme colour; it is what a style reference substitutes.
+    assert deck.resolved_scheme_color(0, SchemeColor.PlaceholderColor) is None
+
+    table = deck.add_table(0, 2, 2, ShapeBounds.from_inches(1, 1, 4, 2))
+    flags = deck.table_style_flags(0, table)
+    assert flags.first_row is True and flags.banded_rows is True
+    assert flags.last_row is False and flags.banded_columns is False
+
+    shape = deck.add_shape(0, PresetShapeType.Rectangle, ShapeBounds.from_inches(1, 4, 2, 1))
+    # A scene this library authors states no backdrop, so the answer is `None` — the point is that
+    # the call exists and the type is reachable through it.
+    assert deck.shape_backdrop(0, shape) is None

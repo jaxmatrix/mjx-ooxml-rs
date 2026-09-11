@@ -11,6 +11,33 @@ weakness no agent can retire — because the value of an Office-authored file is
 provenance, and a file this library wrote and called "PowerPoint-authored" would be a permanent lie
 in the one place there is no other defence against one.
 
+### Provenance is how a file got here, and `docProps/app.xml` does not say (MJXOFF-249)
+
+The sentence above has an obvious-looking shortcut, and it is wrong. `docProps/app.xml` carries an
+`<Application>` element, every Microsoft application writes its own name into it, and a reader
+checking this repository for Office provenance would naturally grep for that. **Two committed
+fixtures answer, and neither was written by Microsoft:**
+
+| Fixture | Claims | Actually written by |
+|---|---|---|
+| `tests/fixtures/charts.pptx` | `Microsoft Macintosh PowerPoint` 14.0000 | python-pptx — its own `docProps/core.xml` says `generated using python-pptx` |
+| `tests/fixtures/comments_third_party.xlsx` | `Microsoft Excel` 12.0000 | XlsxWriter 3.2.9, which emits that element verbatim as a compatibility measure |
+
+Every element in a file is something a producer *chose* to write, and a producer may choose to write
+somebody else's name. So **provenance is a fact about how a file reached this repository, not about
+its bytes** — it lives in the commit that added the file and in the person who ran the application,
+and there is no element that can be read instead.
+
+The repository had already made this mistake before it noticed it: `crates/mjx-pptx/tests/charts.rs`
+stated that `charts.pptx` *was written by PowerPoint*, and
+`crates/mjx-ooxml/tests/preservation/deck_cases.rs` drew a conclusion about what PowerPoint writes
+from that file's markup. Both were corrected under MJXOFF-249, and
+`xtask/tests/fixture_provenance.rs` is what stops the next one: no fixture's `Application` element
+may name Microsoft unless a person has written down, in that file's ledger, how the file actually
+got here. The gate asserts that negative and classifies nothing — a gate that read the element and
+decided who wrote a file would be building the very inference this section forbids, and would have
+been wrong about both rows above on its first run.
+
 ---
 
 ## 1 · Before you sit down
@@ -111,7 +138,7 @@ candidate for something this project has never had.
 
 | Save this | From | As | Closes |
 |---|---|---|---|
-| The chart artefact, re-saved after *Edit Data* | PowerPoint | `tests/office-authored/v-pptx-04.pptx` | `V-PPTX-04.4` — and it is the file R2 names as the corpus's first |
+| The chart artefact, re-saved after *Edit Data* | PowerPoint | `v-pptx-04.pptx`, in `tests/office-authored/` | `V-PPTX-04.4` — and it is the file R2 names as the corpus's first |
 | A blank presentation with one text box and one shape, typed from *Blank* | PowerPoint | `v-pptx-01.pptx` / `v-pptx-02.pptx` | the `-edited` half of the text and appearance areas |
 | A blank document with two paragraphs and a two-column table | Word | `v-docx-01.docx` / `v-docx-03.docx` | the `-edited` half of Word's ladder and tables |
 | A blank workbook with a few typed cells and one cell you have formatted by hand | Excel | `v-xlsx-01.xlsx` / `v-xlsx-02.xlsx` | the `-edited` half of the value and format areas |
@@ -137,37 +164,110 @@ cargo run -p xtask -- validation-artefacts --format xlsx --area 2
 
 ### Reading the report
 
-Each check reports one of `held`, `reported` or `FAILED`, and the difference is the whole design.
-**`FAILED` is about this library** — byte identity across an edit-free save, every XML part through
-the fidelity tree, the same round-trip through the facade, and the child-order audit against our
-generated `xsd:sequence` tables. **`reported` is about the file** — a package defect it arrived with,
-or markup its producer wrote that the ECMA-376 XSDs reject. A third-party file is not necessarily
-schema-valid: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which
-`dml-chart.xsd` rejects outright, and reddening a build over that would teach nobody anything.
+Each check reports one of `held`, `reported`, `skipped` or `FAILED`, and the difference is the whole
+design. **`FAILED` is about this library** — byte identity across an edit-free save, every XML part
+through the fidelity tree, the same round-trip through the facade, the child-order audit against our
+generated `xsd:sequence` tables, an address the typed model could not read, and an edit that moved
+more than the text leaf it was aimed at. **`reported` is about the file** — a package defect it
+arrived with, markup its producer wrote that the ECMA-376 XSDs reject, or a reference the file makes
+that resolves to nothing inside it. A third-party file is not necessarily schema-valid: Apache POI
+5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which `dml-chart.xsd` rejects outright,
+and reddening a build over that would teach nobody anything.
 
-### The one deviation to expect, which is ours
+Two of the rows are not about bytes at all, and they are the only ones that build a typed element
+(MJXOFF-278). **`model`** opens the file as a `Deck`, a `Document` or a `Workbook` and walks all of
+it — every surface, shape, table cell, paragraph and run, and the `effective_*` inheritance ladders
+over each — then prints its counts and asserts that the whole package still saves byte-identically,
+because *reading must not dirty a part*. **`edit`** replaces one text leaf through the model (one run
+per slide, one run in a document body, one numeric cell per sheet) and asserts that the bytes the
+save inserted are exactly the bytes that were set. A count of zero in the `model` row, or a `skipped`
+in the `edit` row, is the honest report that there was nothing there to read or to edit — never a
+pass.
 
-**The first real Excel workbook, and any file carrying an Office chart, will report a schema
-deviation, and it is a defect of this project rather than of your file.** `mc:Ignorable` markup is
-resolved before validation; resolution removes an ignorable element together with its content; and
-`sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their wildcard as a bare
-`<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to 1. The emptied `<ext>` is then
-rejected with *Missing child element(s)*. The same worksheet with the compatibility attributes taken
-off and the extension content left in place validates, which is what makes the diagnosis complete:
-the schema does not object to the extension, it objects to the hole the resolution leaves.
-`xtask/tests/office_corpus.rs` reproduces all three views and fails the day somebody fixes it.
+### The first real report, and what it did and did not retire
+
+**A file Microsoft Office wrote has now been through this command, once, at 0.0.165.** It was a
+12-slide PowerPoint deck — `<Application>Microsoft Office PowerPoint</Application>`,
+`AppVersion 16.0000`, 3,927,263 bytes, 135 ZIP entries — saved out of PowerPoint by the repository's
+owner and handed over in conversation. **It is not committed and R2 stands**: the corpus below is
+still empty, `MJX_REQUIRE_OFFICE_CORPUS=1` still turns every area into a skip, and a measurement
+taken outside the repository is not a test inside it.
+
+What it reported, verbatim in the verdict vocabulary above: **nine checks `held` and none `FAILED`.**
+135 entries re-saved with every payload byte-identical; all 106 XML parts through the fidelity tree
+byte-identical; the facade's own open-and-re-save leaving all 135 unchanged; every OPC invariant
+holding before and after; the typed model reading the whole deck and editing it (below); 52 of the 52
+parts the category tables require audited clean for child order; 102 parts schema-valid against the
+ECMA-376 XSDs.
+
+The one `reported` row is worth reading closely, because it is **not** a file that failed a schema.
+All 23 of its rows are `UNCATEGORISED` — 19 `image/svg+xml` pictures in `ppt/media/`, two modern
+comment parts, an authors part and a revision-info part, in three namespaces the gate's category
+tables have no arm for. That is a gap in the instrument rather than a deviation in the markup, and
+only a real Office file could ever have shown it: **MJXOFF-277**.
+
+**Two of those nine rows are MJXOFF-278's, and at 0.0.165 they did not exist.** Until then every
+check was byte identity or laziness — including `facade`, which never builds a typed element — so the
+report established that the container survived and said nothing about whether we can *read* what
+Office writes. The two checks now say it, and this is what they said about that deck:
+
+- **45 surfaces** (12 slides, 10 notes slides, 20 layouts, 2 masters, 1 notes master) and **252
+  shapes**, 203 of them carrying a text body, reached by descending into **3 groups**; **4 tables**
+  of 151 cells.
+- **323 paragraphs, 253 runs, 9,891 characters** in the shapes themselves, and a further **142 runs
+  of 1,644 characters** inside those table cells.
+- **253 `effective_run_properties` and 252 `effective_shape_fill` resolutions** — the R1 and R5
+  ladders, run over markup nobody here wrote — with **no address the model refused**, and all 135
+  entries still byte-identical afterwards, so **reading dirtied no part**.
+- Then one run's text replaced on each of the 12 slides and a `save()`: **exactly 12 of the 135
+  entries changed**, and across **377,690 bytes** of PowerPoint-authored slide markup each of them
+  differs from Office's own bytes in **exactly one contiguous region holding exactly the bytes that
+  were set**. Nothing else in the deck moved.
+
+The throwaway probe MJXOFF-278 was filed with had reported 243 shapes, 310 paragraphs, 240 runs and
+9,855 characters over the same file. The difference is entirely **the three groups**: the probe
+counted a group as one shape and stopped there, and the shipped walk descends into it, which adds 9
+member shapes, 6 more text bodies, 13 paragraphs, 13 runs and 36 characters. The two numbers that had
+to agree — 12 of 135 entries changed, over 377,690 bytes — agree exactly.
+
+### What the gate does not tell you about an extension
+
+**An `<ext>` carrying markup in a namespace the file declares `mc:Ignorable` reports nothing at all,
+and that is the honest state rather than a pass.** `mc:Ignorable` markup is resolved before
+validation, and resolution removes an ignorable element together with its content; `sml.xsd`'s and
+`dml-chart.xsd`'s `CT_Extension` declare their whole content model as a bare
+`<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to 1, so the emptied `<ext>` used to
+be rejected with *Missing child element(s)* on every conformant file Office has written since 2010.
+MJXOFF-196 closed that: an extension slot resolution empties is now dropped along with the extension
+it held, because such an element exists only to carry it.
+
+What remains is a **residue, not a deviation**: the gate says nothing about the markup *inside* an
+ignorable extension. It never could. `CT_Extension`'s wildcard is `processContents="lax"` and no
+schema for such a namespace is loaded, so keeping the content would only have had the validator
+accept it unread. `crates/mjx-schema-gate/src/wildcard_slots.rs` names the five elements this
+applies to, derived from the pinned XSDs rather than listed by hand, and
+`xtask/tests/mce_extension_seam.rs` holds all of it.
 
 ---
 
 ## 6 · What this pass cannot exercise, and why
 
-Seven checks are **blocked** — each is a question the pass wants answered and cannot yet ask. They are
+Six checks are **blocked** — each is a question the pass wants answered and cannot yet ask. They are
 not oversights, and they are listed here rather than left for you to discover one at a time at the
 desk.
 
+**One came off this list.** `V-PPTX-02.4` — the colour transforms against PowerPoint's eyedropper —
+was the seventh, and the only entry in the pass with *no artefact at all*: `ColorSpec` carried a
+colour's kind and value and no transform children, so no facade call could author a `comp`, `gray`,
+`gamma` or `invGamma`, and no committed fixture has one. `MJXOFF-219` gave `ColorSpec` the whole of
+`EG_ColorTransform`, and `v-pptx-02-authored.pptx` now opens with two rows of swatches to point the
+eyedropper at. The corpus was never going to unblock it — PowerPoint's own interface exposes none of
+the four, so a saved file is unlikely to contain one — which is why it needed a code change rather
+than a file. It is R3, the third-highest risk item in the repository, and it is now the pass's to
+answer rather than the pass's to skip.
+
 | Check | Why it has no file | Does the corpus unblock it? |
 |---|---|---|
-| `V-PPTX-02.4` — the four colour transforms against PowerPoint's eyedropper | `ColorSpec` carries a colour's kind and value and **no transform children**, so no facade call authors a `comp`, `gray`, `gamma` or `invGamma`, and no committed fixture has one | **Probably not.** PowerPoint's own interface exposes none of the four, so a saved file is unlikely to contain one either. **This is R3, the third-highest risk item in the repository, and it has no artefact at all.** Closing it needs a colour-transform surface on `ColorSpec` — a code change, not a file |
 | `V-PPTX-07.6` — is `None` right for a rotation-only transform? | `set_shape_transform` writes only the fields its argument names, so no facade call can author a transform naming a rotation and neither `a:off` nor `a:ext` | Only if a real deck happens to carry one. This is also a **design question** — see §7 |
 | `V-PPTX-01.8` — a `+mj-sym` reference the theme does not define | `CharacterPropertiesSpec` has no font setter | Yes, given a deck whose theme leaves the symbol slot undefined |
 | `V-PPTX-02.13` — `p:oleObj@spid` naming a `v:shape@id` | asserted only against markup we authored | Yes, given a deck with an OLE object and its VML backing |
@@ -202,10 +302,11 @@ added to it by the generator.
 
 ---
 
-## 8 · Two things the programme escalated to this desk
+## 8 · One thing the programme escalated to this desk
 
-Neither is a validation entry. Both were judged the user's call by the child that found them, and
-both would otherwise live only in a merged pull request.
+It is not a validation entry. It was judged the user's call by the child that found it, and would
+otherwise live only in a merged pull request. (There were two until MJXOFF-196 took the second one
+back and fixed it; §5 records what the gate can and cannot say about an extension now.)
 
 **`CellReference::{new, relative, absolute}` take `(column, row)`**, while thirty-odd methods across
 `mjx-pptx`, `mjx-docx` and the facade take `(row, column)`. MJXOFF-118 wrote the reasoning onto the
@@ -214,17 +315,6 @@ rendering is `A1` — column letters then row number — so taking the row first
 `CellReference::relative(6, 1)` spell `B7`. The two idioms never meet at a call site, because nothing
 on the `Workbook` facade takes a `CellReference` at all. It is defensible and it is still an
 asymmetry in a shipped public API, which is why it is here rather than settled.
-
-**The `mc:Ignorable` / `CT_Extension` seam** described in §5 is a defect of ours, filed as
-**MJXOFF-196**. It is deliberately *not* recorded as a tolerance in
-`crates/mjx-schema-gate/src/tolerances.rs`, because a tolerance is for one file and one message and
-would file a gate defect as a quirk of somebody's spreadsheet. Three candidate fixes are on that
-ticket, and choosing between them is a decision about what the gate validates rather than a bug fix.
-It will not redden your build: the corpus suite *reports* a schema deviation in a file we did not
-write, and MJXOFF-130 changed the artefact harness to hold an `-edited` artefact to **no new
-defect** — everything its original arrived with is subtracted — because before that change it reached
-`assert_authored_deck_is_schema_valid`, which tolerates nothing and would have faulted the producer's
-markup.
 
 ---
 

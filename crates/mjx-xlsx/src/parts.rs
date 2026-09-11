@@ -953,6 +953,84 @@ fn resolve_one(source: &PartName, rel: &Relationship) -> Result<PartName, XlsxEr
     crate::nav::resolve_target(source, &rel.target)
 }
 
+// =================================================================================================
+// MJXOFF-200 — authoring a theme, and only where there is none
+// =================================================================================================
+
+/// The part name a workbook's theme conventionally has.
+pub(crate) const THEME_PART: &str = "/xl/theme/theme1.xml";
+
+/// Makes sure the package carries a theme, **without ever touching one it already has**.
+///
+/// # Why a workbook needs one at all
+///
+/// A chart series that states no `c:spPr` — which is every series this library authors,
+/// deliberately — takes its fill from the theme's `accent1…accent6`, and a `<color theme="N"/>` or a
+/// `<scheme val="minor"/>` in `styles.xml` is an index into the same part. With no theme in the
+/// package every one of those resolves to **nothing**: the human validation pass on the MJXOFF-130
+/// artefacts opened an authored workbook and found a chart with a title, axis labels, legend text
+/// and **no bars**. Excel writes `xl/theme/theme1.xml` into every file it saves.
+///
+/// [`Workbook::blank`](crate::Workbook::blank) already gets one, because
+/// [`mjx_sml::write::WorkbookPackage`] writes every byte of an authored package and now includes it.
+/// This function is for the other case: a workbook **opened** from a file that carries none, which a
+/// caller then adds a chart to.
+///
+/// # Why it must not write one unconditionally, which is the harder half
+///
+/// A writer that emitted `xl/theme/theme1.xml` on every save would **destroy the branding of every
+/// real workbook this library opens and re-saves** — turning an invisible-chart bug into a
+/// corrupt-the-customer's-file bug, which is strictly worse and which every gate in this repository
+/// would pass exactly as it passed the invisible chart. The standing rule (MJXOFF-198 §2) is
+/// *supply a default only in the absence of the user's own, never in place of it*, so:
+///
+/// * the package **has** a theme → this function performs **no mutation at all**, and the workbook
+///   keeps the theme it arrived with, byte for byte;
+/// * the package has **none** → one is authored at [`THEME_PART`], related from `workbook_part`, and
+///   `accent1…accent6` resolve.
+///
+/// # How "has a theme" is decided
+///
+/// By **content type over the whole package**, not by `WorkbookParts::theme`. A theme reached from
+/// something this crate does not classify is still a theme the workbook came with; a rule that only
+/// looked at the workbook part's own relationships would author a second one beside it. Content type
+/// is the one property every such part has, whatever reaches it.
+///
+/// # Errors
+/// [`XlsxError::Opc`] if the packaging layer refuses the part name, the content type or the
+/// relationship. Every one of them is a constant here, so in practice this cannot fail.
+pub(crate) fn ensure_theme_part(
+    package: &mut Package,
+    workbook_part: &PartName,
+    relationship_id: &str,
+) -> Result<(), XlsxError> {
+    if package_carries_a_theme(package) {
+        return Ok(());
+    }
+    let theme = PartName::new(THEME_PART)?;
+    package.insert_part(&theme, CONTENT_TYPE_THEME, mjx_dml::default_theme_xml())?;
+    package.add_relationship(
+        Some(workbook_part),
+        Relationship {
+            id: relationship_id.to_owned(),
+            rel_type: REL_THEME.to_owned(),
+            target: "theme/theme1.xml".to_owned(),
+            mode: TargetMode::Internal,
+        },
+    )?;
+    Ok(())
+}
+
+/// Whether any part of `package` is registered as a theme.
+///
+/// See [`ensure_theme_part`] for why the question is asked of the whole package rather than of the
+/// workbook part's relationships.
+pub(crate) fn package_carries_a_theme(package: &Package) -> bool {
+    package
+        .part_names()
+        .any(|part| package.content_type_of(&part) == Some(CONTENT_TYPE_THEME))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -22,13 +22,14 @@
 
 use std::collections::BTreeSet;
 
+use mjx_ooxml_core::FromXml;
 use mjx_ooxml_types::spreadsheetml::PatternType;
 use mjx_opc::Package;
 use mjx_sml::write::{
     AuthoredCellValue, CellFormatSpec, CellFormatTarget, PatternFillSpec, WorkbookPackage,
-    CONTENT_TYPE_SHARED_STRINGS, CONTENT_TYPE_STYLES, CONTENT_TYPE_WORKBOOK,
+    CONTENT_TYPE_SHARED_STRINGS, CONTENT_TYPE_STYLES, CONTENT_TYPE_THEME, CONTENT_TYPE_WORKBOOK,
     CONTENT_TYPE_WORKBOOK_PACKAGE, CONTENT_TYPE_WORKSHEET, DEFAULT_SHEET_NAME, REL_OFFICE_DOCUMENT,
-    REL_SHARED_STRINGS, REL_STYLES, REL_WORKSHEET,
+    REL_SHARED_STRINGS, REL_STYLES, REL_THEME, REL_WORKSHEET,
 };
 use mjx_sml::{
     CellReference, CellValue, FontProperties, SharedStringTable, SheetList, StylesheetPart,
@@ -115,13 +116,28 @@ fn the_writer_needs_nothing_above_this_crate() {
             .map_or(line, |(name, _)| name)
         })
         .collect();
-    for forbidden in ["mjx-xlsx", "mjx-pptx", "mjx-docx", "mjx-ooxml", "mjx-chart"] {
+    // Every crate `CLAUDE.md` ranks at or above this one — 2.2 upward — not the five this list
+    // named until MJXOFF-225. `mjx-omml` and `mjx-vml` sit at 2.2 beside `mjx-chart` and were
+    // missing, and so were both bindings; the roster read as *the crates that matter* while naming
+    // five of the nine. `xtask/tests/derived_rosters.rs` now derives this set from the rank table and
+    // fails if the two disagree, so a crate added above 2.1 joins the list rather than escaping it.
+    for forbidden in [
+        "mjx-chart",
+        "mjx-omml",
+        "mjx-vml",
+        "mjx-pptx",
+        "mjx-docx",
+        "mjx-xlsx",
+        "mjx-ooxml",
+        "mjx-python",
+        "mjx-wasm",
+    ] {
         assert!(
             !declared.contains(&forbidden),
             "crates/mjx-sml/Cargo.toml declares `{forbidden}`. The package writer exists here \
              precisely so that `mjx-chart` can reach it without an upward edge; an edge from this \
-             crate to a format crate, to the facade, or to `mjx-chart` inverts that and makes \
-             MJXOFF-99's deletion illegal again."
+             crate to anything ranked at or above it — the upper shared markup, a format crate, the \
+             facade, a binding — inverts that and makes MJXOFF-99's deletion illegal again."
         );
     }
     assert!(
@@ -134,8 +150,13 @@ fn the_writer_needs_nothing_above_this_crate() {
 // The package
 // -------------------------------------------------------------------------------------------
 
-/// The writer emits exactly the four content parts a minimal workbook is made of — plus the two
+/// The writer emits exactly the five content parts a minimal workbook is made of — plus the two
 /// relationship parts that join them — each under the content type ECMA-376 Part 1 §12.3 gives it.
+///
+/// The theme is the fifth, and it is the one that is not there because a schema asks for it: font 0
+/// says `<color theme="1"/>` and `<scheme val="minor"/>`, and a chart series that carries no
+/// `c:spPr` takes its fill from `accent1…accent6`. Both are references into this part, and MJXOFF-200
+/// is what happens when a package makes them and does not carry it.
 #[test]
 fn the_authored_package_holds_the_parts_a_workbook_needs_and_no_others() {
     let package = chart_workbook()
@@ -153,6 +174,7 @@ fn the_authored_package_holds_the_parts_a_workbook_needs_and_no_others() {
         "/xl/worksheets/sheet1.xml",
         "/xl/sharedStrings.xml",
         "/xl/styles.xml",
+        "/xl/theme/theme1.xml",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -164,6 +186,7 @@ fn the_authored_package_holds_the_parts_a_workbook_needs_and_no_others() {
         ("/xl/worksheets/sheet1.xml", CONTENT_TYPE_WORKSHEET),
         ("/xl/sharedStrings.xml", CONTENT_TYPE_SHARED_STRINGS),
         ("/xl/styles.xml", CONTENT_TYPE_STYLES),
+        ("/xl/theme/theme1.xml", CONTENT_TYPE_THEME),
     ] {
         let part = mjx_opc::PartName::new(name).expect("a literal part name");
         assert_eq!(
@@ -174,8 +197,8 @@ fn the_authored_package_holds_the_parts_a_workbook_needs_and_no_others() {
     }
 }
 
-/// The package root names the workbook, and the workbook names its worksheet, its styles and its
-/// shared strings — each under the relationship type Part 1 §12.3 gives it.
+/// The package root names the workbook, and the workbook names its worksheet, its styles, its
+/// shared strings and its theme — each under the relationship type Part 1 §12.3 gives it.
 #[test]
 fn the_relationship_graph_is_the_one_a_consumer_walks() {
     let package = chart_workbook()
@@ -199,6 +222,7 @@ fn the_relationship_graph_is_the_one_a_consumer_walks() {
         (REL_WORKSHEET, "worksheets/sheet1.xml"),
         (REL_STYLES, "styles.xml"),
         (REL_SHARED_STRINGS, "sharedStrings.xml"),
+        (REL_THEME, "theme/theme1.xml"),
     ] {
         let targets: Vec<&str> = from_workbook
             .by_type(rel_type)
@@ -888,4 +912,99 @@ fn the_embedded_package_content_type_is_the_one_a_host_registers() {
     // embedded workbook ends up unopenable.
     assert_ne!(CONTENT_TYPE_WORKBOOK_PACKAGE, CONTENT_TYPE_WORKBOOK);
     assert_eq!(DEFAULT_SHEET_NAME, "Sheet1");
+}
+
+// -------------------------------------------------------------------------------------------
+// The theme, and the two references that need it (MJXOFF-200)
+// -------------------------------------------------------------------------------------------
+
+/// Font 0 — the font every cell that names none of its own draws with — **follows the theme** rather
+/// than pinning a typeface over it: `<color theme="1"/>` for the text colour and
+/// `<scheme val="minor"/>` for the typeface, exactly as Excel's own font 0 does. The literal
+/// `Calibri` stays beside them as the fallback for a consumer that resolves no theme, which is also
+/// what Excel writes.
+///
+/// This is API-audit finding F5. It was inert while the writer emitted no theme — there was nothing
+/// for a `theme` reference to be wrong about — and it becomes live the moment there is one, which is
+/// why it is fixed in the same change (MJXOFF-198 §6).
+#[test]
+fn font_zero_follows_the_theme_rather_than_pinning_a_typeface_over_it() {
+    let package = chart_workbook()
+        .to_package()
+        .expect("the package assembles");
+    let styles = part_text(&package, "/xl/styles.xml");
+    let first_font = styles
+        .split_once("<font>")
+        .and_then(|(_, rest)| rest.split_once("</font>"))
+        .map(|(font, _)| font.to_owned())
+        .expect("styles.xml has a font 0");
+
+    assert!(
+        first_font.contains(r#"<color theme="1"/>"#),
+        "font 0 names the theme's first text colour: {first_font}"
+    );
+    assert!(
+        first_font.contains(r#"<scheme val="minor"/>"#),
+        "font 0 names the theme's body font: {first_font}"
+    );
+    assert!(
+        first_font.contains(r#"<name val="Calibri"/>"#),
+        "font 0 keeps the literal fallback beside them: {first_font}"
+    );
+}
+
+/// The theme both of font 0's references resolve against is present, and it **defines the slots they
+/// name**.
+///
+/// The distinction is the whole of MJXOFF-200: an empty `a:theme` would satisfy "the part exists"
+/// and would still leave `<color theme="1"/>` resolving to nothing and a chart series painted with
+/// no colour. So the assertion is on `a:clrScheme`'s twelve slots and on both font collections,
+/// read back by `mjx-dml`'s own reader rather than by string matching.
+#[test]
+fn the_authored_theme_resolves_what_the_package_asks_of_it() {
+    let package = chart_workbook()
+        .to_package()
+        .expect("the package assembles");
+    let theme_text = part_text(&package, "/xl/theme/theme1.xml");
+    let document = mjx_xml::fidelity::parse(theme_text.as_bytes()).expect("well-formed");
+    let theme = mjx_dml::Theme::from_xml(&document.root, &document.interner)
+        .expect("the authored theme reads back");
+
+    let scheme = theme.color_scheme().expect("a:clrScheme");
+    // `<color theme="1"/>` is an index into the theme's colour slots, and a chart series with no
+    // `c:spPr` takes `accent1…accent6`. Every one of the twelve is defined.
+    assert_eq!(scheme.slots().count(), 12, "the colour scheme's slots");
+    for slot in [
+        mjx_dml::ColorSchemeSlot::Accent1,
+        mjx_dml::ColorSchemeSlot::Accent2,
+        mjx_dml::ColorSchemeSlot::Accent3,
+        mjx_dml::ColorSchemeSlot::Accent4,
+        mjx_dml::ColorSchemeSlot::Accent5,
+        mjx_dml::ColorSchemeSlot::Accent6,
+    ] {
+        assert!(scheme.color(slot).is_some(), "{slot:?} resolves");
+    }
+
+    // `<scheme val="minor"/>` is the theme's body font collection.
+    let fonts = theme.font_scheme().expect("a:fontScheme");
+    assert!(
+        fonts
+            .minor()
+            .font(mjx_dml::FontSlot::Latin)
+            .is_some_and(|font| !font.typeface.is_empty()),
+        "the minor font collection names a Latin typeface"
+    );
+}
+
+/// The writer's theme is the workspace's one theme — the same bytes `mjx-pptx` puts in every deck —
+/// rather than a second hand-written copy of the same markup.
+#[test]
+fn the_theme_is_the_one_the_workspace_authors_everywhere() {
+    let package = chart_workbook()
+        .to_package()
+        .expect("the package assembles");
+    assert_eq!(
+        part_text(&package, "/xl/theme/theme1.xml").as_bytes(),
+        mjx_dml::default_theme_xml()
+    );
 }

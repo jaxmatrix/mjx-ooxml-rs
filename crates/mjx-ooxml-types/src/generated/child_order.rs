@@ -58733,6 +58733,23 @@ pub static DML_SPREADSHEET_DRAWING_TYPES: [ChildOrder; 17] = [
     },
 ];
 
+/// Every generated child-order table, in emission order.
+///
+/// A sweep over the whole generated corpus — a census, an audit, a property that must hold
+/// of every complex type — iterates this rather than naming the tables, so that a schema
+/// joining `CHILD_ORDER_SCHEMAS` joins the sweep with it.
+pub static ALL_TABLES: [&[ChildOrder]; 9] = [
+    &DML_MAIN_TYPES,
+    &PML_TYPES,
+    &DML_CHART_TYPES,
+    &DML_DIAGRAM_TYPES,
+    &WML_TYPES,
+    &DML_WORDPROCESSING_DRAWING_TYPES,
+    &SHARED_MATH_TYPES,
+    &SML_TYPES,
+    &DML_SPREADSHEET_DRAWING_TYPES,
+];
+
 /// The child order of the complex type `symbol` declared in `namespace`, or `None` if the
 /// tables do not cover it.
 ///

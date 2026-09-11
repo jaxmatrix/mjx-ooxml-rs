@@ -15,36 +15,63 @@
 //!
 //! * [`Verdict::Failed`] — the finding is about *this library*. Round-trip byte identity, the
 //!   fidelity tree, the facade's own re-save, a package defect we introduced by saving, a part out
-//!   of `xsd:sequence` against our generated tables. Every one of these says we lost or changed
-//!   something, and every one fails.
+//!   of `xsd:sequence` against our generated tables, **an address the format model could not read**
+//!   and **an edit that moved more than the leaf it was aimed at**. Every one of these says we lost
+//!   or changed something, and every one fails.
 //! * [`Verdict::Reported`] — the finding is about *the file*. A package defect it arrived with, a
 //!   part its producer wrote that the ECMA-376 XSDs reject, a namespace this gate does not
-//!   categorise. A7b's scope rule is explicit that a file arriving with a defect must still open and
-//!   re-save unchanged, and MJXOFF-103 measured the other half: Apache POI 5.5.1 writes an empty
-//!   `<c:tx/>` for an unnamed series, which `dml-chart.xsd` rejects. **A red build over someone
-//!   else's markup teaches nobody anything**, so these are printed in full and fail nothing.
-//! * [`Verdict::Skipped`] — the check could not run: no `References/`, no `xmllint`.
+//!   categorise, **a reference the file makes that resolves to nothing inside it**. A7b's scope rule
+//!   is explicit that a file arriving with a defect must still open and re-save unchanged, and
+//!   MJXOFF-103 measured the other half: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed
+//!   series, which `dml-chart.xsd` rejects. **A red build over someone else's markup teaches nobody
+//!   anything**, so these are printed in full and fail nothing.
+//! * [`Verdict::Skipped`] — the check could not run: no `References/`, no `xmllint`, or nothing in
+//!   the file the `edit` check could edit without changing more than one text leaf.
 //!
-//! # The schema half will report a deviation on the first real Excel file, and it is ours
+//! # The two checks that are not about bytes (MJXOFF-278)
+//!
+//! Everything above was true of `opens`, `round-trip`, `xml tree`, `package`, `child order` and
+//! `schema` from the first day, and it was true of `facade` too — which opens the document and saves
+//! it back **with no edit in between**, so part-level laziness re-emits every part from its raw bytes
+//! and not one `FromXml` implementation runs. A file whose every reader in this workspace would
+//! refuse it came back with seven `held` rows. [`super::model`] is the answer: `model` walks the
+//! whole document through the format model and prints what it read, and `edit` makes the smallest
+//! edit the model offers and measures exactly which bytes moved. Read that module for the three-way
+//! split of a read error and for why a workbook's edit is a number.
+//!
+//! # The schema half says nothing about an ignorable extension, and that is deliberate
 //!
 //! `mjx-schema-gate` validates the **markup-compatibility-resolved** view of a part, because
 //! `mc:Ignorable` names attributes the base schema has no declaration for. Resolution removes an
 //! ignorable element together with its content — and `sml.xsd`'s `CT_Extension` and
-//! `dml-chart.xsd`'s declare their wildcard as a bare `<xsd:any processContents="lax"/>`, whose
-//! `minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable is emptied by
-//! the resolution and then rejected by the schema:
+//! `dml-chart.xsd`'s declare their whole content model as a bare `<xsd:any processContents="lax"/>`,
+//! whose `minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable was
+//! emptied by the resolution and then rejected by the schema:
 //!
 //! ```text
 //! Element '{…/spreadsheetml/2006/main}ext': Missing child element(s). Expected is one of ( {*}*, * ).
 //! ```
 //!
-//! That is a defect in how MCE resolution and schema validation compose, **not** a quirk of anyone's
-//! spreadsheet: it fires identically on every conformant file that carries an ignorable extension,
-//! which is essentially every workbook and every chart Office has written since 2010. It is
-//! therefore neither a tolerance (those are per file and per message, and never for a defect of
-//! ours) nor a property of the corpus. `xtask/tests/office_corpus.rs` reproduces it from markup this
-//! repository authors for the purpose, and **MJXOFF-196** owns it — with the reproduction, the schema
-//! sweep behind it and three candidate fixes.
+//! That fired identically on every conformant file carrying an ignorable extension, which is
+//! essentially every workbook and every chart Office has written since 2010 — a defect in how MCE
+//! resolution and schema validation compose rather than a quirk of anyone's spreadsheet, and so
+//! neither a tolerance (those are per file and per message) nor a property of the corpus.
+//! **MJXOFF-196** closed it: an extension slot resolution empties is dropped along with the
+//! extension it held, because such an element exists only to carry it.
+//!
+//! Two things about that fix matter when reading a report here.
+//!
+//! * **The set of elements it applies to is derived from the schemas, not listed by hand.**
+//!   `crates/mjx-schema-gate/src/wildcard_slots.rs` computes every element whose content model is
+//!   `xsd:any` particles and nothing else and cannot match the empty sequence, and a test asserts
+//!   the committed table equals what the pinned XSDs say. It found **five**. This module used to
+//!   carry the third by hand — `vml-officeDrawing.xsd`'s `CT_EquationXml`, found by MJXOFF-221 —
+//!   with the note "so that a fix cannot stop at two"; a derivation is the general form of that
+//!   note, and it also found `sml.xsd`'s `CT_Schema` and `CT_DataBinding`.
+//! * **What is left is a residue.** The gate reports nothing about the markup *inside* an ignorable
+//!   extension, and it never could: `processContents="lax"` with no loaded schema for that namespace
+//!   means a validator handed the content accepts it unread. A report that is silent about an
+//!   `<ext>` has not checked it.
 //!
 //! # No I/O beyond reading the file it was handed
 //!
@@ -173,6 +200,21 @@ impl IngestReport {
     }
 }
 
+/// The two checks that build a typed element, run on their own (MJXOFF-278).
+///
+/// [`report`] runs them among the other eight, which is where a person reading an ingest wants them.
+/// This is the same two without the container and schema checks around them, so a suite that sweeps
+/// **every** committed fixture — as `xtask/tests/office_corpus.rs` does, because a roster of three
+/// hand-picked fixtures is the shape `xtask/tests/derived_rosters.rs` refuses — pays for the walk and
+/// not for a `xmllint` process per part.
+#[must_use]
+pub fn model_findings(format: ArtefactFormat, package: &Package, bytes: &[u8]) -> Vec<Finding> {
+    vec![
+        super::model::model_read(format, package, bytes),
+        super::model::typed_edit(format, package, bytes),
+    ]
+}
+
 /// The area a file name binds to: `v-xlsx-02.xlsx` answers `V-XLSX-02`.
 #[must_use]
 pub fn area_for_file_name(name: &str) -> Option<&'static Area> {
@@ -270,6 +312,8 @@ pub fn report(
     findings.push(fidelity_round_trip(&package));
     findings.push(facade_round_trip(format, &package, bytes));
     findings.push(package_invariants(&package, saved));
+    findings.push(super::model::model_read(format, &package, bytes));
+    findings.push(super::model::typed_edit(format, &package, bytes));
     findings.push(child_order(name, bytes));
     findings.push(schema_validity(name, bytes));
 
@@ -585,11 +629,27 @@ fn child_order(label: &str, bytes: &[u8]) -> Finding {
         };
     }
     let vacuous = report.vacuous();
-    let detail = format!(
+    let mut detail = format!(
         "{} part(s) audited, {} required by the category tables",
         report.audited.len(),
         required.len()
     );
+    // Recorded, never a verdict (MJXOFF-273). A part whose root markup compatibility resolution
+    // emptied audits clean over nothing the file contains, and reads exactly like a part that was
+    // empty to begin with. Saying so is the whole of the fix: reddening it would mean faulting a
+    // producer's extension markup against schemas that do not describe it, which the gate refuses
+    // to do — and Office writes these in essentially every drawing that carries an `a14` choice.
+    let emptied = report.emptied_by_markup_compatibility_resolution();
+    if !emptied.is_empty() {
+        detail.push_str(&format!(
+            "; {} of them arrived with content that markup compatibility resolution removed, so \
+             the audit is complete over an empty root rather than over an empty part — their \
+             content is in a namespace no ECMA-376 schema describes and nothing is claimed about \
+             it: {:?}",
+            emptied.len(),
+            emptied.iter().map(|part| &part.name).collect::<Vec<_>>()
+        ));
+    }
     if vacuous.is_empty() {
         Finding {
             check: "child order",

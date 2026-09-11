@@ -38,6 +38,7 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
 | `mjx_sml::SmlError::SheetDataTooLarge` | `PackedStoreTooLarge` | There are two packed stores in `mjx-sml` now — the cell store and the shared-string table — over one shared byte arena, and the variant either of them raises said "the cell store's byte space" in its message. A name and a message that are true of one of two callers is the kind of small lie that survives into a user's terminal. |
+| Twelve `*_part_bytes` accessors → `Option<&[u8]>` | → `Option<Cow<'_, [u8]>>` (and `Document::alt_chunk_payload` → `(Cow<'_, [u8]>, &str)`) | A part that has been edited has no stored bytes, so a borrow could only be offered by answering `None` for it — which is how `from_package` came to report a main part missing the moment a caller edited it (MJXOFF-222). The `Cow` borrows whenever the part is not dirty, so the ordinary path still copies nothing. The facade and both bindings are unaffected: `mjx_ooxml` already owned its `Vec<u8>` at that boundary. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 | `mjx_sml::ConditionalFormattingFormula` | `mjx_sml::FormulaElement` (module `mjx_sml::formula::element`) | MJXOFF-123. `sml.xsd` hangs three elements off `ST_Formula` — `cfRule/formula`, `dataValidation/formula1` and `dataValidation/formula2` — whose content model, escaping rules and no-evaluation contract are identical, so the type carries its own local name and there is one implementation rather than three. `new` gains a `local: &str` parameter for the same reason. The answer to a second consumer is one helper both can reach, not a copy with a different doc comment. |
@@ -46,6 +47,9 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError` gains `Sml(mjx_sml::SmlError)` | — | The same removal: a chart's embedded workbook is now written by `mjx-sml`, so its failures reach a PresentationML caller as themselves rather than being flattened into `Opc`. `PptxError` is deliberately not `#[non_exhaustive]`, so this is a breaking addition; `mjx_ooxml::Error` classifies it through the same `sml_code` that `mjx-xlsx`'s errors go through, and no `ErrorCode` was added — nothing changes for either binding. |
 | `mjx_chart::ChartLabelScope::Plot { plot_idx: usize }`, `Series { series_idx: usize }`, `Point { series_idx: usize, point_idx: u32 }` | `Plot { plot_index: u32 }`, `Series { series_index: u32 }`, `Point { series_index: u32, point_index: u32 }` | MJXOFF-118. These were the **last three public fields in the workspace spelled `*_idx`** — an abbreviation named after `c:idx`, which is exactly the case 0.0.69 already settled for `mjx_dml::StyleMatrixReference::idx`. The width goes with the name: this type crosses the facade to both bindings, and **both already published these three as `u32` and cast on the way in and out**, so the rename and the narrowing change nothing in Python or TypeScript and delete five casts (two of them `usize as u32`, which truncate rather than fail). |
 | `mjx_pptx::ShapeInfo::index`, `mjx_pptx::LayoutInfo::index`, `mjx_pptx::LayoutInfo::master_index` — `usize` | `u32` | MJXOFF-118, finishing A9's own recorded loose end (*"better normalised once at v0.1"*). All three structs are re-exported **verbatim** by `mjx-ooxml` and by both bindings, which means they bypass `crates/mjx-ooxml/src/index.rs` — the one place the facade's `u32`/model `usize` width difference is meant to be crossed — and carried a host-dependent width into a foreign-function-facing type. Both bindings already read all three as `u32`; those casts are gone. A `mjx-pptx` caller feeding one of these back into a `Presentation` method converts once (`usize::try_from`), which `crates/mjx-pptx/src/index.rs` documents; a `mjx-ooxml` caller can now pass `ShapeInfo::index` straight to a `Deck` method, which was not possible before. |
+| `mjx_dml::ColorSpec` — three variants, `#[derive(Eq)]` | a fourth variant `Transformed { base: Box<ColorSpec>, transforms: Vec<ColorTransform> }`; **no `Eq`** | MJXOFF-219. `ColorSpec` is what every authoring caller hands in, and it carried a colour's kind and value and **no transform children**, so nothing in this workspace could author a colour transform and `Color::spec()` silently dropped a producer's. The three existing variants and every construction site are untouched — the alternative shape (`ColorSpec { kind, value, transforms }`, the ticket's option 1) is faithful to the schema and rewrites 393 call sites; this one costs an arm in the seven places that `match` on the enum. `Eq` goes because a transform's value is a `Fraction`/`Angle` (both `f64`, both `PartialEq` only); nothing in the workspace required it, and every type that embeds a `ColorSpec` — `FillSpec`, `LineSpec`, `EffectListSpec`, `CharacterPropertiesSpec` — was already `PartialEq` alone. |
+| `mjx_ooxml::CellData` — five variants | a sixth, `Unreadable(String)`, with the accessor `CellData::unreadable_text` (`CellData.unreadable_text` in Python, `CellData.unreadableText` in npm) and the kind name `"unreadable"` in both bindings | MJXOFF-285. `<c t="n"><v>not-a-number</v></c>` read back as `Blank` — the answer a cell holding *nothing* gives — so a caller saw an empty cell where the file held data, with nothing anywhere to say a value had been dropped. The enumeration is deliberately exhaustive precisely so that a kind of cell cannot arrive as a blank, and this was one arriving as a blank. The vocabulary had no word for it already: `Text` would claim a kind of cell this is not and would make a numeric cell holding junk indistinguishable from a text cell holding the same characters, and `Error` means the file wrote `t="e"` and would put a token that is not an error code behind `error_code()`. Both bindings `match` this enumeration with no wildcard arm, which is what made the addition a compile error in three places rather than a silent gap. |
+| **npm only** — `ChartWrap.kind` answered `"topAndBottom"` | it answers `"top_and_bottom"` | MJXOFF-268. The wasm binding's camelCase rule is about **method names**, which `xtask/tests/binding_projection.rs` enforces on `js_name` against the Rust name under it. A returned token is data, and the binding had already written that down itself, in `bindings/mjx-wasm/src/geometry.rs`'s comment on `ShapeGeometry::of`: *"the keys are the adjustment names, which stay `snake_case`: they are data … rather than method names"*. `ChartWrap.kind` was the one place in either binding that broke it, which is a claim the sweep behind it can support: every string literal both bindings spell in code was compared, and the twenty members declared by both that produce a token agreed on every one but this. Python is unchanged and was always right. Nothing in Rust changes, and the constructor keeps its camelCase `ChartWrap.topAndBottom()` — that is a name. The rule is no longer prose: `no_data_token_is_spelled_in_camel_case` and `the_two_bindings_produce_the_same_data_tokens` check it over both bindings, and neither carries a ledger of exceptions. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -58,7 +62,21 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
-## [0.0.156] - 2026-09-10
+## [0.0.174] - 2026-09-11
+
+**The client platform, merged into the release line (Phase R and Phase U).** Everything below this
+heading was built on the `ui` branch while `main` ran from 0.0.131 to 0.0.173, and the two numbered
+their releases independently: the branch's own 0.0.122–0.0.156 describe different work from the
+0.0.131–0.0.156 above, which are the numbers that were actually published. Rather than leave one
+number meaning two things, the branch's history is kept here as the record of how this release was
+built, under its original numbering, clearly subordinate to it.
+
+What it adds: the whole rendering engine below the platform boundary — `mjx-tokens`, `mjx-text`,
+`mjx-layout`, `mjx-scene`, `mjx-geometry`, the three box models, the two scene companions, the chart
+engine, `mjx-session`, `mjx-view` and `mjx-paint`'s four painters — plus the fidelity oracle, the
+canvas harness, the reference pack, and the `ui/` component catalogue the chrome is designed in.
+
+### 0.0.156 on the branch — 2026-09-10
 
 **The design tokens, re-seeded from the product and made two-tier (MJXOFF-271).** The palette came
 from the marketing site; the application this editor is embedded in —
@@ -130,7 +148,7 @@ tier instead.
   fill knob. At the primary knob the accent surface reached only 4.23 : 1 against the accent-coloured
   label — a failure on every story in the catalogue, because the pairing is a shared-harness button.
 
-## [0.0.155] - 2026-09-10
+### 0.0.155 on the branch — 2026-09-10
 
 **The parity ledger, generated from the suites and never asserted by hand (MJXOFF-179, R24).**
 Twenty-three children built the renderer and every one of them declared what it could not prove. This
@@ -187,7 +205,7 @@ coarser partition would raise the implemented share without a line of code chang
 that *are* independent — 11,869 in-scope controls and 3,404 declared elements — are summed by the
 generator from the two committed censuses and are reported as scale, never as a denominator.
 
-## [0.0.154] - 2026-09-10
+### 0.0.154 on the branch — 2026-09-10
 
 **Charts and diagrams, built once for all three formats (MJXOFF-178, R23).** A chart in a `.pptx`, a
 chart in a `.docx` and a chart on an `.xlsx` sheet are the same chart, so from this release they are
@@ -235,7 +253,7 @@ laid out by one engine reached three ways.
   upward), `c:plotArea > c:layout` is not read, chart text is measured rather than shaped, `c:view3D`
   is not read, and `c:ofPieChart`'s secondary plot is absent.
 
-## [0.0.153] - 2026-09-09
+### 0.0.153 on the branch — 2026-09-09
 
 **Fields, numbering, revision marks and OMML mathematical layout — and the two defects the last two
 children declared rather than fixed (MJXOFF-177, R22). Word is complete for view.**
@@ -340,7 +358,7 @@ Every value that lives only in the prose — `w:start`'s default of one, `w:suff
 written out. That lowers the `SpecCode` count and raises the `EngineDerived` one relative to R20 and
 R21, and the difference is in what was **checked** rather than in what is known.
 
-## [0.0.152] - 2026-09-09
+### 0.0.152 on the branch — 2026-09-09
 
 **Tables that split across pages, floating objects, and the text that flows around them
 (MJXOFF-176, R21).**
@@ -414,7 +432,7 @@ against the value that would be identical either way.
   sharpest guess is what unit a `wp:wrapPolygon`'s coordinates are in: the schema says EMU and Word
   writes 21600ths of the extent, and both readings are implemented with the choice made per object.
 
-## [0.0.151] - 2026-09-09
+### 0.0.151 on the branch — 2026-09-09
 
 **Sections, columns, headers, footers and footnotes — and the fixed point between a note and the
 body it takes space from (MJXOFF-175, R20).**
@@ -485,7 +503,7 @@ rather than left to be rediscovered — an undocumented fixed-point loop is wher
 - **Word still has no scene companion** (MJXOFF-255), so a Word `FragmentTree` cannot reach pixels.
 - Tables and floating objects are R21; fields, numbering, revision marks and OMML are R22.
 
-## [0.0.150] - 2026-09-09
+### 0.0.150 on the branch — 2026-09-09
 
 **Word's flow engine: lines, justification, and a pagination that is emergent (MJXOFF-174, R19).**
 
@@ -560,7 +578,7 @@ document. `mjx-layout`'s `Checkpoint` exists for exactly that, and this is its f
 - Sections, columns, headers, footers and footnotes are R20; tables and floating objects R21; fields,
   numbering, revision marks and OMML R22.
 
-## [0.0.149] - 2026-09-09
+### 0.0.149 on the branch — 2026-09-09
 
 **Conditional formatting evaluated, cell drawings placed, and a sheet paginated for print
 (MJXOFF-173, R18).**
@@ -637,7 +655,7 @@ rule is a rendering fact rather than a document one — and the documentation mo
   precisely as wide as the page, so the last column tipped the accumulator over by a rounding EMU
   and a fit-to-one-page sheet paginated onto two.
 
-## [0.0.148] - 2026-09-09
+### 0.0.148 on the branch — 2026-09-09
 
 **The number-format engine — a date stops being a serial (MJXOFF-172, R17).**
 
@@ -738,7 +756,7 @@ matrix, and ECMA-376 publishes no name table), the Japanese era and Thai Buddhis
 expansion and `#######` overflow (both need a cell width the evaluator does not have, and a width in
 the evaluator would put a column's geometry into the cache key of every value on the sheet).
 
-## [0.0.147] - 2026-09-09
+### 0.0.147 on the branch — 2026-09-09
 
 **`mjx-scene-xlsx` — Excel's scene companion, and the first worksheet to reach pixels (MJXOFF-244).**
 
@@ -823,7 +841,7 @@ got a crate, exactly as PowerPoint's did.
 Nothing here is parity with Excel and nothing is described as such: every reading is marked `GUESS:`
 at its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
 
-## [0.0.146] - 2026-09-09
+### 0.0.146 on the branch — 2026-09-09
 
 **Excel's box model — a worksheet becomes a fragment tree (MJXOFF-171, R16).**
 
@@ -886,7 +904,7 @@ this loop at all: a cached value is rendered as stored, which is correct for a v
 **Nothing here is parity with Excel.** Every behaviour chosen rather than read is marked `GUESS:` at
 its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
 
-## [0.0.145] - 2026-09-08
+### 0.0.145 on the branch — 2026-09-08
 
 **The first end-to-end deck — a `.pptx` becomes pixels (MJXOFF-170, R15).**
 
@@ -962,7 +980,7 @@ fixture and records what fixing it costs. It is a work item of its own: `ColorSp
 Every behaviour chosen rather than read is marked `GUESS:` at its site. Confirmation is a human
 sitting against real Microsoft Office on Windows.
 
-## [0.0.144] - 2026-09-08
+### 0.0.144 on the branch — 2026-09-08
 
 **A `.pptx` becomes a `FragmentTree` — the first real box model (MJXOFF-169, R14).**
 
@@ -1025,7 +1043,7 @@ with the computed scale asserted as a number. A `SourceRef` round trip that goes
 and back through `mjx-pptx`. Nine indent levels asserted as nine distinct indents. The addressing
 scheme checked against `mjx-session`'s, which wrote it down first.
 
-## [0.0.143] - 2026-09-08
+### 0.0.143 on the branch — 2026-09-08
 
 **Viewport windowing, byte-budgeted caches and frame scheduling — and the unbounded residency
 MJXOFF-167 declared is now closed (MJXOFF-168, R13).**
@@ -1094,7 +1112,7 @@ problem rather than a hosting one, and `mjx-view` (rank 3.8) is where that disci
   meaning and reports `Reformatted`, and `Invalidation::reflowing` is the wide one. `WordSession`
   reports the wide one for a run whose text changed length.
 
-## [0.0.142] - 2026-09-08
+### 0.0.142 on the branch — 2026-09-08
 
 **The resident document: an operation journal recorded the instant an edit happens, and a commit
 that serialises dirty parts on a schedule rather than on every operation (MJXOFF-167, R12).**
@@ -1158,7 +1176,7 @@ schedule.
   reads the file back from the parent: the four are there and the two are not. A same-process replay
   would have proved only that the encoder agrees with the decoder.
 
-## [0.0.141] - 2026-09-08
+### 0.0.141 on the branch — 2026-09-08
 
 **Audit pass 10: the token editor stops accepting a colour that breaks the next build, and the two
 crates above the graph get the gate their rank cannot give them.**
@@ -1235,7 +1253,7 @@ into believing something was proved that was not.
   commit. A declaration written from a measurement cannot detect that the measurement was wrong to
   begin with, and saying which four is not something an agent can reconstruct.
 
-## [0.0.140] - 2026-09-08
+### 0.0.140 on the branch — 2026-09-08
 
 **The canvas UI harness: sixty-one in-canvas elements, exercised by hand** (MJXOFF-166).
 
@@ -1297,7 +1315,7 @@ surface. `docs/client-platform/CANVAS_UI_INVENTORY.md` §4.2 says exactly what i
 corrects the ticket's premise while it is there: R08 already generalised `SurfaceHost` over a
 platform window handle, so what is missing is a **shell** on a phone, not a rendering seam.
 
-## [0.0.139] - 2026-09-08
+### 0.0.139 on the branch — 2026-09-08
 
 **The preset-shape geometry sweep runs on CI, and the class of hole it belonged to is now a test**
 (MJXOFF-197).
@@ -1378,7 +1396,7 @@ definition sites, with the reason they already carried in prose: both guard dire
 empty by design and that no agent may fill, so binding either would make the build red about
 something no build can fix.
 
-## [0.0.138] - 2026-09-08
+### 0.0.138 on the branch — 2026-09-08
 
 **The fidelity oracle — layered assertions, perceptual diffing, and the document plate gallery**
 (MJXOFF-165, Phase R position 10 of 24).
@@ -1474,7 +1492,7 @@ premultiplied, so the conversion happens exactly once, at the file boundary, and
   plate that does not exist, quotes a variable the code does not read, or goes on claiming nobody has
   looked once somebody has.
 
-## [0.0.137] - 2026-09-08
+### 0.0.137 on the branch — 2026-09-08
 
 **The reference pack — what the one Windows sitting needs, prepared in advance** (MJXOFF-207,
 Phase G position 6 of 6, the epic's last child).
@@ -1556,7 +1574,7 @@ gradient and hatch exclusions are attached to the *provider* so they lift by the
 Office exports arrive. The suites say so in their own file names —
 `the_plumbing_is_proved_and_not_the_fidelity.rs`, `an_excluded_result_is_not_evidence.rs`.
 
-## [0.0.136] - 2026-09-08
+### 0.0.136 on the branch — 2026-09-08
 
 **The provider wired in, and the placeholder proved gone** (MJXOFF-206, Phase G position 5).
 
@@ -1660,7 +1678,7 @@ which makes the flag a *signal* rather than a constant. `docs/UI_PLATFORM_PLAN.m
 closed with its evidence kept rather than deleted, and §1.11's prediction — *"swapping in the
 generated table later is one implementation, not a rework"* — is recorded as having held.
 
-## [0.0.135] - 2026-09-08
+### 0.0.135 on the branch — 2026-09-08
 
 **Verification across all 186 presets — structural, differential and monotonic** (MJXOFF-205, Phase
 G position 4).
@@ -1742,7 +1760,7 @@ identical at its defaults and dead under a sweep (the monotonicity gate).
   *connection sites* read — measured in 0.0.134 and asserted since, while the sentence in
   `resolve.rs` went on saying otherwise.
 
-## [0.0.134] - 2026-09-07
+### 0.0.134 on the branch — 2026-09-07
 
 **The text rectangle and the connection sites — `a:rect` and `a:cxnLst`** (MJXOFF-204, Phase G
 position 3).
@@ -1816,7 +1834,7 @@ inscribed rectangle clears its own chord in landscape and does not in portrait.
   half-axes `a/√2`, `b/√2` — a theorem, and a second measurement the file could have disagreed with
   while drawing the identical outline. It agrees to 0.0003 device pixels.
 
-## [0.0.133] - 2026-09-07
+### 0.0.133 on the branch — 2026-09-07
 
 **All 186 preset shapes ECMA-376 defines, extracted from `presetShapeDefinitions.xml`**
 (MJXOFF-203, Phase G position 2).
@@ -1912,7 +1930,7 @@ Hausdorff distance over flattened contours, and a one-digit slip in `rightArrow`
   `crates/mjx-dml/tests/guide_formula.rs` has asserted that number all along — and the geometry
   table's own suite now asserts it too, so the prose and the assertion cannot drift apart again.
 
-## [0.0.132] - 2026-09-07
+### 0.0.132 on the branch — 2026-09-07
 
 **`mjx-geometry`: the preset shape path tables, and the `GeometryProvider` that ends the
 placeholder** (MJXOFF-202, Phase G position 1).
@@ -1967,7 +1985,7 @@ six.
   never heard of OOXML; `mjx-paint` still does not name `mjx-dml`. That was MJXOFF-201 §3's rule and
   it held without amendment.
 
-## [0.0.131] - 2026-09-07
+### 0.0.131 on the branch — 2026-09-07
 
 ### Merged `main` into the client-platform phase branch
 
@@ -1981,7 +1999,7 @@ again, and the renderer side is the one that renumbered.
 
 The client-platform entries come first, then `main`'s.
 
-## [0.0.130] - 2026-09-07
+### 0.0.130 on the branch — 2026-09-07
 
 **`mjx-paint` part 2: the `tiny-skia` software painter, the PDF and SVG exporters, and the
 cross-painter gate they exist to make possible** (MJXOFF-164, Phase R position 9).
@@ -2057,7 +2075,7 @@ says so. `FaceReader` also grew `outline` (a glyph's path at a size) and `for_ea
 exporters consume the display list directly through the same `plan_frame_with` every painter uses,
 and neither is built out of the other.
 
-## [0.0.129] - 2026-09-07
+### 0.0.129 on the branch — 2026-09-07
 
 **`mjx-paint`: the `Painter` contract, the `wgpu` painter, and the two architecture rules that had
 to change** (MJXOFF-163, Phase R position 8).
@@ -2110,7 +2128,7 @@ a `Provenance` — origin and the provider's label — populated by `tessellate_
 - A `render` CI job on a software Vulkan implementation with `MJX_REQUIRE_GPU=1`, so a missing
   device there is a failure rather than a silent skip.
 
-## [0.0.128] - 2026-09-07
+### 0.0.128 on the branch — 2026-09-07
 
 **`lyon` tessellation and the geometry-provider seam** (MJXOFF-162, Phase R position 7).
 
@@ -2164,7 +2182,7 @@ gate above is written against paths that are *not* the stand-in.
   added, or renumbered, with no byte literal disagreeing. Every kind's wire value and stride is now
   pinned to a hand-written table, and a real thirteen-section blob's rows are compared against it.
 
-## [0.0.127] - 2026-09-07
+### 0.0.127 on the branch — 2026-09-07
 
 **The display list, and its flat binary encoding** (MJXOFF-161, Phase R position 6).
 
@@ -2211,7 +2229,7 @@ redesign, because they are already bytes.
   layering gate, which only refuses an edge that points up or sideways, would have enforced nothing
   at all. `mjx-layout` was placed at 1.6 for exactly this reason.
 
-## [0.0.126] - 2026-09-07
+### 0.0.126 on the branch — 2026-09-07
 
 **The box model contract** (MJXOFF-160, Phase R position 5).
 
@@ -2308,7 +2326,7 @@ is what makes the box model swappable, which was the requirement this architectu
   first run; two were deleted and two given tests. MJXOFF-155 §9 item 10 asked for a gate rather than
   a list, and this is that gate, scoped to the crate where a dead export does the most harm.
 
-## [0.0.125] - 2026-09-06
+### 0.0.125 on the branch — 2026-09-06
 
 **Glyph rasterisation and the scale-bucketed atlas** (MJXOFF-159, Phase R position 4).
 
@@ -2393,7 +2411,7 @@ programme where one of `docs/UI_PLATFORM_PLAN.md` §12's performance budgets bec
   `docs/UI_PLATFORM_PLAN.md` for a statement that document does not make — §10 names Caladea as a
   bundled substitute and says nothing at all about its licence.
 
-## [0.0.124] - 2026-09-06
+### 0.0.124 on the branch — 2026-09-06
 
 **Shaping, bidirectional resolution, itemisation, line breaking and hyphenation** (MJXOFF-158,
 Phase R position 3).
@@ -2490,7 +2508,7 @@ graph. `rustybuzz` reads faces through the same `ttf-parser` 0.25 the crate alre
 two can never disagree about a face. `mjx-text` cross-compiles for `wasm32-unknown-unknown` and
 `aarch64-linux-android` unchanged.
 
-## [0.0.123] - 2026-09-06
+### 0.0.123 on the branch — 2026-09-06
 
 **The font engine: three tiers, a metric-compatible substitution table, and a substitution manifest
 a user can read** (MJXOFF-157, Phase R position 2).
@@ -2561,7 +2579,7 @@ R19–R22 does with Word's reflow rests on this.
   machine — advance widths are facts about a font rather than the font program, so what that
   produces is numbers.
 
-## [0.0.122] - 2026-09-06
+### 0.0.122 on the branch — 2026-09-06
 
 **One design-token source, three generated consumers — and the contrast rule enforced rather than
 documented** (MJXOFF-156, Phase R position 1).
@@ -2639,6 +2657,2814 @@ colours built on it, are `fill-only`.
   its only consumer; the token generator is a second one, and an integration test cannot reach a
   binary crate's private modules, so the gate now pulls the one file in by path rather than keeping
   a copy. A workspace with two JSON readers in it has one reader too many.
+## [0.0.173] - 2026-09-10
+
+### Every raise in both bindings is a registered class
+
+#### `ShapeGeometry.preset` raised outside the error model, in both languages (MJXOFF-275)
+
+The same branch of `ShapeGeometry.preset` — `parts()` answering `None` for a geometry that is not
+`Unmodeled` — was handled two ways. Python raised `PyRuntimeError::new_err("unreachable")`, which
+`bindings/mjx-python/src/errors.rs` does not register, so a caller writing
+`except mjx_ooxml.OoxmlError` did not catch it. JavaScript raised
+`invalid_argument("this geometry names no preset")`, which reads like the typed half of the pair and
+is not one: `invalid_argument` builds a bare `js_sys::RangeError`, with no `name = "OoxmlError"`, no
+`code` and no `detail`, so `catch (failure) { failure.code === "InvalidArgument" }` never matched it
+either.
+
+Both now raise `unsupported_content`. That is what the arm would mean if it were reachable — a
+`ShapeGeometry` this build's `parts()` cannot take apart is content the model can express and the
+binding cannot project — and it is a class Python registers and a real `OoxmlError` in JavaScript,
+so the two bindings answer the same `code` for the same branch. The arm **is** unreachable, and by
+the compiler rather than by a comment: `parts()` matches every variant with no wildcard, so `None`
+means `Unmodeled`, which the arm above it already matched.
+
+#### The sweep that finds it is asked rather than repeated
+
+An unreachable arm is exactly where an error model stops being total without anything failing, and
+neither the token gates nor `xtask/tests/binding_doc_parity.rs` could see this one: a raised message
+is not a data token, and doc-comment parity reads prose rather than runtime behaviour. So
+`xtask/src/binding_surface.rs` grows a raise scan over both binding trees, and
+`xtask/tests/binding_projection.rs` asks three questions of it.
+
+The first is the ticket's: every one of the Python binding's **22** hand-written raises is a class
+`errors.rs` registers, or Python's own vocabulary for a mistake in the call, or a ledgered site.
+That vocabulary — `TypeError`, `ValueError`, `KeyError` — is on the ledger with a reason rather than
+being routed through `OoxmlError`, because it is the exact mirror of the wasm binding's
+`RangeError` and because PyO3 raises `TypeError` for every argument conversion it generates: a
+hand-written `FromPyObject` that raised something else would be the one member of the surface a
+caller could not guard the ordinary way. One site is ledgered by the message it carries, and it is
+forced — it is raised while the exception hierarchy is being *built*, so it cannot be reported
+through a hierarchy that does not yet exist.
+
+The second is the mirror, which the ticket did not ask for and which the two bindings being held to
+each other everywhere else demands: every `Error` the wasm binding constructs sits in one of its two
+factory files, and its **25** hand-written raises all reach one.
+
+The third is the rule underneath both, and it is what caught the JavaScript half: over the **1,852**
+no-argument members of the two bindings, **a member that takes no argument never raises the argument
+vocabulary**, because there is no call for the caller to have got wrong. Neither of the first two
+could see that defect — `invalid_argument` is a factory, and it was being called from the wrong kind
+of place rather than written in the wrong file.
+
+Each of the three is floored over the population it does see, and prints its count, so a scanner
+that has stopped matching fails instead of passing vacuously — which is the failure mode a sweep
+over an *absence* has, and the only one that makes it indistinguishable from the thing it is
+looking for.
+
+## [0.0.172] - 2026-09-10
+
+### The gates see a file before the commit that adds it
+
+#### The corpus four gates sweep is the working tree, not the Git index (MJXOFF-290)
+
+`xtask/tests/doc_gate.rs`, `xtask/tests/entry_points.rs`, `xtask/tests/derived_rosters.rs` and
+`xtask/tests/release_versions.rs` each derive their corpus from Git rather than from a
+hand-maintained list, which is the decision `CLAUDE.md` insists on and the reason CI gives the
+documentation gate a real checkout. Each of the four carried its own copy of the same four-line
+call, and every copy asked Git for the **index** — so a file a unit of work had just written was in
+none of the four corpora until the commit that added it existed.
+
+That makes this repository's own standing rule — *commit only when `cargo build` and
+`cargo test --workspace` are green* — **unsatisfiable for exactly the commit that introduces a
+file**, because the gate that judges the file only begins running once the commit exists. It cost
+0.0.171 a commit amend, and before that it cost two releases: `xtask/src/validation/model.rs`
+arrived in 0.0.168 naming `crates/mjx-pptx/docs/gaps.md`, a page that has never existed, and
+`doc_gate` was red on `main` until MJXOFF-287 came back for it. That claim was wrong in the file's
+**first** commit, so the run its author made before committing could not have seen it.
+
+`xtask/src/repository_files.rs` is the one corpus all four now read: tracked **plus**
+untracked-and-not-ignored, so `.gitignore` is the only skip list and `target/`, `References/`, the
+Python virtualenv and every tool cache stay out by being ignored rather than by being listed. The
+decision was taken per gate rather than in one stroke, and all four wanted the same answer — a
+document's claim is wrong when it is written, a front-page count has to change in the commit that
+changes what it counts, a roster in a brand-new file is a roster, and a fifth file stating the
+version is a release hazard from the moment somebody types it.
+
+##### The anti-vacuity
+
+A corpus that has quietly stopped including untracked files **looks exactly like a clean checkout**,
+and CI's checkout *is* clean — so the property cannot be observed and has to be provoked.
+`xtask/tests/working_tree_corpus.rs` writes a file into the working tree, commits nothing, and
+requires the corpus to grow by it and to shrink again when it is removed; a `Drop` guard is what
+removes it, because a leaked probe is an untracked file the very gates this defends would report on.
+Its second half is the one that matters next year: every `.rs` file in the tree is swept, and
+exactly one module may name Git's file-listing subcommand. A fifth gate that reaches for the
+four-line `Command` fails there with the reason written out.
+
+Every gate now prints its corpus census — how many files, how many tracked, how many untracked and
+not ignored — on a green run as well as a red one.
+
+Also here: `/.claude/` joins `.gitignore`. It was excluded only by this checkout's local
+`.git/info/exclude`, which is not committed and not what a corpus reading the working tree should
+depend on.
+
+## [0.0.171] - 2026-09-10
+
+### Two claims nothing was comparing to the thing they describe
+
+#### A token accessor's documented vocabulary is now the one its code answers (MJXOFF-276)
+
+About twenty accessors across the two bindings answer a string naming a kind, and each states its
+vocabulary in its own doc comment. The return type is `str`/`string`, so that sentence is the whole
+contract — and every gate around it compared code to code or sentence to sentence, never one to the
+other. Four sentences were already wrong. `Cells.kind` and `GridDiscrepancy.kind` document their
+named variants while both bodies also answer a wildcard, because both underlying enumerations are
+`#[non_exhaustive]`; a caller writing an exhaustive `switch` over the documented list had a branch
+nobody had told them about. `CellBlock.kinds` had gone stale two hours earlier, when 0.0.170's
+`CellData::Unreadable` reached the sibling accessor's sentence and not this one. And wasm's
+`SectionLocation.toString` promised `"body"` or `"paragraph"` while answering
+`"SectionLocation.body()"`.
+
+`xtask/tests/binding_projection.rs` now compares forty-two vocabularies to the bodies that answer
+them, in both directions, following one hop where a vocabulary is written once and called from
+several accessors. Five accessors whose value is made outside the binding that documents it stand
+on a ledger naming the file that makes it, rather than being counted as agreeing.
+
+#### A release that states the version in one file and not the others now fails (MJXOFF-286)
+
+0.0.167 bumped `Cargo.toml` and not `bindings/mjx-wasm/npm/package.json`, so the npm package could
+not be rebuilt from `main` until 0.0.168 tripped over `build-npm.sh`'s refusal — the one place that
+checked, and the one place a release never runs. `xtask/tests/release_versions.rs` holds the four
+files that state the version together, and derives that set from `git ls-files` so a fifth cannot
+appear unnoticed.
+
+## [0.0.170] - 2026-09-10
+
+### A number the file states and we cannot parse is no longer a blank
+
+#### `CellData` grows the kind it was exhaustive for (MJXOFF-285)
+
+`crates/mjx-ooxml/src/workbook/cells.rs` read a numeric cell with `mjx_sml::Cell::number`, which
+answers `None` for a `<v>` that will not parse, and filed that `None` under `CellData::Blank` — the
+same value it gives a cell that holds nothing at all:
+
+```xml
+<c r="A1" t="n"><v>not-a-number</v></c>
+```
+
+A caller reading that block saw an empty cell where the file holds data, and there was **nothing
+anywhere** — no error, no note, no second accessor — that said a value had been dropped. That is a
+fidelity failure of the plainest kind: the document states something and we report nothing.
+
+`CellData::Unreadable(String)` carries the text the file states, for the four cell types whose
+declared `c@t` can fail to read their own value: a `t="n"` whose `<v>` is not a number, a `t="b"`
+whose `<v>` is neither `1` nor `0`, a `t="s"` whose `<v>` is not an index, and a `t="inlineStr"`
+that wrote a `<v>` where its `<is>` belongs. It is **reported, never repaired**: reading is not an
+edit, and a workbook saved without touching such a cell still writes exactly the bytes it was opened
+with — `reporting_the_token_does_not_rewrite_it` asserts that against the saved markup.
+
+##### Why a variant, and why not a word the vocabulary already had
+
+MJXOFF-241 faced the same cost — an exhaustive enumeration reaching `mjx-ooxml` and both bindings —
+and found that the vocabulary already had the right word. This one does not. `Text` would say the
+cell holds a string, which is a claim about a *kind* of cell this is not, and would make a numeric
+cell holding `not-a-number` indistinguishable from a text cell holding those characters. `Error`
+means the file wrote `t="e"`, and would put a token that is not an error code behind
+`error_code()`. Reporting an `Err` from the read was refused for the reason the house style already
+gives: a whole workbook that will not open over one cell replaces a silent blank with a broken flow.
+
+The declared type is not carried beside the text — `c@t` is the markup tier's vocabulary and the
+facade has never published it — and `CellInput` gains nothing, because authoring a value no schema
+admits is not a thing this library should offer.
+
+A `t="s"` whose `<v>` is not an index used to `continue` out of the loop, which also dropped that
+cell's formula from the block. Reporting the cell rather than skipping it keeps the `<f>` beside it.
+
+##### One case that is next to it and is not it
+
+A `t="s"` whose index is readable and names no entry in `xl/sharedStrings.xml` stays `Blank`. Its
+token is not unreadable — it reads perfectly, as the number it is — and what is missing is the
+entry it names, so there is no token to report; `mjx_xlsx::Workbook::cell_text` gives that case the
+same reading, and the two surfaces still agree. A dangling reference is a different claim, and the
+`--ingest` report already has a category for it.
+
+##### What now says it
+
+`xtask/src/validation/model.rs`'s `model` check — the instrument MJXOFF-285 was measured with, which
+reported *"held — the cell read back as `Blank`"* — counts such cells and names them in its line:
+`… {n} value(s) the file states that no cell type here can read …`. Both bindings project the kind
+(`"unreadable"`) and the accessor, and an unreadable cell arrives in `rows()` as **its text rather
+than as `None`/`null`**, because `None` is what a blank answers and telling those two apart is the
+whole point.
+
+##### The gate
+
+`crates/mjx-ooxml/tests/workbook_unreadable_values.rs` builds its input the way `format_detection.rs`
+builds a `.pptm` — by rewriting one part of a real package, because no authoring call in this
+workspace will write a token its own schema refuses — and asserts the **discrimination** rather than
+the variant: the unreadable cell and the empty cell beside it are read in the same call, from the
+same row, and compared against each other. Reverting the four read arms answers `left: Blank` and
+`right: Blank` on that comparison. `test_a_value_the_file_states_and_we_cannot_read_is_not_a_blank`
+is the Python half, where the distinction is `"not-a-number"` against `None` in `rows()`.
+
+## [0.0.169] - 2026-09-10
+
+### The gate stopped crashing on a container it was never asked about
+
+#### An entry with no content type is a row, not a stack trace (MJXOFF-284)
+
+`crates/mjx-schema-gate/src/inspect.rs` panicked when a package entry had no content type:
+
+```
+thread 'main' panicked at crates/mjx-schema-gate/src/inspect.rs:445:13:
+a_sz.pptx: no content type for /_rels/
+```
+
+The input was an ordinary `.pptx` rebuilt with `zip -r` **without** `-D`, so the archive carries a
+directory entry for every folder the walk passed through — `ppt/`, `_rels/`, `ppt/slides/_rels/`.
+That is a legal ZIP that real producers write, and OPC has no content type for a directory because a
+directory is not a part. `mjx-opc` opens such a package without complaint, so the panic was the
+gate's alone.
+
+**`mjx-schema-gate` is test-only, but it is a plain dependency of `xtask`,** and
+`validation-artefacts --ingest` is a command a person points at an arbitrary file they have just
+saved out of Office. It aborted with a bare stack trace and no report — which is precisely the shape
+of failure `docs/validation/06-the-office-pass.md` tells a reviewer they will not meet, because
+every other refusal on that path is a `Finding`. The report that command now prints for the same
+file has all eleven of its checks in it.
+
+##### The discriminator is the packaging layer's, not a second rule
+
+A fix that skipped every untyped entry would have traded a crash for a blind spot: **a file with no
+`<Override>` and no `<Default>` covering its extension is a genuine package defect** (ECMA-376
+Part 2 §10.1.2 gives every part exactly one content type) and has to stay one. Telling the two apart
+was the work, and the answer was already written down one layer down: `mjx_opc::PartName::new`
+refuses a name ending in `/` — *part name must not end with `/`* — which is exactly why
+`Package::part_names`, `Package::validate`'s own content-type check and `authored_xml_parts` all
+pass such an entry over. The gate reads that same signal, off the **name** rather than the payload:
+a directory entry is empty, but so is a zero-byte part, and only one of the two is excused.
+
+`PartOutcome` therefore gains two verdicts rather than one:
+
+| Verdict | When | Fails the gate |
+|---|---|---|
+| `SkippedDirectoryEntry` | the entry name ends in `/` | no — it is a legal container feature |
+| `WithoutContentType { reason }` | a **file** nothing types, or a name that is not an addressable part name at all | **yes** |
+
+A directory entry still gets a row of its own, because this gate prints one line per entry so that
+no skip is silent.
+
+##### And the two siblings on the same path
+
+`--ingest` makes this path untrusted by design, so the sweep for other panics reachable from an
+arbitrary file ran over the whole crate. Two more were live, and both are now rows:
+`NotWellFormedXml` (a part whose content type declares XML and whose bytes do not parse) and
+`PackageWouldNotOpen` (the live case being an **embedded** workbook, which `--ingest` opens here for
+the first time — the outer package it has already opened). `audit_order_report` reported both rather
+than raising them; the two halves of the gate now agree about it.
+
+Two panics are deliberately kept, neither reachable from an input file: the `entry.bytes()`
+assertion, because a freshly opened package has no `Edited` body and that is the only body yielding
+`None`, and the wrapper part's re-parse of the markup-compatibility-resolved view, whose bytes are
+this workspace's own serializer's over a tree that already parsed.
+
+##### The gate
+
+`crates/mjx-schema-gate/tests/entries_that_are_not_parts.rs` builds the input the way it was found —
+the fixture's parts read back through `mjx_opc::Package` and re-zipped with the directory entries
+`zip -r` would have written — and holds both halves at once, including **one package carrying both**
+in which exactly one row fails and it is the file. `mjx_opc_already_takes_this_position` pins the
+discriminator to the packaging layer so the two cannot drift, and needs no schemas, so it runs in
+every job.
+
+#### `validation/model.rs` named a gaps page that does not exist (MJXOFF-287)
+
+Found while running the gate set, and not this unit's: `doc_gate` has been red on `main` since
+0.0.168, because `xtask/src/validation/model.rs` named `crates/mjx-pptx/docs/gaps.md`. The page is
+`crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`; the other spelling has never existed. That gate is
+a named CI step *and* sits inside `cargo test --workspace`, so every unit branching from `main` was
+inheriting a red workspace gate and having to work out whether the red was its own.
+
+## [0.0.168] - 2026-09-10
+
+### The ingest check that reaches the typed model
+
+#### `model` and `edit`: the two checks that build a typed element (MJXOFF-278)
+
+Every check `validation-artefacts --ingest` performed was byte identity or laziness. `opens`,
+`round-trip` and `package` are the OPC container; `xml tree` is the untyped fidelity tree; `child
+order` and `schema` are `mjx-schema-gate` over that same tree. And **`facade` — the one that looked
+like it read the document — opened a `Deck`, a `Document` or a `Workbook` and saved it back with no
+edit in between**, so part-level laziness re-emitted every part from the raw bytes it still held and
+not one `FromXml` implementation ever ran. It reported `held` on a file every reader in this
+workspace would refuse. `xtask/tests/office_corpus.rs` runs the same engine, so committing an
+Office-authored file would not have closed it either.
+
+Two checks now cannot pass that way:
+
+- **`model`** opens the file through its format model and walks all of it — every surface, group
+  member, table cell, paragraph and run, with `effective_shape_fill`, `effective_run_properties` and
+  `effective_paragraph_properties` resolved over each — then **prints its counts** and asserts that
+  the whole package still saves byte-identically, because *reading must not dirty a part*. A model
+  check that reads nothing passes trivially, which is why the counts are in the report every run.
+- **`edit`** replaces one text leaf through the model — one run per slide, one run in a document
+  body, one numeric cell per sheet — and asserts that the bytes the save inserted are **exactly the
+  bytes that were set**. A writer that re-serialized the part wholesale, moved a child, renormalized
+  an attribute or re-indented changes that one number, and nothing else has to be asserted to catch
+  it.
+
+#### A read error splits four ways, not two
+
+An address the model refuses is not one kind of finding. `NothingToRead` (a picture with no text
+body, a slide with no notes) is counted and holds; `UnsupportedContent` is named and holds, because a
+documented non-goal is a gaps-page row rather than a red build; **`NotFound` is `reported`** — a
+`numId` the file's own `word/numbering.xml` does not define is the file's defect, and
+`paragraph_properties.docx` and `effective_properties.docx` are committed proof that such files
+exist; everything else fails, and names the address.
+
+#### The granularity a format actually has, stated rather than assumed
+
+`.pptx` and `.docx` are held to byte equality with the text that was set: a `p:txBody` and a `w:p` are
+`RawElement` trees, so replacing a text leaf denies the verbatim source range to that leaf's ancestors
+and to nothing else. **A worksheet is different and the check says so** — `mjx-sml`'s cells live in a
+packed store, so writing one re-serializes that whole cell (`t="n"`, the schema default `sample.xlsx`
+spells out, is not written back). The `Cell` granularity holds the change to *one `<c>`*, crossing no
+cell or row boundary, and proves the value itself by reading the saved cell back through the model.
+A workbook's edit is a **number** for the same reason: `SharedText` would touch
+`xl/sharedStrings.xml` too, and `InlineText` rewrites the whole `<c>` when it lands on a
+shared-string cell.
+
+#### Proving it discriminates, on every run
+
+`a_corruption_the_byte_checks_hold_is_caught_by_the_model` renames one `a:tbl` inside a graphic frame
+that still declares the table URI, and asserts that **all six byte checks hold** on the result and
+that `model` alone fails. That is MJXOFF-278's thesis turned into an assertion rather than a claim.
+`the_model_and_edit_checks_read_and_write_something_on_every_format` is the anti-vacuity floor, one
+fixture per format. `the_typed_model_has_never_run_against_a_file_office_wrote` is the absence, said
+in a test name that `cargo test` prints without `--nocapture`; `MJX_REQUIRE_OFFICE_CORPUS=1` turns it
+into a failure the day the corpus has files.
+
+#### What the deck Office wrote reported
+
+Re-measured with the shipped checks rather than with the throwaway probe MJXOFF-278 was filed with:
+**45 surfaces, 252 shapes** (203 with a text body, reached by descending into **3 groups**), 4 tables
+of 151 cells, **323 paragraphs, 253 runs, 9,891 characters**, plus 142 runs of 1,644 characters inside
+those cells; **253 `effective_run_properties` and 252 `effective_shape_fill` resolutions**, no address
+refused, and all 135 entries byte-identical after the walk. Then one run's text replaced per slide:
+**exactly 12 of 135 entries changed**, and across **377,690 bytes** of PowerPoint-authored slide
+markup each differs from Office's own bytes in exactly one contiguous region holding exactly the bytes
+that were set.
+
+The probe's 243 shapes / 310 paragraphs / 240 runs / 9,855 characters differ for one reason: it
+counted a group as one shape and stopped there. The two numbers that had to agree — 12 of 135
+entries, 377,690 bytes — agree exactly. `docs/validation/06-the-office-pass.md` carries both.
+
+## [0.0.167] - 2026-09-10
+
+### The user guide, for the two languages that could not read it
+
+#### One site, every example tabbed Rust / Python / TypeScript (MJXOFF-281)
+
+Every code block in the facade's guide is already a byte-for-byte copy of a file `cargo`, `pytest`
+and `node --test` execute — `xtask/tests/guide_examples.rs` makes that a test failure rather than a
+habit. **The guarantee reached nobody outside Rust**, because the guide rendered only in rustdoc,
+which is the one place a `pip install` or an `npm install` user never looks.
+
+`cargo run -p xtask -- docs-site` now renders it a second time, as a Docusaurus site under `site/`,
+with each example's three halves as three tabs and the two blocks that are Rust-only by decision
+under an admonition that names the symbols making the claim true. Run it with
+`cd site && npm install && npm run start`. There is no deployment and no CI job.
+
+**The content tree is generated and git-ignored**, the arrangement `bindings/mjx-wasm/npm/README.md`
+already has: generated and ignored, its `package.json` committed. A committed copy of a derived tree
+is a second source of truth, and this repository has none.
+
+The generator is Rust rather than the site's own JavaScript because two of the things it must do
+need facts only Rust source states — the page set and its reading order come from the `include_str!`
+graph in `crates/mjx-ooxml/src/guide.rs`, and the vocabulary an intra-doc link may resolve against
+comes from that file's `guide_vocabulary!` macro. It reads markers with
+`guide_examples::parse_marker_line` itself rather than defining a second marker syntax.
+
+#### The gate, and why it compares nothing
+
+`xtask/tests/docs_site.rs` cannot compare against a committed rendering, because there is not one.
+It asserts **properties of the generation from committed sources** instead: every facade guide page
+produces exactly one site page in both directions, every example produces one tab group of the size
+its markers say, no `#`-hidden rustdoc line survives into an emitted block, no rustdoc item path
+survives as a link target, and no Cargo manifest exists under `site/` — which is the condition that
+keeps a JavaScript project out of the graph `xtask/tests/layering.rs` ranks.
+
+The page set is derived twice and from different places: the generator reads the `include_str!`
+graph, and the gate reads `crates/mjx-ooxml/docs/guide/` on disk. A test that compared the graph
+against itself would prove nothing.
+
+#### What the site cannot show yet
+
+**Feature-level instructions** — add a chart to a slide, style a range, build a table — live in the
+format-crate guides, whose examples are Rust-only because the bindings depend on `mjx-ooxml` alone.
+Those pages cannot be tri-language by the layering rule, and closing the gap means writing new
+tri-language examples through the facade rather than importing Rust-only pages. MJXOFF-280 owns it.
+
+## [0.0.166] - 2026-09-10
+
+### The first file Microsoft Office wrote, read end to end
+
+#### What the ingest reported (MJXOFF-130)
+
+`cargo run -p xtask -- validation-artefacts --ingest` was built for a file this project cannot
+produce for itself, and until now nothing had been handed to it. A 12-slide PowerPoint deck —
+`<Application>Microsoft Office PowerPoint</Application>`, `AppVersion 16.0000`, 3,927,263 bytes,
+135 ZIP entries — was saved out of PowerPoint by the repository's owner and pointed at it.
+
+**Seven checks held and none failed.** 135 entries re-saved with every payload byte-identical; all
+106 XML parts through the fidelity tree byte-identical; the facade's open-and-re-save leaving all
+135 unchanged; every OPC invariant holding before and after; 52 of the 52 parts the category tables
+require audited clean for child order; 102 parts schema-valid against the ECMA-376 XSDs.
+
+**No code changed and R2 is not retired.** The file is not committed — the corpus at
+`tests/office-authored/` is still empty, because a file's value there is entirely its provenance and
+committing one is a person's decision. What is committed is the record, in
+`docs/validation/06-the-office-pass.md` §5, so the next reader does not have to take the measurement
+again to know it was taken.
+
+#### Two findings, both filed rather than fixed
+
+**MJXOFF-277 — the gate has no category for four content types Office writes.** The single
+`reported` row is 23 parts, and not one of them failed a schema: all 23 are `UNCATEGORISED`. They are
+19 `image/svg+xml` pictures in `ppt/media/`, two modern-comment parts, an authors part and a
+revision-info part. An SVG beside the `.png` that is its raster fallback is a picture, and it reaches
+the categoriser only because `is_xml_content_type` tests for a `+xml` suffix that says nothing about
+whether a payload is OOXML markup. The other three are Microsoft extension vocabularies with no XSD,
+the shape `PRESERVED_FOREIGN_MARKUP` already holds — and no committed fixture reaches any of them, so
+`the_allowlist_has_no_dead_entries` refuses the entries until fixtures exist. That is a unit, not a
+line, and doing half of it would leave the finding half-closed.
+
+**MJXOFF-278 — nothing in the ingest reads the file through the typed model.** Part-level laziness
+re-emits an unedited part from its raw bytes, so the `facade` check — `open` then `save_unchecked`
+with no edit between — never builds a typed element and would pass on a file every `FromXml`
+implementation would refuse. The corpus suite runs the same engine and inherits the blind spot, so a
+committed file would not have closed it either. A throwaway probe measured what the missing check
+would say: 45 surfaces, 243 shapes, 310 paragraphs, 240 runs, 240 `effective_run_properties` and 243
+`effective_shape_fill` resolutions over markup nobody here wrote, **0 errors**, and no part dirtied
+by reading. Then one run's text replaced on each of the 12 slides: **exactly 12 of 135 entries
+changed**, and across 377,690 bytes of PowerPoint-authored slide markup each differs from Office's
+own bytes in **exactly one contiguous region** — the text that was set.
+
+#### MJXOFF-237's markup is no longer unverified
+
+The deck carries three sections, and the shape that ticket described from knowledge of the format is
+now confirmed from a file: `p:extLst` → `p:ext uri="{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"` →
+`p14:sectionLst` → `p14:section name= id={GUID}` → `p14:sldIdLst` → `p14:sldId id="383"`. A
+`p14:sldId` carries `id` and nothing else, and its twelve numbers are exactly the deck's own
+`p:sldId@id` values in order — so a section entry is not a relationship reference and MJXOFF-212's
+sweep cannot see it. What PowerPoint does with a *stale* entry is still open, and is a person's
+measurement to take.
+
+## [0.0.165] - 2026-09-10
+
+### A token is not a name, and now nothing has to remember that
+
+#### `ChartWrap.kind` answered a different string in each binding (MJXOFF-268)
+
+`ChartWrap.kind` returned `"top_and_bottom"` in Python and `"topAndBottom"` in JavaScript. A caller
+who ported a comparison from one binding to the other got a comparison that silently stopped
+matching — the worst shape a divergence can take, because nothing fails.
+
+The wasm binding was the one in the wrong, against a rule **it had written itself**, in
+`bindings/mjx-wasm/src/geometry.rs`'s comment on `ShapeGeometry::of`:
+
+> The keys are the adjustment names, which stay `snake_case`: they are data — the names ECMA-376's
+> prose gives each `a:gd` — rather than method names, and renaming data would make
+> `adjustmentNames` disagree with the record it describes.
+
+`CLAUDE.md`'s camelCase rule is about **method names**, and `xtask/tests/binding_projection.rs` has
+always enforced exactly that: every `js_name` must be the camel case of the Rust name it sits on. It
+said nothing about what a method *returns*, so the constructor `ChartWrap.topAndBottom()` was right
+and the token beside it was wrong, in the same file, eleven lines apart.
+
+**This is a break for the npm package**, tabulated under *Unreleased — 0.1.0* above. Python and Rust
+are unchanged.
+
+#### The sweep, because one instance is not a class
+
+The ticket found one member and said sizing the class was the first step. The comparison is over
+every string literal either binding spells **in code** — not in a comment, which is
+`xtask/tests/binding_doc_parity.rs`'s question, and not in an attribute, which is where a *name*
+lives (`js_name`, `#[pyo3(name = …)]`, `typescript_type`). That distinction is the whole gate: a
+JavaScript method name is never a literal in a function body, so what survives the filter is data by
+construction.
+
+Twenty members are declared by both bindings and produce a token from a `match` arm. Nineteen
+already agreed, on every token — `auto_number`, `follow_text`, `shared_text`, `quad_bezier_to`,
+`embedded_package` and the rest are all `snake_case` in JavaScript today. `ChartWrap.kind` was the
+only member of the class, which makes it an outlier rather than a convention, and the fix is one
+string.
+
+#### The rule stops being prose
+
+Two checks, in the file that already owns the naming rule they complement:
+
+* `no_data_token_is_spelled_in_camel_case` reads every code literal in **both** bindings and refuses
+  a single camelCase word. It is one-sided in the way the drift was, and it sees members the parity
+  check structurally cannot — `read_surface`'s inbound tokens exist only in JavaScript, and a
+  camelCase one there is named with its file and line.
+* `the_two_bindings_produce_the_same_data_tokens` pairs members by `(owner, name)` — exact, because
+  Rust has no overloading — and compares only the literals that stand where a value is *made*: on
+  either side of a `match` arm's `=>`, or before `.to_owned()`. A message handed to `expect` is
+  written in a body too and is not something a caller receives. Narrowing to produced literals is
+  what lets this check carry **no ledger of exceptions at all**.
+
+`xtask/src/binding_surface.rs` gained the extraction, so both checks read one scanner rather than
+two that could disagree — the reason that module exists. Its walk is brace-matched with string and
+character literals masked out first, which the `block_end` beside it is not, and the delimiters it
+declines to lex out of character literals are held to that by
+`a_delimiter_is_never_written_as_a_character_literal`.
+
+Both bindings' suites now assert all three of `ChartWrap.kind`'s tokens, which neither did: Python
+checked `"square"` and JavaScript checked nothing, which is exactly how the divergence survived a
+walkthrough that constructs all three wraps.
+
+## [0.0.164] - 2026-09-10
+
+### An emptied root and an empty one are no longer the same row (H20)
+
+#### A part emptied by markup compatibility resolution now says so, and it is still not a defect (MJXOFF-273)
+
+0.0.163 pointed the child-order arm at the markup-compatibility-resolved view, which is right — a
+consumer that does not understand `a14` really is shown an empty `xdr:wsDr`, and the schema arm
+validates exactly that. It also bought a second way for a root to arrive with no element children,
+and the two are not the same fact:
+
+* `charts.pptx`'s `/ppt/tableStyles.xml` is a genuinely empty `a:tblStyleLst`. There was nothing
+  there and the audit saw all of it.
+* `legacy_form_control.xlsx`'s `/xl/drawings/drawing1.xml` is an `xdr:wsDr` whose only child is an
+  `mc:AlternateContent` holding one `mc:Choice Requires="a14"` and **no** `mc:Fallback`. Resolution
+  drops the subtree, and the audit saw nothing of what the file contains.
+
+Both then reported `root_child_elements = 0`, `elements_visited = 1`, floor 1, clean. A reader of an
+audit — including the human doing the Office pass, who reads `validation-artefacts --ingest`'s rows —
+could not tell a complete audit from a complete audit over nothing.
+
+`AuditedPart::raw_root_child_elements` is the count taken on the raw root, beside the resolved one,
+and `emptied_by_markup_compatibility_resolution()` reads the two together.
+
+**It is recorded, not reported, and that is the decision rather than an omission.** Auditing the
+losing choice would mean faulting a producer's extension markup against schemas that do not describe
+it, which is what `child_order.rs` refuses to do; flagging every emptied root as a *finding* would
+turn that deliberate, correct refusal into a permanent yellow on essentially every Office-authored
+drawing. So no assertion reddens on it, `assert_deck_is_in_schema_order` asserts exactly what it
+asserted before, and `--ingest`'s `child order` finding stays `Held` while its detail names the parts.
+
+The closing condition was two-sided and both halves are asserted, because a flag that fires on every
+empty part has distinguished nothing:
+`crates/mjx-schema-gate/tests/ordering.rs` holds `a_root_markup_compatibility_emptied_says_so`
+(the drawing is flagged, and is the workbook's only flagged part) against
+`a_genuinely_empty_root_is_not_flagged_as_emptied` (the `a:tblStyleLst` is not, and neither is
+anything else in that deck). The first case also requires the workbook to contain a root that
+resolution *shrinks* without emptying and that is not flagged, so the flag cannot decay into
+"carries `mc:`". `xtask/tests/office_corpus.rs` holds the reporter's half — the verdict and the text.
+
+## [0.0.163] - 2026-09-10
+
+### The two arms of the gate now look at the same markup (H19)
+
+#### The child-order audit walked the raw tree while the schema arm walked the resolved one (MJXOFF-272)
+
+`mjx-schema-gate` has two arms over every part. `inspect.rs` resolves markup compatibility first —
+the winning `mc:Choice` selected, ignorable markup dropped — and validates *that*. `order.rs` did
+not: it took `package.part_tree(&part)` and handed it straight to `child_order::audit_tree`, and the
+generated tables name no `mc:AlternateContent` slot, so the walk stepped over every such element
+without entering it.
+
+What that costs depends entirely on **where the element sits**, and the two shapes are not equally
+visible:
+
+* as a root's **only** child, the walk recognises nothing, visits one element, and
+  `MINIMUM_ELEMENTS_VISITED` fires. That is a red — a working alarm. `legacy_form_control.xlsx` was
+  tripping it, and `mjx-xlsx`'s `ORDER_SWEEP_EXCLUSIONS` register carried the row;
+* as one root child **among several**, the walk descends into the siblings and reports a count that
+  looks exactly like a healthy one, while the whole `mc:` subtree goes unaudited. **No floor can see
+  this**, because the number a floor reads is the number a healthy audit of the siblings produces.
+
+The second is the one that mattered, and it is the shape this programme keeps finding: a surface
+exercised at one point and reported as covered. Both are closed the same way — the ordering arm
+resolves through `markup_compatibility_resolved_tree`, the one function that produces the view, so
+the two arms cannot drift apart again. A part whose markup compatibility will not resolve is now a
+reported defect of the ordering arm rather than a silent fall-back to the raw tree.
+
+`crates/mjx-schema-gate/tests/ordering_under_markup_compatibility.rs` is what holds it, and neither
+of its two cases asserts a total. It authors an `xdr:wsDr` with a plain `xdr:twoCellAnchor` beside an
+`mc:AlternateContent` whose `mc:Fallback` holds a **copy of that anchor**, so the relation between
+the two walks is a property of the markup rather than a quoted number: the resolved walk must visit
+exactly twice the structure below the root that the raw walk does. The second case puts the
+fallback's `xdr:clientData` ahead of its `xdr:from` and requires the audit to redden naming
+`CT_TwoCellAnchor` — while the raw walk still reports the part clean and past the floor, which is the
+silence being closed.
+
+A third case covers the branch the fix *opened* rather than the one it closed: a part whose markup
+compatibility will not resolve is reported by name, because falling back to the raw tree there would
+put the arm straight back to auditing markup the schema arm never sees — silently, and for exactly
+the parts most likely to be hiding something.
+
+`ORDER_SWEEP_EXCLUSIONS` and `the_order_sweep_exclusion_is_still_necessary` are **deleted**. The
+register asserted its own row was still needed, so fixing the defect turned it red and the row could
+not outlive it; every committed `.xlsx` now takes every step of the sweep with nothing held back.
+
+## [0.0.162] - 2026-09-10
+
+### The last residues, and the one the sweep found on its way (H18)
+
+Three named remainders, and a defect that only appeared because one of them was closed properly.
+
+#### The program that writes the committed stub is now inside the type gate (MJXOFF-270)
+
+`bindings/mjx-python/pyproject.toml` set `[tool.mypy] files = ["tests"]`, and CI runs
+`python -m mypy --strict` with no path — so `tools/stub_docs.py`, the program that *generates* the
+committed `.pyi` three languages read, was the one Python file in the binding nothing type-checked.
+It had a real error in it: `ast.stmt.end_lineno` is `int | None` and `_docstring_span` returned it
+as `int`. The scope now names both directories and says which is which, and CI's own invocation
+covers 34 files rather than 33. `bindings/mjx-wasm` was checked for the same shape and has none:
+every tracked `.mjs` under it is either matched by CI's `node --test` glob or imported by the
+`guide_examples/` runner, which derives its list from the directory.
+
+#### ECMA's published markup, swept for what it can and cannot settle (MJXOFF-250)
+
+`xtask/tests/published_markup.rs` is the written list item 2 asked for, and every verdict in it that
+names an artefact this project can read is *checked* rather than stated.
+
+The one new derivation: every preset geometry ECMA publishes is a token
+`mjx_ooxml_types::drawingml::PresetShapeType` round-trips, and the only token with no published
+geometry is `upArrow` — registered, in both directions, so neither a new gap nor a healed one can
+pass unremarked. (The artefact writes `<upDownArrow>` twice, so it publishes 186 distinct
+geometries against the schema's 187 tokens.)
+
+The more useful half is the **negatives**, because item 1's result — the standard's data confirming
+a hand-maintained table exactly — invites the reflex that every artefact is an authority.
+`presetCellStyles.xml`, in the same directory, disagrees with Annex G.2's `builtinId` table in three
+places, and in all three the prose is right: `<heading1>` carries `builtinId="17"`, which
+`<heading2>` also carries and which §18.8.7 forbids two styles from sharing; `<accent3>` carries no
+`builtinId` at all; and `<normal builtinId="0">` holds the `Percent` stylesheet. Those three are a
+register, held in both directions.
+
+Item 3's list — every place in this workspace that resolved an ambiguity by following a spec
+*cross-reference* rather than a spec *statement* — is in the same file's header, with the shape of
+each link, because they are not equally strong. The weakest is not a cross-reference at all:
+`mjx-sml`'s `x:start` / `x:end` take their meaning from WordprocessingML clauses that nothing in
+Part 1 connects to §18.8. Neither published artefact writes either element even once, which is now
+measured rather than assumed.
+
+#### The roster sweep's own population list (MJXOFF-252)
+
+`BasePopulation` in `xtask/tests/derived_rosters.rs` is hand-written, and H8 filed that against its
+own gate. Deciding *what counts as an enumerable thing* is judgement and cannot be derived, so the
+judgement is made — the candidates are worked through in a table, each with its verdict — and the
+mechanical halves are checked: `BasePopulation::ALL` is held against the enum's own declaration, so
+the array cannot silently lose a variant while the exhaustive matches still compile.
+
+The committed fixture corpus, the child-order schema stems, the guide examples and the validation
+area ids joined. The guide pages were tried and **withdrawn on the evidence**: that walk answers
+with every `.md` in the repository, so it read `entry_points.rs`'s three landing pages as a roster.
+A population that broad does not find rosters, it manufactures them.
+
+Adding the rest found three sites:
+
+* `crates/mjx-pptx/tests/schema_validity.rs` named the two fixtures carrying markup compatibility,
+  under a comment reading *"both fixtures that carry markup compatibility"*. It finds them now.
+* `crates/mjx-xlsx/tests/comments.rs`'s `every_producer_workbook_…` named three. It now finds every
+  `.xlsx` carrying a comment part, which is what its name promises.
+* `crates/mjx-xlsx/tests/schema_gate.rs` edited two named fixtures. It edits the whole corpus.
+
+#### The child-order audit and the schema arm were reading different markup (MJXOFF-272)
+
+Widening that last one surfaced it. `mjx-schema-gate`'s schema arm resolves markup compatibility
+before validating — `inspect.rs`'s header says so — and its child-order arm does not: `order.rs`
+hands `part_tree` straight to the walk. So a part whose only root child is an `mc:AlternateContent`
+is audited over nothing, and its own vacuity guard fires. One committed fixture does it,
+`legacy_form_control.xlsx`, whose `xdr:wsDr` LibreOffice wrapped entirely in an `mc:Choice`. Nothing
+this library writes is out of order and the schema arm validates the part cleanly.
+
+The ticket is open; the interim state is one register row that must *still be needed*, so fixing it
+turns the register red rather than leaving a row behind.
+
+## [0.0.161] - 2026-09-10
+
+### The small residues, drained (H17)
+
+Seven work items filed by the units that could have hidden them. Two of them turned out to be about
+something other than what they said, and the correction is the finding.
+
+#### The guide's `python` and `js` blocks are documents too (MJXOFF-256, MJXOFF-263)
+
+`xtask/tests/doc_gate.rs` dropped every fenced block before it looked for a claim, on a reason that
+is right for a Rust doctest and was never right for anything else: a `python` or `js` block is
+*run* by its binding's harness, which exercises its calls and says nothing about the paths its
+comments name. A fence is now dropped exactly when rustdoc compiles it.
+
+The corpus also grows two languages. `.py` and `.mjs` files carry comments; those comments are
+documents; every half of every guide example opens with a header naming its guide page, its Rust
+sibling and its harness **by path**, and none of it resolved against anything. Since a committed
+block is a byte-copy of a region of one of those files, checking the file checks the block.
+`.pyi` stays out: since MJXOFF-234 its docstrings are generated from `///` comments this gate
+already reads as Rust.
+
+Found on its first run: `bindings/mjx-python/tests/test_build_a_deck.py` named the JavaScript
+walkthrough as `tests/node/build_a_deck.mjs`, which resolves under `bindings/mjx-python/`.
+
+`xtask/tests/guide_examples.rs` gains the rule H12 suggested, stated over all three languages
+rather than over "not Rust": every block the facade guide shows in Rust, Python or JavaScript is a
+copy of a file a runner executes. It holds today with no edits; what it stops is the twentieth block
+written straight into a page.
+
+#### An example declares the packages it offers, and both are compared (MJXOFF-262, MJXOFF-260)
+
+Two facts about a guide example were inferred, and both inferences were wrong in a way nothing could
+see. *Whether* it produces a package was decided by looking for a binding named `saved`, so an
+example whose binding had been deleted was indistinguishable from one of the seven that genuinely
+produce none — and more than a third of the corpus took a skip path nobody read. *How many* it
+offers was one, and two examples author two, so the second package's bytes were compared by nothing
+and the choice of which to offer was explained in prose.
+
+Both are one statement now: every Rust half carries a `guide-example:packages` line naming the
+bindings it offers, or the word `none`, and the gate holds all three halves to the statement rather
+than to each other. `the_same_chart_on_all_three` offers the deck and the Word document;
+`one_authoring_vocabulary` offers the workbook and the deck. The Node harness has no skip left in it
+at all.
+
+#### `docProps/app.xml` is not provenance, and two fixtures prove it (MJXOFF-249)
+
+The ticket names `comments_third_party.xlsx` as the only fixture claiming Microsoft authorship.
+`charts.pptx` is a second: it carries `Microsoft Macintosh PowerPoint` and is python-pptx's template
+deck, which its own `docProps/core.xml` says in words. **The trap had already sprung** —
+`crates/mjx-pptx/tests/charts.rs` stated in a live doc comment that that deck was written by
+PowerPoint, and `crates/mjx-ooxml/tests/preservation/deck_cases.rs` drew a conclusion about what
+PowerPoint writes from its markup. Both are corrected.
+
+`xtask/tests/fixture_provenance.rs` asserts a negative against a ledger and classifies nothing: no
+fixture's `Application` may name Microsoft unless a person has written down how the file reached
+this repository. A gate that read the element and decided who wrote a file would build the inference
+the rule forbids and would have been wrong about both rows on its first run.
+
+#### The preset table style families come off ECMA's own markup (MJXOFF-250)
+
+`BuiltInTableStyleFamily`'s six prefixes and six bounds are compared against
+`presetTableStyles.xml`'s 144 published names in three directions — every name parses and writes
+back unchanged, every bound is the largest number its family reaches with no gap from 1, and one
+past a bound is refused and absent from the artefact. A seventh family variant fails to compile
+against the exhaustive match that enumerates them.
+
+#### A VML wrapper's child order, measured rather than assumed (MJXOFF-264)
+
+The ticket's premise — that per-child validation is "blind to sequence by construction" — is false.
+Handing a child to `xmllint` as a standalone document applies its content model rather than removing
+it, and a `v:shapetype` that writes `o:complex` before its shape elements fails validation today.
+The order of everything *inside* a wrapper's children has been audited since MJXOFF-245. What is
+left is the order of the wrapper's own children, and `<xml>` is a Microsoft convention that no
+schema in either pinned tree declares — it has no content model to be out of. Both halves are
+checked in `crates/mjx-schema-gate/tests/wrapper_child_order.rs`; the five pages that cited this
+ticket as an open gap now say what was measured.
+
+#### `SURFACES` is held to the facade handle population (MJXOFF-252, item 1)
+
+The known instance of the roster shape `derived_rosters.rs` cannot see, closed the way the ticket
+preferred: derived in place, through `xtask::facade_surface`, which both test binaries call rather
+than walking `crates/mjx-ooxml/src` twice. The ticket's second item — a `BasePopulation` for the
+enumerable things nobody has named — stays open.
+
+### Left open, with the measurement
+
+**MJXOFF-242** (`Package::part_bytes`). Both of its candidate closures are sized very differently
+from what it believes. It records fifty-three sites converted and "the only callers left are
+`mjx-opc`'s own round-trip suites, five `#[cfg(test)]` assertions and three guide pages"; the
+measurement today is **314 call sites in 83 files** outside `mjx-opc`, of which **10** are under a
+`src/` directory and four of those are `#[cfg(test)]`. A CI grep would need an exemption list of
+three hundred rows; the rename is a breaking change across the same three hundred and belongs in the
+`0.1.0` table. What *is* narrow is the misreading itself — **15** sites combine `part_bytes` with
+`is_none()`/`is_some()`, every one of them in a test — but the shape that would actually reintroduce
+the defect is a library site branching on `None`, and no lexical rule separates that from a site
+asking for the bytes. Recorded on the ticket rather than closed by a rule that would not catch it.
+
+## [0.0.160] - 2026-09-10
+
+### Two gaps that were classes rather than instances (MJXOFF-265, MJXOFF-266, H16)
+
+#### The four serialization ledgers ask what a pair loses; none asked what it moves (MJXOFF-265)
+
+`crates/mjx-dml`, `crates/mjx-sml`, `crates/mjx-docx` and `xtask/tests/upper_markup_ledger.rs` hold
+every hand-written `FromXml`/`ToXml` pair in the workspace to an idiom, and every idiom is a
+*conservation* claim. Child order is outside all four by construction, which is how MJXOFF-251
+shipped: six `mjx-docx` types re-ordered a child they never dropped, and all four stayed green.
+H13 fixed the six and said in as many words that its search for a second instance was *"a spot check,
+not a census"*.
+
+`xtask/tests/child_order_census.rs` is the census. It scans **every function in every workspace
+member's `src/`** rather than impl bodies — MJXOFF-251's defect lived in two free functions both
+halves called, which is exactly what a ledger of impls cannot see — and looks for the two shapes a
+child sequence loses its order by: a `Vec` both pushed into and extended from (MJXOFF-251's writer),
+and an `Option` set from inside a loop over a child sequence (MJXOFF-251's reader). Both detectors
+are deliberately over-inclusive; every site either finds is on a ledger with a written reason, and a
+site that really moves a child also names the markup that proves the position travels.
+
+**The answer to the ticket's question: besides MJXOFF-251's six, nothing.** Two further sites move a
+child for reasons of their own — `mjx-sml`'s packed cell store, which remembers the payload's
+position as two byte spans, and `mjx-mce`'s alternate-content resolution, which is a read-only
+projection nothing is written back from — one builds fresh markup from owned arguments, and two are
+the over-inclusion. The counts are printed by the test rather than written down anywhere.
+
+The derive reads the bulk of the workspace and is the census's one deferral, so
+`crates/mjx-derive/tests/derive.rs` gained the cases that make it a claim: two typed children
+presented in the reverse of the order the type declares, a foreign child *between* two typed ones,
+and a pretty-printed container — **indentation is made of text nodes and a text node is a child**,
+which is the half MJXOFF-251's own report did not reach.
+
+#### The two bindings' doc comments were written independently (MJXOFF-266)
+
+Since MJXOFF-234 the `.pyi`'s docstrings are generated from the PyO3 crate's `///` comments and the
+`.d.ts`'s from the wasm crate's, so neither can drift from its own source — and nothing held the two
+sources to each other. `xtask/tests/binding_doc_parity.rs` now does.
+
+Equality could never have been the gate: a sentence naming a sibling spells it `chart_series` in
+Python and `chartSeries` in TypeScript, `str` against `string`, `None` against `undefined`. So the
+comparison normalises first — identifiers inside backtick spans written `snake_case`, a closed table
+of language words, articles dropped — and two members are a pair only when they take the **same
+number of arguments**, which is what disposes of the trap the ticket warned about (`BorderEdgeSpec.new`
+takes a style and a colour in Python and nothing at all in JavaScript, and pairing them by name
+would compare two different constructors).
+
+**Building it found twenty-three members where a TypeScript reader was told strictly less than a
+Python one**, and they were fixed rather than recorded: six `CellFormatSpec.applies*` getters that
+never said `undefined` writes no attribute, `Document.open` with no error paragraph at all where
+`Workbook.open` beside it had one, `FontProperties.scheme` documented as the single word `scheme`,
+and the schema attributes (`w:vanish`, `w:jc`, `w:outlineLvl`, `w:val="auto"`, `ST_HpsMeasure`) the
+Word effective-properties getters name in Python and named nowhere in TypeScript. What remains is a
+ledger with a reason per row, held to the measurement in both directions.
+
+One row on it was not a prose difference at all: `ChartWrap.kind` returned `"top_and_bottom"` in
+Python and `"topAndBottom"` in JavaScript, which contradicted the wasm binding's own written rule
+that data tokens stay `snake_case`. MJXOFF-268 settled it in 0.0.165 and deleted the row.
+
+## [0.0.159] - 2026-09-09
+
+### Three places the API was not truthful about itself (MJXOFF-241, MJXOFF-248, MJXOFF-238, H15)
+
+Each is small; together they are one theme — the library saying something about its own state that
+is not so.
+
+#### A refusal that named a part that was there (MJXOFF-241)
+
+`Workbook::add_comment` aimed at a chartsheet or a dialogsheet answered
+`MissingWorkbookPart("sheet 1")` — *"workbook part sheet 1 is missing from the package"* — about a
+part that is present, correct and exactly what its `x:sheet` entry says it is. So did every other
+edit that needs `x:worksheet` markup: the message came out of whichever helper reached for it first,
+in eight places across seven modules, because `Workbook::worksheet_markup` answers one `Ok(None)`
+for two different facts.
+
+* `XlsxError::SheetIsNotAWorksheet { index, kind }` says what the tab is instead, with a phrase for
+  each of the four shapes — a chartsheet, a dialogsheet, a part typed as a worksheet whose root is
+  not `x:worksheet`, and a tab reaching a part of no sheet content type at all.
+* `Workbook::require_worksheet_markup` is the one place that decides between the two answers. A tab
+  reaching no part at all is still `MissingWorkbookPart`, which is what that is.
+* It lands on the existing `mjx_ooxml::ErrorCode::WrongKind`, the code
+  `PptxError::PartIsNotVmlDrawing` already answers, carrying the tab index. **The vocabulary does
+  not grow and neither binding changes.** MJXOFF-213 kept the message byte-identical when it fixed
+  the *ordering* of that refusal precisely because a variant reaches this classification.
+* The facade's *cell* surface keeps its own `NothingToRead`: `worksheet_or_refuse` never claimed a
+  missing part and reads that tab as "there are no cells there", the same answer a read gets. That
+  is a decision, and a test now pins it as one.
+
+#### A claim about the package that was only sometimes true (MJXOFF-248)
+
+`Presentation::set_inline_table_style` promised *"no shared part, relationship or referenced GUID is
+involved"*. Since MJXOFF-232 that stopped being a statement about the package for a table
+`add_table` made — that call authors a `tableStyles.xml` for the emphasis flags it turns on.
+
+The branch is **not** dead, and a test says so rather than a reader having to work it out: a deck
+that *arrives* with a table and no shared part is the route, and every clause of the sentence holds
+against it. The doc comment now separates what *this call* adds from what the package holds, and
+names the two tests that hold the halves apart. The garbage-collection option is not taken, for the
+reason the ticket records — it would delete a part a caller may be about to point another table at.
+
+### Fixed
+
+- **`Package::validate` could not see a reference our own edit broke (MJXOFF-238).** Its
+  markup-reference check walks `authored_xml_parts`, which answers *"was this markup ours?"* and not
+  *"did our edit break this markup?"*. The two come apart for one shape: `remove_relationship` on a
+  part whose body is never touched. `check_relationships` finds no missing target — there is no
+  relationship left to have one — the markup check skips the part, and `save()` wrote out a file
+  naming a relationship nothing declares.
+
+  The scope is widened by **exactly one set and only for one question**: a part whose `.rels` this
+  library edited is checked too, and only for the ids it removed
+  (`Package::unwired_relationships`). Checking such a part *whole* would have been the simpler
+  widening and would have regressed the promise the scoping exists for — a file that opened and
+  saved a moment ago would stop saving because a relationship it never named was dropped somewhere
+  else in the package. `a_dangling_reference_the_file_arrived_with_survives_a_removal_it_has_nothing_to_do_with`
+  is the case that separates the two, and MJXOFF-212's own bound
+  (`a_part_that_holds_the_removed_relationship_but_names_it_nowhere_is_left_alone`) is held in the
+  same file.
+
+  **It was not only latent.** The ticket recorded the shape as unreachable through any shipped
+  method, and that holds — but this repository's own suites constructed it three times and asserted
+  the broken save was clean: two cases in `crates/mjx-opc/tests/edit_surface.rs` dropped the
+  presentation's relationship to a slide while `p:sldId r:id` still named it, and
+  `dropping_the_printer_settings_relationship_is_caught_by_the_packaging_check` had to write the
+  broken container out and reopen it to launder the worksheet's provenance before the check could
+  reach the markup at all. All three now assert the refusal; where the rest of the case still needs
+  the bytes, it writes them with `save_unchecked`, which is what exists for a package a caller knows
+  to be inconsistent.
+
+  `validate`'s doc comment says what it now parses, and the module documentation says why the second
+  scope is one question rather than a whole part. `Package::is_checkable_xml_part` is the one
+  spelling of "a part whose markup can be walked", shared by both scopes — two would be two things
+  to keep in step, and `XML_CONTENT_TYPES_WITHOUT_SUFFIX` has already cost this project one silently
+  empty scope.
+
+## [0.0.158] - 2026-09-09
+
+### The stub stopped writing its own prose (MJXOFF-234, H14)
+
+`bindings/mjx-python/python/mjx_ooxml/__init__.pyi` is a committed contract and
+`bindings/mjx-python/tests/test_stub_parity.py` holds it to the compiled module in both directions —
+over **names**. Beside each name sat a sentence, hand-copied from the `///` comment it restates, and
+nothing compared those. MJXOFF-226 found the two disagreeing about the same item and differently
+wrong in each, which is what two hand-maintained copies of one fact always eventually do.
+
+**Generated, not compared, and the measurement is what decided it.** The two were never independent
+prose: PyO3 compiles each `///` doc comment verbatim into the member's `__doc__`, so the compiled
+module already carries the Rust sentence and the stub can be written from it with no parser in
+between. Before any edit, **1,861 of the 1,924 docstrings the stub shared with the Rust were already
+that comment's first paragraph, character for character** — so generation changes about three per
+cent of the file rather than overwriting editorial work, which is the empirical question the ticket
+said to answer before choosing. The ticket's own argument for comparison — *"equality would fail on
+every one of 1,637 members"* — was false in the direction that mattered.
+
+* `bindings/mjx-python/tools/stub_docs.py` restates the stub's docstrings from the module;
+  `--check` writes nothing and reports. Committed output, never a `build.rs`.
+* `bindings/mjx-python/tests/test_stub_docs.py` is the drift check over **1,937 governed
+  docstrings** — 300 classes and 1,637 members, the ticket's figure exactly — with the floor phrased
+  as *the scanner has stopped matching* and each half of the walk floored separately, because a scan
+  that matches nothing rewrites the file to itself and passes.
+* The stub's header says so, and editing a docstring there is now a test failure.
+
+### Fixed
+
+- **Six doc comments described `regenerate_chart_workbook` and were attached to
+  `refresh_chart_workbook`** — three per binding, so `help(mjx_ooxml.Deck.refresh_chart_workbook)`
+  and `mjx_ooxml.d.ts` both said the call "rewrites the embedded workbook so its cells hold exactly
+  what the chart now draws". The facade says the opposite of the important half: it writes *the
+  cells its own `c:f` formulas name, and nothing else*, and every other sheet, format and name the
+  workbook carried survives. **The committed `.pyi` had it right and the Rust comment beside it had
+  it wrong**, which is the drift class above caught in the act.
+- **Eight `///` comments in the bindings were prose about Rust.** Five carried a rustdoc intra-doc
+  link — `[`save_unchecked`](Deck::save_unchecked)` renders as broken markup in `help()` and in a
+  `.d.ts` — and three said "see this module's own doc comment", naming a module the reader of the
+  projected surface cannot open. The binding's `///` **is** the Python docstring, so these were
+  already wrong for their real audience before the stub was generated from them.
+- **`OoxmlError` and `IndexOutOfRangeError` said less at run time than the stub said about them.**
+  The stub's fuller wording is now the C string literal in `bindings/mjx-python/src/errors.rs`, so
+  `help()` gains it too. The other ten exception classes already agreed.
+- **CI's `rustdoc` job was red on `epic/phase-h`** (MJXOFF-267). `crates/mjx-schema-gate` names
+  `crate::harness` in an intra-doc link, and the crate has both a `harness` module and a `harness`
+  function, so `cargo doc --workspace` under CI's `RUSTDOCFLAGS` refused to document it. Introduced
+  by the previous unit, and invisible to `fmt`, `clippy` and `test --workspace` — which is the part
+  worth carrying: broken links are denied by rustdoc alone, so the two `cargo doc` runs belong in
+  every gate set, not only in the units that touch documentation.
+
+### Recorded, not fixed
+
+- **The two bindings' `///` comments are written independently**, so a TypeScript reader and a
+  Python reader can be told different things about the same method — the second half of MJXOFF-234,
+  which it raised and did not resolve. Of the 1,610 members both bindings document under the same
+  class and Rust name, **1,440 carry the same sentence character for character** and 170 differ; a
+  large part of the 170 is forced (`chart_series` against `chartSeries`, `str` against `string`), so
+  equality cannot be the gate and the instrument needs designing. Filed as **MJXOFF-266**.
+
+## [0.0.157] - 2026-09-09
+
+### A named child comes back where the file put it, and a `.vml` part is validated child by child (MJXOFF-251, MJXOFF-245, H13)
+
+Two holes in things that looked like they were watching. One silently rewrote a user's file; the
+other meant a whole crate's markup was validated by nothing.
+
+#### `w:customXmlPr`, `w:smartTagPr` and `w:docPart` keep their position (MJXOFF-251)
+
+`crates/mjx-docx/src/document/structured_content.rs` names one child of six elements and passes the
+rest through — the four `CustomXml*` wrappers and `SmartTagRun` share a worker, `Placeholder` had
+the shape written inline. The reader took the first name match **wherever it sat** and the writer put
+it back **first**, so `<w:customXml><w:p/><w:customXmlPr/></w:customXml>` came back with its two
+children swapped. The function was called `split_leading_properties` and its doc comment said *"if
+present as the first child"*; the code checked no such thing.
+
+`wml.xsd` does put these children first, so the ticket recorded this as affecting non-conforming
+files only. **It affects conforming ones too, and that is what settled the design.** Indentation is
+made of text nodes and a text node is a child, so a pretty-printed wrapper whose `w:customXmlPr` was
+the first *element* was still not the first *node*: hoisting it to index 0 stepped it over the
+producer's own newline. A file whose element order was exactly what the schema asks for came back
+with different bytes.
+
+So the fix is positional rather than a rule about what counts as leading: the index the named child
+sat at is read with it and restored on write, through one shared `split_positioned_child` /
+`join_positioned_child` pair all six now use. Nothing is normalised, `the_round_trip_contract.md`
+gains no exception, and the accessors keep working for a file that put its properties second — the
+alternative (take it only when it is literally `children[0]`) would have byte-preserved just as well
+while reporting `properties() == None` for every pretty-printed conforming wrapper.
+
+#### A `.vml` part is validated, one child of its wrapper at a time (MJXOFF-245)
+
+`crates/mjx-schema-gate/src/categories.rs` skipped every `.vml` part for two stated reasons, and one
+of them had been false since MJXOFF-134: `vml-main.xsd` compiles perfectly well through the driver
+schema the harness builds for **every** schema on one code path. Measured again here — without a
+driver it is *WXS schema … failed to compile*; through one, the only error left is
+*Element 'xml': No matching global declaration available for the validation root*, which is reached
+only after compilation succeeds.
+
+That residual obstacle is real but narrow: the wrapper root is a bare `<xml>` in no namespace, while
+`v:shape`, `v:shapetype`, `o:shapelayout`, `x:ClientData` and the rest are global elements, and
+`vml-main.xsd` imports its four sibling schemas. So a `.vml` part is now category **1b** — a
+`WrapperRoot`, validated child by child — and `mjx-vml`'s authored markup meets a schema for the
+first time. Every `.vml` part in the committed corpus gets a verdict instead of a skip line, and a
+`v:shape` carrying an attribute VML does not admit is reported invalid naming the part, the child and
+the attribute.
+
+Two things follow. The category-2 allowlist is keyed on a namespace again and **only** on a
+namespace: its VML entry matched the *absence* of one, so a worksheet that lost its `xmlns` was
+reported as "a VML drawing part" and skipped — a false green `mjx-xlsx` had to carry a path rule to
+close from the outside, and which is now a hard failure at the part. And MJXOFF-196's fifth wildcard
+slot, `{o}equationxml`, can fire: it is declared in a VML schema and no VML part had ever been
+resolved, so the slot had sat unreachable since the day it was derived.
+
+What is still unchecked is **child order** — no `vml-*` schema is in the child-order generator's
+`CHILD_ORDER_SCHEMAS`, so an authored drawing's sequence meets nothing. MJXOFF-264 owns that, and the
+five places that state VML's guarantee now say so by number rather than repeating a reason that had
+gone stale.
+
+## [0.0.156] - 2026-09-09
+
+### The guide is finished: every block in three languages, or Rust-only with a reason a test checks (MJXOFF-254, MJXOFF-261, MJXOFF-257, H12)
+
+Nine of the facade guide's code blocks were three real files a runner executes; ten were still prose
+that looks like code. All ten are done, and the page set is now closed: **every fenced code block
+under `crates/mjx-ooxml/docs/guide/` is either shown in Rust, Python and JavaScript or marked
+Rust-only with a stated reason**, and the only unmarked fence left in the set is the `sh` one
+listing three walkthrough commands.
+
+#### A block with a Rust half and no binding half has a spelling, and it is a claim rather than a suppression
+
+MJXOFF-261 and MJXOFF-257 filed the same hole twice: a little of this facade is Rust-only by
+decision, and the only way to say so was to write no marker at all — indistinguishable from having
+forgotten, which is exactly what the gate exists to catch. The spelling is a fourth marker form that
+names the Rust symbols making the claim true — `<!-- guide-example: the_escape_hatches rust-only
+workbook_mut -->` — and it renders as one Rust block. What it changes is what `xtask/tests/guide_examples.rs` then demands,
+and the demand is **stronger** rather than weaker: the example must have a Rust half and **no**
+binding half and be shown by no marker in either language; every declared name must occur in the
+region the block shows, so the reason is about *this block* rather than about the language; and
+every declared name must be reachable from **neither** binding, read out of the committed `.pyi` and
+the committed `#[wasm_bindgen]` declarations. The day a binding projects one of them, the claim
+reddens. `rust-only` with no names is refused where it is parsed.
+
+Reading the two binding surfaces moves out of `xtask/tests/binding_projection.rs` into
+`xtask/src/binding_surface.rs`, so both gates reach one implementation: two parsers of the same two
+surfaces would disagree with no way to say which was wrong. Its wasm type scan derives from
+`#[wasm_bindgen] impl` targets rather than from `pub struct` lines, because most of that crate's
+classes are declared by a macro and a `pub struct` walk sees sixteen of a hundred and eighty-seven.
+
+#### Two blocks are Rust-only. The third was not, and that was checked rather than assumed
+
+The backlog named three. `the_escape_hatches` and `downcasting_to_the_typed_cause` are genuinely
+Rust-only — `presentation_mut`/`document_mut`/`workbook_mut`, `PptxError` and `downcast_ref` are
+declared by neither binding.
+
+**`the_round_trip_contract` was not.** What made it look Rust-only was its own choice of surface: it
+edited a chart on a deck and compared the two packages through `mjx_opc::Package` — one layer below
+the facade the page is about, and the layer the guide seals deliberately. `Workbook::part_names` and
+`part_bytes` are the only general part door on this facade and the only one present in all three
+languages, so the project's central claim is now stated in all three rather than exempted from two,
+and a facade guide no longer opens the sealed package in one of its blocks.
+
+#### Where the three differ in shape, the page says so — once, in one form
+
+Six of the ten are expressible everywhere but do not *read* the same, because an `ErrorCode`, an
+`ErrorDetail`, a `CellInput` and a `Format` accessor each project differently. Three blocks that
+differ structurally with no sentence explaining why read as a typo, so the guide now has one device:
+a line beginning **"The three differ in shape here"**, always *above* the blocks — a note underneath
+arrives after the reader has already concluded one of them is wrong — and a table on the guide index
+collecting the differences in one place.
+
+#### The last block that never ran
+
+`README.md` § *Bytes in, bytes out* was the guide's only `no_run` doctest: it read `in.pptx`, a file
+that does not exist. The hidden prelude fixes it, and every code block a reader sees in this guide
+is now executed by something.
+
+## [0.0.155] - 2026-09-09
+
+### Eight more guide examples in three languages each, and the one that finally exercises preservation (MJXOFF-254, H11)
+
+0.0.154 built the mechanism and carried one example through it. This one drains the mechanical part
+of its backlog: **eight** guide blocks stop being prose that looks like code and become three real
+files a runner executes — `the_round_trip`, `authoring_from_nothing`, `addressing_a_deck`,
+`addressing_a_document`, `the_calls_that_take_the_column_first`, `preserved_rather_than_modelled`,
+`the_same_chart_on_all_three` and `one_authoring_vocabulary`.
+
+`the_round_trip` was taken first, and not by alphabet. Every example the mechanism carried until now
+authored every part it compared, so the whole arrangement said **nothing** about copy-on-write or
+verbatim re-emission — the contract this library exists for. `the_round_trip` opens
+`tests/fixtures/sample.xlsx`, which this project did not write, and each of its three halves asserts
+preservation *inside the block a reader sees*: the same part names before and after, and
+byte-identical payloads for every one of them. That placement is the point. Three languages agreeing
+with each other cannot establish preservation; each half is checked against the input file instead,
+and the harness comparison on top is a second, different fact — that all three preserved it the same
+way. One `rename_sheet` inserted into the Python half fails the example's own assertion with
+`/xl/workbook.xml changed` before the harness comparison is reached.
+
+### The extractor grows a hidden Rust prelude
+
+Reading a file is the caller's job — every guide page says so, and `build_a_deck.rs` keeps its own
+`std::fs::read` outside the code the guide shows. Python and JavaScript get that for free, because
+whatever they do above their sentinel is not in the block; a Rust half cannot, because its block is
+*also* a compiled doctest and one that names `original` without binding it does not compile. So a
+Rust half may carry an earlier region emitted as rustdoc's `#` lines: compiled, run, never shown.
+`a_prelude_is_a_rust_only_device_and_every_one_of_them_extracts` reports one in another language
+rather than ignoring it, because there it would be a no-op that reads like a feature.
+
+### Two of the ten turned out not to be mechanical, and were not forced
+
+The backlog called all ten name-for-name projections. Two are not, and neither can have a binding
+half at all:
+
+* **`the_escape_hatches`** — `Deck::presentation_mut`, `Document::document_mut` and
+  `Workbook::workbook_mut` are Rust-only *by decision*, which is the whole point of the page the
+  block sits on. Neither binding exposes one, and `bindings/mjx-wasm/src/deck.rs` says so in a
+  comment.
+* **`the_round_trip_contract`** — the block compares a deck edit through `mjx_opc::Package`, and the
+  package is sealed at this facade deliberately. A `Deck` has no general part door in any language,
+  which `fidelity_and_gaps.md`'s own gaps table already states.
+
+Both move to the unit that decides how the guide *says* a shape differs, and both need something the
+mechanism does not have: a spelling for a block with a Rust half and no other.
+
+## [0.0.154] - 2026-09-09
+
+### The guide holds markers, not code: one example in Rust, Python and JavaScript, kept equal by copying (MJXOFF-254, H10)
+
+Phase H §4 asks for every example in every language the API ships in, and its own warning is why this
+child built a mechanism rather than blocks: *three code blocks that drift apart are worse than one,
+because two of them become confidently wrong.* A transcription is held together by whoever last
+remembered to update all three, and Phase G's lesson is that prose is not checked — a code block in a
+`.md` is prose that looks like code.
+
+So a guide example is now **three real files a real toolchain runs**, each carrying a
+`guide-example:start` / `guide-example:end` region:
+
+| Language | File | Runner |
+|---|---|---|
+| Rust | `crates/mjx-ooxml/examples/guide_<name>.rs` | `cargo run --example`, and the same region again as a doctest under `cargo test --doc -p mjx-ooxml` |
+| Python | `bindings/mjx-python/tests/guide_examples/<name>.py` | `pytest`, through `bindings/mjx-python/tests/test_guide_examples.py` |
+| JavaScript | `bindings/mjx-wasm/tests/node/guide_examples/<name>.mjs` | `node --test`, through `bindings/mjx-wasm/tests/node/guide_examples.mjs` |
+
+**`cargo run -p xtask -- guide-examples`** copies each region verbatim into the block that marks it;
+`--check` writes nothing and reports whether the committed blocks are current. The output is
+committed, never a `build.rs` — the rule `CLAUDE.md` already states for `mjx-ooxml-types`. A block a
+reader sees cannot differ from a file a harness ran, *because it is a copy of one*.
+
+Generation was considered and rejected. Emitting Python from Rust needs a model of the binding
+projection, and the projection is not mechanical — a `CellInput` becomes a `CellWrite` constructor,
+an `ErrorCode` becomes a string on `.code`, a range argument becomes two numbers, a `Format` accessor
+becomes a free function. `xtask/tests/facade_curation.rs`'s own verdict applies: a translator that is
+subtly wrong in that layer is worse than none. Copying has no model to be wrong about.
+
+**`xtask/tests/guide_examples.rs` is the gate.** It holds four populations equal in both directions —
+the markers in every `.md` in the repository, and the three source directories, all derived from the
+filesystem rather than listed — and it also checks that every committed block byte-equals its
+source's region today, that every half really has a region, that the three halves agree about whether
+the example produces a package, and that each binding harness runs the Rust example and reads both
+packages through that binding's one shared payload reader. Neither harness may name an individual
+example: the population comes from the directory. Five mutations were run and each reddens a named
+test; the verbatim output is in the pull request.
+
+It inherits `walkthrough_triples.rs`'s limit **exactly, and says so in its module comment**: it
+cannot verify that the two payload maps a harness reads are then asserted equal, because that is an
+assertion in a language `xtask` cannot execute. What establishes that is the same discipline —
+`SlideSize::widescreen` swapped for `SlideSize::standard` in one language at a time reddens that
+binding's comparison and names `ppt/presentation.xml` and `ppt/slideMasters/slideMaster1.xml`.
+
+**One example is carried end to end: `saving_validates`**, the blank/validate/save/detect block in
+`crates/mjx-ooxml/docs/guide/opening_and_saving.md`. It produces a package, so the output comparison
+is real rather than vacuous — but it starts from `Deck::blank`, so **every part it compares was
+authored by this library and none was preserved from an input file**. It is the same blind spot
+`crates/mjx-ooxml/examples/build_a_document.rs` has, and an example that opens a committed fixture is
+the first item of the backlog for exactly that reason. The remaining eighteen blocks are mechanical.
+
+**`@mjx/ooxml` now resolves inside the Node test suite.** `build-npm.sh` links `npm/` into
+`tests/node/node_modules/@mjx/ooxml`, the way `npm link` would, so the specifier the guide shows is
+the specifier a consumer writes and the one the example really imports. `node_modules` is git-ignored;
+nothing is committed.
+
+**One latent defect fixed on the way.** `xtask/tests/entry_points.rs` decided whether a crate hosts a
+guide with `source.contains("pub mod guide")` — a prefix match, so `xtask`'s new `pub mod
+guide_examples` classified the one crate that deliberately has no guide as hosting one. It now
+matches the declaration `pub mod guide;` as a whole line.
+
+## [0.0.153] - 2026-09-09
+
+### The Word walkthrough was claimed to be compared byte for byte in both bindings, and was compared by nothing (MJXOFF-239, H9)
+
+`CLAUDE.md` said of the acceptance triples that *"every one compares its output against the Rust one
+part by part, byte for byte. A method wired to the wrong `Deck` method changes one payload and fails
+there."* That was **false for Word in both bindings**.
+`bindings/mjx-python/tests/test_build_a_document.py` and
+`bindings/mjx-wasm/tests/node/build_a_document.mjs` transcribed
+`crates/mjx-ooxml/examples/build_a_document.rs` call for call and each wrote its *own* `.docx` into
+`target/examples/`. Nothing ran the Rust example; nothing compared. Both files passed, which is why
+nobody saw it: a gate phrased *"X is covered and green"* is green precisely when X is skipped.
+
+Both Word walkthroughs now run the Rust example as a subprocess and assert the part-name sets are
+equal and no payload differs, exactly as PowerPoint's and Excel's have. Each was proved able to fail
+before it was believed: one table cell changed from `+12%` to `+13%` reddens both and names
+`word/document.xml`.
+
+**`xtask/tests/walkthrough_triples.rs` closes the class.** It derives the walkthroughs from
+`crates/mjx-ooxml/examples/` rather than listing them, and fails when a walkthrough has no copy in a
+binding, when a binding holds a copy of a walkthrough that does not exist, or when a copy does not
+both run the Rust example of its own name and read two packages through the shared payload reader.
+Checked out against the pre-fix files it names all four defects; against a fourth walkthrough with no
+copies it names both absences. What it deliberately does not claim is that a comparison it can see
+actually asserts anything — that is an assertion in a language this crate cannot execute, and a
+textual gate claiming otherwise would be the same nominal check the file exists to prevent.
+
+**The Python OPC helper exists once.** `_part_payloads` had three copies — one each in
+`test_build_a_deck.py`, `test_build_a_workbook.py` and `test_validation_artefacts.py` — plus an
+open-coded fourth reading in `test_surface_coverage.py`. All four now go through
+`bindings/mjx-python/tests/opc.py`, which is the Python half of what
+`bindings/mjx-wasm/tests/node/zip.mjs` already was. A helper copied per file is a comparison that can
+go missing from a file unnoticed, so the gate also fails any binding test that names archive
+machinery (`zipfile`, `node:zlib`) outside the one reader.
+
+**The rest of the set was swept, and Word was the only hole.** The validation-catalogue triple is
+whole in both bindings: `test_the_generator_set_is_the_whole_catalogue` compares the produced set
+against `GENERATORS` in both directions, and its Node sibling makes the same both-directions
+`deepEqual` inside its one comparison test. The prose that asserted the false claim — `CLAUDE.md`,
+`README.md`, `crates/mjx-ooxml/docs/guide/README.md`,
+`bindings/mjx-python/docs/guide/how_much_is_exercised.md`, `xtask/tests/binding_projection.rs`'s own
+header and the Rust example's — now says what is checked and names the gate that checks it.
+
+### Also: the derived-roster gate failed on its own calibration sample (MJXOFF-253)
+
+`epic/phase-h` was red at `ffa5a25`. `xtask/tests/derived_rosters.rs`'s scanner calibration holds a
+`SAMPLE` of three deliberately *partial* rosters, so that a scanner which has stopped matching fails
+there — and `workspace_rosters()` swept every tracked `.rs` file including that one, so the fixture
+was in the corpus it calibrates and was exactly the shape the corpus sweep rejects. No `ROSTERS` row
+could truthfully register it: a row asserts *"this list is the whole of that population"*. The sweep
+now skips that one file, with the reason where the skip is and an assertion that the excluded path
+is still in `git ls-files`, so a rename cannot make the exclusion a silent no-op. The calibration is
+untouched — it calls `rosters_in` on `SAMPLE` directly under a synthetic path.
+
+## [0.0.152] - 2026-09-09
+
+### Blind sweeps: no test enumerates by hand what the repository enumerates itself (MJXOFF-225, H8)
+
+MJXOFF-224 found `crates/mjx-ooxml-types/src/child_order.rs`'s four safety suites sweeping three of
+nine generated tables — a literal that was the whole population when it was written and had been a
+fraction of it for six schemas since, while every count it printed stayed plausible. That
+instance is fixed. This closes the **class**.
+
+`xtask/tests/derived_rosters.rs` sweeps every tracked `.rs` file for a *roster*: a literal `[…]`
+list, in test code, whose elements all name members of a population this repository derives — the
+workspace crates, the generated child-order tables, the generated simple-type modules, the facade
+handle types, the validation catalogue pages, the validation artefact formats. Matching is on the
+first string of each element, so it sees a roster written as bare strings, as tuples or as struct
+literals, which is why a grep for `for … in [` finds barely any of them. Every roster it finds must
+be registered as the **whole of a named derived population**, and the gate re-derives that
+population and compares both ways. Its own scanner is calibrated against a sample held in the file,
+so a scanner that has stopped matching fails before it can report a clean bill.
+
+What the sweep found, beyond the instance MJXOFF-224 had already closed:
+
+- **`crates/mjx-sml/tests/package_writer.rs` was wrong, not merely blind.** Its forbidden-dependency
+  list named five crates and read as though it named all of them; `mjx-omml` and `mjx-vml` sit at
+  rank 2.2 beside `mjx-chart` and were missing, as were both bindings. With the old list in place,
+  `mjx-sml` could declare `mjx-omml` and that test passed.
+- **`xtask/tests/codegen_drift.rs`'s curated re-export sweep** iterated the two `pub(crate)` modules
+  by name. It now filters `SIMPLE_TYPE_MODULES` on `visibility`, so a third joins it the day one
+  exists.
+- **`CLAUDE.md`'s rank table was mirrored by convention and checked by nothing.** It is now the
+  source the crate populations above are derived from, so `xtask/tests/layering.rs` compares it
+  against `TIERS` crate by crate — rank and label, both directions — and `derived_rosters.rs` holds
+  it against `Cargo.toml`'s `members`.
+- **`layering.rs`'s own tier-exercise check** listed eight tier labels; it now derives them from
+  `TIERS` as *every ranked tier except the floor*.
+- Three further rosters — the catalogue pages in `validation_calls.rs`, the format tokens in
+  `validation_index.rs`, the artefact extensions in `validation_calls.rs` — are now read off
+  `ArtefactFormat`, which grew a `page()` accessor so that "which three of the seven pages" is
+  answered beside `extension()` rather than retyped.
+
+Every other roster the sweep found was already complete. Those are **registered rather than
+rewritten**: the gate re-derives what each one claims and fails by name the moment the repository
+moves under it, which is a stronger guarantee than copying a derivation into each of seven files
+would have been.
+
+**A partial sweep is expressible only by naming the subset as a population of its own.** There is no
+register variant for a subset chosen by hand and justified in prose: every roster in this workspace
+turned out to be the whole of some derivable population once the population was named precisely
+enough, including the two that looked most arbitrary.
+
+The gate states what it cannot see, and MJXOFF-252 owns it: a roster whose elements are not string
+literals — `facade_curation.rs`'s `&[&DECK, &DOCUMENT, &WORKBOOK]`, complete today and blind by
+construction — and a population nobody has named, `BasePopulation` being hand-written and therefore
+this file's own instance of the defect it closes.
+
+## [0.0.151] - 2026-09-09
+
+### `mjx-docx`'s 158 hand-written serialization pairs, and the three that were losing content (MJXOFF-218, H7)
+
+MJXOFF-216 found four `mjx-dml` types destroying foreign attributes, foreign children and `xmlns`
+declarations, and MJXOFF-217 answered it with a gate that reads that crate's own sources: every
+hand-written `FromXml`/`ToXml` must be on a ledger with an **idiom checked against the impl body**.
+MJXOFF-220 wrote `mjx-sml`'s. This closes the last of the three.
+
+`mjx-docx` writes serialization out by hand for **158 types** and every one of them is a pair, so the
+shape of the risk is different from either of the other two crates. 146 of the 158 are *the same body
+typed out again* — a reader storing the element's `name`, `attributes`, unknown bucket and
+self-closing flag, and a writer rebuilding from exactly those four — with nothing shared, no macro
+and no helper. The question is therefore not *"did somebody design this type's preservation wrongly"*
+but **"did somebody copy the body wrongly"**, 146 times over, and a ledger with 146 rows would be the
+longest list in the workspace and would say nothing about the one character that matters.
+
+`crates/mjx-docx/tests/serialization_ledger.rs` compares each body against the canonical text
+**character for character**, in both directions, requiring the bucket field to agree across the pair.
+The twelve pairs that are genuinely different carry a row with one of three idioms, each checked
+against its own body. It found three losses on its first run, all in `document/drawing.rs`:
+
+- **`Control`** — MJXOFF-216's shape exactly. Its reader stored **no children at all** (the struct
+  had no field for them) and its writer handed `RawElement::rebuilt` a fresh `Vec::new()` with the
+  self-closing flag hard-coded `true`. A foreign child, a comment or an `o:` extension inside a
+  `w:control` was destroyed, and `<w:control></w:control>` came back `<w:control/>`. `CT_Control`
+  declares no content model, which is what made it look safe — the fidelity rule has no "the schema
+  says this cannot happen" clause.
+- **`WordprocessingShape`** and **`TextboxInfo`** — both read `element.empty` into a field their
+  writers ignored in favour of a literal `false`, so `<wp:wsp/>` and `<wp:txbx/>` came back as
+  open/close pairs. That is the loss MJXOFF-217 found twice in `mjx-dml`, twice more here.
+
+Four cases in `crates/mjx-docx/tests/drawing_placement.rs` prove all three against markup rather than
+against a source shape, and each fails against 0.0.150. `ObjectEmbed` and `ObjectLink` were correct
+but spelled differently and were folded onto the canonical text, so the family really is one body and
+the gate can compare rather than list.
+
+### Three ledger files, one scanner, and a hole closed in the oldest of them
+
+The gate lives in three per-crate files rather than one shared crate, and that is now recorded with
+its third data point: the files share a source scanner — sixty lines of brace matching — and share
+nothing else, because the idioms are the finding and they differ. `mjx-dml` checks three idioms over
+eight bespoke pairs; `mjx-sml` follows a one-line delegation into the `as_raw_element` behind it; this
+one compares 146 copies of one body to a canonical string, an arm that would be meaningless in
+`mjx-dml`, where no two bodies are alike.
+
+What the duplication costs is that a scanner improvement has to be made three times, and it had
+already happened once. MJXOFF-218's own census reported 5 `FromXml` and 57 `ToXml` in `mjx-sml` where
+there are 6 and 58, because a scanner keyed on a bare `impl ToXml for` cannot see
+`impl mjx_ooxml_core::ToXml for ColorElement`. MJXOFF-220 fixed that in its own file;
+`crates/mjx-dml/tests/serialization_ledger.rs` still carried the bare needle and now carries the
+fixed scanner too, because a known hole in a gate is not a thing to leave for a ticket.
+
+## [0.0.150] - 2026-09-09
+
+### SpreadsheetML `@theme`: the writer and the resolver meant different colours by the same number (MJXOFF-246, H6)
+
+`mjx-sml`'s stylesheet writer authored font 0 — the font every cell that names no font of its own
+draws with — as `<color theme="1"/>`, meaning the theme's first **text** colour, which is what
+Excel's own font 0 says. `mjx-sml`'s resolver read that same `1` as `lt1`, the theme's **background**.
+So this library read the default font colour of every workbook it authored as *white*, and a renderer
+built on `effective_cell_format` would have painted white text on a white sheet. Nothing saw it: both
+candidate slots are defined in every theme, so the reference gate resolved either way, schema validity
+passed and the round trip passed.
+
+The resolver was following an *inference*, and that is the substance of this change. §20.1.6.2 is a
+DrawingML clause about `clrScheme`, and the table it prints is headed **"Sequence Index"** — it states
+the document order of `CT_ColorScheme`'s children. SpreadsheetML's four colour elements say only *"a
+zero-based index into the `<clrScheme>` collection (§20.1.6.2)"*. That the sequence order is also the
+SpreadsheetML lookup table does not appear in either clause.
+
+**It is not, and ECMA's own markup says so.** The Part 1 5th-edition package ships
+`OfficeOpenXML-SpreadsheetMLStyles/`, whose `presetCellStyles.xml` and `presetTableStyles.xml` are the
+only SpreadsheetML *markup* the standard publishes — the built-in cell styles and table styles, in
+`@theme` positions. Every one of the sixty-three `Normal` fonts is `<color theme="1"/>` on a bare
+sheet; `Accent1`…`Accent6` and `Check Cell` are `<color theme="0"/>` over a mid-tone fill; a table
+style paints `theme="0"` text onto a `theme="0"` fill darkened 35%; `Title` and `Heading 1`…`4` are
+`<color theme="3"/>` with no fill at all. Under the sequence reading, all four are a colour on itself.
+
+So the two dark/light pairs are swapped and nothing else moves:
+
+```text
+0 lt1   1 dk1   2 lt2   3 dk2   4..9 accent1..accent6   10 hlink   11 folHlink
+```
+
+This is **not** *Office over the specification*: it is the standard's own normative sample data over
+an inference from a cross-reference in the same edition of the same standard. That it also agrees
+with what Excel writes, and with what all three third-party producers in `tests/fixtures/` write, is
+the outcome the fidelity rule wants rather than the argument for it.
+
+**The structural half matters as much as the table.** The writer no longer spells the number: it names
+`ColorSchemeSlot::Dark1` and lets `theme_color_position` supply the position. For as long as the two
+halves each stated the mapping in their own words they could drift, and they did. There is one table
+now and both ends read out of it — which is why MJXOFF-235's five `*_from_theme` constructors needed
+no change at all.
+
+Two gates, each red before this change and each failing for its own reason:
+
+* `crates/mjx-sml/tests/theme_index.rs` **derives** the mapping rather than restating it. It resolves
+  every font colour in ECMA's two preset files against the ground beside it and requires the two to be
+  tellable apart. ECMA's worst pair separates by 39.7 of 255; the sequence reading produces 144 pairs
+  under the floor, the worst of them exactly 0.0. It follows the `References/` convention — a notice
+  and a pass without the tree, a failure under `MJX_REQUIRE_SCHEMA=1` — so CI now fetches Part 1 for
+  its 84 KB styles member and runs `-p mjx-sml` in the schema job.
+* The same suite's **agreement** gate authors a package, reads font 0's colour back out of the
+  `xl/styles.xml` the writer produced, and resolves it against the `xl/theme/theme1.xml` the same
+  writer produced. Nothing in it re-types the number, so a writer and a resolver that disagree cannot
+  both be satisfied. This is the one-line assertion the ticket said did not exist.
+
+`docs/validation/05-workbooks.md` gains `V-XLSX-02.7`, the Excel-side tie-break: the derivation is from
+markup, and the reference implementation is what closes it.
+
+## [0.0.149] - 2026-09-09
+
+Four API defects that were all the same shape: one half of a pair shipped and the other did not.
+
+### The adjustment writer reaches all three languages (MJXOFF-223, H5)
+
+`mjx_ooxml::Deck` had `shape_adjustments` — a reader that answers *what may this handle be set to* —
+and no writer for the same thing. That reader is asked in order to set, so the pair belongs on the
+facade: `Deck::set_shape_adjustments`, `Deck.set_shape_adjustments` and `Deck.setShapeAdjustments`.
+
+The ticket said the format-tier half already existed. It did not on this line —
+`epic/phase-g-geometry` has never been merged into `main` or `epic/phase-h` — so
+`Presentation::set_shape_adjustments` arrives **verbatim** from that branch, byte-identical to its
+state there, rather than as a second implementation that would conflict when the two lines meet.
+
+The WebAssembly argument shape was the substantive design question. A list of `(name, value)` pairs
+cannot cross wasm-bindgen without `serde`, which the shipped `mjx-dml` may not grow derives for, so
+the pairs arrive as **two parallel arrays** — the shape a range already takes when it becomes two
+numbers — and a length mismatch is refused with `InvalidArgument`.
+
+### A theme-following sibling for every colour convenience Excel authors with (MJXOFF-235, H5)
+
+`Color::from_theme` was the only theme-following constructor in the Excel authoring vocabulary, and
+every convenience beside it took a hex literal — so the shortest path pinned a colour into a document
+whose owner may have rebranded it, and the theme-following path cost four lines. That is the standing
+rule *let it inherit* inverted at the API level.
+
+Each of the four now has a sibling — `PatternFillSpec::solid_from_theme`,
+`ColorScaleSpec::two_color_from_theme`, `DataBarSpec::spanning_the_range_from_theme`,
+`DifferentialFormatSpec::highlight_from_theme` — over the primitive underneath them,
+`Color::from_theme_slot`. They take a **`ColorSchemeSlot`**, not a `@theme` position, because `4`
+means `accent1` only to a reader with §20.1.6.2 open. `theme_color_position` is the inverse of the
+existing `theme_color_slot`, and both directions of the pair are asserted rather than left to a
+second copy of the table.
+
+`crates/mjx-ooxml/examples/build_a_workbook.rs` and its two twins now state the heading **fill** as
+`accent1` and keep a literal for the text on it: contrast is a constraint between two colours and a
+slot states one. Following the theme is the default; it does not outrank being readable.
+
+### A new table names a style, and the deck's own theme colours it (MJXOFF-232, H5)
+
+`Presentation::add_table` wrote `firstRow="1" bandRow="1"` and no `a:tableStyleId`. Those flags name
+*parts of a table style to emphasise*, so a table born with them and no style asked for two parts of
+nothing and rendered unstyled. PowerPoint writes both halves.
+
+A style id is always written now, and whose style it is depends on the deck: one whose
+`tableStyles.xml` already names a default it really defines gets **that** id and is not touched at
+all; any other gets a default authored on first use with **not one literal colour in it** — the
+header row is `<a:schemeClr val="accent1"/>` under `lt1` text and the band is `accent1` at
+`lumMod="20000" lumOff="80000"`. A table in a deck branded green comes out green.
+
+**One of the twenty validation artefacts changes**: `v-pptx-03-authored.pptx`, 6478 → 6603 bytes, and
+inside it exactly one part — `ppt/tableStyles.xml` gains the themed style. Its slide is
+byte-identical, and the other nineteen artefacts are unchanged.
+
+`mjx-schema-gate`'s reference resolver grows the rule that sees the class rather than the instance:
+**an `a:tblPr` with an emphasis flag on and no style is an unresolvable deferral**, the twin of the
+chart-series rule and the shape MJXOFF-200 named as invisible.
+
+### A producer for every exported class (MJXOFF-228, H5)
+
+`ResolvedColor` and `TableStyleFlags` were exported by the facade and by both bindings and returned,
+taken and constructed by nothing, so a caller in three languages could name a type and never obtain a
+value. Each now has exactly one producer — `Deck::resolved_scheme_color`, `Deck::table_style_flags` —
+and so does `Backdrop`, via `Deck::shape_backdrop`.
+
+**`Backdrop` was not on the ticket.** `every_exported_class_is_obtainable_from_some_other_call` found
+it, which is the argument for a sweep over two assertions. It asks the type-level form of the
+reachability rule and answers `binding_projection.rs`'s objection — *a signature parser that is
+subtly wrong is worse than none* — by not writing one: the committed, parity-checked `.pyi` is a
+declaration of the whole projected surface, and the gate reads it rather than reconstructing one from
+two hand-written crates.
+
+## [0.0.148] - 2026-09-09
+
+The gate stopped reporting a defect of its own as a defect of everybody's files.
+
+### An extension slot markup-compatibility resolution empties goes with the extension (MJXOFF-196, H4)
+
+`mjx-schema-gate` validates the markup-compatibility-**resolved** view of a part, because
+`mc:Ignorable` names attributes the base schemas have no declaration for. Resolution removes an
+ignorable element together with its content, which is what ECMA-376 Part 3 says. Composed with the
+base schemas it left a hole: `sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their whole
+content model as a bare `<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to **1**, so
+an `<ext>` whose only child was ignorable was rejected — *Missing child element(s)*. That fired on
+every conformant file Office has written since 2010, in all three formats, because Office 2016 writes
+a `c16:uniqueId` extension under `mc:Ignorable` on chart series.
+
+**The shape that was refused.** The ticket's first option was to resolve fully and, on failure, retry
+with the ignorable content kept. That is a try-then-fall-back arrangement: with two views a deviation
+must appear in **both** to be reported, which is a gate that goes quiet, and MJXOFF-88 §7 names the
+signature. Exactly one view is validated now and it is always the same one.
+
+**What ships instead.** The rule is content-dependent and consults the schema.
+`crates/mjx-schema-gate/src/wildcard_slots.rs` derives, from the pinned XSDs, every element whose
+content model is `xsd:any` particles and nothing else and cannot match the empty sequence — a
+*wildcard slot*, an element that exists only to carry one foreign child — and `inspect.rs` drops such
+an element when resolution emptied it. Ignoring the extension without ignoring the slot that held it
+is half a resolution.
+
+The derivation finds **five**: `{…/drawingml/2006/chart}ext`, `{…/spreadsheetml/2006/main}ext`,
+`{…/spreadsheetml/2006/main}Schema`, `{…/spreadsheetml/2006/main}DataBinding` and
+`{…office:office}equationxml`. The ticket named two. `xtask/src/validation/ingest.rs` had found a
+third by hand, with the note *"so that a fix cannot stop at two"* — a derivation is the general form
+of that note, and `every_wildcard_slot_in_the_reference_schemas_is_listed` recomputes the committed
+table from the XSDs on every run with `References/`, so a new schema or a different edition of the
+reference tree reddens rather than passing silently.
+
+**Why not keep the content instead.** Every wildcard that admits an ignorable extension is
+`processContents="lax"`, and no schema for such a namespace is loaded, so a validator handed the
+content accepts it **unread** — which is exactly what the ticket's own middle view measured and
+called "validates". Keeping the content and dropping the slot are validation-equivalent; dropping
+needs one bit of schema knowledge instead of a content-model matcher. `mjx-mce` is untouched: its
+resolution is correct MCE, and it was the gate's *use* of it that was over-broad.
+
+**Three properties keep the rule from quieting anything.** It fires only on the derived table; a
+slot's content model is wildcards and nothing else, so dropping it can never hide a missing *named*
+child; and it fires only when the source element had element children, so an `<ext/>` this library
+authored empty is still a failure.
+
+**The gate.** `xtask/tests/mce_extension_seam.rs` replaces the reproduction that lived in
+`xtask/tests/office_corpus.rs`, which is deleted — it was written against the defect, so its own red
+was the signal the defect was gone. The new suite runs a worksheet **and** a chart series carrying an
+ignorable extension through `assert_authored_deck_is_schema_valid`, which tolerates nothing, and adds
+both discriminations: an author's empty `<ext/>` still fails, and a `w14:` element inside a `w:rPr` —
+the counterexample that ruled out "keep ignorable elements always" — is still removed. CI names the
+suite beside the other two `xtask` suites that need `References/`.
+
+**The residue, named.** The gate says nothing about the markup *inside* an ignorable extension, and
+it never could. Six prose sites carried the old limitation — two more than the ticket listed — and
+each now says that instead: `crates/mjx-chart/docs/guide/fidelity_and_gaps.md`,
+`crates/mjx-xlsx/docs/guide/deliberate_limitations.md`, `docs/validation/06-the-office-pass.md` §5
+and §8, `tests/office-authored/README.md` and `xtask/src/validation/ingest.rs`.
+
+## [0.0.147] - 2026-09-09
+
+Two refusals that had already changed something. One refused too late; the other refused when it
+should not have.
+
+### A cell comment refused by a dialogsheet no longer leaves the comments part behind (MJXOFF-213, H3)
+
+`Workbook::add_cell_comment` aimed at a tab that cannot carry one — the dialogsheet in
+`tests/fixtures/print_and_sheet_kinds.xlsx` — refused correctly and *late*. By the time the refusal
+came, `xl/comments1.xml` had been inserted, `[Content_Types].xml` amended and the sheet's `.rels`
+grown, so a caller who handled the error and saved anyway shipped a comments part for a comment that
+does not exist. The MJXOFF-210 preservation gate found it and carried it in `KNOWN_DEFECTS`.
+
+**What changed.** The tab's kind is checked first, before the first `insert_part` — from the sheet
+list this crate already resolved at open, so the answer costs no parse and does not depend on whether
+the tab happens already to have a VML drawing. The legacy VML drawing is then created before the
+comments part, because it is the half that reads the sheet's markup and so the last step that can
+turn a tab away. This is MJXOFF-210's own shape (*"the theme is written last, after everything that
+can refuse"*), applied to the other half of the same rule.
+
+`KNOWN_DEFECTS` is now **empty**, and the gate compares it against the sweep in both directions, so
+it cannot be quietly refilled. `crates/mjx-xlsx/tests/comments.rs` pins the refusal directly: it
+asserts the premise (the tab really is a dialogsheet, the call really was refused) and then compares
+**every entry** of the container, name and payload, rather than the three the defect happened to
+touch.
+
+### A part that has been edited is present, and it has content (MJXOFF-222, H3)
+
+`Package::part_bytes` answers `None` for two different reasons — the part is absent, or the part is
+dirty — because an `Edited` body has no stored bytes left. Call sites across six crates read that as
+one answer. The visible failure was `Document::from_package` and `Presentation::from_package`
+reporting `MissingDocumentPart` / `MissingPresentationPart` **naming a part that was present and
+correct**, which is exactly the "authored part by part" case both constructors' doc comments
+advertise.
+
+Nothing had caught it because `PartBody::Parsed` still answers `Some`: merely *reading* a part as a
+tree is safe, and only a part someone has mutated trips it.
+
+**What changed.** `mjx-opc` grows the two questions it was missing, each with one meaning:
+
+| The question | The call |
+|---|---|
+| is this part in the package? | `Package::contains_part` |
+| what does this part contain? | `Package::part_payload` |
+| does it still carry the bytes it arrived with? | `Package::part_bytes` |
+
+`part_payload` borrows when the part still holds its bytes — every part of a file nobody has edited,
+so the ordinary path still costs no copy — and serialises the tree when it does not, through the same
+writer `save` uses, so what it hands back is byte for byte what saving would write. The third row is
+a *fidelity* question and its doc comment now says so.
+
+Seven presence probes moved to `contains_part` and forty-six content reads to `part_payload`, across
+`mjx-chart`, `mjx-docx`, `mjx-pptx`, `mjx-xlsx`, `mjx-ooxml` and `mjx-schema-gate` — every site in
+the workspace that asked the storage question while meaning one of the other two. Only one of them
+was proved live by measurement (`Presentation::chart_part_bytes`, which answered `None` for a chart
+the caller had just retitled — a `mjx-ooxml` test comment had been excusing it); the rest are on
+parts nothing currently reaches with `part_tree_mut`, and they were fixed anyway because the fix is
+one call and the next edit that dirties such a part would reopen the defect silently.
+
+**How the sites were counted.** A temporary probe in the `Edited` arm of the package's byte accessor
+recorded a backtrace for every call that met a dirty part, and the whole workspace was run under it
+with `--all-features`, plus the three walkthrough examples and the validation-artefact catalogue.
+Eight hits: one library call site and seven test helpers that ask the storage question on purpose.
+
+**One workaround is not retired here, because it is on another branch.** The reference pack
+MJXOFF-207 added — the child that reported this defect — saves and reopens the package instead of
+calling `from_package`, and says in its own doc comment why. Its crate is not in this tree; the extra
+round trip can go when the branches meet, which is MJXOFF-240.
+
+### Breaking
+
+Twelve accessors that hand over a preserved part's bytes now answer `Option<Cow<'_, [u8]>>` rather
+than `Option<&[u8]>` — `chart_part_bytes` on all three formats, and `mjx-pptx`'s
+`picture_image_bytes`, `ole_object_part_bytes`, `ole_snapshot_image_bytes`, `activex_part_bytes`,
+`activex_state_bytes`, `activex_snapshot_image_bytes`, `vml_part_bytes`, `ink_part_bytes` and
+`diagram_part_bytes` — plus `mjx_docx::Document::alt_chunk_payload`, which answers
+`(Cow<'_, [u8]>, &str)`. The borrow is still a borrow whenever the part is not dirty; `.as_deref()`
+recovers the old comparison. **The facade and both bindings are unchanged**: `mjx_ooxml` already
+copied into a `Vec<u8>` at that boundary.
+
+## [0.0.146] - 2026-09-08
+
+### Removing a slide another slide links to no longer leaves a file that can never be saved (MJXOFF-212, H2)
+
+`Presentation::remove_slide` — and `Deck::remove_slide` with it — unwired the slide from
+`p:sldIdLst`, dropped the presentation's relationship to it and deleted the part, and left every
+*other* part's reference to that slide exactly where it was. On `tests/fixtures/hyperlinks.pptx`,
+where slide 0's rectangle jumps to slide 1:
+
+```rust
+deck.remove_slide(1)?;   // succeeded
+deck.save();             // Err(RelationshipTargetMissing { … "/ppt/slides/slide2.xml" })
+```
+
+`Package::validate` — which `save` runs — refuses a relationship whose internal target is not in the
+package, so **the edit succeeded and the document could never be written back**. Found by the
+MJXOFF-210 preservation gate on its first sweep, and registered in its `KNOWN_DEFECTS` until now.
+
+**What changed.** A slide is named from three places, and all three now go with it: the `p:sldId`
+that lists it (as before), an `a:hlinkClick` / `a:hlinkHover` on a run or on a shape's `p:cNvPr` in
+any part, and a custom show's `p:custShowLst > p:custShow > p:sldLst > p:sld`. Each is a
+relationship **plus** the element naming it, and both are removed — the element first, then the
+relationship.
+
+**The decision, and the two options rejected.** Dropping only the relationship and leaving the
+markup is not a fix at all: it trades `RelationshipTargetMissing` for
+`UndeclaredRelationshipReference`, still unwritable, and on a part this library never authored it
+would slip past `validate` altogether and hand PowerPoint a file to repair. Retargeting the link at
+whichever slide takes the removed one's place would put a destination the caller never chose in
+place of the one they deleted — the inverse of the standing rule that a default is supplied only in
+the absence of the user's own. Refusing the removal while another slide links to it damages nothing,
+but it makes a slide undeletable, and a deck can be *made* undeletable by adding a link to it. So a
+run that used to be a link **keeps its text and loses its link**, which is what PowerPoint does, and
+a custom show loses its entry while the show itself stays.
+
+**The rule is keyed on the reference, not on a list of element names.** Any element naming a
+relationship that resolved to the removed slide is removed, so markup outside the schema — a vendor
+extension, an `mc:AlternateContent` alternative — cannot quietly leave behind a reference `validate`
+would refuse. The sweep runs after the cascade, over parts that survive, and reads a part before it
+writes one: a part that holds a relationship it never names in markup keeps its original bytes.
+
+**A referring slide is rewritten**, and stops being re-emitted byte for byte. That is the price, it
+is stated on the method, in the facade, in both bindings and in the pptx guide, and it is bounded —
+only the parts that actually named the removed slide are touched. The preservation gate's
+declaration for `remove_slide` says so: `changed(SLIDE, Any)` and `changed(RELATIONSHIPS, Any)`, with
+the presentation part still pinned at exactly one so the wildcard cannot hide a sweep over the deck.
+
+**And the bound now has a test, which it did not when this was first written.** The sweep visits
+every part holding a relationship to the removed slide, and a part can hold one it names nowhere in
+markup — an unreferenced relationship is valid OOXML, and `remove_shape` leaves them behind on
+purpose. Such a part is read and not rewritten. That was documented, exercised on every removal, and
+guarded by nothing: forcing a rewrite of every visited part left `mjx-pptx` and the preservation gate
+entirely green.
+
+Two things had to be understood to close it. The first is that the case, though it fires on every
+single removal, only ever fired on `presentation.xml` — which `remove_sld_id` has dirtied an instant
+earlier, so the guard had no observable effect anywhere any test reached. The second is that
+**byte equality cannot express the property at all**: the fidelity serializer reproduces an unmutated
+tree byte for byte, so "kept its original bytes" and "re-serialized without changing anything" are
+the same bytes. What differs is *provenance*, and provenance decides **scope** — `validate` walks the
+parts this library authored and spares the ones it did not. So the assertion that bites is a
+user-visible one: a deck carrying something it *arrived* with that this library would refuse to
+author (two shapes sharing a `p:cNvPr@id`) opens, saves, has a slide removed, and **still saves**.
+Dirty the untouched slide and it stops saving, faulted for markup nobody asked us to touch.
+
+### `validate`'s markup-reference check is narrower than its name (MJXOFF-238)
+
+Recorded, not fixed here. `Package::validate`'s content-type and relationship checks are
+package-wide, but `check_relationship_references` — the one that catches markup naming a relationship
+nothing declares — walks `authored_xml_parts()` alone, and so does `mjx-pptx`'s `validate::check`.
+The scoping is deliberate and mostly right: a deck opened and left alone must never be faulted for
+what it arrived with, and the bound above depends on exactly that rule.
+
+It answers *"was this markup ours?"*, though, and not *"did our edit break this markup?"* — and those
+come apart for one shape: an edit that changes a part's **relationships** without touching its
+**body**, because a `.rels` edit does not mark its owning part authored. No shipped method does that
+today (this one rewrites the part in the same breath; `remove_hyperlink_rel_if_unreferenced` reads
+the markup first), but `Package::remove_relationship` is public and the next such edit would reopen
+it. It is why the rejected "drop the relationship, keep the markup" option was worse than MJXOFF-212
+itself said: on the referring slide of a real file it would not have been reported at all.
+
+### The same defect does not exist elsewhere, and one nearby gap is now ticketed
+
+MJXOFF-212 asked whether the shape generalises to the other `remove_*` methods. It does not, and the
+reason is structural rather than lucky: **every other part-deleting edit either unwires the inbound
+relationship before deleting, or refuses to delete a part anything still references.**
+`Package::remove_part_if_unreferenced` is what `mjx-docx` uses and cannot dangle by construction;
+`mjx-xlsx`'s two direct `remove_part` calls remove the sheet's relationships first (comments) or
+guard on `is_reachable` (a chart's embedded workbook); `clear_notes` is safe for a different reason
+again, in that nothing but its own slide ever names a notes slide. `remove_shape` leaves
+relationships alone on purpose, and that stays correct: an *unreferenced* relationship is valid
+OOXML, and only a *dangling* one is not.
+
+One nearby gap is now **MJXOFF-237**, recorded rather than fixed. PowerPoint's sections live in
+`presentation.xml`'s `extLst` and list slides by the slide's **id number, not by `r:id`**, so they
+are not relationship references, this sweep does not see them, and a section keeps an entry for a
+slide that has gone. That cannot make a package invalid and `validate` is right not to complain. The
+markup is a Microsoft extension outside ECMA-376 — it is not in `References/`, and no committed
+fixture carries one — so the ticket's first task is to confirm it against a file Office wrote rather
+than to change anything.
+
+## [0.0.145] - 2026-09-08
+
+### Run coalescing stops merging two runs a resolved colour cannot tell apart (MJXOFF-233, H1)
+
+0.0.144 documented this as a live defect. It is now fixed, and the pptx guide's **Known defects**
+table is empty.
+
+`Presentation::coalesce_paragraph_runs` merged two adjacent runs when their *effective* character
+properties compared equal. Effective means **resolved**, and resolution loses information in two
+directions, so "equal" was not the same as "the same":
+
+- **A transparency disappeared.** `resolve_fill` bakes a colour to `RRGGBB` and says in its own doc
+  comment that a resolved `a:alpha` is not represented. Two runs differing only by an `a:alpha`
+  compared equal and **one run's element was deleted**, taking its transparency with it.
+- **A theme link became a literal.** An `a:schemeClr` and the `a:srgbClr` it resolves to against the
+  deck's theme compared equal, so a merge could leave a hard-coded colour where a theme link had
+  been — the exact inverse of the standing rule that where OOXML lets a value inherit, it must
+  inherit. Which of the two survived was positional: `coalesce_adjacent_runs` merges the later run
+  into the earlier.
+- **The same held for fonts, which the ticket did not name.** `Presentation::resolve_theme_fonts`
+  replaces a `+mj-lt` / `+mn-lt` typeface with the font the theme's scheme names for it, so a run
+  that follows the theme and a run that hard-codes today's answer were indistinguishable once
+  resolved. Fixed with the same condition.
+
+`unmodeled_state_eq` caught none of it: `a:solidFill` and `a:latin` are modelled, so they are
+filtered out of the residual it compares and both runs' residuals were empty.
+
+**The fix narrows the merge rather than changing what resolution answers.** A third condition now
+holds before two runs join: their own, *unresolved* colours and typefaces must agree, via a new
+`mjx_dml::CharacterPropertiesSpec::resolution_sensitive_eq`. It lives in `mjx-dml` because that crate
+owns both the spec and the resolver, so the knowledge of what resolution discards sits beside the
+code that discards it; `mjx-pptx` consumes it downward. The ticket's other candidate — teaching
+`resolve_fill` to carry the alpha, now representable via 0.0.143's `ColorSpec::Transformed` — was
+rejected: it changes what every `effective_*` reader answers across three formats, the facade, both
+bindings and three `effective_properties.md` pages, and it does not address the theme-link half at
+all. Among candidate fixes, the one that cannot break a caller already working wins, and a condition
+that can only ever *refuse* a merge cannot.
+
+**What it costs, stated in the method's docs, the facade's, and the guide:** a run that names a
+colour or a typeface **explicitly** no longer merges with a neighbour that **inherits** the same one.
+Every other property still compares as meaning rather than as markup — a run stating `b="1"` still
+merges with a neighbour that inherits bold — and the method's own purpose, undoing
+`set_text_range_properties`' splitting, is untouched, because those runs all carry identical explicit
+properties. The comparison is confined to the seven resolution-sensitive fields and skips the ten
+resolution copies verbatim; it is written as a full destructuring with no `..`, so a property added
+to `CharacterPropertiesSpec` fails to compile there until someone has classified it.
+
+**Both methods leave the preservation gate's `NEVER_EXERCISED` register.** The register said a
+*fixture* holding two adjacent runs would retire them. It did not need one — the preparation makes
+the state, in two edits whose order is the point: formatting the first character alone splits the
+paragraph's opening run in two, and restyling the shape then gives the halves identical `a:rPr`.
+The old preparation only restyled, which is why it left one run per paragraph and nothing to merge.
+
+`mjx-docx` was checked and has no run coalescing at all — nothing there merges runs, and nothing else
+in the workspace compares resolved character properties for equality.
+
+## [0.0.144] - 2026-09-08
+
+### The landing: one entry point, and Phase G's register closed (MJXOFF-230, G13)
+
+**Ten guide sets were written in this phase and a person arriving at this repository still landed on
+a `README.md` that predated all of them.** Its "Guides" section listed the PowerPoint, Word and Excel
+pages one by one and named none of the other seven sets — not the facade's, not the packaging tier's,
+not DrawingML's, SpreadsheetML's, the upper markup's, the generated vocabulary's or the bindings'.
+This is the difference between *documentation exists* and *documentation is found*.
+
+- **`README.md` reaches every guide set in one hop**, one row per set linking that set's own index,
+  with `docs/api/README.md` named at the top as the one link that reaches everything. The
+  page-by-page tables are gone: they duplicated the index, and the duplicate is where the rot was.
+- **`PLAN.md` says what shipped.** Phases 4, 5 and 6 are marked done and a new section at the head of
+  the phase list says plainly that the list is now a record of how the library was built — naming the
+  two things that are *not* done, the human Office pass and rendering.
+- **Every crate root sends a reader somewhere.** Eleven of the twenty-one members said nothing about
+  where their prose lives, including `mjx-opc`, which *hosts* the packaging tier's whole guide set. A
+  crate with a guide now links it; the seven without one name the page that covers them, as a path
+  rather than an intra-doc link, because nothing may point upward.
+
+### A count on an entry-point document is derived, or it is absent
+
+`xtask/tests/entry_points.rs`, seven checks. **A landing page is where counts go to die** — the
+most-read and least-tested document in a repository, and exactly where a figure is typed once and
+quoted for a year. What the derivations found:
+
+| Claim | Was | Is |
+|---|---|---|
+| Runnable programs on the front page | twenty-six, listing twenty-five commands | **28**, and the list omitted `mjx-ooxml`'s `build_a_workbook`, `mjx-xlsx`'s `chart_range_cost` and `mjx-xml`'s `mjx248_measure` |
+| Excel guide pages (`PLAN.md`) | thirteen | **17** beside their index |
+| Excel examples (`PLAN.md`) | six | **7** |
+| Generated lines in `mjx-ooxml-types` | 84,107 | **84,128** |
+| That crate's own lines | 85,296 | **85,399** |
+| The child-order table | 59,512 | **59,529** |
+| Value classes (`docs/api/README.md`) | 185, where the guide it indexes said 186 | **181** |
+| Enumerations (`docs/api/README.md`) | 100 | **102** |
+| Enumerations (`test_enums.py`'s docstring) | seventy-four | **removed** — its own `MEMBER_COUNTS` pins 61 and the module projects 104, so the number matched neither |
+
+The three `mjx-ooxml-types` figures were wrong *when they were written* and had been copied into
+seven documents by the time anyone counted; no measure reproduces them, and the three deltas differ
+from each other, so they were not one alternative definition either. The value-class figure is the
+more interesting one: the guide's own sentence explains it — "beside the handles sit 186 value
+classes" is what you get by subtracting the enumerations and the exceptions from the class total
+*without* also subtracting the three handles and `Format`/`FormatFamily`.
+
+The sweep is what stops the next one. A number of five or more anywhere in `README.md`, `PLAN.md` or
+`docs/api/README.md` must lie inside a claim's sentence or inside a `NOT_A_COUNT` entry with its
+reason, and the exemption table cannot rot. Five is the line because **every count this phase found
+stale was at or above it**, and sweeping below five would need an exemption beside every "the two
+bindings" in the repository — a table of fifty exemptions is where a reviewer stops reading, which is
+the failure the file is about.
+
+### Known defect: run coalescing compares a resolved colour (MJXOFF-233)
+
+MJXOFF-219 found `theme_model.rs` asserting a colour loss as expected behaviour. The same loss has a
+second consumer, and this one **deletes content**. `coalesce_paragraph_runs` merges two adjacent runs
+whose *effective* properties compare equal; effective means resolved, and `resolve_fill` says in its
+own doc comment that a resolved `a:alpha` is not represented in the result. So two runs differing
+only by transparency compare equal and one is deleted — and so do a run carrying `a:schemeClr` and a
+run carrying the literal that scheme resolves to, which can leave a hard-coded colour where a theme
+link was. `unmodeled_state_eq` does not save either: `a:solidFill` is modelled, so both residuals are
+empty. Both methods sit in the preservation gate's `NEVER_EXERCISED` register, so nothing was going
+to find this by running.
+
+Documented on both methods, on both facade counterparts, in the guide beside the sentence that
+recommends the call, and in a new **Known defects** table at the head of the pptx fidelity page —
+which until now opened by saying that nothing on it was an oversight. Fixing it changes either a
+documented promise or the public output of every `effective_*` call across three formats and both
+bindings, so it is MJXOFF-233 rather than a change made in a documentation unit.
+
+### MJXOFF-198 §6 is closed
+
+Every item fixed, ticketed, or recorded as deliberate with its reason; the closing register is a
+comment on that epic. Newly ticketed here: **MJXOFF-232** (F4 — `add_table` writes `firstRow` and
+`bandRow` into a deck with no table style for them to resolve against, which is MJXOFF-200's shape
+with the half a resolution gate cannot see), **MJXOFF-233** above, and **MJXOFF-234** (nothing
+compares the `.pyi`'s docstrings against the Rust docs they restate — symbols are compared in both
+directions, the sentences beside them are not).
+
+## [0.0.143] - 2026-09-08
+
+### A colour-transform surface on `ColorSpec` (MJXOFF-219, G14)
+
+**`V-PPTX-02.4` is R3 — the third-highest risk item in this repository — and it was the only entry in
+the human Office pass with no artefact at all.** Not because nobody had written one, but because
+nobody *could*: `ColorSpec` is the interner-free description every authoring caller hands in, from
+`Color::from_spec` up through `FillSpec::solid`, `CharacterPropertiesSpec::with_color` and every
+facade call above them, and it carried a colour's kind and its value and **no transform children**.
+Both directions of the corpus were closed at once — nothing could generate a file with a colour
+transform in it, and no committed fixture has one either.
+
+The measurement that set the scope, taken across every committed `.pptx`/`.docx`/`.xlsx` before the
+decision:
+
+| `a:tint` | `a:satMod` | `a:shade` | `a:alpha` | `a:comp` | `a:gray` | `a:gamma` | `a:invGamma` |
+|---|---|---|---|---|---|---|---|
+| 35 | 23 | 13 | 7 | 0 | 0 | 0 | 0 |
+
+`V-PPTX-02.4` names the four that occur **zero** times; `tint`/`satMod`/`shade` are what Office
+writes constantly for theme-colour variants. Scoping this to the risk item alone would have shipped
+a surface nothing exercises while leaving the common cases unauthorable — so the scope is the whole
+of `EG_ColorTransform`, all twenty-eight members. (And all thirty-five occurrences sit in a
+`theme1.xml`, a `slideMaster` or a `slideLayout`. **Not one is on a slide**, because every fixture
+here was written by this project or by LibreOffice rather than by Office.)
+
+- **`mjx_dml::ColorTransform`** — the twenty-eight members with their values, plus an `Other` bucket
+  for an element the group does not name, or one it does whose `@val` is absent or unparseable, so a
+  transform this model cannot read still round-trips rather than being deleted.
+  **`mjx_dml::ColorTransformKind`** names the same twenty-nine without their values, and
+  **`ColorTransformValue`** says what each carries; that is the shape `ColorKind`/`ColorSpec` already
+  had one layer up, and it is what lets both bindings project the group as an *enumeration* their own
+  suites check member by member.
+- **Builders on `ColorSpec`** — one generic `with_transform`, plus six named conveniences for the
+  four transforms that occur in the corpus and the `lumMod`/`lumOff` pair PowerPoint writes for every
+  *"Accent 1, Lighter 40 %"*. **Every builder appends.** Order is part of the markup: the group is an
+  unbounded `xsd:choice` applied left to right, so the same transforms in another order are another
+  colour, and a builder that merged into a set would quietly write a different file.
+- **The read side closes with it.** `Color::spec()` used to drop transform children, so a
+  `spec()` → `from_spec()` round trip lost a producer's. It no longer does. An audit of every shipped
+  `.spec(` and `from_spec` call site found the loss was **latent**: every mutating API in the
+  workspace replaces a colour from the caller's own spec rather than reading one back, so no shipped
+  path performed that round trip on an opened file. The preservation gate would not have caught it
+  either — it is part-granular, its arguments are fresh literals, and no fixture carries a transform
+  on an editable surface.
+- **`xtask`'s validation catalogue gains the artefact.** `v-pptx-02-authored.pptx` grows two rows of
+  swatches: the four transforms `V-PPTX-02.4` names plus `a:inv` over a fixed `4472C4`, and
+  `tint`/`shade`/`satMod`/`lumMod`+`lumOff`/`alpha` over the theme's accent 1, each row led by an
+  untransformed baseline. Both bindings write the same twelve swatches, and the three artefacts are
+  still compared part by part, byte for byte.
+
+`crates/mjx-dml/src/resolve.rs`'s caveat stands and is meant to: `comp`/`gray`/`gamma`/`invGamma`
+follow *a documented interpretation* and are **not** guaranteed pixel-identical to Office, unlike
+`lumMod`/`shade`/`tint`/`alpha`. Being able to author one is not evidence that resolving it is right
+— it is what finally gives the person with PowerPoint open something to point the eyedropper at.
+
+## [0.0.142] - 2026-09-08
+
+### The projection across three languages, audited then documented (MJXOFF-226, G12)
+
+**Each of the three walkthroughs exists in Rust, Python and TypeScript, and every one compares its
+output part by part, byte for byte.** That proves the projection is *wired*. It does not prove it is
+right *across the surface*, and the difference is the whole of this release:
+
+> Our gates reliably ask whether a value **reaches** somebody; they do not ask **at how many
+> distinct points** the surface was ever exercised.
+
+`xtask/tests/binding_projection.rs` asks. **966 of 1,619 declared Python members (59.7%) and 900 of
+1,743 exported WebAssembly functions (51.6%) are named by any test at all**; the rest — 653 and 843
+— are exercised by nothing. The walkthrough framing turns out to be the smaller half of the story:
+only 18 Python members and 33 WebAssembly ones are reached by a walkthrough *and nothing else*. The
+three parity pairs do almost all of the work.
+
+Both totals are asserted **exactly** rather than as floors, so a method added without a test fails
+the build with its own name in the message. The same file holds all 1,743 exported functions to the
+camelCase rule, with a ledger of the seven names JavaScript itself forces (`toString`).
+
+### Fixed
+
+- **`CellFormatSpec` had three shapes in three languages, and the WebAssembly one could not say what
+  the format says.** Rust carries twelve public `x:xf` attributes; Python declared four readable
+  ones against twelve constructor keywords, and TypeScript had four getters, six builders, and no
+  way to reach `@applyAlignment` or `@applyProtection` at all. §18.8.9 makes the six `apply*` flags
+  three-valued — absent *participates*, `"0"` *suppresses* — and the four builders that existed
+  could only ever write `"1"`. **All twelve attributes are now readable in both bindings and
+  writable in both**, through eight new Python getters and, in TypeScript, eight getters and six
+  `withApplies…` builders taking `boolean | undefined`. Purely additive: no existing call changes.
+- **Six doc comments said Word and Excel were "detected, not yet editable".** Both surfaces have
+  existed since MJXOFF-139 and MJXOFF-137, and `Format::is_editable` returns true for every format
+  except `WorkbookBinary`. Three sites in each binding, plus a *seventh* variant of the same claim
+  in the committed `.pyi` that disagreed with the Rust comment it is generated from — which is how
+  it survived: `bindings/mjx-python/tests/test_stub_parity.py` compares names, and checks only that
+  a docstring exists.
+- **Both binding READMEs claimed 257 `Deck` methods.** It is 255, and it is 255 in both languages.
+
+### Documented
+
+- **A guide set for the bindings**, six pages, reachable from `docs/api/README.md`: an index, then
+  Installing, The mapping rules, What is not projected and How much is exercised under
+  `bindings/mjx-python/docs/guide/`, and The TypeScript surface under `bindings/mjx-wasm/docs/guide/`
+  — hosted by the crate it is about, because the two bindings are siblings and neither may see the
+  other. `mjx_python::guide` and `mjx_wasm::guide` wire them into rustdoc.
+- **The three surfaces are method-for-method identical across the two languages**: 255 on `Deck`,
+  123 on `Document`, 138 on `Workbook`, read off the committed `.pyi` and the generated `.d.ts`
+  rather than off either binding's source. So are the 185 value classes and the 100 enumerations.
+  Only three exported names differ, and each is forced: Python's eleven `OoxmlError` subclasses,
+  TypeScript's `CellExtent` and `CellAddress`.
+
+### Recorded, not fixed
+
+- **`ResolvedColor` and `TableStyleFlags` are dead exports in all three languages.** Both are
+  re-exported by `crates/mjx-ooxml/src/lib.rs` and projected by both bindings, and no facade method
+  returns, takes or constructs either. `xtask/tests/facade_curation.rs` cannot see it: that ledger
+  is about methods, and a type with no producer is a shape it was never asked to look for.
+- **`blank_with_properties` reaches neither binding**, so no Python or TypeScript caller can set a
+  document's title or author. A Rust caller who reaches past the facade still can.
+- **The six `(u32, u32)` returns** — `table_dimensions`, `cell_span`, `merged_cell_anchor` on `Deck`
+  and `Document` — and **the twenty-five chart methods spelling `series_idx` where their `Workbook`
+  siblings say `series`**. Both are renames in three languages at once.
+
+## [0.0.141] - 2026-09-08
+
+### The crate nothing re-derived, audited then documented (MJXOFF-224, G11)
+
+**`mjx-ooxml-types` is 85,296 lines of which 84,107 are generated, and until this release nothing
+anywhere asked whether the committed output was still what the generator would produce.**
+`CLAUDE.md` decides that generated source is committed rather than built by a `build.rs`, and that
+decision is right — a `build.rs` would put a 5,000-page specification and a `rustfmt` run of 84,107
+lines on every consumer's critical path. Its consequence had never been written down:
+
+> Nothing re-derived the committed output, so a generator defect was frozen into the repository
+> rather than failing on the next build — and the committed file is the only artefact anyone reads,
+> which makes a defect indistinguishable from a deliberate choice.
+
+The compiler catches the structural half of that and no more. Rename a generated enum by hand and
+the crate stops compiling; change a wire token, a rank in a child-order table, a doc comment
+recording an `ST_*` symbol or a row of `COVERAGE.md`, and nothing notices. Those are precisely the
+parts a reader trusts and no build touches.
+
+**The answer to the question, asked for the first time: the committed output is exactly what the
+generator produces.** All thirteen artefacts, 2,626,921 bytes, byte for byte.
+
+### Added
+
+- **`xtask/tests/codegen_drift.rs`** — six tests in two tiers, because only one of them can run
+  everywhere.
+
+  `the_committed_output_is_what_the_generator_produces_today` regenerates every artefact in memory
+  and compares it byte for byte with what is committed. It is the whole answer, and it is
+  local-or-gated: it **skips** when `References/` is incomplete, and `MJX_REQUIRE_CODEGEN=1` turns
+  that absence into a failure. **No workflow can set it today**, and the obstacle is not a missing
+  switch: `.github/scripts/fetch-ecma-schemas.sh`'s `ARCHIVES` holds ECMA-376 Part 4 (Transitional
+  schemas) and Part 2 (OPC schemas), and this generator needs **Part 1** for two of its three inputs
+  — the Strict schema set and `presetShapeDefinitions.xml`. Growing that list is MJXOFF-197's, which
+  owns the same download for `crates/mjx-dml/tests/guide_formula.rs`'s preset-geometry sweep; one
+  archive unlocks both.
+
+  The five beside it re-derive everything in the committed output that needs **no schema at all**,
+  and run on every push: the module set and its visibilities against `SIMPLE_TYPE_MODULES`; the
+  file set and the `@generated` banner on each; `COVERAGE.md`'s nine simple-type counts against the
+  committed module files and its child-order rows against `CHILD_ORDER_SCHEMAS`; and the two
+  hand-written curation lists (`src/drawingml.rs`, `src/presentationml.rs`) against the generated
+  items they re-export, in both directions — nothing failed before when the generator emitted an
+  item that never reached them.
+
+  Every one was made to fail with a **reachable** mutation, and the first attempt was not: renaming
+  a generated enum broke the build instead, which proves the compiler catches that case and not
+  this one. The mutation that does prove it is a one-word edit to a doc comment.
+- **`cargo run -p xtask -- codegen --check`** — the same comparison as a command. `codegen::run` and
+  `codegen::check` are now two consumers of one `codegen::artefacts`, which renders every artefact
+  without writing anything. `codegen` moved into `xtask`'s library target for the same reason
+  `validation` did: an integration test cannot see a binary's modules, and this suite is written
+  against the generator's tables rather than a text rendering of them.
+- **A liveness check on `UNCOVERED_SCHEMAS`, closing MJXOFF-88 §9 B10.** That table writes prose
+  straight into `COVERAGE.md`, a shipped document, and the only things checked about a row were that
+  its stem exists and that no stem appears twice — nothing failed when a row's claim stopped being
+  true. `check_uncovered_schemas_are_live` enforces the rule the table's own doc comment already
+  stated and nothing tested: a schema covered in both tables has no row, a note is written only for
+  the column that needs one, and a live note never opens with `generated`. It found **three dead
+  rows** (`pml`, `wml`, `dml-main`, all covered in both tables since Phases C and D) and **one dead
+  note** — `dml-chart`'s child-order note said `generated — every complex type` about a column
+  computed elsewhere, and would have been printed verbatim into `COVERAGE.md` the moment `dml-chart`
+  left `CHILD_ORDER_SCHEMAS`. `COVERAGE.md` is byte-identical after the removals, which is what a
+  dead row means.
+- **`ALL_TABLES` in the generated child-order module**, and with it the end of a structurally blind
+  sweep. The four suites in `crates/mjx-ooxml-types/src/child_order.rs` that check rank order, the
+  unordered-type safety property and the content-model census each opened with a literal
+  `[&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]]`, written when those were the only
+  three tables. Six schemas joined afterwards and none joined that list, so **819 of the 1,335
+  complex types went unchecked while every test stayed green** — including
+  `no_unordered_type_is_given_a_false_order`, whose own comment says a table that ranked a choice's
+  branches would *"fault conforming markup"*. The census's message said *no `xsd:all`*, which was
+  true of its three tables and false of the corpus: `CT_DocPartPr` in `wml.xsd` is one. The roster
+  is generated, so the next schema to join `CHILD_ORDER_SCHEMAS` joins the sweep with it, and the
+  census is now **806 sequences, 58 choices, one `xsd:all`, 470 empty**. The safety property holds
+  across all 1,335 — the exposure was real, the outcome is clean.
+
+  **The wider class is MJXOFF-225, filed rather than absorbed here**: other tests that sweep a
+  hand-written list of a population a generator produces more of. This unit closed the one instance
+  it stood on and did not become a coverage programme.
+- **A gate on the naming convention's audit trail.**
+  `every_curated_enumeration_cites_the_spec_section_its_names_came_from` requires each of the 110
+  enumerations whose variant names are curated to have at least one row sitting under a comment
+  naming the ECMA-376 section the names were read out of. `CLAUDE.md` requires a name that is not
+  inferable from its token to be *sourced from the prose, never guessed*, and a name with no
+  citation is indistinguishable from a guess. Six enumerations had none.
+- **Six guide pages** under `crates/mjx-ooxml-types/docs/guide/`, reachable from
+  `docs/api/README.md`, plus `mjx_ooxml_types::guide`.
+
+### Fixed
+
+- **The adjustment-bound closure is 334 guides, not 335.** `xtask/src/codegen/geometry.rs`'s header
+  had said 335 since it was written, and the figure was repeated into a ticket from there. The size
+  is now **derived into the generated table's own doc comment** rather than restated in a header
+  that cannot fail. The file's own total, 3,923, was right, and
+  `crates/mjx-dml/tests/guide_formula.rs` asserts it by walking the addendum.
+- **Six wrong ECMA-376 section citations in the DrawingML naming block**, found by checking every
+  `§` in `xtask/src/codegen/spec.rs` against the section titles of ECMA-376 Part 1:
+  `ST_PenAlignment` §20.1.10.40→.39, `ST_PresetLineDashVal` §20.1.10.48→.49, `ST_PresetShadowVal`
+  §20.1.10.50→.52, `ST_TextHorzOverflowType` §20.1.10.62→.69, `ST_LightRigDirection`
+  §20.1.10.31→.29, `ST_LightRigType` §20.1.10.32→.30. Every citation outside that block checked out;
+  the seven apparent SmartArt mismatches were an artefact of the audit script reading multi-citation
+  lines, not defects.
+- **`ST_PresetShadowVal`'s justification was factually wrong.** The comment beside `Shadow1` …
+  `Shadow20` said the tokens have *"no semantic name"*; §20.1.10.52 names all twenty (`shdw1` is
+  *Top Left Drop Shadow*, `shdw11` *Back Left Long Perspective Shadow*). The names are unchanged —
+  renaming twenty generated variants is an API break — and the divergence is now recorded where a
+  reader meets it.
+
+### Recorded, not fixed
+
+- **`ST_SchemeColorVal`'s `phClr` is `PlaceholderColor`; §20.1.10.54 titles it *Style Color*** and
+  describes it as *"a color used in theme definitions which means to use the color of the style"*.
+  `PlaceholderColor` reads the `ph` as *placeholder*, which is a guess the section does not support.
+  An audit of all 743 variant overrides against the Part 1 prose found no third divergence that is
+  not either deliberate and documented (`MYD`, `axisPage` — where the published friendly-name column
+  is itself wrong) or a plain expansion of the published name.
+- Both of the above, and the four things nothing here checks at all, are in
+  `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md`.
+
+## [0.0.140] - 2026-09-08
+
+### The upper shared markup, audited then documented (MJXOFF-221, G10)
+
+**Three crates, one rank, one guide set — and a content-type predicate that had been re-making
+MJXOFF-114's defect one crate further up.** `mjx-chart`, `mjx-omml` and `mjx-vml` are the whole of
+layering rank 2.2: the markup that sits *on top of* DrawingML and SpreadsheetML rather than beside
+it. None of them had a guide, and the audit that preceded one found two live instances of this
+project's signature failure — a guard written as a string literal that quietly matches nothing.
+
+### Fixed
+
+- **`mjx_vml::is_vml_content_type` now folds case and trims media-type parameters.** It was
+  `content_type == CONTENT_TYPE_VML` — an exact comparison against Office's own capitalisation —
+  while ECMA-376 Part 2 §10.1.2.3 compares a media type case-insensitively. This is MJXOFF-114's
+  defect one crate up: there, `mjx-opc`'s exception list of suffix-less XML content types carried
+  `…vmlDrawing` in Office's spelling while `is_xml_content_type` folded its argument, so the entry
+  matched nothing and every authored `.vml` part sat outside `Package::validate` from the day the
+  list was written. That fix folded `mjx-opc` and not this, so the two halves have disagreed since:
+  a lower-cased spelling counted as XML down there and as *not VML* up here. On a file this library
+  never wrote, `Presentation::vml_part_names` enumerated nothing, and `check_is_vml` and
+  `read_vml_document` refused a part that is a VML drawing with `PartIsNotVmlDrawing`.
+- **`mjx-schema-gate` had two copies of `is_xml_content_type`**, in `inspect.rs` and `order.rs`, and
+  both matched `ends_with("vmlDrawing")` case-sensitively. That predicate decides whether the gate
+  looks at a part *at all*, so an unrecognised spelling is a part nobody validates and a gate that
+  stays green — MJXOFF-88 §7's shape reached through a string literal rather than a missing table
+  row. `order.rs` now calls the one rule instead of restating it, and the rule folds.
+
+Both fixes have unit tests that fail against the old bodies.
+
+### Added
+
+- **`xtask/tests/upper_markup_ledger.rs`** — MJXOFF-218's third and last instalment, and the
+  question is neither of the two already answered. `mjx-dml`'s ledger asks what eight hand-written
+  `FromXml`/`ToXml` pairs lose; `mjx-sml`'s found that did not transfer and followed the risk into
+  the rebuilder behind a delegation. Here the reason is arithmetic: **the three crates hold zero
+  hand-written impls and zero rebuilders between them.** All **62 element declarations** reach XML
+  through one of two generic mechanisms — `#[derive(FromXml, ToXml)]`, or the crate's own
+  `fidelity_*!` macro, one body each. So there is no body to audit, and the live risk is *which
+  mechanism a type is on*: nothing before this file would have noticed a type going on neither,
+  which is the hole `mjx_dml::Picture::to_xml` came through (MJXOFF-216).
+
+  Five checks, and the fifth earned its place. A zero cannot carry an anti-vacuity floor, so **the
+  impl scanner is calibrated against `mjx-dml` (13) and `mjx-sml` (64)**. With the scanner
+  deliberately mistyped, the rank-2.2 check still reported *0 hand-written impls, 0 on the ledger*
+  and passed; only the calibration noticed. Every arm was made to fail with a reachable mutation and
+  the register is in the file header.
+
+  One file for three crates, hosted by `xtask`: unlike `mjx-dml` and `mjx-sml`, whose idioms differ
+  per crate, the expensive half here is shared, and `xtask` is where every cross-crate structural
+  gate already lives and is outside the layering graph.
+- **Eight guide pages**, reachable from `docs/api/README.md`: six under
+  `crates/mjx-chart/docs/guide/`, plus `crates/mjx-omml/docs/office_math.md` and
+  `crates/mjx-vml/docs/legacy_vml.md`, hosted by their own crates because a same-rank crate cannot be
+  depended on and so cannot be linked into — the same reason `mjx_opc::guide`'s MCE page lives in
+  `mjx-mce`. They give `doc_gate` 35 path mentions and 51 crate-qualified symbol references, and
+  carry five compiled doctests.
+
+  The through-line is more specific than the rank table: **only `mjx-chart` uses the height.** It
+  reaches `mjx-sml` (2.1) for the workbook a chart embeds and `mjx-dml` (2.0) for everything a chart
+  draws with, while `mjx-omml` and `mjx-vml` declare no dependency on either and sit at 2.2 because
+  a rank is a ceiling on what a crate *may* reach, not a claim about what it does. And none of the
+  three may see the other two, which decides what they can model.
+- **VML's weaker guarantee is stated where a caller meets it** — in the index, in the fidelity page,
+  in `crates/mjx-vml/docs/legacy_vml.md`, and now at `mjx-vml`'s own crate root. `vml-main.xsd`
+  cannot compile without an `xml.xsd` ECMA omits and a `.vml` part's root is a bare `<xml>` in no
+  namespace, so `mjx-schema-gate` files it under `ForeignMarkupKey::NoNamespace` in
+  `PRESERVED_FOREIGN_MARKUP` and **the round trip is the only real check there is.** Reading and
+  re-emitting is as safe here as anywhere; authoring or editing carries a risk the other two crates
+  do not, because a wrongly ordered shape would reach Office before it reached CI.
+- `xtask/src/validation/ingest.rs` records the **third instance** of MJXOFF-196's mandatory-wildcard
+  shape: `vml-officeDrawing.xsd:175` declares `CT_EquationXml` as
+  `<xsd:sequence><xsd:any namespace="##any"/></xsd:sequence>`, again with no `minOccurs`. It cannot
+  fire — nothing models the type, and no VML part is validated at all — so it is not a fourth defect
+  but the third address a fix has to visit.
+
+### Two counts this ticket had wrong
+
+- **`ReferenceProblem` has eight variants, not nine.** MJXOFF-221's own description says the embedded
+  workbook patcher "refuses nine reference shapes by name"; `CHANGELOG.md`'s MJXOFF-208 entry lists
+  six of them in prose. The declaration has eight, and
+  `crates/mjx-chart/docs/guide/the_embedded_workbook.md` tables them row for row.
+- **`mjx-sml` holds 6 hand-written `FromXml` impls and 58 `ToXml`, not 5 and 57.** MJXOFF-218's
+  census missed `crates/mjx-sml/src/font/color.rs`'s `ColorElement`, whose impl is written with a
+  qualified trait path. The new ledger's scanner admits the qualified spelling, which is what puts
+  its calibration floor above 50.
+
+## [0.0.139] - 2026-09-08
+
+### SpreadsheetML's guide, and the count that had been wrong four times (MJXOFF-220, G9)
+
+**The largest crate in the workspace had no guide, two design notes sitting beside it, and the one
+figure this programme has got wrong most often.** `CT_Worksheet` is the widest content model in
+`sml.xsd` at 39 slots, and its modelled/held split had been written down as 25/14, then 31/8, then
+34/5, then 35/4 across four children — **three of the four wrong when they were written**. MJXOFF-88
+§9 B2 named the structural cause: `styles/stylesheet.rs` asserted that its modelled and held slots
+add up to the generated table's length and `worksheet/frame.rs` asserted nothing of the kind.
+
+**The split is now derived from the read path, and the prose is held to it.** Three tests in
+`crates/mjx-sml/src/worksheet/frame.rs` read a worksheet holding one of every slot the generated
+table names, ask `read_slot` which of them it typed — **39 slots, 35 modelled, 4 held**
+(`phoneticPr`, `legacyDrawingHF`, `drawingHF`, `extLst`) — hold the module's rank table to that
+answer row by row, and hold the sentences around it to the same answer, which is where the last
+stale figure actually was: the heading said *thirty-four modelled, five held* over a table listing
+thirty-five and four.
+
+The same class was everywhere it could be. `sheets/frame.rs` gains the derivation over the three
+sheet kinds and found `dialogsheet.rs` claiming *eleven* of its sixteen slots were modelled where the
+reader types ten, and naming *five held verbatim* directly above a list of six — chartsheet is
+14/10/4, dialogsheet 16/10/6, macrosheet 27/20/7. `workbook/mod.rs`'s test walked ranks 0..18 and
+checked each was *rankable*, a property of the generated table that would have passed unchanged had
+the reader stopped modelling one; `stylesheet.rs`'s compared two hand-written lists. Both now read a
+part and ask the reader. `crates/mjx-sml/tests/worksheet_spine.rs` held a test named *the thirty-nine
+slots are accounted for* whose documentation claimed the modelled set "is exactly the thirteen this
+workspace claims" and whose body only checked that each of thirteen frozen names is *a* slot of
+`CT_Worksheet` — a test that read as proof of the thing that had gone wrong. **Four shipped artefacts
+stated the split and three were stale**: `mjx-xlsx`'s `fidelity_and_the_part_graph.md` said 34/5,
+`reading_and_editing_cells.md` 18/21 and `the_sheet_grid.md` 31/8.
+
+**`mjx-sml`'s half of MJXOFF-218**, and the answer is not `mjx-dml`'s. The census in that ticket
+counted `^impl (From|To)Xml for <Type>` and so missed `impl mjx_ooxml_core::ToXml for ColorElement`:
+the figures are **6 `FromXml`, 58 `ToXml` over 58 distinct types, 52 `ToXml`-only** — the last being
+the one number the ticket had right, because both of its inputs were one too low. Fifty-seven of the
+fifty-eight writers are byte-identical (`{ self.as_raw_element() }`), so each would be a "dispatcher"
+under `mjx-dml`'s vocabulary and each would pass a dispatcher's check trivially and forever. The risk
+is one hop away, in the inherent rebuilder — which exists because a worksheet's writer takes `&self`
+and has no `&mut Interner` to lend, the same property that lets `sheetData` be a packed store — so
+`crates/mjx-sml/tests/serialization_ledger.rs` follows the delegation: every hand-written writer must
+*be* it or carry a row, all **60 rebuilders** must rebuild from `self.name`, `self.attributes` and
+`self.empty`, the 4 content-enum dispatchers must construct no element, and all 6 hand-written
+readers are on a ledger with reasons. **Nothing here loses content**; what is new is that the
+sixty-first cannot arrive unnoticed. Replacing `&self.attributes` with a fresh vector in one
+rebuilder leaves every test in the crate green while destroying `@count` and every foreign attribute,
+because a rebuilder is only reached once a slot has given up its verbatim bytes.
+
+**`Color::from_opaque_rgb` prefixed `FF` unconditionally** (MJXOFF-88 §9 A5 defect 1, MJXOFF-198 §6
+F6), so `"FFFF0000"` — the spelling `Color::rgb`'s own documentation gives — became a ten-character
+`@rgb` that `sml.xsd` rejects, reached from `PatternFillSpec::solid` and three more convenience
+constructors and projected onto both bindings. Decided as a **normalisation, not validation**: the
+signature cannot become fallible without breaking every caller that already works, and `Color::rgb`
+is a public field that could not carry the invariant anyway. Six digits behave exactly as before,
+eight are taken as they stand, a leading `#` is dropped, and anything else stays the caller's
+contract and is now documented as such. No gate could see it because the schema gate validates the
+markup a test authored and every test handed it six digits — so the new gate is over the *authoring
+vocabulary*: `every_authored_colour_is_a_valid_unsigned_int_hex` builds 35 colours through the five
+entry points and holds each `@rgb` to eight hexadecimal digits.
+
+**Then the guide**: six pages under `crates/mjx-sml/docs/guide/`, reachable from `docs/api/README.md`
+and from `mjx_sml::guide`. `docs/CELL_STORE.md` and `docs/SHARED_STRINGS.md` **moved into the set**
+rather than being left beside it, so MJXOFF-95's and MJXOFF-97's records are pages three and four
+rather than orphans. The pages give the documentation gate 141 crate-qualified symbol references and
+47 repository-path mentions over 9 paths it had not been shown before.
+
+Two things recorded rather than changed. **`threadedComments` and `persons` appear nowhere in this
+repository** — a 2018 Microsoft extension absent from ECMA-376, so nothing generated from the schema
+names them — and every workbook a modern Excel saves with a comment carries both; they round-trip as
+ordinary parts, and `Workbook::sheet_comments` reports the legacy shadow copy, which is the text
+without the thread. That reasoning existed only in MJXOFF-88 §9 B12 and is now on the fidelity page.
+And F6's second half — every colour convenience takes a hex literal while `Color::from_theme` has
+none beside it, so **the theme-following path is the one nobody takes** — is answered without new
+API: the specs' fields are public, the one-line theme literal is now on `from_theme` itself and in
+the guide, and a Rust-only `solid_theme` would be a surface two of the three languages could not use.
+
+## [0.0.138] - 2026-09-08
+
+### `mjx-dml`'s guide, and the six hand-written pairs the audit for it found (MJXOFF-217, G8)
+
+**The largest crate in the workspace had no guide at all, and one countable question outranked
+writing one.** MJXOFF-216 found `mjx_dml::Picture` and `PictureNonVisual` destroying every attribute,
+every unmodelled child and the element's own prefix, and asked how many of this crate's hand-written
+`FromXml`/`ToXml` pairs did the same. **Of the eight pairs `mjx-dml` held at 0.0.137, four lost
+content and two more lost the self-closing flag.**
+
+The four that lost content are `Picture`, `PictureNonVisual`, `Graphic` (any child beside the
+`a:graphicData`) and `GraphicData` (its own name and prefix — so a producer that bound
+DrawingML-main to any prefix but `a:` had it rewritten — plus any node beside a typed `pic:pic`
+payload). All four move **onto `mjx-derive`**, which is the point rather than a convenience: the
+derive's `#[xml(children, child(..))]` arm emits the `Raw` fallthrough unconditionally, so they are
+now inside the same codegen guarantee that one test file backs for every derived type at once, and an
+unmodelled child keeps its *position* among its modelled siblings. The two that lost the self-closing
+flag — `wordprocessing_drawing::Inline` and its `Anchor` — take the formula
+`fidelity_element_impls!` already used. Every one of the six is pinned by a case in
+`crates/mjx-dml/tests/in_context_roundtrip.rs` that fails against 0.0.137.
+
+All six were **latent**: no shipped write path reaches a parsed value of any of these types, because
+every `mjx_dml::Graphic` this workspace writes is freshly built for a chart or a picture. Latent is
+not fixed — MJXOFF-216 states plainly that it goes live the day anyone adds a picture-editing method.
+
+**The class, not the instance.** `crates/mjx-dml/tests/serialization_ledger.rs` reads the crate's own
+sources and requires every hand-written `FromXml`/`ToXml` to be on a ledger with an idiom and a
+reason — **and checks the idiom against the impl body**, so a row claiming to preserve everything
+while handing `RawElement::rebuilt` a fresh `Vec::new()` fails, which is exactly the shape
+`Picture::to_xml` had. It reports 41 derived types, 57 via the shared macro and 13 hand-written impls
+over 9 types. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside it, raised as
+MJXOFF-218.
+
+**Then the guide**: six pages under `crates/mjx-dml/docs/guide/`, reachable from `docs/api/README.md`
+and from `mjx_dml::guide`. Written for a caller who has a shape and wants it filled, outlined,
+positioned or coloured — not a tour of a thousand items — around the four facts that explain the
+crate: every type is a view over one element, an interner-bound value has an interner-free `*Spec`
+twin, `spec()` reads while `to_*()` builds fresh and `apply()` merges, and the measures name their
+own units. They give the documentation gate 150 crate-qualified symbol references over 114 distinct
+symbols and 37 repository-path mentions.
+
+Three things the audit found and did **not** change, each recorded with its reason:
+`mjx_dml::ColorSpec` still carries no colour transform, so nothing can author a `comp`/`gray`/
+`gamma`/`invGamma` and validation entry `V-PPTX-02.4` still has no artefact — a write-path gap whose
+fix is a code change; `teardrop` and `sun` stay `ShapeGeometry::Unmodeled`, the Phase A deferral for
+spec-ambiguity; and `mjx-pptx` keeps navigating `p:spPr` by hand rather than through
+`mjx_dml::ShapeProperties`.
+
+## [0.0.137] - 2026-09-08
+
+### The packaging tier's guide, and the four fidelity claims answered (MJXOFF-215, G7)
+
+**`mjx-opc`, `mjx-mce`, `mjx-xml` and `mjx-ooxml-core` are where this project's promise is actually
+implemented, and none of the four had a narrative guide.** Six pages now, over the four crates rather
+than one apiece, because the mechanism is spread across all of them and no one of them can be read
+alone. Five are hosted by `mjx-opc` — the only crate in the tier that can see two of the other three
+— and the sixth by `mjx-mce`, which is the same layering rank and therefore unreachable from it. That
+is the layering rule showing through the documentation rather than a gap in it.
+
+**The page that had to be written is `removing_a_part.md`.** Four methods on `Package` remove a
+part, they have genuinely different blast radii, and until now the difference lived only in prose
+MJXOFF-209 had to write after the fact. A caller choosing wrongly deletes a producer's content: that
+is exactly what MJXOFF-209 *was*, three `Document` edits finishing with the package-wide sweep and an
+edit about a header deleting an unrelated image.
+
+**`CLAUDE.md`'s four fidelity rules were claims nobody had checked as claims.** Each now has an
+answer, and two of the four needed correcting.
+
+*"Part-level laziness"* is **parse** laziness. `Package::open` inflates every ZIP entry eagerly with
+`read_to_end`; what is deferred is the XML parse. The distinction is why a small archive can expand
+without bound (MJXOFF-154, still open), and it was written down nowhere.
+
+*"Every modeled complex type carries `extra: Vec<RawNode>`"* names the rarest of three idioms. The
+guarantee is stronger than the sentence — `mjx-derive`'s codegen *generates* the `Raw` fallthrough, so
+one test failure reaches every derived type at once — but a reader who grepped for `extra` would
+conclude `mjx-dml` had no bucket at all, when what it has preserves strictly more. "Every" also has
+exceptions, and one of them is a defect: `mjx_dml::Picture` and `mjx_dml::PictureNonVisual`
+hand-write `FromXml`/`ToXml` with no raw remainder and an empty attribute vector, and were **proved**
+to destroy a producer's attribute and a foreign child. Latent rather than live — no shipped write
+path reaches them — and filed as **MJXOFF-216**, with the ledger question the class raises.
+
+*"MCE is handled in `mjx-mce`"* is true of resolution. Two format crates walk `mc:AlternateContent`
+by hand instead, defensibly, and `mjx_mce::resolve` has exactly one shipped call site.
+
+*The round-trip contract itself* is the best-enforced of the four, at three granularities — container,
+tree and edit — and the page says which test holds each and what none of them can see.
+
+**Also: seven stale claims repaired.** The worst was on `Package::remove_part`, which said the graph
+operation was "left to a later phase" while its three graph-aware siblings sat below it in the same
+file. The rest were `mjx-ooxml-core` describing a typed model, a derive and an attribute-typing
+variant that had all shipped, and promising an arena that was deliberately never built — the reasoning
+for which is in `crates/mjx-sml/docs/CELL_STORE.md` and is now recorded as a decision rather than a
+gap. And `CLAUDE.md` gained the `#[xml(text)]` escaping gap that two `mjx-sml` source comments have
+cited it for since MJXOFF-114 without it ever being there.
+
+## [0.0.136] - 2026-09-07
+
+### The facade's guide, and the audit that had to come first (MJXOFF-214, G6)
+
+**Phase G's first documentation unit, and the audit still led.** Five units preceded it and none
+wrote documentation, because auditing first kept finding defects the planned guides would have
+described as working. This one found no defect that destroys content — it found five claims the
+facade makes about itself that were false, and one class of claim that cannot stay true.
+
+**Four counts had rotted, all in the same way.** `crates/mjx-ooxml/src/deck.rs` said *sixteen*
+`Presentation` methods were deliberately absent when the difference was **eighteen** — the two it had
+never named being `blank_with_properties` and `from_package`. `crates/mjx-ooxml/src/workbook.rs` said
+`mjx_xlsx::Workbook` carried *roughly seventy* public methods when it carried **165**, and filed
+**nine** entries under *the closure-taking markup doors* that take no closure at all
+(`worksheet_markup`, `write_worksheet_markup`, `sheet_formatting` and six siblings hand back an
+owned but interner-bound model, which is a different reason with a different consequence). Both
+module docs quoted an error-variant count that had grown — 65 → **67** for `PptxError`, 35 → **41**
+for `DocxError`. And `mjx_sml::CellReference`'s own doc comment was headed *"the constructors take
+`(column, row)`, and everything else in the workspace takes `(row, column)`"*, which is false: five
+other public sites take the column first, four of them on this facade
+(`Workbook::add_chart`, `add_range_chart`, `add_one_cell_anchored_picture`,
+`add_two_cell_anchored_picture`), every one for the same good reason — an `xdr` marker is
+`<xdr:col><xdr:colOff><xdr:row><xdr:rowOff>`, so its offsets interleave with its indices — and none
+of them said so anywhere.
+
+**The cure is not a fresher number.** `xtask/tests/facade_curation.rs` is new: it walks the inherent
+`pub fn` items of `Deck`/`Document`/`Workbook` and of the three types below them, and requires the
+difference to equal a written ledger **in both directions**, with a stated reason on every entry
+from a closed set of eight. A method added to `mjx_pptx::Presentation` and not projected fails there
+until somebody decides which it is — projected, renamed, or deliberately left behind. The counts came
+out of the prose; the list went into the gate. *A number in prose can only be right on the day it is
+written; a list can be compared.*
+
+**One behaviour was undocumented and is now on the method itself.** `Workbook::write_cells` into a
+cell that carries a formula keeps the `<f>` and replaces only the cached `<v>` — so the written value
+does not survive Excel's next recalculation. Verified by running it, not by reading the code. The
+decision is right (dropping the `<f>` would destroy a formula the caller did not name, in a file they
+opened to change a number) and it was written down nowhere.
+
+**Then the guide: seven pages under `crates/mjx-ooxml/docs/guide/`**, matching the shape of the three
+existing sets and deliberately not repeating any of them. Those three describe one format each; this
+one describes the surface all three are reached through — [Opening and saving], [Addressing], [One
+vocabulary, three surfaces], [Errors], [The curated surface], [Fidelity and the known gaps]. Every
+snippet is a compiled doctest that asserts on a value it computed, and the set gives `doc_gate`
+**+86 crate-qualified symbol references and +30 path mentions over 7 new distinct paths** to check —
+which is the point of writing a page that names things: *a guide that names no symbol cannot go
+stale, and cannot be checked.*
+
+**Recorded, not fixed** — each is a judgement call rather than a small correction, and each is in
+the ticket: twenty-five chart methods spell the same parameter `series_idx`/`point_idx` on `Deck`
+and `Document` and `series`/`point` on `Workbook` (a keyword-visible difference in Python);
+twenty-three `Document` methods still take `impl Into<BlockPath>` against the facade's own stated
+rule; `table_dimensions`/`cell_span`/`merged_cell_anchor` return an anonymous `(u32, u32)` that
+Python gets as a tuple and TypeScript as a `CellExtent` class; `blank_with_properties` exists on all
+three model types and on none of the three facade surfaces, so no caller in any language can set a
+document's title or author.
+
+[Opening and saving]: crates/mjx-ooxml/docs/guide/opening_and_saving.md
+[Addressing]: crates/mjx-ooxml/docs/guide/addressing.md
+[One vocabulary, three surfaces]: crates/mjx-ooxml/docs/guide/one_vocabulary_three_surfaces.md
+[Errors]: crates/mjx-ooxml/docs/guide/errors.md
+[The curated surface]: crates/mjx-ooxml/docs/guide/the_curated_surface.md
+[Fidelity and the known gaps]: crates/mjx-ooxml/docs/guide/fidelity_and_gaps.md
+
+## [0.0.135] - 2026-09-07
+
+### The preservation gate: every fixture × every mutating API, asserting what changed and that nothing else did (MJXOFF-210, G5)
+
+**The rule this enforces:** *an edit changes what the caller asked to change, and nothing else* —
+the sharp form of Phase G's standing design rule, *supply a default only in the absence of the
+user's own, never in place of it*.
+
+Four tests in this workspace already stated that property, each for one method on one fixture. Every
+one of them was hand-written and per-feature, so **a method added later sat outside all of them by
+default** — which is how both destructive defects of Phase G got in. `crates/mjx-ooxml/tests/preservation/`
+now states it once, over the whole surface: **8,941 fixture × method pairs**, every one of the
+committed corpus's 54 packages against every public `&mut self` method of `Deck`, `Document` and
+`Workbook`.
+
+**The method list is derived from the facade's own source, not written down.** A hand-maintained
+list of methods is the `const FIXTURES` failure one level up, and it fails the same way: silently,
+on the next method added. `enumeration.rs` reads `crates/mjx-ooxml/src/{deck,document,workbook}` and
+the registry is compared against it **in both directions** — a method the facade grows and the suite
+does not register fails, and so does a registered case naming a method the facade no longer has.
+The predicate is `&mut self` rather than "looks like a mutator", which over-selects heavily and
+deliberately: more than half of the 452 are *readers* that need `&mut self` only because parts are
+parsed lazily, and a reader that left the part it read dirty would rewrite a part the caller merely
+looked at. They declare `NOTHING`, which is the strongest assertion in the file.
+
+**Three more both-directions comparisons carry the anti-vacuity weight**, because a floor over a
+total says the extractor is alive rather than complete: the corpus against the fixtures the sweep
+visited, `mjx_fixtures::PACKAGE_EXTENSIONS` against the surfaces that have a driver, and the
+`NEVER_EXERCISED` register — eleven methods the committed corpus cannot make do their job, each
+naming the fixture content that would retire it — against what the sweep actually saw.
+
+**A case may prepare the fixture first.** A `clear_*` on a shape with nothing to clear, or a
+`remove_chart_trendlines` on a chart with no trendline, succeeds and changes nothing, and a
+declaration is only checked in both directions when something happened. So a case may name an edit
+made *before* the snapshot, saved and reopened, whose effect lands in the `before` bytes and never in
+the diff. That took the methods proving nothing from 54 to 11 and the applied pairs from 1,832 to
+2,492.
+
+**Proved able to fail by re-introducing all three defects the unit locks in**, each pasted red and
+restored by re-editing: restoring MJXOFF-208's workbook regeneration reddens on the producer's
+`docProps` vanishing from the embedded package (the *removed* direction); removing MJXOFF-209's
+percent-decode reddens 46 pairs on `percent_encoded_targets.docx` with a package `save()` will not
+accept (the save guard); pointing MJXOFF-200's theme writer at the package unconditionally reddens 22
+pairs across 13 fixtures on a changed `theme1.xml` (the *changed* direction).
+
+### Fixed
+
+- **A chart refused by a tab that cannot hold one no longer leaves a theme part behind.**
+  `mjx_xlsx`'s `write_chart` authored the theme (MJXOFF-200's fix, three commits old) *before* the
+  step that resolves the drawing part, so `add_chart` aimed at a dialogsheet refused and had already
+  changed the package. The theme is now written last, after every step that can refuse.
+  `mjx_docx::Document::add_chart` had the same latent ordering and was moved with it.
+- **`crates/mjx-docx/tests/charts.rs`'s add-a-chart isolation case was structurally blind.** It
+  iterated the *before* map alone, so it could not see a part the edit added — MJXOFF-198 §5 named
+  it as a test that reads as proof and is not one. It now asserts the added and removed sets too, and
+  the general form of the property is the new sweep.
+
+### Found, ticketed, and registered rather than fixed
+
+Two defects the gate found on its first sweep. Both are recorded in `KNOWN_DEFECTS`, which is
+compared against the sweep **in both directions**: neither can be forgotten, and neither fix can land
+without deleting its entry.
+
+- **MJXOFF-212** — `Deck::remove_slide` on a deck where another slide hyperlinks to the removed one
+  leaves that relationship pointing at nothing, and `save()` then refuses: the file can never be
+  written back. The fix needs a decision about what becomes of the hyperlink.
+- **MJXOFF-213** — `Workbook::add_cell_comment` aimed at a dialogsheet refuses only after the
+  comments part and the sheet's relationship have been written.
+
+## [0.0.134] - 2026-09-07
+
+### Charts authored into Word and Excel had no data series: no theme part was ever written (MJXOFF-200, G4)
+
+**Found by a person opening a file.** The human validation pass opened `v-docx-04-authored.docx` and
+reported that the chart showed no data. It showed everything else: title, axis titles, category
+labels, value-axis tick labels, legend *text* and the plot frame. **No bars, and no colour keys in
+the legend.** The value axis auto-scaled correctly from the cached maximum, so the consumer was
+reading the series fine — the failure was in painting.
+
+**Cause: this library never wrote a theme part for Word or Excel.** Measured across the twenty
+validation artefacts at 0.0.133: 8 of 8 `.pptx` carried one, 0 of 6 `.docx` and 0 of 6 `.xlsx` did. A
+chart series this library authors carries **no `c:spPr`**, deliberately, so that the host document's
+brand wins — which means its fill comes from the theme's `accent1…accent6`. With no theme part those
+resolve to nothing and the series is painted with no colour. PowerPoint escaped by accident: a
+`.pptx` always has a theme because every slide master requires one, so the identical chart markup
+rendered blue and orange bars there and nothing in Word.
+
+**The fix is a theme, and the constraint on it is the whole difficulty.** Per-series `spPr` literals
+were rejected explicitly: they would make our own artefacts look right while overriding the palette
+of whoever opens the file. And a writer that emitted `word/theme/theme1.xml` unconditionally would
+have destroyed the branding of every real document this library opens and re-saves — an
+invisible-chart bug turned into a corrupt-the-customer's-file bug, and every gate here would have
+stayed green through it. So a theme is authored **only into a package that carries none**, and "has a
+theme" is decided by content type over the whole package rather than by the relationship this crate
+happens to classify.
+
+### Added
+
+- **`mjx_dml::default_theme_xml`** — the one `a:theme` this workspace authors, moved down from
+  `mjx-pptx`'s `blank` so Word, Excel and PowerPoint share the same bytes rather than writing the
+  markup out three times. Every deck is byte-identical to 0.0.133's.
+- **`mjx_sml::write::WorkbookPackage` writes `xl/theme/theme1.xml`**, so `Workbook::blank` and every
+  chart's embedded workbook carry one.
+- **`mjx-schema-gate`'s reference-resolution gate** — for a package we authored, every reference its
+  own content makes resolves to something present: relationship ids and targets, DrawingML scheme
+  colours and theme fonts, WordprocessingML theme colours, theme fonts, style ids and numbering ids,
+  SpreadsheetML theme colour indices, the font scheme and every index into a `styles.xml` table. This
+  is the class MJXOFF-198 §5 records as having no gate at all: **every other check in this repository
+  asks whether the bytes we wrote are the bytes we meant, and none asks whether a part we did not
+  write should have existed.**
+
+  The rule that matters is the one with nothing in the markup to look for: a `c:ser` with **no**
+  `c:spPr` states no colour, it *defers* to `accent1…accent6` cycled by series order. A gate that
+  searched for `a:schemeClr` would have stayed green through this entire defect.
+
+### Fixed
+
+- **A chart added to a `.docx` or `.xlsx` gains a theme when the package has none**, so its series
+  resolve a colour. A document or workbook that arrives with a theme keeps it byte for byte.
+- **The authored workbook's font 0 follows the theme** — `<color theme="1"/>` and
+  `<scheme val="minor"/>` beside the literal `Calibri`, which is what Excel writes. This was API-audit
+  finding F5: inert while there was no theme to reference, live the moment there is one, so it is
+  fixed in the same change.
+
+### Documentation
+
+- `crates/mjx-xlsx/docs/guide/deliberate_limitations.md` recorded the missing theme as harmless —
+  *"a `theme`-referencing colour in a file you opened resolves against the theme that file carries"*.
+  True of a file you opened and **false of the authored case the row was about**. The row is gone and
+  the section says why, because a limitations page is a place a rendering defect can hide reading as
+  a nicety. Four more pages said the same thing and are corrected with it.
+
+## [0.0.133] - 2026-09-07
+
+### A relationship target's percent-encoding is decoded, and three Word edits stop sweeping the package (MJXOFF-209, G3)
+
+**A legal OOXML file this library could open but refused to write back, and — through
+`save_unchecked` — deleted parts from.** ECMA-376 Part 2 §9.1.1 makes a part name an IRI: a character
+outside the `pchar` set is written percent-encoded in a relationship `Target` and in a content-type
+`Override`'s `PartName`, and the part it names is the *decoded* form. Real producers write these;
+LibreOffice 25.8 writes `Target=".../my%20image.png"` for an image whose file name holds a space.
+There was no percent-decoding anywhere in `mjx-opc`.
+
+So `../media/image%20one.png` resolved to `/word/media/image%20one.png`, which never matched the ZIP
+entry `word/media/image one.png`. `Package::validate` reported `RelationshipTargetMissing` and
+`Package::save` refused the file outright; `remove_unreferenced_parts` does not follow an edge it
+cannot resolve, so the real part was never marked reachable and was swept as an orphan.
+
+**The difficulty is not the decoding, it is not re-encoding.** Decode-then-encode is not the
+identity: `%2520` and `%20`, `%5f` and `%5F`, `%75` and `u` decode alike and re-encode differently. A
+library that normalised on write would change the bytes of `.rels` and `[Content_Types].xml` parts in
+files nobody asked it to touch — a far wider fidelity regression than the bug it fixed.
+
+### Fixed
+
+- **`PartName::resolve` / `resolve_from_root` decode the target**, and `ContentTypes::parse` decodes
+  an `Override`'s `PartName`. Decoding happens on the way *into* a `PartName` and nowhere else:
+  `Relationship::target` keeps the producer's exact text, and an unedited control part re-emits
+  verbatim, so a producer's own spelling survives a round trip byte for byte.
+- **Dot segments are folded before decoding** (RFC 3986 §5.2.4), so `%2E%2E` is an ordinary segment
+  named `..` rather than a climb above the package root, and the split into segments happens before
+  any escape can become a separator.
+- **A malformed escape is passed through, not refused.** `%ZZ`, a truncated `%4` and a trailing `%`
+  are all things a non-conforming producer writes — most often a file name that genuinely holds a `%`
+  and was never encoded (`100% margin.png`), which still resolves. Nothing in the decoder can panic
+  on any byte string, and a decoding that is not valid UTF-8 leaves the segment as written. A segment
+  that decodes to text containing `/` *is* refused with `OpcError::TargetResolution`: OPC forbids an
+  encoded separator because it would turn one segment into two, and naming a different part silently
+  is worse than reporting that it does not resolve.
+- **`remove_override_element` matches the decoded attribute**, so a rule spelled
+  `/word/my%20header.xml` is found for the part `/word/my header.xml`. Without it the element would
+  be left in the stream while the parsed view dropped it. It also matches the *encoded* spelling,
+  because the two escaping systems in that attribute do not commute: percent-encoding runs first, so
+  a part name holding `&` is written `%26` and the XML escaper never sees it, while the name itself
+  still holds a bare `&` whose escaped form is `&amp;`. Matching only the escaped name would leave
+  two `Override`s for one part after a second `set_content_type_override`, stale one first.
+- **Three `Document` edits no longer run the package-wide sweep.** `remove_header`/`remove_footer`,
+  removing the last comment, and `remove_drawing` each finished by calling
+  `Package::remove_unreferenced_parts`, which deletes every orphan it can find — including one the
+  *producer* left in the file. Removing a header would take an unrelated image with it. They now use
+  `Package::remove_part_if_unreferenced`, scoped to the part the edit itself orphaned. `mjx-pptx`
+  never had the problem: its sweep is the opt-in `Presentation::remove_unused_parts`, and these three
+  were the only automatic callers in the workspace.
+
+### Added
+
+- **`Package::remove_part_if_unreferenced`** — `remove_part_cascading` guarded by the same reference
+  check the sweep decides reachability with. The clean-up an edit performs on its own behalf, as
+  distinct from the package-wide garbage collection a *caller* asks for.
+- **`PartName::relative_target` and the `Override` writer percent-encode**, closing the pair: a part
+  the caller named `a picture.png` produces a conforming reference that reads back as itself. Every
+  name this library generates is already unreserved, so no authored package changes a byte.
+- **`tests/fixtures/percent_encoded_targets.docx`** — five parts addressed through an escape, in four
+  spellings (`%20`; `%2520` over a name that really holds `%20`; lowercase `%5f` against an uppercase
+  `%5F` in the other control stream; a gratuitous `%75` for `u`). It joins every byte-identity corpus
+  and the schema gate by being in the directory, so the no-re-encoding rule is held permanently. It
+  is **hand-built** and the suite says so: authored by this library, then post-processed to rename
+  five parts and spell their references as a conforming producer must. LibreOffice cannot serve as
+  the producer — it renames every embedded picture to `media/imageN.png`, so it never writes an
+  *internal* encoded target, though it does encode the external ones.
+- Tests: `crates/mjx-opc/tests/percent_encoded_targets.rs` (resolution, `validate`/`save`, the sweep
+  reaching all five, byte identity of every spelling across an edit, and the authored direction);
+  `crates/mjx-docx/tests/scoped_cleanup.rs` (each of the three edits removes what it orphaned and
+  leaves a part planted beforehand alone).
+
+## [0.0.132] - 2026-09-07
+
+### A chart data edit no longer discards the producer's embedded workbook (MJXOFF-208, G2)
+
+**A defect that destroyed content in files a user opened, and it fired automatically.** Opening a
+real `.docx`, `.pptx` or `.xlsx`, changing one chart series value and saving discarded every extra
+sheet, cell format, defined name, macro and document property the chart's embedded workbook carried.
+`set_chart_series_values` and `set_chart_series_categories` called `refresh_chart_workbook` for you,
+and that method built a *fresh* one-sheet package with `embedded_workbook_for_chart_space` and wrote
+it over the part the producer had written.
+
+It was **documented** — the doc comment said the workbook was *"regenerated, not patched"* and named
+what was lost, offering `detach_chart_workbook` as the escape. The disclosure was honest. The default
+was inverted: under the project's standing rule — *supply a default only in the absence of the user's
+own, never in place of it* — the preserving branch is what must happen when the caller says nothing.
+
+**And the stated justification was wrong, not merely weak.** `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`
+called reconciling a third-party workbook with edited chart data *"a merge problem with no correct
+answer"*. It is not a merge problem. The chart already states where its data lives — the `c:f` beside
+each cache — so putting the new numbers there is an address lookup.
+
+### Changed
+
+- **A data edit patches the embedded workbook.** `Presentation::set_chart_series_values`,
+  `set_chart_series_categories` and `refresh_chart_workbook`, and their `Document` and `Workbook`
+  counterparts, now write the chart's data into the cells the series' own `c:f` names and touch
+  nothing else. Everything else in the package — every other sheet, the stylesheet, the shared-string
+  table, `docProps`, a theme — comes back byte for byte, because the parts holding it are never
+  rewritten.
+- **A cell that already holds its value is not written**, and a workbook in which nothing changed is
+  not written back at all. Re-saving a package rewrites its ZIP container even when every part inside
+  is identical, so skipping the write is what keeps a no-op refresh a no-op in the host's bytes. The
+  answer stays `true` in that case: it says *this chart has an embedded workbook*, not *bytes moved*.
+- **A data edit is all of it or none of it.** The workbook is worked out before the chart part is
+  touched and written after it, so a reference this library will not write refuses the whole call and
+  leaves both parts as they were.
+- **New text is written as an inline string** (`t="inlineStr"`) rather than interned. Interning would
+  mean rewriting `xl/sharedStrings.xml` as well — a second part of somebody else's file that the
+  caller never named — and because unchanged labels are not written at all, a workbook's existing
+  shared strings stay shared.
+- `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` loses the *regenerated, not patched* non-goal;
+  it is now in that page's list of what used to be there. `docs/validation/03-presentations.md`'s
+  `V-PPTX-04` and `V-PPTX-08` rows say the same.
+
+### Added
+
+- **`mjx_chart::plan_workbook_patch` / `apply_workbook_patch`** (`crates/mjx-chart/src/embedding/patch.rs`),
+  with `WorkbookPatch`, `WorkbookPatchPlan`, `ChartWorkbookError` and `ReferenceProblem`. One
+  implementation for all three hosts: `mjx-chart` is rank 2.2 and reaches `mjx-sml` (2.1) and
+  `mjx-opc` (1.0), and the three format crates are rank 3.0. Two functions rather than one because a
+  host cannot borrow the chart's part tree and the package's bytes at once — which is also what gives
+  a data edit its all-or-nothing shape.
+- **`mjx_chart::embedded_workbook_part`** — the *chart part → relationship id → workbook part* walk,
+  which `mjx-pptx`, `mjx-docx` and `mjx-xlsx` each carried their own copy of.
+- **`regenerate_chart_workbook`** on `Presentation`, `Document`, `Workbook`, on all three facade
+  types, and in both bindings (`regenerate_chart_workbook` / `regenerateChartWorkbook`). This is the
+  old behaviour, under the name that says what it does: it replaces the workbook wholesale and
+  **discards whatever it held**. A caller now has to ask for it.
+- **`ChartAccessError::EmbeddedWorkbookNotWritable { reference, problem }`** and
+  **`PptxError::ChartEmbeddedWorkbookNotWritable`**. A `c:f` naming another workbook, several sheets,
+  whole columns, a rectangle, a sheet the workbook does not have, or fewer cells than the data has
+  points is refused **by name** — never a quiet fall back to regenerating, which is the content loss
+  the patch exists to prevent. `ReferenceProblem` is the whole list, and every entry of it is a shape
+  of *reference*, decided from the text the producer wrote, never a guess about provenance. The
+  facade classifies it as `ErrorCode::UnsupportedContent`, beside `ChartFillNotSupported`.
+- **A point is written at its `c:pt@idx`, not at its position in the file.** A sparse cache — a
+  series with a blank third value writes points `0`, `1`, `3` — would otherwise slide every later
+  value one cell up somebody else's column. The old regenerator had the same flaw in its own grid.
+- Tests: `crates/mjx-docx/tests/charts.rs` opens `tests/fixtures/chart_in_word.docx`, edits one
+  series value and asserts the embedded workbook's part list, its styles, its string table, its
+  document properties, the *other* series' column, its sheet view and its page margins all survive;
+  `crates/mjx-pptx/tests/charts.rs` does the same over `charts.pptx`, whose workbook carries a theme;
+  `crates/mjx-xlsx/tests/charts.rs` is the third host. A companion case shows a refusal changes
+  neither part, and another shows `regenerate_chart_workbook` still replaces the package — which is
+  what keeps the first case from being a claim about a method nobody calls.
+
+### Why no gate caught it
+
+`crates/mjx-docx/tests/charts.rs` asserted the workbook part *did* change, starting from a blank
+document — so it locked the behaviour in without ever seeing what was lost. No test opened a
+producer-written file and asked whether its embedded workbook's content survived a data edit. Three
+now do.
+
+## [0.0.131] - 2026-09-07
+
+### The documentation gate and the index — a doc page can now fail (MJXOFF-199, G1)
+
+**Phase G's first child, and the harness the eight that follow write into.** Until this release
+nothing in the workspace read a single prose document, and MJXOFF-88 §9 B5/B6 records what that
+cost: five documents directing a reader at a `presentation.rs` that has been the directory
+`crates/mjx-pptx/src/presentation/` since Phase A, and a **live test** whose own doc comment cited a
+file MJXOFF-99 had deleted and described that deletion in the future tense. Every one was found by a
+person reading carefully.
+
+### Added
+
+- **`xtask/tests/doc_gate.rs`** — the gate. Its corpus is `git ls-files`, never a list: every
+  tracked markdown page and the comments of every tracked Rust file, so a new page is inside it the
+  moment it is committed. Four checks, each reporting its counts on success as well as on failure:
+  - **Paths.** Every repository path a document names in a code span or a file-shaped markdown link
+    exists — resolved crate-relative, then from the root, then by crate name, with `{a,b}` groups
+    expanded and a `file.rs::symbol` citation checked against the named file. At this release:
+    **1,111 mentions of 369 distinct paths across 293 documents**, plus 5 `file::symbol` citations.
+  - **Symbols.** Every crate-qualified reference (`mjx_sml::CellFormula`, and `crate::…` inside a
+    crate's own sources) still names something that crate has — **1,356 references across 318
+    documents, over 21 crates holding 14,302 declared item names.** The subset and its boundary are
+    stated on the test: a bare `Type::member` is not checked, because the same word is a type in
+    several crates and a word in every sentence.
+  - **The index, both directions.** `docs/api/README.md`'s row set must equal `git ls-files '*.md'`
+    exactly. Committing a page without indexing it fails; indexing a page that does not exist fails.
+  - **Anti-vacuity floors on all of it**, stated as *the extractor is still matching* rather than as
+    *the corpus is this size*, so a floor cannot fire before the assertion it guards. Neutralising
+    the code-span scanner turns three checks red with "the extractor has stopped matching" instead
+    of a silent green — which is the failure this gate exists to prevent, applied to itself.
+  - **The crate set, derived twice and compared in both directions.** Three of the four checks are
+    keyed by crate, each key set built by a walk, and a total cannot see one crate leave: dropping
+    `mjx-sml` took 1,793 item names and every `mjx_sml::…` reference out of the symbol comparison
+    and left all four tests green, while dropping `mjx-pptx` from the resolver's crate-name table
+    took five path mentions out of 1,120 and did the same. A floor sized to catch the extractor
+    dying altogether cannot catch it losing one crate — and losing one crate, to a rename or a
+    parse tweak, is the failure this gate will actually meet. So every walk's crate set is held to
+    `Cargo.toml`'s own `members` list in both directions, a symbol whose head is a declared crate
+    missing from the map is a named failure rather than a skip, and every skipping arm is counted
+    and printed.
+- **`docs/api/README.md`** — one entry point, 69 rows, one per markdown page in the repository, with
+  what it covers and which crate owns it. It is prose a person writes whose *row set* is derived and
+  enforced: an index generated from the same walk a test compares it against would prove nothing and
+  would carry no descriptions.
+- **A single escape hatch, and a liveness check on it.** A document may name a file or item that no
+  longer exists **only inside a block that also names the ticket that removed it**. That one rule
+  separates honest history from a stale live claim, and `RETIRED_PATHS` / `RETIRED_SYMBOLS` are
+  themselves failed when nothing names them any more.
+
+### Fixed
+
+- **Six documents pointed at `crates/mjx-pptx/src/presentation.rs`**, a directory since Phase A —
+  the five §9 B6 names plus `docs/DRAWINGML_FILL_HANDOFF.md`, which it does not.
+- **Eight live sites named symbols MJXOFF-99 deleted**, a class §9 B5 does not list at all: the
+  `mjx-chart` workbook writer named from `mjx-sml`'s crate root, its package writer, its address
+  module, its constants and its package-writer suite, and from `mjx-xlsx`'s parts module; plus
+  `crates/mjx-sml/docs/SHARED_STRINGS.md`, which said the duplicate "is still there" and that
+  MJXOFF-99 "performs the deletion", in the future tense.
+- **`crates/mjx-sml/src/strings/table.rs`** claimed in the present tense that a deleted parity gate
+  *compares* two writers, naming no ticket — §9 B5's first site.
+- **`crates/mjx-sml/tests/shared_strings_fidelity.rs`** — §9 B5's second. The live test's doc cited
+  a deleted file as "the other side" and said MJXOFF-99 "then deletes" the writer. Rewritten to say
+  what is true, and the test renamed from `an_authored_table_matches_the_chart_writers_bytes_exactly`
+  to `an_authored_table_writes_exactly_these_bytes`: there is no chart writer to match.
+- **`CLAUDE.md`** was still prospective about that deletion (§9 B13), and addressed
+  `bindings/mjx-python/tests/test_stub_parity.py` from the wrong root.
+- **Nine more stale citations the gate found on its first run** — `docs/BENCHMARKS.md` pointing at
+  an `xtask/src/fuzz/allocation.rs` that MJXOFF-95 moved to `crates/mjx-allocation-counter`;
+  `xtask/src/corpus/memory.rs` naming the same moved module; `mjx-sml` and `mjx-xlsx` citing a
+  `docs/fidelity_and_gaps.md` Excel has never had; the two bindings citing test files that do not
+  exist (`tests/node/enums.mjs`, `tests/node/format.mjs`, `tests/test_format.py`);
+  `crates/mjx-omml/src/support.rs` naming a `crate::geometry::Transform2D` that is `mjx-dml`'s; two
+  `xtask` codegen modules naming a `crate::support` that is `mjx-ooxml-types`'; and a broken sibling
+  link in `crates/mjx-xlsx/docs/guide/worksheet_tables.md`.
+
+### Changed
+
+- **The eight July-2026 hand-off documents are dated, not retired** (§9 B6). Each carries a banner
+  at its head saying it describes the repository as it stood on a given day, before the Phase A
+  module split, and that its paths, status markers and counts are not maintained. They are kept
+  because the design reasoning they record — 1,477 lines of why each decision went the way it did —
+  is written down nowhere else; only their description of the layout has expired. Retiring them
+  would have lost the reasoning to save a banner.
+- **CI's `lint-test` job names the gate as its own step.** `cargo test --workspace` already runs it
+  in both feature modes — verified with `--no-run`, which lists `Executable tests/doc_gate.rs` in
+  each — but MJXOFF-130 found `xtask/tests/` reachable by one job and auditor pass 4 found
+  `mjx-dml`'s preset-geometry sweep reachable by none. A gate whose job is only implied is the gate
+  that turns out not to run.
 
 ## [0.0.130] - 2026-09-07
 

@@ -43,12 +43,15 @@
 //! by `mjx-chart`, which hands the rows to `mjx-sml`'s writer — MJXOFF-99's settled arrangement,
 //! used here rather than re-created.
 
+use std::borrow::Cow;
+
 use mjx_chart::{
-    chart_ops, embedded_workbook_for_chart_data, embedded_workbook_for_chart_space,
+    apply_workbook_patch, chart_ops, embedded_workbook_for_chart_data,
+    embedded_workbook_for_chart_space, embedded_workbook_part, plan_workbook_patch,
     AxisOrientation, ChartAxisData, ChartData, ChartDataError, ChartErrorBarData, ChartKind,
     ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSeriesReferences,
     ChartSpace, ChartTrendlineData, DanglingPointReference, DataLabelSettings, DataLabelSpec,
-    ErrorBarSpec, LegendPosition, TrendlineSpec,
+    ErrorBarSpec, LegendPosition, TrendlineSpec, WorkbookPatch,
 };
 use mjx_dml::{FillSpec, LineSpec};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawNode, ToXml};
@@ -61,6 +64,7 @@ use crate::error::DocxError;
 
 use super::body::{BlockContent, ParagraphContent, Run, RunInnerContent};
 use super::drawing::{Drawing, DrawingContent};
+use super::parts::ensure_theme_part;
 use super::{Body, Document, MainDocument};
 
 /// Where a chart sits in the text: in the line, or floating beside it.
@@ -126,6 +130,13 @@ pub struct DocumentChartWorkbook {
     /// document's to rewrite.
     pub external: bool,
 }
+
+/// The part a prepared workbook patch is bound for, and the bytes to write there.
+///
+/// `None` for the whole thing is *there is no embedded workbook*; `Some((part, None))` is *there is
+/// one and every cell already said the right thing*, which must leave the part exactly as it is
+/// because re-saving a package rewrites its container even when nothing inside it changed.
+type PreparedWorkbook = Option<(PartName, Option<Vec<u8>>)>;
 
 impl Document {
     // ---------------------------------------------------------------------------------------------
@@ -203,16 +214,21 @@ impl Document {
 
     /// The raw XML bytes of the chart part the drawing `drawing_id` references
     /// (`word/charts/chartN.xml`), exactly as the package holds them, or `None` when that drawing
-    /// frames no chart. Borrowed from the package, so the part is not copied.
+    /// frames no chart. Borrowed from the package when the part still holds its bytes, and serialized
+    /// on the spot when it has been edited — so a chart this crate has just written answers with what
+    /// it now contains, and `None` means only that the drawing frames none (MJXOFF-222).
     ///
     /// # Errors
     /// As [`chart_rel_id`](Self::chart_rel_id), plus [`DocxError::ExternalTarget`] if the
     /// relationship points outside the package.
-    pub fn chart_part_bytes(&mut self, drawing_id: u32) -> Result<Option<&[u8]>, DocxError> {
+    pub fn chart_part_bytes(
+        &mut self,
+        drawing_id: u32,
+    ) -> Result<Option<Cow<'_, [u8]>>, DocxError> {
         let Some(part) = self.chart_part_for(drawing_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The part name of the chart the drawing `drawing_id` frames, or `None` when it frames none.
@@ -391,6 +407,23 @@ impl Document {
         })?;
         paragraph_mut.append_run(run);
         main.write_back(root, interner);
+
+        // A series this library authors carries no `c:spPr`, so its fill comes from the theme's
+        // `accent1…accent6`. A document with no theme part resolves those to nothing and paints no
+        // bars at all (MJXOFF-200). One is authored here **only** if the package carries none: a
+        // document that arrived with a theme keeps it untouched, because supplying a default in
+        // place of the user's own would override the branding of whoever opens the file.
+        //
+        // It is written **last**, after every step that can refuse, so a chart this call declines to
+        // add leaves no theme behind — the same ordering `mjx_xlsx`'s `write_chart` states, and for
+        // the same reason the preservation gate (MJXOFF-210) gave there.
+        let theme_rel_id = self.next_rid_for(&self.document_part.clone());
+        ensure_theme_part(
+            &mut self.package,
+            &self.document_part.clone(),
+            &theme_rel_id,
+        )?;
+
         Ok(doc_pr_id)
     }
 
@@ -487,25 +520,71 @@ impl Document {
         Ok(space.external_data_rel_id(&doc.interner).map(str::to_owned))
     }
 
-    /// Rewrites the embedded workbook of the chart the drawing `drawing_id` frames so its cells hold
-    /// exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the drawing `drawing_id` frames already
+    /// embeds, and answers whether it wrote one.
     ///
-    /// Answers `Ok(false)`, changing nothing, when there is nothing to refresh: the chart names no
-    /// workbook, or the one it names is an **external** link rather than a part of this package.
+    /// Answers `Ok(false)`, changing nothing, when there is nothing to write: the chart names no
+    /// workbook, the one it names is an **external** link rather than a part of this package, or
+    /// every one of its series carries its data as a literal and so names no cells at all.
     ///
-    /// The workbook is **regenerated**, not patched: one sheet, column `A` the categories, column
-    /// `B` onwards one per series, matching the layout the chart's own `c:f` formulas name. That is
-    /// what makes the two agree, but it means formatting or extra sheets a third-party workbook
-    /// carried are not preserved through a data edit — a caller who would rather keep a stale
-    /// workbook can detach it first.
+    /// # The workbook is patched, not replaced (MJXOFF-208)
+    ///
+    /// Each series' `c:f` says which cells its data lives in; this writes the chart's caches into
+    /// **those** cells and touches nothing else. Every other sheet, every cell format, every defined
+    /// name, every macro and every document property the workbook carried survives byte for byte,
+    /// because the parts holding them are never rewritten.
+    ///
+    /// Until MJXOFF-208 this method regenerated the workbook instead — a fresh one-sheet package
+    /// over the part the producer wrote — and a data edit called it for you, so opening a real
+    /// document and changing one number silently discarded everything else that workbook held. That
+    /// branch still exists, under the name that says what it does
+    /// ([`regenerate_chart_workbook`](Self::regenerate_chart_workbook)), and a caller now has to ask
+    /// for it.
+    ///
+    /// A `c:f` that names another workbook, several sheets, whole columns, a rectangle, or fewer
+    /// cells than the data has points is a [`DocxError::ChartAccess`] — never a quiet fall back to
+    /// regenerating, which would destroy the very content this method exists to keep.
+    ///
+    /// # What the answer means
+    ///
+    /// `true` says the chart **has** an embedded workbook this call is responsible for, not that
+    /// bytes changed. A cell that already holds the value it was going to be given is not rewritten,
+    /// so a call that finds everything in agreement answers `true` and leaves the part byte-identical
+    /// — which is the only way a no-op refresh stays a no-op, because re-saving a package rewrites
+    /// its container even when every part inside it is the same.
     ///
     /// [`set_chart_series_values`](Self::set_chart_series_values) and
-    /// [`set_chart_series_categories`](Self::set_chart_series_categories) call this for you.
+    /// [`set_chart_series_categories`](Self::set_chart_series_categories) patch the one reference
+    /// they edit; this one covers every reference the chart names.
+    ///
+    /// # Errors
+    /// [`DocxError::DrawingIsNotAChart`] if the drawing frames no chart, [`DocxError::ChartAccess`]
+    /// if a reference names cells this library will not write, or another [`DocxError`] if the chart
+    /// part or the embedded package is malformed.
+    pub fn refresh_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, DocxError> {
+        let prepared = self.prepare_chart_workbook(drawing_id, WorkbookPatch::EveryReference)?;
+        self.commit_chart_workbook(prepared)
+    }
+
+    /// Replaces the embedded workbook of the chart the drawing `drawing_id` frames with a freshly
+    /// built one, and answers whether it replaced one.
+    ///
+    /// **This discards whatever that workbook held.** One sheet, column `A` the categories, column
+    /// `B` onwards one per series — the layout an authored chart's `c:f` formulas name. Any extra
+    /// sheet, cell format, defined name, macro or document property the old workbook carried is
+    /// gone, and so is any agreement between the new cells and a producer's own `c:f`.
+    ///
+    /// So this is the explicit opt-in, and [`refresh_chart_workbook`](Self::refresh_chart_workbook)
+    /// is what a caller wants. [`detach_chart_workbook`](Self::detach_chart_workbook) is the other
+    /// honest answer: drop the reference rather than write over the file.
+    ///
+    /// Answers `Ok(false)`, changing nothing, in exactly the cases
+    /// [`refresh_chart_workbook`](Self::refresh_chart_workbook) does.
     ///
     /// # Errors
     /// [`DocxError::DrawingIsNotAChart`] if the drawing frames no chart, or another [`DocxError`] if
     /// the chart part is malformed or the package edit fails.
-    pub fn refresh_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, DocxError> {
+    pub fn regenerate_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, DocxError> {
         let chart_part = self.require_chart_part(drawing_id)?;
 
         let doc = self.package.part_tree(&chart_part)?;
@@ -516,22 +595,56 @@ impl Document {
         let workbook = embedded_workbook_for_chart_space(&space)?;
 
         // An external workbook is not ours to rewrite; a relationship we cannot resolve is not
-        // either. Neither is an error — there is simply no embedded workbook to refresh.
-        let Some(relationship) = self
-            .package
-            .relationships_for(Some(&chart_part))
-            .and_then(|rels| rels.by_id(&rel_id))
+        // either. Neither is an error — there is simply no embedded workbook here.
+        let Some(workbook_part) = embedded_workbook_part(&self.package, &chart_part, &rel_id)
         else {
             return Ok(false);
         };
-        if relationship.mode == TargetMode::External {
-            return Ok(false);
-        }
-        let workbook_part = super::parts::resolve_one(&chart_part, relationship)?;
-        if self.package.part_bytes(&workbook_part).is_none() {
+        if !self.package.contains_part(&workbook_part) {
             return Ok(false);
         }
         self.package.replace_part_bytes(&workbook_part, workbook)?;
+        Ok(true)
+    }
+
+    /// Works out what the addressed chart's embedded workbook should become, **without writing it**.
+    ///
+    /// The half of a data edit that can refuse, kept separate from the half that changes the
+    /// package. Answers `None` when there is no workbook to write.
+    fn prepare_chart_workbook(
+        &mut self,
+        drawing_id: u32,
+        patch: WorkbookPatch<'_>,
+    ) -> Result<PreparedWorkbook, DocxError> {
+        let chart_part = self.require_chart_part(drawing_id)?;
+        let doc = self.package.part_tree(&chart_part)?;
+        let space = ChartSpace::from_xml(&doc.root, &doc.interner)?;
+        let Some(rel_id) = space.external_data_rel_id(&doc.interner).map(str::to_owned) else {
+            return Ok(None);
+        };
+        let plan = plan_workbook_patch(&space, &doc.interner, patch)?;
+        let Some(workbook_part) = embedded_workbook_part(&self.package, &chart_part, &rel_id)
+        else {
+            return Ok(None);
+        };
+        let Some(bytes) = self.package.part_payload(&workbook_part) else {
+            return Ok(None);
+        };
+        Ok(Some((workbook_part, apply_workbook_patch(&plan, &bytes)?)))
+    }
+
+    /// Writes what [`prepare_chart_workbook`](Self::prepare_chart_workbook) worked out, and answers
+    /// whether there was an embedded workbook at all.
+    fn commit_chart_workbook(&mut self, prepared: PreparedWorkbook) -> Result<bool, DocxError> {
+        let Some((part, bytes)) = prepared else {
+            return Ok(false);
+        };
+        // `Some((part, None))` is *there is a workbook and it already says the right thing*, which
+        // is a different answer from *there is no workbook* and is reported as such. Writing it
+        // anyway would re-zip the part for no change at all.
+        if let Some(bytes) = bytes {
+            self.package.replace_part_bytes(&part, bytes)?;
+        }
         Ok(true)
     }
 
@@ -543,6 +656,14 @@ impl Document {
     /// [`mjx_opc::Package::remove_unreferenced_parts`] if wanted. This never removes parts on its
     /// own. Dirties only the chart part.
     ///
+    ///
+    /// # Its role since MJXOFF-208
+    ///
+    /// It used to be the escape hatch from a data edit that would otherwise **rebuild** the embedded
+    /// workbook and throw its contents away. It is not that any more: a data edit now *patches* the
+    /// cells the chart's own `c:f` names and leaves the rest of that workbook alone, so detaching to
+    /// protect its contents is no longer something a caller has to think of. What is left is what
+    /// the name says — cut the chart loose from a workbook it should not be carrying at all.
     /// # Errors
     /// [`DocxError::DrawingIsNotAChart`] if the drawing frames no chart,
     /// [`DocxError::ChartHasNoExternalData`] if the chart references no workbook, or another
@@ -795,30 +916,48 @@ impl Document {
     /// Rewrites the values of series `series_idx` (0-based across the chart's plots) — whichever
     /// source the series names: a `c:numRef`'s cache or a `c:numLit`.
     ///
-    /// The chart's **embedded workbook is refreshed in the same call**, so the numbers Word's *Edit
-    /// Data* shows are the numbers the chart draws. Marks the chart part dirty, and the workbook
-    /// part when there is one; a non-finite value is skipped.
+    /// The chart's **embedded workbook is patched in the same call**, so the numbers Word's *Edit
+    /// Data* shows are the numbers the chart draws. The new values go into the cells the series' own
+    /// `c:f` names and nowhere else — every other sheet, cell, format and defined name that workbook
+    /// carried comes back exactly as it was; see
+    /// [`refresh_chart_workbook`](Self::refresh_chart_workbook) for the whole story. Marks the chart
+    /// part dirty, and the workbook part when there is something in it to change; a non-finite value
+    /// is skipped.
+    ///
+    /// # All of it, or none of it
+    ///
+    /// The workbook is worked out **before** the chart is touched and written **after**, so a
+    /// reference this library will not write refuses the whole call and leaves both parts as they
+    /// were.
     ///
     /// # Errors
     /// As [`chart_series_fill`](Self::chart_series_fill), plus [`DocxError::ChartAccess`] when the
-    /// series has no numeric values to rewrite.
+    /// series has no numeric values to rewrite, or when its `c:f` names cells this library will not
+    /// write.
     pub fn set_chart_series_values(
         &mut self,
         drawing_id: u32,
         series_idx: usize,
         values: &[f64],
     ) -> Result<(), DocxError> {
+        let prepared = self.prepare_chart_workbook(
+            drawing_id,
+            WorkbookPatch::SeriesValues { series_idx, values },
+        )?;
         self.edit_chart(drawing_id, |space, interner| {
             Ok(chart_ops::set_series_values(
                 space, interner, series_idx, values,
             )?)
         })?;
-        self.refresh_chart_workbook(drawing_id)?;
+        self.commit_chart_workbook(prepared)?;
         Ok(())
     }
 
-    /// Rewrites the category labels of series `series_idx`, and refreshes the chart's embedded
-    /// workbook alongside it.
+    /// Rewrites the category labels of series `series_idx`, and patches the cells the series' own
+    /// category `c:f` names alongside it.
+    ///
+    /// All-or-nothing in the same way [`set_chart_series_values`](Self::set_chart_series_values)
+    /// is, and preserving in the same way.
     ///
     /// # Errors
     /// As [`set_chart_series_values`](Self::set_chart_series_values), with
@@ -830,12 +969,16 @@ impl Document {
         series_idx: usize,
         labels: &[&str],
     ) -> Result<(), DocxError> {
+        let prepared = self.prepare_chart_workbook(
+            drawing_id,
+            WorkbookPatch::SeriesCategories { series_idx, labels },
+        )?;
         self.edit_chart(drawing_id, |space, interner| {
             Ok(chart_ops::set_series_categories(
                 space, interner, series_idx, labels,
             )?)
         })?;
-        self.refresh_chart_workbook(drawing_id)?;
+        self.commit_chart_workbook(prepared)?;
         Ok(())
     }
 
@@ -1340,8 +1483,11 @@ fn for_each_drawing(body: &Body, interner: &Interner, mut visit: impl FnMut(u32,
                     let Some(id) = properties.and_then(|p| p.id(interner).ok()) else {
                         continue;
                     };
-                    let rel_id =
-                        graphic.and_then(|graphic| graphic.data().chart_relationship_id(interner));
+                    let rel_id = graphic.and_then(|graphic| {
+                        graphic
+                            .data()
+                            .and_then(|data| data.chart_relationship_id(interner))
+                    });
                     visit(id, rel_id);
                 }
             }

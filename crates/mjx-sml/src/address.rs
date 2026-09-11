@@ -466,13 +466,13 @@ fn write_column_letters(column: u16, out: &mut AddressText) {
 /// assert_eq!(cell.text().as_str(), "$B$7"); // exactly what was read
 /// ```
 ///
-/// # The constructors take `(column, row)`, and everything else in the workspace takes `(row, column)`
+/// # The constructors take `(column, row)`, where an index into a body of cells takes `(row, column)`
 ///
-/// That is deliberate, and it is worth stating because the asymmetry is real. Thirty-odd methods
-/// across `mjx-pptx`, `mjx-docx` and the facade address a table cell or a block offset as
-/// `(row, column)` — `Presentation::cell_text`, `Document::set_cell_text`, `CellBlock::value`,
-/// [`ErrorDetail`]'s own two fields — because each of those indexes a two-dimensional *body* of
-/// cells, where row-major is the ordinary convention.
+/// That is deliberate, and it is worth stating because the asymmetry is real. Forty-seven methods on
+/// the `mjx-ooxml` facade alone — and their `mjx-pptx` and `mjx-docx` originals beneath them —
+/// address a table cell or a block offset as `(row, column)` — `Presentation::cell_text`,
+/// `Document::set_cell_text`, `CellBlock::value`, [`ErrorDetail`]'s own two fields — because each of
+/// those indexes a two-dimensional *body* of cells, where row-major is the ordinary convention.
 ///
 /// [`new`](Self::new), [`relative`](Self::relative) and [`absolute`](Self::absolute) do not index a
 /// body. They construct **the address itself**, whose only rendering is `A1` — column letters, then
@@ -480,10 +480,18 @@ fn write_column_letters(column: u16, out: &mut AddressText) {
 /// mean [`CellReference::relative(6, 1)`](Self::relative) spelled `B7`, which reverses the very
 /// string the value exists to carry.
 ///
-/// The two idioms never meet at a call site: nothing on the [`Workbook`] facade takes a
-/// `CellReference` — every address argument there is A1 *text* — so this constructor is reached only
-/// by a caller already thinking in column letters. [`parse`](Self::parse) is the constructor that
-/// caller usually wants.
+/// **This is not the only `(column, row)` on the workspace's public surface, and the paragraph here
+/// used to claim it was** (MJXOFF-214). Five other places take the column first, every one of them
+/// for the same reason — the wire markup underneath spells the column first:
+/// `mjx_dml::spreadsheet_drawing::CellMarker::new` is `(column, column_offset, row, row_offset)`
+/// because `xdr:from` is `<xdr:col><xdr:colOff><xdr:row><xdr:rowOff>`, and the four facade calls
+/// that flatten a marker into plain numbers — `Workbook::add_chart`, `add_range_chart`,
+/// `add_one_cell_anchored_picture` and `add_two_cell_anchored_picture` — interleave their offsets
+/// in that same order, so `(from_column, from_row, to_column, to_row)` reads down the element it
+/// writes. Where the two idioms would otherwise meet, they do not: nothing on the [`Workbook`]
+/// facade takes a `CellReference` — every address argument there is A1 *text* — so this constructor
+/// is reached only by a caller already thinking in column letters. [`parse`](Self::parse) is the
+/// constructor that caller usually wants.
 ///
 /// [`ErrorDetail`]: https://docs.rs/mjx-ooxml/latest/mjx_ooxml/struct.ErrorDetail.html
 /// [`Workbook`]: https://docs.rs/mjx-ooxml/latest/mjx_ooxml/struct.Workbook.html

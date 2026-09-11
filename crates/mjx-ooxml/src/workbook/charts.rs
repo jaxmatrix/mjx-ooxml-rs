@@ -26,6 +26,8 @@
 //! cache and the cells have drifted apart — the cache is what draws until a consumer recalculates,
 //! and both are reported with each named.
 
+use std::borrow::Cow;
+
 use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 
 use crate::error::Error;
@@ -185,7 +187,7 @@ impl Workbook {
         Ok(self
             .workbook
             .chart_part_bytes(index(sheet), index(anchor))?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The series of the chart, from its **caches**.
@@ -1015,10 +1017,15 @@ impl Workbook {
             .collect())
     }
 
-    /// Rewrites the embedded workbook of the chart so its cells hold exactly what the chart now
-    /// draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook it already embeds — the cells its own `c:f`
+    /// formulas name, and nothing else — and answers whether it wrote one.
     ///
-    /// Answers `false`, changing nothing, when there is nothing to refresh — which includes the
+    /// Every other sheet, format and name that workbook carried survives; a reference this library
+    /// will not write is refused rather than written over. Use
+    /// [`regenerate_chart_workbook`](Self::regenerate_chart_workbook) to replace the workbook
+    /// wholesale instead.
+    ///
+    /// Answers `false`, changing nothing, when there is nothing to write — which includes the
     /// **ordinary** state of a chart on a sheet, whose data is a live range and which has no embedded
     /// copy at all. No workbook is ever fabricated.
     ///
@@ -1030,6 +1037,23 @@ impl Workbook {
         Ok(self
             .workbook
             .refresh_chart_workbook(index(sheet), index(anchor))?)
+    }
+
+    /// Replaces the embedded workbook of the chart with a freshly built one, and answers whether it
+    /// replaced one.
+    ///
+    /// **This discards whatever that workbook held** — every extra sheet, cell format, defined name
+    /// and macro. It is the explicit opt-in;
+    /// [`refresh_chart_workbook`](Self::refresh_chart_workbook) is the preserving default.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure.
+    ///
+    /// See [`Workbook::regenerate_chart_workbook`](mjx_xlsx::Workbook::regenerate_chart_workbook).
+    pub fn regenerate_chart_workbook(&mut self, sheet: u32, anchor: u32) -> Result<bool, Error> {
+        Ok(self
+            .workbook
+            .regenerate_chart_workbook(index(sheet), index(anchor))?)
     }
 
     /// Detaches the backing workbook from the chart, leaving it to render from its cached values.

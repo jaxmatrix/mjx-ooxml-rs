@@ -5,10 +5,11 @@
 //! opens such a file offers to repair it. Order is therefore validity, not style.
 //!
 //! This module is how a writer gets it right without having read the XSD. The tables re-exported
-//! here — [`DML_MAIN_TYPES`], [`PML_TYPES`], [`DML_CHART_TYPES`] and the named constants beside them
-//! — are generated from the reference schemas by `cargo run -p xtask -- codegen`; this module is the
+//! here — one per schema in `xtask`'s `CHILD_ORDER_SCHEMAS`, and the named constants beside them —
+//! are generated from the reference schemas by `cargo run -p xtask -- codegen`; this module is the
 //! hand-written vocabulary they are expressed in and the placement primitives every serializer in
-//! the workspace uses.
+//! the workspace uses. [`ALL_TABLES`] holds every one of them, and naming it rather than three of
+//! them is what MJXOFF-224 had to fix in the suites below.
 //!
 //! # Rank
 //!
@@ -650,7 +651,7 @@ mod tests {
 
     #[test]
     fn every_table_is_sorted_by_symbol_so_the_lookup_can_bisect() {
-        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+        for table in ALL_TABLES {
             assert!(
                 table.windows(2).all(|w| w[0].symbol < w[1].symbol),
                 "the generated tables must be sorted and free of duplicates"
@@ -660,7 +661,7 @@ mod tests {
 
     #[test]
     fn every_slot_list_is_in_rank_order() {
-        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+        for table in ALL_TABLES {
             for order in table {
                 assert!(
                     order.slots.windows(2).all(|w| w[0].rank <= w[1].rank),
@@ -677,7 +678,7 @@ mod tests {
         // `xsd:choice` safe is that the generator never gave its alternatives distinct ranks. Pin
         // that, because a flattener change that started ranking a choice's branches would make this
         // table worse than none — it would fault conforming markup.
-        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+        for table in ALL_TABLES {
             for order in table {
                 if order.model.is_ordered() {
                     continue;
@@ -695,12 +696,15 @@ mod tests {
     #[test]
     fn the_census_of_content_models_is_what_the_schemas_say() {
         // A census, not a target: it says out loud how much of these schemas is genuinely ordered,
-        // and it moves only when the schemas or the flattener do.
+        // and it moves only when the schemas or the flattener do. It swept three of the nine tables
+        // until MJXOFF-224 — the three that existed when it was written — and reported "no xsd:all"
+        // on that evidence, which was true of the three and false of the corpus: `CT_DocPartPr` in
+        // `wml.xsd` is one. `ALL_TABLES` is generated, so the next schema joins this sweep with it.
         let mut sequence = 0;
         let mut choice = 0;
         let mut all = 0;
         let mut empty = 0;
-        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+        for table in ALL_TABLES {
             for order in table {
                 match order.model {
                     ContentModel::Sequence => sequence += 1,
@@ -712,9 +716,9 @@ mod tests {
         }
         assert_eq!(
             (sequence, choice, all, empty),
-            (318, 19, 0, 179),
-            "DrawingML, PresentationML and DrawingML-chart hold 516 complex types: 318 sequences \
-             where order is validity, 19 genuine choices, no xsd:all, and 179 with no children"
+            (806, 58, 1, 470),
+            "the nine generated tables hold 1,335 complex types: 806 sequences where order is \
+             validity, 58 genuine choices, one xsd:all (`CT_DocPartPr`), and 470 with no children"
         );
     }
 

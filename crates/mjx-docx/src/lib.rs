@@ -1,5 +1,10 @@
 //! `mjx-docx` — WordprocessingML: document body, styles, numbering, sections, headers/footers.
 //!
+//! **Start at [`guide`]** — the Word guide set: building a document, addressing and editing a
+//! run, tables and sections, the style-and-numbering ladder, charts, and what is preserved
+//! rather than modelled. Every item below carries its own doc comment; the guide is the story
+//! around them.
+//!
 //! The entry point is [`Document`]: open a `.docx`'s container bytes with [`Document::open`] — or
 //! start from nothing with [`Document::blank`] — read its part graph with [`Document::parts`], and
 //! save with [`Document::save`]. It owns an

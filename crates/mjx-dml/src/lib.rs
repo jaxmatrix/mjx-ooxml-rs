@@ -1,30 +1,41 @@
 //! `mjx-dml` — DrawingML: shapes, text bodies, color model, effects, preset geometry, theme
 //! (shared by all formats).
 //!
-//! # Status
+//! **Start at [`guide`]** — six narrative pages written for a caller who has a shape and wants it
+//! filled, outlined, positioned or coloured, and for a format crate being wired onto this one. Every
+//! item below carries its own doc comment; the guide is the story around them.
 //!
-//! The first typed models are the DrawingML **text** types in [`text`] — `a:txBody` / `a:p` / `a:r`
-//! / `a:t` — implementing the [`mjx_ooxml_core::FromXml`] / [`mjx_ooxml_core::ToXml`] traits via
-//! `#[derive(FromXml, ToXml)]` (the `mjx-derive` proc-macro). They read a real text body out of a
-//! slide, expose its text, and rebuild it byte-identically. [`geometry`] adds the preset-shape
-//! geometry fidelity model (`a:prstGeom` / `a:avLst` / `a:gd`). The rest of DrawingML follows in
-//! later phases, and [`geometry::formula`] evaluates the guide-formula language (`a:gd@fmla`) those
-//! geometries express their coordinates in.
+//! # What is here
+//!
+//! [`color`], [`fill`], [`line`](mod@line), [`effect`] and [`shape3d`] are what a shape looks like;
+//! [`geometry`] is what shape it is and where, over the named measures ([`Emu`], [`Angle`],
+//! [`Fraction`]) all of it is expressed in, with [`geometry::formula`] evaluating the guide-formula
+//! language (`a:gd@fmla`) a custom geometry's coordinates are written in. [`text`] is `a:txBody`
+//! down to `a:t`; [`table`] is `a:tbl`; [`theme`] is the palette every scheme colour resolves
+//! against, and [`resolve`] is the resolver that does it. [`shape_properties`], [`nonvisual`],
+//! [`picture`] and [`graphic`] are the wrappers a host puts round all of that, and
+//! [`wordprocessing_drawing`] and [`spreadsheet_drawing`] are the two satellite schemas whose
+//! content is entirely DrawingML and which therefore live here rather than in `mjx-docx` and
+//! `mjx-xlsx`.
 //!
 //! # Fidelity
 //!
 //! Each modeled type keeps everything it does not itself model — its element name (with prefix), all
 //! attributes, the self-closing flag, and any unmodeled children (`a:bodyPr`, `a:rPr`, whitespace,
-//! foreign elements) — so a parsed value re-serializes exactly. See [`text`] for the mechanism.
+//! foreign elements) — so a parsed value re-serializes exactly. [`text`] states the mechanism and
+//! [`guide::fidelity_and_gaps`] states which of the four implementations of it each type uses, what
+//! each is backed by, and every gap that is still open.
 
 pub(crate) mod build;
 pub mod codec;
 pub mod color;
+pub mod color_transform;
 pub mod diagram;
 pub mod effect;
 pub mod fill;
 pub mod geometry;
 pub mod graphic;
+pub mod guide;
 pub mod line;
 pub mod nonvisual;
 pub mod picture;
@@ -39,6 +50,7 @@ pub mod theme;
 pub mod wordprocessing_drawing;
 
 pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
+pub use color_transform::{ColorTransform, ColorTransformKind, ColorTransformValue};
 pub use effect::{
     BlendMode, BlurEffect, EffectList, EffectListSpec, FillOverlayEffect, GlowEffect,
     InnerShadowEffect, OuterShadowEffect, PresetShadow, PresetShadowEffect, RectangleAlignment,
@@ -106,6 +118,6 @@ pub use text::{
     TextUnderline, TextWrapping, UnderlineFill, UnderlineLine,
 };
 pub use theme::{
-    ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot, SupplementalFont,
-    Theme, ThemeFontReference, ThemeInfo,
+    default_theme_xml, ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot,
+    SupplementalFont, Theme, ThemeFontReference, ThemeInfo, DEFAULT_THEME_XML,
 };

@@ -1,4 +1,9 @@
-//! `@mjx/ooxml` — the whole PowerPoint surface, as WebAssembly with TypeScript types.
+//! `@mjx/ooxml` — the whole `Deck`, `Document` and `Workbook` surface, as WebAssembly with
+//! TypeScript types.
+//!
+//! **Start at [`guide`]** — this crate's page of the bindings' guide set, whose index is
+//! `mjx_python::guide`. It is hosted here because the two bindings are siblings and neither may
+//! name the other.
 //!
 //! ```js
 //! import init, { Deck, detectFormat, Format } from "@mjx/ooxml";
@@ -97,6 +102,7 @@ pub mod enums;
 pub mod errors;
 pub mod format;
 pub mod geometry;
+pub mod guide;
 pub mod measures;
 pub mod paint;
 pub mod spreadsheet;

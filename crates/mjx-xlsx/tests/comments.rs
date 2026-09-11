@@ -88,13 +88,47 @@ fn saved_parts(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
 // Tier 1: a producer's file comes back unchanged
 // -------------------------------------------------------------------------------------------
 
+/// Every `.xlsx` fixture that carries a legacy comment part, found rather than listed.
+///
+/// The three above are the whole of it today. They are **derived** here rather than named
+/// (MJXOFF-252): a list of fixture names inside a case called *every producer workbook* is a claim
+/// about a subset this repository can enumerate for itself, hand-written — the shape
+/// `xtask/tests/derived_rosters.rs` exists to reject, and the shape that sweep found here once the
+/// committed corpus became one of its populations. A fourth producer file dropped into
+/// `tests/fixtures/` joins this case the moment it lands, which is what the case's name promises.
+fn workbooks_carrying_comment_parts() -> Vec<(String, Vec<u8>)> {
+    let mut found = Vec::new();
+    for name in mjx_fixtures::package_fixtures_with_extension("xlsx") {
+        let bytes = mjx_fixtures::fixture(&name);
+        let package = Package::open(&bytes).expect("open");
+        if package
+            .part_names()
+            .any(|part| part.as_str().starts_with("/xl/comments"))
+        {
+            found.push((name, bytes));
+        }
+    }
+    found
+}
+
 #[test]
 fn every_producer_workbook_re_emits_its_comment_parts_byte_for_byte() {
-    for (name, bytes) in [
-        ("cell_comments.xlsx", libreoffice_comments()),
-        ("legacy_form_control.xlsx", libreoffice_control()),
-        ("comments_third_party.xlsx", xlsxwriter_comments()),
-    ] {
+    let workbooks = workbooks_carrying_comment_parts();
+    assert!(
+        workbooks.len() >= 3,
+        "the scan for workbooks carrying a comment part has stopped matching: it found {}. With \
+         nothing to round-trip, this case passes exactly as a working one does.",
+        workbooks.len()
+    );
+    println!(
+        "producer workbooks carrying comment parts: {:?}",
+        workbooks
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<&str>>()
+    );
+
+    for (name, bytes) in workbooks {
         let workbook = Workbook::open(&bytes).expect("open");
         let saved = workbook.save().expect("save");
         let before = saved_parts(&bytes);
@@ -813,5 +847,129 @@ fn the_comment_text_model_keeps_a_producers_runs_until_it_is_replaced() {
         has_runs,
         Some(true),
         "a comment read from a file replays the runs it was written with"
+    );
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-213 — a refusal that must not have written anything
+// -------------------------------------------------------------------------------------------
+
+/// Every entry of a container, name and decompressed payload, in container order.
+///
+/// The comparison below is over **all** of them rather than over the three the defect touched, so a
+/// partial write anywhere — a content-type override, a `.rels` entry, a part nobody expected — is a
+/// failure here and not something the assertion has to have anticipated.
+fn entries(container: &[u8]) -> Vec<(String, Vec<u8>)> {
+    Package::open(container)
+        .expect("the container opens")
+        .entries()
+        .iter()
+        .map(|entry| {
+            (
+                entry.name.clone(),
+                entry.bytes().expect("a stored part").to_vec(),
+            )
+        })
+        .collect()
+}
+
+/// A comment aimed at a tab that cannot carry one leaves the package **byte-identical**.
+///
+/// The refusal itself was never in doubt — a dialogsheet has no cells to anchor a box to. What this
+/// pins is *when* it happens: before `xl/commentsN.xml` is inserted, before `[Content_Types].xml` is
+/// amended and before the sheet's `.rels` grows, so a caller who handles the error and saves anyway
+/// does not ship a comments part for a comment that does not exist.
+#[test]
+fn a_comment_aimed_at_a_dialogsheet_is_refused_before_anything_is_written() {
+    let before = mjx_fixtures::fixture("print_and_sheet_kinds.xlsx");
+    let mut workbook = Workbook::open(&before).expect("open");
+
+    // The premise, asserted rather than assumed: tab 1 really is a dialogsheet. A fixture that stops
+    // carrying one fails here instead of turning this test into a green statement about nothing.
+    assert_eq!(
+        workbook.sheets()[1].kind,
+        Some(mjx_xlsx::SheetKind::Dialogsheet),
+        "the fixture's second tab is the dialogsheet this case is aimed at"
+    );
+
+    let refusal = workbook.add_comment(
+        1,
+        CellReference::parse("A1").expect("A1 parses"),
+        "Reviewer",
+        "a remark",
+    );
+    let Err(error) = refusal else {
+        panic!("a dialogsheet has no cells; a comment aimed at one must be refused");
+    };
+    assert!(
+        matches!(
+            error,
+            XlsxError::SheetIsNotAWorksheet {
+                index: 1,
+                kind: Some(mjx_xlsx::SheetKind::Dialogsheet)
+            }
+        ),
+        "the refusal names the tab and the kind it is, and got {error:?}"
+    );
+    // MJXOFF-241: it used to say `MissingWorkbookPart("sheet 1")` — *"workbook part sheet 1 is
+    // missing from the package"* — about a dialogsheet part that is present and correct.
+    let text = error.to_string();
+    assert!(
+        text.contains("dialogsheet") && !text.contains("missing"),
+        "a present part must not be reported as missing; it said: {text}"
+    );
+
+    // …and nothing was written on the way to that refusal.
+    let after = workbook.save().expect("the refused workbook still saves");
+    let (before, after) = (entries(&before), entries(&after));
+
+    let names = |entries: &[(String, Vec<u8>)]| -> Vec<String> {
+        entries.iter().map(|(name, _)| name.clone()).collect()
+    };
+    assert_eq!(
+        names(&before),
+        names(&after),
+        "a refused edit must not add, remove or reorder a container entry"
+    );
+    let changed: Vec<&str> = before
+        .iter()
+        .zip(&after)
+        .filter(|((_, a), (_, b))| a != b)
+        .map(|((name, _), _)| name.as_str())
+        .collect();
+    assert!(
+        changed.is_empty(),
+        "a refused edit must leave every entry byte-identical; these changed: {changed:?}"
+    );
+}
+
+/// The same call on the tab that *can* take a comment still works, so the guard above is a guard and
+/// not a wall.
+#[test]
+fn the_worksheet_beside_that_dialogsheet_still_takes_a_comment() {
+    let before = mjx_fixtures::fixture("print_and_sheet_kinds.xlsx");
+    let mut workbook = Workbook::open(&before).expect("open");
+    assert_eq!(
+        workbook.sheets()[0].kind,
+        Some(mjx_xlsx::SheetKind::Worksheet),
+        "the fixture's first tab is the worksheet"
+    );
+
+    workbook
+        .add_comment(
+            0,
+            CellReference::parse("A1").expect("A1 parses"),
+            "Reviewer",
+            "a remark",
+        )
+        .expect("a worksheet takes a comment");
+    let saved = workbook.save().expect("it saves");
+
+    let reopened = Workbook::open(&saved).expect("reopen");
+    let comments = reopened.sheet_comments(0).expect("the comments");
+    assert_eq!(comments.len(), 1, "the comment that was just written");
+    assert_eq!(
+        comments[0].cell,
+        CellReference::parse("A1").expect("A1 parses")
     );
 }

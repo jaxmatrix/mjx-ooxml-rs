@@ -2755,7 +2755,7 @@ fn read_drawing(
                 .and_then(|properties| properties.id(interner).ok()),
             frames_a_chart: inline
                 .graphic(interner)
-                .and_then(|graphic| graphic.data().chart_relationship_id(interner))
+                .and_then(|graphic| graphic.data()?.chart_relationship_id(interner))
                 .is_some(),
             placement: DrawingPlacement::Inline(DrawingDistances {
                 top: emu_or_zero(inline.distance_top(interner)),
@@ -2825,7 +2825,7 @@ fn read_drawing(
             .and_then(|properties| properties.id(interner).ok()),
         frames_a_chart: anchor
             .graphic(interner)
-            .and_then(|graphic| graphic.data().chart_relationship_id(interner))
+            .and_then(|graphic| graphic.data()?.chart_relationship_id(interner))
             .is_some(),
         placement: DrawingPlacement::Anchored(Box::new(AnchoredDrawing {
             distance,

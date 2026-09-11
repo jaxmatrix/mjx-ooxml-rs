@@ -1,0 +1,28 @@
+/* The one brand decision: a code-forward palette, and wide enough lines for a three-tab block. */
+:root {
+  --ifm-color-primary: #2d5f8b;
+  --ifm-color-primary-dark: #29567d;
+  --ifm-color-primary-darker: #275176;
+  --ifm-color-primary-darkest: #204361;
+  --ifm-color-primary-light: #317099;
+  --ifm-color-primary-lighter: #3375a0;
+  --ifm-color-primary-lightest: #3a83b3;
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7fb2d8;
+  --ifm-color-primary-dark: #63a2d0;
+  --ifm-color-primary-darker: #559acc;
+  --ifm-color-primary-darkest: #3980b6;
+  --ifm-color-primary-light: #9bc2e0;
+  --ifm-color-primary-lighter: #a9cae4;
+  --ifm-color-primary-lightest: #d3e4f1;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* A tab group is the site's main unit; give it a little breathing room from the prose above. */
+.tabs-container {
+  margin-block: 1.5rem;
+}

@@ -342,7 +342,7 @@ impl Workbook {
     /// expressions: a calculation engine, which `PLAN.md` settles as out of scope. Dropping the part
     /// would be an edit to the package the caller did not ask for, on every save. The reasoning for
     /// both is written out in [`mjx_sml::formula`], and the limitation is recorded in
-    /// `docs/fidelity_and_gaps.md`.
+    /// `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md`.
     ///
     /// **This is not a mutation.** The part keeps its container bytes and [`save`](Self::save) still
     /// re-emits them verbatim.

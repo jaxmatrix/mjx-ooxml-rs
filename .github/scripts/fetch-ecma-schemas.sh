@@ -59,7 +59,21 @@ readonly BASE_URL="https://ecma-international.org/wp-content/uploads"
 readonly ARCHIVES=(
     "ECMA-376-4_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Transitional.zip:pml.xsd"
     "ECMA-376-2_5th_edition_december_2021.zip|OpenPackagingConventions-XMLSchema.zip:opc-relationships.xsd"
-    "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Strict.zip:dml-main.xsd|OfficeOpenXML-DrawingMLGeometries.zip:presetShapeDefinitions.xml"
+    # Part 1 carries THREE members this workspace reads, and they are one entry because they come
+    # out of one 42 MB download:
+    #   * `OfficeOpenXML-XMLSchema-Strict` — the Strict half of the namespace table the generator
+    #     pairs against Transitional.
+    #   * `presetShapeDefinitions.xml` — the normative preset-shape corpus.
+    #     `xtask/tests/published_markup.rs` holds every published geometry name to
+    #     `PresetShapeType`'s wire tokens (MJXOFF-250), and `mjx-geometry`'s table is generated from
+    #     it (MJXOFF-202). Added to CI by MJXOFF-197, because two gates that read that corpus had
+    #     never once executed there — they skipped, and an absent corpus reads exactly like success.
+    #   * `presetCellStyles.xml` — not a schema: ECMA's own built-in cell and table styles, the only
+    #     SpreadsheetML markup the standard publishes. `crates/mjx-sml/tests/theme_index.rs` derives
+    #     the `@theme` position table from them rather than restating it (MJXOFF-246).
+    # Only ~1.5 MB of the 42 is ever extracted; the rest is the part's PDF and 14.4 MB of Word art
+    # borders. Each member carries its own marker, so a changed inner layout fails loudly.
+    "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Strict.zip:dml-main.xsd|OfficeOpenXML-DrawingMLGeometries.zip:presetShapeDefinitions.xml|OfficeOpenXML-SpreadsheetMLStyles.zip:presetCellStyles.xml"
 )
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

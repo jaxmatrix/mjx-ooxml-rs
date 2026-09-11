@@ -30,9 +30,16 @@
 //! * and nothing in this workspace interprets XLM, so a modelled macrosheet cell would be a
 //!   `CellValue` nobody could act on.
 //!
+//! # Twenty-seven slots, twenty modelled, seven held
+//!
 //! The ticket asks for a macrosheet *"modelled at least to the frame level, so a workbook containing
-//! one round-trips and reports it"*, and that is exactly what this is: twenty of the twenty-seven
-//! slots typed, seven held, every one of the twenty-seven byte-identical in position.
+//! one round-trips and reports it"*, and that is exactly what this is: every one of the twenty-seven
+//! is byte-identical in position whether it is typed or held. The seven held are `sheetData`,
+//! `phoneticPr`, `legacyDrawing`, `legacyDrawingHF`, `drawingHF`, `oleObjects` and `extLst`.
+//!
+//! Both figures are derived: `sheets/frame.rs`'s
+//! `every_slot_of_every_sheet_kind_is_accounted_for` reads a macrosheet holding one of every slot
+//! and holds this heading to what the reader typed.
 
 use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
 use mjx_ooxml_types::child_order::{ChildOrder, MACROSHEET};

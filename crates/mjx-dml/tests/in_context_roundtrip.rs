@@ -1187,3 +1187,102 @@ fn an_edit_three_rungs_down_leaves_every_wrapped_start_tag_beside_it_alone() {
         "an edit three rungs down re-flowed something it did not write"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// The envelope types: `pic:pic`, `a:graphic`, `wp:inline`, `wp:anchor` (MJXOFF-217)
+// ---------------------------------------------------------------------------------------------
+//
+// MJXOFF-216 found `Picture`/`PictureNonVisual` destroying every attribute, every unmodelled child
+// and the element's own prefix, and asked how many of this crate's hand-written `FromXml`/`ToXml`
+// pairs did the same. MJXOFF-217 counted them: of the eight pairs, **four** lost content and **two
+// more** lost the self-closing flag. These six cases are that count, one case per finding, each
+// written to fail against the code as it stood at 0.0.137.
+//
+// They belong here rather than in a scratch file for the reason this whole section exists: every
+// `pic:pic` in the committed corpus is canonical — standard prefix, zero attributes, exactly the
+// three schema-declared children — so a rebuild that invents all three reproduces it exactly and
+// the per-fixture preservation gate sees nothing.
+
+const PIC: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+const WP: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+
+/// `pic:pic` — MJXOFF-216's own reproduction, promoted from a deleted scratch test to a committed
+/// case: a foreign attribute on the root, a second on `pic:nvPicPr`, and a foreign fourth child
+/// beside the three `CT_Picture` declares.
+fn picture() -> Vec<u8> {
+    format!(
+        r#"<pic:pic xmlns:pic="{PIC}" xmlns:a="{A}" xmlns:r="{R}" xmlns:z="{Z}" z:note='keep me'><pic:nvPicPr z:tag="keep me too"><pic:cNvPr id="3" name='Kept'/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed='rId2'/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="200"/></a:xfrm><a:prstGeom prst='rect'><a:avLst/></a:prstGeom></pic:spPr><z:extra>content</z:extra></pic:pic>"#
+    )
+    .into_bytes()
+}
+
+/// `a:graphic` — DrawingML-main bound to a prefix that is not `a`, a foreign child beside the one
+/// `a:graphicData` the schema declares, and a foreign attribute on each of the two elements.
+fn graphic() -> Vec<u8> {
+    format!(
+        r#"<dml:graphic xmlns:dml="{A}" xmlns:c="{C}" xmlns:r="{R}" xmlns:z="{Z}" z:note='on the envelope'><dml:graphicData uri="{CHART_URI}" z:note="on the payload"><c:chart r:id='rId7'/></dml:graphicData><z:extra>beside the payload</z:extra></dml:graphic>"#
+    )
+    .into_bytes()
+}
+
+const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+const CHART_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+#[test]
+fn a_picture_written_in_forms_we_never_emit_survives_byte_for_byte() {
+    let markup = picture();
+    round_trips_in_document::<mjx_dml::Picture>(&markup, named("pic"), |picture, i| {
+        let non_visual = picture.non_visual().expect("pic:nvPicPr");
+        let props = non_visual.drawing_props().expect("pic:cNvPr");
+        assert_eq!(
+            props.id(i).ok(),
+            Some(3),
+            "the model really read the identity"
+        );
+        assert_eq!(props.drawing_name(i).as_deref(), Some("Kept"));
+        assert!(non_visual.picture_props().is_some(), "pic:cNvPicPr");
+        assert_eq!(picture.image_rel_id(i).as_deref(), Some("rId2"));
+        assert!(
+            picture
+                .shape_properties()
+                .is_some_and(|sp| sp.transform(i).is_some_and(|t| t.size.is_some())),
+            "the model really read the shape properties"
+        );
+    });
+}
+
+#[test]
+fn a_graphic_envelope_written_in_forms_we_never_emit_survives_byte_for_byte() {
+    let markup = graphic();
+    round_trips_in_document::<mjx_dml::Graphic>(&markup, named("graphic"), |graphic, i| {
+        let data = graphic.data().expect("a:graphicData");
+        assert_eq!(data.uri(i).as_deref(), Some(CHART_URI));
+        assert_eq!(
+            data.chart_relationship_id(i).as_deref(),
+            Some("rId7"),
+            "the model really read the payload"
+        );
+    });
+}
+
+#[test]
+fn a_self_closing_inline_drawing_stays_self_closing() {
+    let markup =
+        format!(r#"<wp:inline xmlns:wp="{WP}" distT='0' z:x="1" xmlns:z="{Z}"/>"#).into_bytes();
+    round_trips_in_document::<mjx_dml::wordprocessing_drawing::Inline>(
+        &markup,
+        named("inline"),
+        |_, _| {},
+    );
+}
+
+#[test]
+fn a_self_closing_floating_anchor_stays_self_closing() {
+    let markup =
+        format!(r#"<wp:anchor xmlns:wp="{WP}" behindDoc='0' z:x="1" xmlns:z="{Z}"/>"#).into_bytes();
+    round_trips_in_document::<mjx_dml::wordprocessing_drawing::Anchor>(
+        &markup,
+        named("anchor"),
+        |_, _| {},
+    );
+}

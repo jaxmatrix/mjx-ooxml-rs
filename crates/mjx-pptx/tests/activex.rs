@@ -97,7 +97,8 @@ fn activex_part_bytes_resolves_to_the_verbatim_ocx() {
     let mut pres = Presentation::open(&bytes).expect("open");
     assert_eq!(
         pres.activex_part_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
-            .expect("read"),
+            .expect("read")
+            .as_deref(),
         Some(ocx.as_slice()),
         "the resolved bytes are exactly the package's ActiveX control part"
     );
@@ -120,7 +121,8 @@ fn activex_state_bytes_resolves_across_the_two_hop_chain() {
     let mut pres = Presentation::open(&bytes).expect("open");
     assert_eq!(
         pres.activex_state_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
-            .expect("read"),
+            .expect("read")
+            .as_deref(),
         Some(blob.as_slice()),
         "the resolved bytes are exactly the package's ActiveX binary blob"
     );
@@ -143,7 +145,8 @@ fn activex_snapshot_image_bytes_resolves_to_the_verbatim_snapshot() {
     );
     assert_eq!(
         pres.activex_snapshot_image_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
-            .expect("read"),
+            .expect("read")
+            .as_deref(),
         Some(snapshot.as_slice()),
         "the resolved bytes are exactly the package's snapshot image"
     );
@@ -246,12 +249,14 @@ fn an_authored_control_reads_back_through_every_accessor() {
         Some(ActiveXPersistence::Storage)
     );
     assert_eq!(
-        pres.activex_state_bytes(0, idx).expect("state"),
+        pres.activex_state_bytes(0, idx).expect("state").as_deref(),
         Some(state),
         "the two-hop chain to the .bin resolves"
     );
     assert_eq!(
-        pres.activex_snapshot_image_bytes(0, idx).expect("snapshot"),
+        pres.activex_snapshot_image_bytes(0, idx)
+            .expect("snapshot")
+            .as_deref(),
         Some(TINY_PNG)
     );
 
@@ -266,7 +271,10 @@ fn an_authored_control_reads_back_through_every_accessor() {
     let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
     assert_eq!(reopened.activex_control_count(0).expect("count"), 1);
     assert_eq!(
-        reopened.activex_state_bytes(0, 0).expect("state"),
+        reopened
+            .activex_state_bytes(0, 0)
+            .expect("state")
+            .as_deref(),
         Some(state)
     );
 }
@@ -449,7 +457,8 @@ fn replacing_a_controls_snapshot_leaves_the_slide_markup_alone() {
     assert_eq!(
         reopened
             .activex_snapshot_image_bytes(0, 0)
-            .expect("snapshot"),
+            .expect("snapshot")
+            .as_deref(),
         Some(TINY_PNG)
     );
     assert_eq!(

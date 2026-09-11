@@ -102,6 +102,32 @@ of the two to do. An escape nobody sets is a suite reporting coverage it does no
 preset-shape geometry sweep sat in that state for the whole history of the repository, green every
 time, until MJXOFF-197. To leave one deliberately unset, write why in the comment block above one of
 its definition sites and mark that block `MJX-ESCAPE-UNSET`.
+### Guide examples are copied, never typed
+
+A code block in the facade guide that shows Python or JavaScript is **a copy of a file a test runner
+executes**, not a transcription. Each example is three files — `crates/mjx-ooxml/examples/guide_<name>.rs`,
+`bindings/mjx-python/tests/guide_examples/<name>.py` and
+`bindings/mjx-wasm/tests/node/guide_examples/<name>.mjs` — each with a `guide-example:start` /
+`guide-example:end` region, and the guide holds markers where the blocks go:
+
+```sh
+cargo run -p xtask -- guide-examples           # copy every region into the block that marks it
+cargo run -p xtask -- guide-examples --check   # write nothing; say whether the blocks are current
+```
+
+The committed output is what ships, exactly as for `mjx-ooxml-types`; there is no `build.rs`.
+`xtask/tests/guide_examples.rs` fails when a block has been hand-edited, when an example is missing
+one of its three languages, and when a half stops producing the package the other two compare
+against. **Adding an example means adding three files and three markers**, and then running the
+command — never typing a block into a page.
+
+A block about behaviour that is **Rust-only by decision** is the one exception, and it is stated
+rather than silent: its marker reads `rust-only` followed by the Rust symbols that make the claim
+true, and the gate then requires the example to have a Rust half and no binding half, requires every
+named symbol to appear in the block, and requires every named symbol to be absent from both binding
+surfaces. A `rust-only` marker is therefore a claim the repository re-checks on every run, not a way
+to skip writing two halves — and the page says so in prose beside the block, because that is where a
+reader meets it.
 
 ### The fuzz campaign
 

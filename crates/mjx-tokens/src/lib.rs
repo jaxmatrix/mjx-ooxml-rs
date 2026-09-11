@@ -1485,7 +1485,13 @@ mod tests {
         assert_eq!(tokens.color.paper.to_string(), "#fbf8f2");
         assert_eq!(tokens.color.green.to_string(), "#2e9e63");
         assert_eq!(tokens.color.green_deep.to_string(), "#1e7a49");
-        assert_eq!(tokens.radius.card.to_string(), "16px");
+        // ⚠ **The radii are the one group that is NO LONGER the measured value**, and that is a
+        // design decision rather than drift. `allr` measured 16px here; the hand-audit pass reduced
+        // the whole `radius` group — chip 8→4, control 10→6, card 16→10, panel 20→12, frame 22→14,
+        // phone 36→24 — because the source's softness read as too round at editor density. The
+        // group's own `$description` in `tokens.json` still claims the radii are large; it is the
+        // sentence to fix when somebody disagrees with this one.
+        assert_eq!(tokens.radius.card.to_string(), "10px");
         assert_eq!(tokens.spacing.to_string(), "0.25rem");
         assert_eq!(tokens.duration.transition.to_string(), "150ms");
         assert_eq!(tokens.ease.ink.to_string(), "cubic-bezier(0.45, 0, 0.2, 1)");

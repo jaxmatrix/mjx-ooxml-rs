@@ -18,8 +18,10 @@ Not from the twenty Excel tickets. From two things that shipped:
   removers and no authoring call at all**, which is why the index page records them as deliberately
   not covered: an entry describing an action the API cannot perform is worse than no entry.
 * **`crates/mjx-xlsx/docs/guide/deliberate_limitations.md`**, whose *Gaps rather than decisions*
-  table names exactly the same absences from the other direction — *writing a formula into a cell*,
-  *removing a sheet*, *authoring a theme part*.
+  table names exactly the same absences from the other direction — *writing a formula into a cell*
+  and *removing a sheet*. (*Authoring a theme part* was a third until MJXOFF-200, which found it was
+  not an absence in authoring convenience but a rendering defect: with no theme, every chart this
+  library wrote into a workbook painted no bars.)
 
 Where the two disagree the surface wins, because a page can be stale and a `pub fn` cannot.
 
@@ -31,7 +33,7 @@ the mapping is against its **decisions** and its **gaps**.
 | Area | Risk | The limitations page says | What that means here |
 |---|---|---|---|
 | `V-XLSX-01` | low | *Gap* — **writing a formula into a cell** has no owner | `V-XLSX-01.4` reads formulas from a fixture and authors none |
-| `V-XLSX-01` | low | *Gap* — **removing a sheet** has no owner; *gap* — **authoring a theme part** has none either | Recorded, not checked. `Workbook::blank` writes no `xl/theme/theme1.xml`, and `V-XLSX-01.3` is where Excel is asked whether that is acceptable |
+| `V-XLSX-01` | low | *Gap* — **removing a sheet** has no owner | Recorded, not checked. `V-XLSX-01.3` is where Excel is asked whether a workbook authored from nothing is acceptable — which since MJXOFF-200 includes `xl/theme/theme1.xml`, the part font 0's `<color theme="1"/>` and a chart series' absent `c:spPr` both resolve against |
 | `V-XLSX-02` | high | *Decision* — nothing is evaluated | The two style layers are pure markup, and `V-XLSX-02.1` is the pass's whole Excel deliverable |
 | `V-XLSX-03` | medium | *Decision* — **a filter, a sort and a validation rule are recorded, never applied**; **nothing is repaired on read** | Non-goals. `V-XLSX-03.3` checks that a hidden row is the file's own `row@hidden` and not something a filter did |
 | `V-XLSX-04` | medium | *Decision* — a chart's workbook is not this crate's; the writer is `mjx-sml`'s | R4's third host. `V-XLSX-04` reads a **live range** rather than an embedded workbook, which is the case neither other format has |
@@ -178,6 +180,18 @@ number formats and effective cell formatting). **This is the highest-risk area i
 - **Action** open the file in Excel and look at whether the two fills draw at all.
 - **Expect** `PatternFillSpec::solid` writes a **ten-character** `@rgb` where `sml.xsd` types it as an eight-character `ST_UnsignedIntHex`. **Both validators passed it**, which is why it reached this page rather than a test. If Excel refuses the fill, or draws it in the wrong colour, that is this — not a resolution problem — and the fix belongs in `mjx-sml`'s writer, not in the pass.
   Calls: `Workbook::append_pattern_fill` · `Workbook.append_pattern_fill` · `Workbook.appendPatternFill`
+  Result: — · — · — · —
+
+#### V-XLSX-02.7 — the theme index a cell colour names
+
+- **Risk** high — a **defect found and fixed by `MJXOFF-246`**, whose ultimate tie-break is this check.
+- **Shipped by** `MJXOFF-105`, corrected by `MJXOFF-246`.
+- **Artefact** `v-xlsx-02-authored.xlsx`
+- **Object** `xl/styles.xml`'s font 0 — `<color theme="1"/>` — and the cells on the *Formats* sheet that name no font of their own, which is every cell outside `A1:C1`.
+- **Action** open the file in Excel and read the colour of the unstyled cells' text. Then Home → Font → Font Colour → **More Colours → Custom** on one of them, or Page Layout → Colours, and note which named theme colour Excel says is in force.
+- **Expect** **black text, and Excel naming it *Text 1*** — not *Background 1*. SpreadsheetML's `@theme` is a position in `theme1.xml`'s `clrScheme`, and the two readings of that position differ on exactly the first two dark/light pairs: `1` is `dk1` under the one this library implements and `lt1` under the sequence order §20.1.6.2 prints for `clrScheme`'s children. This library used to author `theme="1"` meaning *text* and resolve it meaning *background*, so it read the default font colour of every workbook it wrote as **white**; `crates/mjx-sml/tests/theme_index.rs` now derives the mapping from ECMA's own `presetCellStyles.xml` and `presetTableStyles.xml` and holds the writer to it. **That derivation is from markup, not from Office** — this is the check that closes it against the reference implementation, and it is the one entry on this page where an Excel answer of *Background 1* would mean the fix went the wrong way.
+  Calls: `Workbook::blank` · `Workbook.blank` · `Workbook.blank`
+  Calls: `Workbook::effective_cell_format` · `Workbook.effective_cell_format` · `Workbook.effectiveCellFormat`
   Result: — · — · — · —
 
 ## `V-XLSX-03` · `grid` — merged ranges, row heights, column widths, hiding and outline levels

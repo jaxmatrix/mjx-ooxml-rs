@@ -396,3 +396,163 @@ fn validation_leaves_every_part_in_the_state_it_found_it() {
         "an untouched part must still be raw bytes after validation"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// MJXOFF-238 — the edit that changes a part's relationships without touching its body
+// ---------------------------------------------------------------------------------------------
+
+/// A package whose `/doc.xml` **arrived** from a container: it declares `rId7` and `rId8`, names
+/// `rId7` in its markup, names `rId8` nowhere, and names `extra` if `extra` is `Some`.
+///
+/// Written out with `save_unchecked` and reopened, so every part's provenance is `FromContainer` —
+/// which is the whole point. A package assembled in memory is `Authored` throughout, and `Authored`
+/// is the scope that was never in doubt.
+fn arrived_package(extra: Option<&str>) -> Vec<u8> {
+    let doc = part("/doc.xml");
+    let mut markup = String::from(
+        r#"<x xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId7""#,
+    );
+    if let Some(extra) = extra {
+        markup.push_str(&format!(r#"><y r:id="{extra}"/></x>"#));
+    } else {
+        markup.push_str("/>");
+    }
+
+    let mut package = Package::empty();
+    package
+        .insert_part(&part("/target.xml"), "application/xml", b"<t/>".to_vec())
+        .expect("insert the target");
+    package
+        .insert_part(&doc, "application/xml", markup.into_bytes())
+        .expect("insert the document");
+    relate(&mut package, Some(&doc), "rId7", "target.xml");
+    relate(&mut package, Some(&doc), "rId8", "target.xml");
+    package
+        .save_unchecked()
+        .expect("write the container this suite reads back")
+}
+
+/// The defect the ticket is about: **`remove_relationship` on a part whose body names it**.
+///
+/// The part's bytes are the container's and stay that way, so nothing marks it `Authored` and the
+/// markup check used to skip it entirely. `check_relationships` sees nothing either — there is no
+/// relationship left, so there is no missing target — and the save wrote out a file naming a
+/// relationship nothing declares.
+#[test]
+fn a_relationship_removed_from_a_part_whose_markup_names_it_is_refused() {
+    let arrived = arrived_package(None);
+
+    // The premise: the package this starts from is clean, and stays clean when nothing is removed.
+    Package::open(&arrived)
+        .expect("reopen")
+        .save()
+        .expect("the package this case starts from is valid");
+
+    let mut package = Package::open(&arrived).expect("reopen");
+    assert!(package
+        .remove_relationship(Some(&part("/doc.xml")), "rId7")
+        .expect("remove the relationship the markup names"));
+
+    match defect(&package) {
+        PackageDefect::UndeclaredRelationshipReference {
+            part,
+            element,
+            attribute,
+            relationship_id,
+        } => {
+            assert_eq!(part, "/doc.xml");
+            assert_eq!(element, "x");
+            assert_eq!(attribute, "r:id");
+            assert_eq!(relationship_id, "rId7");
+        }
+        other => panic!("expected the dangling reference to be reported, got {other:?}"),
+    }
+
+    // Declaring the id again makes the fault go away — the check is about the state of the package,
+    // not about the fact that a call was once made.
+    relate(&mut package, Some(&part("/doc.xml")), "rId7", "target.xml");
+    package
+        .save()
+        .expect("a re-declared relationship is not dangling");
+}
+
+/// **MJXOFF-212's bound, held.** A part that holds the removed relationship but names it nowhere in
+/// markup is not faulted, and keeps its original bytes.
+///
+/// This is what `remove_slide`'s behaviour rests on: a slide holding a relationship to the removed
+/// slide and naming it nowhere must come through a removal untouched, and a deck that opened and
+/// saved a moment ago must go on saving.
+#[test]
+fn a_part_that_holds_the_removed_relationship_but_names_it_nowhere_is_left_alone() {
+    let arrived = arrived_package(None);
+    let mut package = Package::open(&arrived).expect("reopen");
+    assert!(package
+        .remove_relationship(Some(&part("/doc.xml")), "rId8")
+        .expect("remove the relationship the markup does not name"));
+
+    let saved = package
+        .save()
+        .expect("nothing names rId8, so nothing dangles");
+
+    let before = Package::open(&arrived).expect("reopen");
+    let after = Package::open(&saved).expect("reopen");
+    assert_eq!(
+        after.part_bytes(&part("/doc.xml")),
+        before.part_bytes(&part("/doc.xml")),
+        "a part the removal did not name must keep its original bytes"
+    );
+}
+
+/// **The reason the second scope is one question and not the whole part.** A part that *arrived*
+/// with a dangling reference of its own is still not faulted when a different, unnamed relationship
+/// is removed from its `.rels`.
+///
+/// Checking such a part whole would have been the simpler widening and would have regressed exactly
+/// the promise the scoping exists for: a file that opened and saved a moment ago would stop saving
+/// because a relationship it never named was dropped somewhere else in the package. Only the ids
+/// this library removed are looked for, so what the file arrived with stays out of our checks.
+#[test]
+fn a_dangling_reference_the_file_arrived_with_survives_a_removal_it_has_nothing_to_do_with() {
+    // `rId9` is named in the markup and declared nowhere: this file was already broken when we got
+    // it, and re-emitting it verbatim is the promise.
+    let arrived = arrived_package(Some("rId9"));
+    Package::open(&arrived)
+        .expect("reopen")
+        .save()
+        .expect("a package is not faulted for reference markup it arrived with");
+
+    let mut package = Package::open(&arrived).expect("reopen");
+    assert!(package
+        .remove_relationship(Some(&part("/doc.xml")), "rId8")
+        .expect("remove a relationship the markup does not name"));
+    package
+        .save()
+        .expect("rId9 arrived dangling and is not ours to fault");
+
+    // And the one the removal *can* have broken is still reported, in the very same part.
+    let mut package = Package::open(&arrived).expect("reopen");
+    assert!(package
+        .remove_relationship(Some(&part("/doc.xml")), "rId7")
+        .expect("remove the relationship the markup names"));
+    assert!(matches!(
+        defect(&package),
+        PackageDefect::UndeclaredRelationshipReference { ref relationship_id, .. }
+            if relationship_id == "rId7"
+    ));
+}
+
+/// Removing the *part* takes its record with it: there is no markup left to have broken, and a
+/// package that removes a part and everything that named it still saves.
+#[test]
+fn removing_the_part_itself_leaves_nothing_to_report() {
+    let arrived = arrived_package(None);
+    let mut package = Package::open(&arrived).expect("reopen");
+    package
+        .remove_relationship(Some(&part("/doc.xml")), "rId7")
+        .expect("unwire");
+    package.remove_part(&part("/doc.xml")).expect("remove");
+    assert!(package.unwired_relationships().is_empty());
+    package
+        .save()
+        .expect("the markup that named it is gone too");
+}

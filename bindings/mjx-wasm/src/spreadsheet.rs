@@ -13,8 +13,9 @@
 //! *conversion* can be one call too, into JavaScript's own values and not into wasm handles.
 //!
 //! `rows()` answers `null`, `number`, `string` and `boolean`, because that is what a caller
-//! iterating a table wants. It cannot distinguish a text cell from an error cell, which both arrive
-//! as a `string`; [`CellBlock::kinds`] is the disambiguator, built only when asked.
+//! iterating a table wants. It cannot distinguish a text cell from an error cell or from an
+//! unreadable one, which all arrive as a `string`; [`CellBlock::kinds`] is the disambiguator, built
+//! only when asked.
 //!
 //! # The one shape that differs from Python's
 //!
@@ -28,9 +29,9 @@ use wasm_bindgen::prelude::*;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GeometrySource,
-    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
-    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    ApplyFlag, BorderStyle, CalculationMode, ColorSchemeSlot, FormatAspect, FormatLayer,
+    GeometrySource, GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior,
+    SheetKind, SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
     UnderlineType,
 };
 use crate::errors::map_error;
@@ -140,7 +141,8 @@ value_class! {
     /// A cell border: up to nine edges, plus the two diagonal flags.
     BorderSpec(ooxml::BorderSpec), derive(PartialEq);
 
-    /// One `x:xf`: the four resource indices and the six `apply*` flags.
+    /// One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    /// quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
     CellFormatSpec(ooxml::CellFormatSpec), derive(PartialEq, Eq);
 
     /// What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder.
@@ -163,25 +165,30 @@ fn kind_of(value: &ooxml::CellData) -> &'static str {
         ooxml::CellData::Text(_) => "text",
         ooxml::CellData::Boolean(_) => "boolean",
         ooxml::CellData::Error(_) => "error",
+        ooxml::CellData::Unreadable(_) => "unreadable",
     }
 }
 
 /// One cell as JavaScript's own types: `null`, `number`, `string` or `boolean`.
 ///
-/// An error cell arrives as its code (`"#DIV/0!"`), which a text cell holding that same text would
-/// too — `CellBlock.kinds` is how the two are told apart when it matters.
+/// An error cell arrives as its code (`"#DIV/0!"`) and an unreadable one as the text its file
+/// states, which a text cell holding that same text would too — `CellBlock.kinds` is how they are
+/// told apart when it matters. An unreadable cell is deliberately **not** `null`: `null` is what a
+/// blank answers, and telling those two apart is the whole reason the kind exists.
 fn native(value: &ooxml::CellData) -> JsValue {
     match value {
         ooxml::CellData::Blank => JsValue::NULL,
         ooxml::CellData::Number(number) => JsValue::from_f64(*number),
-        ooxml::CellData::Text(text) | ooxml::CellData::Error(text) => JsValue::from_str(text),
+        ooxml::CellData::Text(text)
+        | ooxml::CellData::Error(text)
+        | ooxml::CellData::Unreadable(text) => JsValue::from_str(text),
         ooxml::CellData::Boolean(value) => JsValue::from_bool(*value),
     }
 }
 
 #[wasm_bindgen]
 impl CellData {
-    /// `"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`.
+    /// `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"` or `"unreadable"`.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> String {
         (kind_of(&self.0)).to_owned()
@@ -216,6 +223,13 @@ impl CellData {
     #[wasm_bindgen(getter, js_name = "errorCode")]
     pub fn error_code(&self) -> Option<String> {
         (self.0.error_code()).map(str::to_owned)
+    }
+
+    /// The text of a value this library could not read as the kind its cell declares, or `None` for
+    /// every other kind — including a blank, which is a cell that states no value at all.
+    #[wasm_bindgen(getter, js_name = "unreadableText")]
+    pub fn unreadable_text(&self) -> Option<String> {
+        (self.0.unreadable_text()).map(str::to_owned)
     }
 
     /// The value as one of JavaScript's own types: `null`, `number`, `string` or `boolean`.
@@ -378,9 +392,9 @@ impl CellBlock {
     }
 
     /// The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`,
-    /// `"error"`.
+    /// `"error"` or `"unreadable"`, exactly the vocabulary `CellData.kind` answers.
     ///
-    /// The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell
+    /// The disambiguator for `rows`, which cannot tell a text cell from an error cell
     /// because both arrive as a `string`. Built only when asked.
     #[wasm_bindgen(js_name = "kinds")]
     pub fn kinds(&self) -> js_sys::Array {
@@ -1540,9 +1554,19 @@ impl Color {
     }
 
     /// A theme colour by index, optionally tinted towards white (positive) or black (negative).
+    ///
+    /// The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states. An
+    /// author should reach for `fromThemeSlot`, which names the slot instead of numbering it.
     #[wasm_bindgen(js_name = "fromTheme")]
     pub fn from_theme(index: u32, tint: Option<f64>) -> Self {
         Self(ooxml::Color::from_theme(index, tint))
+    }
+
+    /// A theme colour by **slot**, optionally tinted — `fromTheme` with the position spelled out,
+    /// and the constructor an author should reach for.
+    #[wasm_bindgen(js_name = "fromThemeSlot")]
+    pub fn from_theme_slot(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::Color::from_theme_slot(slot.into(), tint))
     }
 
     /// The system foreground/background colour, whatever that is at render time.
@@ -1729,7 +1753,7 @@ impl FontProperties {
         self.0.underline.map(UnderlineType::from_model).transpose()
     }
 
-    /// `scheme`.
+    /// `scheme` — whether this is the theme's major or minor font rather than a named one.
     #[wasm_bindgen(getter, js_name = "scheme")]
     pub fn scheme(&self) -> Result<Option<SpreadsheetFontScheme>, JsValue> {
         self.0
@@ -1761,6 +1785,14 @@ impl PatternFillSpec {
     #[wasm_bindgen(js_name = "solid")]
     pub fn solid(hex: &str) -> Self {
         Self(ooxml::PatternFillSpec::solid(hex))
+    }
+
+    /// A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+    /// this one unless the colour itself is the point: a hex literal survives into a document whose
+    /// owner has rebranded everything around it.
+    #[wasm_bindgen(js_name = "solidFromTheme")]
+    pub fn solid_from_theme(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self(ooxml::PatternFillSpec::solid_from_theme(slot.into(), tint))
     }
 
     /// `@patternType`.
@@ -2096,6 +2128,110 @@ impl CellFormatSpec {
     #[wasm_bindgen(getter, js_name = "borderIndex")]
     pub fn border_index(&self) -> Option<u32> {
         self.0.border_index
+    }
+
+    /// `@xfId` — the `cellStyleXfs` record beneath this one.
+    #[wasm_bindgen(getter, js_name = "cellStyleFormatIndex")]
+    pub fn cell_style_format_index(&self) -> Option<u32> {
+        self.0.cell_style_format_index
+    }
+
+    /// `@quotePrefix` — the value is text because it was typed with a leading apostrophe. Spelled
+    /// as the facade's own field so that the readable attribute reads the same in both bindings;
+    /// the builder beside it keeps the shorter `withQuotePrefix` it shipped with.
+    #[wasm_bindgen(getter, js_name = "textIsQuotePrefixed")]
+    pub fn text_is_quote_prefixed(&self) -> Option<bool> {
+        self.0.text_is_quote_prefixed
+    }
+
+    /// `@applyNumberFormat`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesNumberFormat")]
+    pub fn applies_number_format(&self) -> Option<bool> {
+        self.0.applies_number_format
+    }
+
+    /// `@applyFont`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesFont")]
+    pub fn applies_font(&self) -> Option<bool> {
+        self.0.applies_font
+    }
+
+    /// `@applyFill`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesFill")]
+    pub fn applies_fill(&self) -> Option<bool> {
+        self.0.applies_fill
+    }
+
+    /// `@applyBorder`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesBorder")]
+    pub fn applies_border(&self) -> Option<bool> {
+        self.0.applies_border
+    }
+
+    /// `@applyAlignment`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesAlignment")]
+    pub fn applies_alignment(&self) -> Option<bool> {
+        self.0.applies_alignment
+    }
+
+    /// `@applyProtection`. Three-valued: `undefined` writes no attribute at all.
+    #[wasm_bindgen(getter, js_name = "appliesProtection")]
+    pub fn applies_protection(&self) -> Option<bool> {
+        self.0.applies_protection
+    }
+
+    /// `@applyNumberFormat`, stated on its own.
+    ///
+    /// The six `withApplies…` builders exist because the flag is **three-valued** — §18.8.9 makes
+    /// an absent flag *participate* and a `0` *suppress*, which is not the same thing — and because
+    /// `withNumberFormatId` and its three siblings can only ever say `1`. Pass `undefined` to write
+    /// no attribute at all. Call this *after* the index builder, whose implied `1` it replaces.
+    #[wasm_bindgen(js_name = "withAppliesNumberFormat")]
+    pub fn with_applies_number_format(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_number_format = applies;
+        Self(next)
+    }
+
+    /// `@applyFont`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesFont")]
+    pub fn with_applies_font(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_font = applies;
+        Self(next)
+    }
+
+    /// `@applyFill`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesFill")]
+    pub fn with_applies_fill(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_fill = applies;
+        Self(next)
+    }
+
+    /// `@applyBorder`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesBorder")]
+    pub fn with_applies_border(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_border = applies;
+        Self(next)
+    }
+
+    /// `@applyAlignment`, stated on its own — the one `x:xf` attribute no index builder implies,
+    /// because the alignment it governs is a child element rather than a resource index.
+    #[wasm_bindgen(js_name = "withAppliesAlignment")]
+    pub fn with_applies_alignment(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_alignment = applies;
+        Self(next)
+    }
+
+    /// `@applyProtection`, stated on its own. The other attribute no index builder implies.
+    #[wasm_bindgen(js_name = "withAppliesProtection")]
+    pub fn with_applies_protection(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_protection = applies;
+        Self(next)
     }
 }
 

@@ -527,7 +527,7 @@ fn read_charts(
         let Some(bytes) = workbook.chart_part_bytes(index, anchor)? else {
             continue;
         };
-        if let Ok(model) = mjx_layout_chart::ChartModel::read(bytes) {
+        if let Ok(model) = mjx_layout_chart::ChartModel::read(&bytes) {
             charts.push((anchor, model));
         }
     }

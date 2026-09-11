@@ -107,41 +107,33 @@ measured Apache POI 5.5.1 writing an empty `<c:tx/>` for an unnamed chart series
 
 ## The one failure to expect first, and why it is ours
 
-**A schema deviation on the first real Excel workbook, and on any file carrying an Office chart, is a
-defect of this project's own — not of the file.**
+**An `<ext>` in a namespace your file declares `mc:Ignorable` is reported on by nobody, and that is a
+residue of the gate rather than a clean bill of health.**
 
 `mjx-schema-gate` validates the *markup-compatibility-resolved* view of a part, because
 `mc:Ignorable` names attributes the base schema has no declaration for. Resolution removes an
 ignorable element **together with its content** — and `sml.xsd`'s `CT_Extension` and
-`dml-chart.xsd`'s declare their wildcard as a bare `<xsd:any processContents="lax"/>`, whose
-`minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable is emptied by the
-resolution and then rejected:
+`dml-chart.xsd`'s declare their whole content model as a bare `<xsd:any processContents="lax"/>`,
+whose `minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable was emptied
+by the resolution and then rejected, on every conformant file Office has written since 2010:
 
 ```
 Element '{…/spreadsheetml/2006/main}ext': Missing child element(s). Expected is one of ( {*}*, * ).
 ```
 
-Three views tell the whole story, and `xtask/tests/office_corpus.rs` reproduces all three from markup
-authored there for the purpose:
+MJXOFF-196 closed that. An extension slot markup-compatibility resolution empties is now dropped
+along with the extension it held: such an element exists *only* to carry that extension, and
+ignoring the extension without ignoring the slot is half a resolution. The rule fires only on the
+elements `crates/mjx-schema-gate/src/wildcard_slots.rs` names — **derived from the pinned XSDs by
+test**, five of them — and only when the source element had children, so an `<ext/>` written empty
+is still reported. `xtask/tests/mce_extension_seam.rs` holds every part of that.
 
-| View | Verdict |
-|---|---|
-| as a producer writes it | rejected — `mc:Ignorable` is not allowed |
-| compatibility attributes removed, ignorable content kept | validates |
-| fully resolved, the way MCE mandates | rejected — *Missing child element(s)* |
-
-So the schema does not object to the extension. It objects to the **hole** resolution leaves where
-the extension was. `pml.xsd`'s own `CT_Extension` and `dml-main.xsd`'s `CT_OfficeArtExtension` both
-say `minOccurs="0"` and are unaffected, which is why the defect reaches presentations and documents
-through their *charts* rather than through their main parts.
-
-**This is not a tolerance.** A tolerance in `crates/mjx-schema-gate/src/tolerances.rs` is for one file
-and one message, and never for a defect of ours; recording this one there would file a defect of the
-gate as a quirk of somebody's spreadsheet, and it would then look for ever like a property of the
-corpus. It is a defect in how markup-compatibility resolution and schema validation compose, it fires
-identically on every conformant file, and it is owned by **MJXOFF-196**, which carries the
-reproduction, the schema sweep behind it and three candidate fixes — rather than by whoever happens
-to ingest the first workbook.
+**What is left is a residue worth knowing before you read a report.** The gate says nothing about
+markup *inside* an ignorable extension, and it never could: `CT_Extension`'s wildcard is
+`processContents="lax"` and no schema for such a namespace is loaded, so a validator handed the
+content would accept it unread. `pml.xsd`'s own `CT_Extension` and `dml-main.xsd`'s
+`CT_OfficeArtExtension` both say `minOccurs="0"`, which is why the seam reached presentations and
+documents through their *charts* rather than through their main parts.
 
 ## Why this is not under `tests/fixtures/`
 

@@ -50,7 +50,7 @@ use super::Workbook;
 ///
 /// **Deliberately exhaustive**, like the error enumerations below it and for the same reason: both
 /// bindings map every variant onto their own language's values with a `match` that has no wildcard
-/// arm, so a sixth kind of cell would be a compile error there rather than a value that silently
+/// arm, so a seventh kind of cell would be a compile error there rather than a value that silently
 /// arrives as a blank.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CellData {
@@ -66,6 +66,22 @@ pub enum CellData {
     /// `t="e"` — an error code such as `#DIV/0!` or `#N/A`, carried verbatim. Nothing here evaluates
     /// or produces one.
     Error(String),
+    /// The cell states a value that its own `c@t` cannot read — `<c t="n"><v>not-a-number</v></c>`,
+    /// a `t="b"` whose `<v>` is neither `1` nor `0`, a `t="s"` whose `<v>` is not an index, a
+    /// `t="inlineStr"` that wrote a `<v>` instead of an `<is>` — carried as the text the file
+    /// states.
+    ///
+    /// **This is not a blank, and that is the whole point of the variant.** A blank says the file
+    /// holds nothing here; this says the file holds something this library cannot read as the kind
+    /// the cell declares. The token is reported rather than repaired, and rather than dropped: no
+    /// schema admits it, but the file states it, and a caller that is told nothing cannot even know
+    /// to look.
+    ///
+    /// The declared type is not carried beside the text: `c@t` is the markup tier's vocabulary and
+    /// this tier has never published it, and the text is the part a caller can act on. The cell's
+    /// bytes are untouched either way — reading is not an edit, so a workbook saved without editing
+    /// this cell still writes exactly what it was opened with.
+    Unreadable(String),
 }
 
 impl CellData {
@@ -109,6 +125,17 @@ impl CellData {
     pub fn error_code(&self) -> Option<&str> {
         match self {
             Self::Error(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The text of a value this library could not read as the kind its cell declares, or `None` for
+    /// every other kind — including [`Blank`](Self::Blank), which is a cell that states no value at
+    /// all.
+    #[must_use]
+    pub fn unreadable_text(&self) -> Option<&str> {
+        match self {
+            Self::Unreadable(value) => Some(value),
             _ => None,
         }
     }
@@ -426,6 +453,20 @@ impl Workbook {
     /// Every row, cell and worksheet child the batch does not name is left byte-identical — the
     /// isolation is [`mjx_sml::WorksheetPart`]'s slot-level copy-on-write, not this method's doing.
     ///
+    /// # Writing over a formula
+    ///
+    /// A cell that carries an `<f>` **keeps it**, and only its cached `<v>` is replaced. So writing
+    /// `50` into a cell holding `=A2*2` leaves a file that still says `=A2*2` and now caches `50`,
+    /// and Excel computes the formula's own answer over that cache the next time it recalculates —
+    /// the written value does not survive.
+    ///
+    /// That is the same decision every other formula question on this surface follows, and the
+    /// reason is that the alternative is worse: dropping the `<f>` would destroy a formula the
+    /// caller did not name in a file they opened to change a number, and it cannot be undone.
+    /// [`CellBlock::formula`] is how to see one before writing over it, and
+    /// [*Deliberate limitations*](mjx_xlsx::guide::deliberate_limitations) is why there is no
+    /// calculation engine behind either.
+    ///
     /// # Errors
     /// - [`ErrorCode::IndexOutOfRange`] if `sheet` names no tab.
     /// - [`ErrorCode::InvalidArgument`] if a reference is not an A1 cell, or a
@@ -544,11 +585,11 @@ impl Workbook {
             *slot = match cell.cell_type() {
                 CellType::Number => match cell.number() {
                     Some(number) => CellData::Number(number),
-                    None => CellData::Blank,
+                    None => stated_but_unreadable(&cell),
                 },
                 CellType::Boolean => match cell.boolean() {
                     Some(value) => CellData::Boolean(value),
-                    None => CellData::Blank,
+                    None => stated_but_unreadable(&cell),
                 },
                 CellType::Error => match cell.value().map_err(mjx_sml::SmlError::from)? {
                     Some(code) => CellData::Error(code.into_owned()),
@@ -564,28 +605,34 @@ impl Workbook {
                         let text = string.item().text().map_err(mjx_sml::SmlError::from)?;
                         CellData::Text(text.into_owned())
                     }
-                    None => CellData::Blank,
+                    // An `inlineStr` that wrote a `<v>` rather than an `<is>` states a value this
+                    // kind cannot read; one that wrote neither states nothing and is a blank.
+                    None => stated_but_unreadable(&cell),
                 },
-                CellType::SharedString => {
-                    let Some(at) = cell.shared_string_index() else {
-                        continue;
-                    };
-                    let table = match &table {
-                        Some(table) => table.as_ref(),
-                        None => {
-                            table = Some(self.workbook.shared_strings()?);
-                            table.as_ref().and_then(Option::as_ref)
+                // A `t="s"` whose `<v>` is not an index states a token no table could resolve, and
+                // reporting it is what keeps it from arriving as a blank.
+                CellType::SharedString => match cell.shared_string_index() {
+                    None => stated_but_unreadable(&cell),
+                    Some(at) => {
+                        let table = match &table {
+                            Some(table) => table.as_ref(),
+                            None => {
+                                table = Some(self.workbook.shared_strings()?);
+                                table.as_ref().and_then(Option::as_ref)
+                            }
+                        };
+                        // A `t="s"` naming no entry is a different defect and stays a blank: the
+                        // index is readable, and what is missing is the entry it names, so there is
+                        // no token to report. The same reading `mjx_xlsx::Workbook::cell_text`
+                        // gives it.
+                        match table.and_then(|table| table.item(at)) {
+                            Some(item) => CellData::Text(
+                                item.text().map_err(mjx_sml::SmlError::from)?.into_owned(),
+                            ),
+                            None => CellData::Blank,
                         }
-                    };
-                    // A `t="s"` naming no entry is a defect in the file, reported as a blank rather
-                    // than repaired — the same reading `mjx_xlsx::Workbook::cell_text` gives it.
-                    match table.and_then(|table| table.item(at)) {
-                        Some(item) => CellData::Text(
-                            item.text().map_err(mjx_sml::SmlError::from)?.into_owned(),
-                        ),
-                        None => CellData::Blank,
                     }
-                }
+                },
             };
             if let Some(formula) = cell.formula() {
                 if let Some(text) = formula_text(&formula) {
@@ -605,6 +652,26 @@ impl Workbook {
             values,
             formulas,
         })
+    }
+}
+
+/// What a cell reads as when its declared type could not read the value it states: the text of its
+/// `<v>`, or a blank when it states no value at all.
+///
+/// **Never fails**, which is the point of not routing it through [`mjx_sml::Cell::value`]'s
+/// `Result`: this is already the path for a cell whose content is not what it claims, and refusing
+/// to open a workbook over one such cell would replace a silent blank with a broken flow. So a `<v>`
+/// whose bytes are not UTF-8, or whose entity references will not decode, is carried through
+/// [`String::from_utf8_lossy`] rather than raised — the cell is still reported, and the bytes it was
+/// read from are still written back untouched.
+fn stated_but_unreadable(cell: &mjx_sml::Cell<'_>) -> CellData {
+    match cell.value() {
+        Ok(Some(text)) => CellData::Unreadable(text.into_owned()),
+        Ok(None) => CellData::Blank,
+        Err(_) => match cell.raw_value() {
+            Some(raw) => CellData::Unreadable(String::from_utf8_lossy(raw).into_owned()),
+            None => CellData::Blank,
+        },
     }
 }
 

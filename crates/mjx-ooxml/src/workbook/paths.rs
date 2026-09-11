@@ -45,11 +45,15 @@ impl Workbook {
             .map(str::to_owned))
     }
 
-    /// The bytes of one part, exactly as the package holds them.
+    /// The bytes of one part, as the workbook holds it **now**.
     ///
     /// The door to everything this facade does not model: a pivot cache, a drawing, a printer
     /// settings blob, an `x:metadata`. Reading never dirties a part, so the workbook still saves
     /// byte-identically afterwards.
+    ///
+    /// A part this workbook has already edited answers with what it now contains — the same bytes
+    /// [`save`](crate::Workbook::save) would write for it — rather than reporting itself missing
+    /// (MJXOFF-222).
     ///
     /// # Errors
     /// [`ErrorCode::MalformedDocument`] if `part` is not a
@@ -58,8 +62,8 @@ impl Workbook {
         let name = part_name(part)?;
         self.workbook
             .package()
-            .part_bytes(&name)
-            .map(<[u8]>::to_vec)
+            .part_payload(&name)
+            .map(std::borrow::Cow::into_owned)
             .ok_or_else(|| {
                 Error::new(
                     ErrorCode::NotFound,

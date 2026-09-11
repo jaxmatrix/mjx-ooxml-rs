@@ -215,11 +215,39 @@ let bytes = deck.save()?;
 
 ## The gaps
 
-Two lists, kept apart on purpose. The first is what this library **decides not to do**, each entry
+Three lists, kept apart on purpose. The first is what this library **decides not to do**, each entry
 with the reason it is a decision. The second is what is **built but not yet verified against Office**,
-each entry with the work that will verify it. Nothing here is an oversight, and nothing here is a
-fidelity hole: every gap below is *reach* — something you cannot ask for — never something the library
-loses. A deck carrying any of it round-trips unchanged.
+each entry with the work that will verify it. Neither is an oversight and neither is a fidelity hole:
+every gap in them is *reach* — something you cannot ask for — never something the library loses, and
+a deck carrying any of it round-trips unchanged.
+
+The third list is different, and it is first below because of that: it is what this library
+**gets wrong**. An entry there is a defect with a ticket, not a decision, and calling the method it
+names can cost you content. It is empty as of 0.0.145, and it stays on the page anyway — a table
+that only appears when something is wrong tells you nothing on the day it is absent.
+
+### Known defects
+
+**None open.** The section stays whether or not it has a row: an empty defect table is a claim, and
+a missing one is an omission. Nothing else on this page can lose you content.
+
+| Defect | What happens | Ticket |
+|---|---|---|
+| *(none)* | | |
+
+The one entry this table has carried was **MJXOFF-233**, and it is worth keeping the shape of it in
+view because the class recurs. Run coalescing merged two adjacent runs whose *effective* formatting
+matched — and effective means resolved, which bakes a colour to `RRGGBB`. That drops an `a:alpha` and
+flattens a theme link (`a:schemeClr`, or a `+mn-lt` typeface) to the literal it currently resolves
+to, so two runs that differ only by transparency, or only by whether they follow the theme, compared
+equal and one of them was deleted. `unmodeled_state_eq` did not catch it, because `a:solidFill` and
+`a:latin` are modelled. Fixed in **0.0.145** by adding a third condition to the merge — the two runs'
+own, *unresolved* colours and typefaces must agree
+([`CharacterPropertiesSpec::resolution_sensitive_eq`](mjx_dml::CharacterPropertiesSpec::resolution_sensitive_eq))
+— and both methods now leave the preservation gate's `NEVER_EXERCISED` register, because its
+preparation splits a run before restyling the shape instead of only restyling it. The narrowing that
+buys: a run naming a colour or typeface explicitly no longer merges with a neighbour that inherits
+the same one.
 
 ### Non-goals
 
@@ -228,7 +256,6 @@ loses. A deck carrying any of it round-trips unchanged.
 | **`extLst` is never modelled** — on a cell, on a table's properties, on a shape, a line, a chart, a text run | The extension list, the `uri` of every extension in it, and all of its content come back exactly as they went in, through an edit to the element that carries it | `extLst` **is** the unknown bucket, at the schema's own insistence: `CT_OfficeArtExtension` is a required `uri` plus `xsd:any processContents="lax"`, so an extension's content is markup in a namespace nobody but its author defines. Modelling it would mean modelling `a16:`, `p14:` and every vendor namespace after them. What matters is that an extension survives an edit *and stays where the sequence puts it* — `extLst` is last in `CT_TableCellProperties`, `CT_TableProperties`, `CT_TextListStyle` and the rest — and that is pinned by tests rather than asserted here |
 | **A font slot the theme does not define keeps its reference** (`+mj-lt`, `+mn-ea`, …) | The reference itself, verbatim, as the effective answer | The alternative is a guess. A deck naming a slot its theme leaves undefined — or a `+…` spelling `a:fontScheme` has no slot for — is telling you something, and substituting a plausible typeface would hide it. Resolution replaces a reference only with a font the theme actually names |
 | **A transform naming a rotation but not both `a:off` and `a:ext`** answers `None` for its bounds | `effective_shape_bounds` says "no answer", not "at the origin" | A transform is inherited **whole**: the first tier that places a shape wins entirely, and a shape cannot take its position from one tier and its size from another. A partial transform therefore places nothing, and `None` is the honest report of that |
-| **A chart's workbook is regenerated, not patched** | A data edit rewrites the embedded workbook from the chart's own data, so the two always agree | Reconciling an arbitrary third-party workbook with edited chart data is a merge problem with no correct answer. Detach the workbook first if you would rather keep it stale than lose the formatting or extra sheets it carried (MJX-116) |
 | **Chart colour and style parts** (`colors1.xml`, `style1.xml`) are preserved, not modelled | The parts, verbatim | They are Office 2013+ extensions outside ECMA-376, and a chart renders without them. The in-schema styling — `c:style`, `c:varyColors`, a series' `c:spPr` — *is* modelled |
 | **InkML strokes are not modelled** | The stroke set, verbatim, plus `add_ink` / `set_ink_content` checking the root namespace | InkML is a W3C vocabulary with no OOXML semantics of its own. Parsing it would buy reach into a format this library does not render |
 | **A SmartArt layout is not run** | `add_diagram` writes the data, layout, style and colour documents and the frame naming them, and `mjx_dml::diagram` reads the markup of all four back fully typed — the algorithm tree included; PowerPoint regenerates the cached `dsp:drawing`, and a diagram that already has one keeps it verbatim | Walking `LayoutNode`'s typed algorithm tree to compute where a consumer draws each point's shape is a rendering feature, and there is no rendering here — see [*what `mjx_dml::diagram` models*](#smartart-what-mjx_dmldiagram-models) above for the line between the markup (typed) and the engine (not) |
@@ -247,7 +274,7 @@ real PowerPoint, and saying so is the point of this section.
 | Not yet verified | What is in place | Who verifies it |
 |---|---|---|
 | **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended*. What now exists is the **road**: `tests/office-authored/` with its redistribution rule, `cargo run -p xtask -- validation-artefacts --ingest` to report on a file before it is committed, and `xtask/tests/office_corpus.rs`, which holds whatever lands there to per-part byte identity at the container *and* through `Deck`, to the fidelity tree, to `Package::validate` and to the child-order audit — reporting its file count on every run so that green over an empty corpus never reads as green over a corpus | A person with PowerPoint, working `docs/validation/06-the-office-pass.md`. **The corpus is empty**, and no agent may fill it: the value of an Office-authored file is entirely its provenance |
-| `comp` / `gray` / `gamma` / `invGamma` **colour transforms** | Implemented from the ECMA-376 prose and unit-tested against it | Validation against real PowerPoint (MJX-211 R3) — **and the corpus does not unblock this one.** `ColorSpec` carries a colour's kind and value and no transform children, so no facade call authors one and no committed fixture has one; PowerPoint's own interface exposes none of the four either, so a saved deck is unlikely to contain one. Closing it needs a colour-transform surface, which is a code change rather than a file |
+| `comp` / `gray` / `gamma` / `invGamma` **colour transforms** | Implemented from the ECMA-376 prose and unit-tested against it. **It is now possible to author one** (MJXOFF-219): `ColorSpec` carries the whole of `EG_ColorTransform`, and `v-pptx-02-authored.pptx` opens with a row of swatches carrying exactly these four over a fixed `4472C4`, next to a row of the transforms a real file contains | Validation against real PowerPoint (MJX-211 R3), which is now **unblocked in the direction that was reachable**. It stays unverified until a person points the eyedropper at those swatches: authoring a transform is not evidence that resolving one is right, and `crates/mjx-dml/src/resolve.rs` still says these four follow a documented interpretation rather than a pixel-verified one. The Office-authored corpus is unlikely to supply the other direction — PowerPoint's own interface exposes none of the four, so a saved deck probably contains none |
 | **The 0.0.58 text-inheritance change** | A non-placeholder shape now takes the master's `p:otherStyle` / `p:bodyStyle` per ECMA-376 §19.3.1.35. This follows the spec, but real PowerPoint is believed to match the *previous* behaviour, so it is isolated in one revertible commit | Validation against real PowerPoint (MJX-211 R1, MJX-208). It is `R1`, the first entry of the pass, and the pass stops at it if PowerPoint disagrees |
 
 ### Whole formats
@@ -279,6 +306,20 @@ tell the difference between "gone" and "quietly dropped":
   had no setter. It now has six: read, set and clear, for a level and for the `a:defPPr` beneath the
   levels, plus [`clear_shape_list_style`](Presentation::clear_shape_list_style) for the whole element.
   See [list formatting for the whole shape](crate::guide::shapes_and_text).
+- **A chart's embedded workbook is no longer thrown away by a data edit.** This page used to carry a
+  non-goal reading *a chart's workbook is regenerated, not patched*, whose reason was that
+  reconciling an arbitrary third-party workbook with edited chart data is a merge problem with no
+  correct answer. **It is not a merge problem.** The chart already states where its data lives — the
+  `c:f` beside each cache — so putting the new numbers there is an address lookup. Opening a real
+  deck, changing one series value and saving used to discard every extra sheet, cell format, defined
+  name and macro that workbook carried, silently, from a call that said nothing about any of them.
+  [`set_chart_series_values`](Presentation::set_chart_series_values),
+  [`set_chart_series_categories`](Presentation::set_chart_series_categories) and
+  [`refresh_chart_workbook`](Presentation::refresh_chart_workbook) now **patch** those cells and
+  leave the rest of the package byte for byte as it was; a `c:f` this library will not write over is
+  refused by name rather than quietly rebuilt over; and the old behaviour is
+  [`regenerate_chart_workbook`](Presentation::regenerate_chart_workbook), which a caller has to ask
+  for (MJXOFF-208).
 - **The duplicate SpreadsheetML writer is gone.** A chart's embedded workbook used to be written by
   a minimal writer inside `mjx-chart` — one sheet, a shared-string table and a styles skeleton — which
   existed only because no SpreadsheetML crate did, and which carried a note naming its own executioner.

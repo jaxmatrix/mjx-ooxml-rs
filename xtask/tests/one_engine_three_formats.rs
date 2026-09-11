@@ -361,7 +361,7 @@ fn the_three_hosts_read_one_chart_model() {
     let from_deck = deck
         .chart_part_bytes(slide, 0usize)
         .expect("readable")
-        .map(<[u8]>::to_vec)
+        .map(|bytes| bytes.into_owned())
         .expect("a chart part");
 
     let mut workbook = Workbook::blank().expect("a blank workbook");
@@ -379,7 +379,7 @@ fn the_three_hosts_read_one_chart_model() {
     let from_sheet = workbook
         .chart_part_bytes(0, anchors[0])
         .expect("readable")
-        .map(<[u8]>::to_vec)
+        .map(|bytes| bytes.into_owned())
         .expect("a chart part");
 
     let deck_model =

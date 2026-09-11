@@ -78,6 +78,8 @@
 //! C): `structured_content.rs`. A child that needs a subject not on this list adds the file and a
 //! line here, the same way `presentation/`'s own list grew past A8.
 
+use std::borrow::Cow;
+
 use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, RawAttribute, RawDocument, RawName, RawNode, ToXml,
 };
@@ -419,7 +421,7 @@ impl Document {
             }
             resolve_from_root(&rel.target)?
         };
-        if package.part_bytes(&document_part).is_none() {
+        if !package.contains_part(&document_part) {
             return Err(DocxError::MissingDocumentPart(
                 document_part.as_str().to_owned(),
             ));
@@ -1544,8 +1546,13 @@ impl Document {
 
     /// Removes the section at `location`'s own `kind` header reference, if it states one (a no-op
     /// otherwise), and — unless another `w:headerReference` anywhere in the document still names the
-    /// same part — sweeps the now-unreferenced part and its relationship
-    /// ([`mjx_opc::Package::remove_unreferenced_parts`]).
+    /// same part — the now-unreferenced part and its relationship
+    /// ([`mjx_opc::Package::remove_part_if_unreferenced`]).
+    ///
+    /// The clean-up is scoped to the part this call orphaned. It is not
+    /// [`mjx_opc::Package::remove_unreferenced_parts`], which is the package-wide sweep and would
+    /// take an orphan the producer had left in the file along with it — see MJXOFF-209. That sweep
+    /// stays available to a caller who wants it; it is not something removing a header decides.
     ///
     /// Unlike [`Document::create_header`], this never creates a `w:sectPr` the section did not
     /// already have: removing a reference from a section with none (or from one that carries a
@@ -1613,13 +1620,42 @@ impl Document {
             .relationship_id(interner)
             .map_err(FromXmlError::from)?
             .into_owned();
-        self.package
-            .remove_relationship(Some(&self.document_part), &rel_id)
-            .map_err(DocxError::from)?;
-        self.package
-            .remove_unreferenced_parts()
-            .map_err(DocxError::from)?;
+        self.drop_relationship_and_its_orphan(&rel_id)?;
         self.parts = parts::DocumentParts::resolve(&self.package, &self.document_part)?;
+        Ok(())
+    }
+
+    /// Drops relationship `rel_id` from the main document part and, if the part it named is now
+    /// referenced by nothing else, that part and everything reachable only through it.
+    ///
+    /// This is the clean-up an edit does **on its own behalf**, and the scoping is the point. Until
+    /// MJXOFF-209 the three edits that call it ran [`mjx_opc::Package::remove_unreferenced_parts`],
+    /// the *package-wide* sweep, which deletes every orphan it can find — including one the producer
+    /// left in the file. Removing a header would then also delete an image nobody had mentioned,
+    /// which is an editing library changing what it was not asked to change. `mjx-pptx` never had
+    /// the problem: its sweep is the opt-in [`mjx_pptx::Presentation::remove_unused_parts`], and
+    /// these three were the only automatic callers in the workspace.
+    ///
+    /// The cascade is still [`mjx_opc::Package::remove_part_cascading`]'s, so a chart part takes the
+    /// embedded workbook only it referenced with it, and a picture two drawings share is left alone.
+    ///
+    /// `mjx-pptx` is rank 3.0, exactly as this crate is, so that name cannot be an intra-doc link
+    /// here — sideways is as illegal as upward.
+    ///
+    /// [`mjx_pptx::Presentation::remove_unused_parts`]: https://docs.rs/mjx-pptx
+    fn drop_relationship_and_its_orphan(&mut self, rel_id: &str) -> Result<(), DocxError> {
+        // Resolve before unwiring: afterwards there is no relationship left to say what it named.
+        let orphaned = self
+            .package
+            .relationships_for(Some(&self.document_part))
+            .and_then(|rels| rels.by_id(rel_id))
+            .filter(|rel| rel.mode == TargetMode::Internal)
+            .and_then(|rel| self.document_part.resolve(&rel.target).ok());
+        self.package
+            .remove_relationship(Some(&self.document_part), rel_id)?;
+        if let Some(part) = orphaned {
+            self.package.remove_part_if_unreferenced(&part)?;
+        }
         Ok(())
     }
 
@@ -3206,10 +3242,8 @@ impl Document {
                 .and_then(|rels| rels.by_type(crate::constants::REL_COMMENTS).next())
                 .map(|rel| rel.id.clone());
             if let Some(rel_id) = rel_id {
-                self.package
-                    .remove_relationship(Some(&self.document_part), &rel_id)?;
+                self.drop_relationship_and_its_orphan(&rel_id)?;
             }
-            self.package.remove_unreferenced_parts()?;
             self.parts.comments = None;
         }
         Ok(())
@@ -3589,7 +3623,7 @@ impl Document {
                 .map_err(|_| DocxError::TargetResolution {
                     target: format!("media/image{n}.{extension}"),
                 })?;
-            if self.package.part_bytes(&candidate).is_none() {
+            if !self.package.contains_part(&candidate) {
                 break candidate;
             }
             n += 1;
@@ -3672,9 +3706,10 @@ impl Document {
 
     /// Removes the drawing whose `wp:docPr@id` is `doc_pr_id` — the run holding it, and the part and
     /// relationship it alone referenced: a picture's image part, or (since MJXOFF-103) a chart's
-    /// chart part *and*, through the same sweep, the embedded workbook that chart part alone
-    /// referenced. The sweep is [`mjx_opc::Package::remove_unreferenced_parts`], so a picture two
-    /// drawings share, however unusual, is not deleted out from under the other. Returns whether one
+    /// chart part *and*, through the same cascade, the embedded workbook that chart part alone
+    /// referenced. The removal is [`mjx_opc::Package::remove_part_if_unreferenced`], so a picture
+    /// two drawings share, however unusual, is not deleted out from under the other — and, since
+    /// MJXOFF-209, nothing outside what this drawing orphaned is touched at all. Returns whether one
     /// was found and removed; not finding it is a no-op, the same leniency
     /// [`Document::remove_footnote`] applies to an unknown id.
     ///
@@ -3701,10 +3736,8 @@ impl Document {
 
         if removed {
             if let Some(rel_id) = rel_id {
-                self.package
-                    .remove_relationship(Some(&self.document_part), &rel_id)?;
+                self.drop_relationship_and_its_orphan(&rel_id)?;
             }
-            self.package.remove_unreferenced_parts()?;
         }
         Ok(removed)
     }
@@ -4367,7 +4400,10 @@ impl Document {
     /// an internal `aFChunk` relationship — a missing relationship, one of the wrong type, or an
     /// external target, exactly the "shall be considered non-conformant" case ECMA-376 Part 1
     /// §17.17.2.1 names — reported rather than panicked on.
-    pub fn alt_chunk_payload(&self, relationship_id: &str) -> Result<(&[u8], &str), DocxError> {
+    pub fn alt_chunk_payload(
+        &self,
+        relationship_id: &str,
+    ) -> Result<(Cow<'_, [u8]>, &str), DocxError> {
         let part = self
             .alt_chunk_parts()?
             .into_iter()
@@ -4376,7 +4412,7 @@ impl Document {
             .ok_or_else(|| DocxError::AltChunkRelationshipNotFound {
                 relationship_id: relationship_id.to_owned(),
             })?;
-        let bytes = self.package.part_bytes(&part).ok_or_else(|| {
+        let bytes = self.package.part_payload(&part).ok_or_else(|| {
             DocxError::AltChunkRelationshipNotFound {
                 relationship_id: relationship_id.to_owned(),
             }
@@ -4739,7 +4775,8 @@ fn find_drawing_referenced_rel_id(
                         drawing::DrawingContent::Anchored(anchor) => anchor.graphic(interner),
                         drawing::DrawingContent::Raw(_) => None,
                     })?;
-                if let Some(picture) = graphic.data().picture() {
+                let data = graphic.data()?;
+                if let Some(picture) = data.picture() {
                     return picture.image_rel_id(interner);
                 }
                 // A chart's payload is not a `pic:pic`: it is a `c:chart` naming the chart part by
@@ -4748,7 +4785,7 @@ fn find_drawing_referenced_rel_id(
                 // removing a chart drawing left `word/_rels/document.xml.rels` pointing at a part
                 // nothing referenced, which `Package::validate` reports as a defect on the next
                 // `save`.
-                return graphic.data().chart_relationship_id(interner);
+                return data.chart_relationship_id(interner);
             }
         }
     }
