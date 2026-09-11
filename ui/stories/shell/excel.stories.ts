@@ -22,7 +22,6 @@ import {
   documentColumn,
   documentPlaceholder,
   field,
-  group,
   openDeclaredSurface,
   openSheetOnCommand,
   paneHeading,
@@ -32,9 +31,7 @@ import {
   selectionRun,
   shellFrame,
   statusBar,
-  stubTab,
   surface,
-  toggle,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
   ribbonGalleryStyle,
@@ -42,6 +39,7 @@ import {
   workspaceStyle,
   zoom,
 } from './shell-parts.ts';
+import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
 
 /**
  * **Excel, assembled** — the ribbon, the name box and formula bar, the grid, a task pane, the sheet
@@ -117,20 +115,28 @@ const cellCommands: readonly MiniCommand[] = [
   },
 ];
 
-// ── the ribbon ───────────────────────────────────────────────────────────────
+// ── the ribbon ──────────────────────────────────────────────────────────
 
+/**
+ * **Excel's ribbon, from `stories/ribbons/excel.ts`** — the same functions `Ribbons/Excel` audits.
+ *
+ * The tabs used to be written here; moving them out is the ribbon programme's unit 0. What stays is
+ * what belongs to an *application*: this machine's font list, this workbook's palette, the number
+ * formats this locale offers, the id of the menu the paste button opens, the cell-style gallery's
+ * contents. They are bound by the stable command ids `dev/ribbons/census.ts` declares.
+ *
+ * `excelTabs()` leaves out Print Preview and Background Removal, which Office shows only inside the
+ * view they name.
+ */
 function ribbon(): TemplateResult {
   return surface(
     'ribbon',
     'flex:0 0 auto;min-inline-size:0',
     html`
       <mjx-ribbon label="Excel" selected="home" @mjx-activate=${openDeclaredSurface}>
-        <mjx-ribbon-tab tab-id="home" label="Home">
-          ${group(
-            'Clipboard',
-            'secondary',
-            { launcher: 'Clipboard settings' },
-            html`<mjx-split-button
+        ${excelTabs({
+          controls: {
+            'excel.home.clipboard.paste': html`<mjx-split-button
               slot="essential"
               label="Paste"
               icon="clipboard-paste"
@@ -139,28 +145,24 @@ function ribbon(): TemplateResult {
               data-opens="xl-paste-menu"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
-            html`<mjx-button label="Cut" icon="cut"></mjx-button>`,
-            html`<mjx-button label="Copy" icon="copy"></mjx-button>`,
-          )}
-          ${group(
-            'Font',
-            'primary',
-            { launcher: 'Format cells: font' },
-            html`<mjx-font-picker
+            'excel.home.font.name': html`<mjx-font-picker
               id="xl-font"
               style=${ribbonFieldStyle}
               label="Font"
               value="Aptos"
               .fonts=${machineFonts}
             ></mjx-font-picker>`,
-            html`<mjx-dropdown id="xl-size" label="Font size" value="11" style=${ribbonNarrowFieldStyle}>
+            'excel.home.font.size': html`<mjx-dropdown
+              id="xl-size"
+              label="Font size"
+              value="11"
+              style=${ribbonNarrowFieldStyle}
+            >
               ${['9', '10', '11', '12', '14', '18'].map(
                 (size) => html`<mjx-option value=${size} label=${size}></mjx-option>`,
               )}
             </mjx-dropdown>`,
-            toggle('Bold', 'text-bold'),
-            toggle('Italic', 'text-italic'),
-            html`<mjx-color-picker
+            'excel.home.font.fill': html`<mjx-color-picker
               id="xl-fill"
               style=${ribbonColourFieldStyle}
               label="Fill colour"
@@ -169,22 +171,12 @@ function ribbon(): TemplateResult {
               .standardColors=${standardColors}
               .recentColors=${recentColors}
             ></mjx-color-picker>`,
-          )}
-          ${group(
-            'Alignment',
-            'primary',
-            { launcher: 'Format cells: alignment' },
-            toggle('Align left', 'text-align-left'),
-            toggle('Centre', 'text-align-center', true),
-            toggle('Align right', 'text-align-right'),
-            html`<mjx-button label="Merge & Centre" icon="table"></mjx-button>`,
-            html`<mjx-button label="Wrap Text" icon="arrow-down-right"></mjx-button>`,
-          )}
-          ${group(
-            'Number',
-            'standard',
-            { launcher: 'Format cells: number' },
-            html`<mjx-dropdown id="xl-number" label="Number format" value="general" style=${ribbonColourFieldStyle}>
+            'excel.home.number.format': html`<mjx-dropdown
+              id="xl-number"
+              label="Number format"
+              value="general"
+              style=${ribbonColourFieldStyle}
+            >
               ${[
                 { value: 'general', label: 'General' },
                 { value: 'number', label: 'Number' },
@@ -197,14 +189,7 @@ function ribbon(): TemplateResult {
                   html`<mjx-option value=${format.value} label=${format.label}></mjx-option>`,
               )}
             </mjx-dropdown>`,
-            html`<mjx-button label="Increase decimal" icon="add"></mjx-button>`,
-            html`<mjx-button label="Decrease decimal" icon="subtract"></mjx-button>`,
-          )}
-          ${group(
-            'Styles',
-            'standard',
-            {},
-            html`<mjx-gallery
+            'excel.home.styles.gallery': html`<mjx-gallery
               id="xl-cell-styles"
               label="Cell styles"
               value="office-2"
@@ -212,26 +197,9 @@ function ribbon(): TemplateResult {
             >
               ${largeGalleryItems().slice(0, 18)}
             </mjx-gallery>`,
-          )}
-          ${group(
-            'Editing',
-            'ancillary',
-            {},
-            html`<mjx-button slot="essential" label="AutoSum" icon="add"></mjx-button>`,
-            html`<mjx-button label="Sort & Filter" icon="arrow-down-right"></mjx-button>`,
-            html`<mjx-button label="Find & Select" icon="search"></mjx-button>`,
-          )}
-        </mjx-ribbon-tab>
-
-        ${stubTab('insert', 'Insert', 'PivotTable', 'table')}
-        ${stubTab('formulas', 'Formulas', 'Insert Function', 'add')}
-        ${stubTab('data', 'Data', 'Refresh All', 'arrow-redo')}
-        ${stubTab('review', 'Review', 'New Comment', 'comment')}
-        ${stubTab('view', 'View', 'Freeze Panes', 'slide-layout')}
-
-        <mjx-contextual-tab-set label="Table Tools">
-          ${stubTab('table-design', 'Design', 'Table Styles', 'table')}
-        </mjx-contextual-tab-set>
+          },
+        })}
+        ${excelContextualSets()}
       </mjx-ribbon>
     `,
   );

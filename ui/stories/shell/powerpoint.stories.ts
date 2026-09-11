@@ -23,7 +23,6 @@ import {
   documentColumn,
   documentPlaceholder,
   field,
-  group,
   navigatorPane,
   openDeclaredSurface,
   openSheetOnCommand,
@@ -35,9 +34,7 @@ import {
   selectionRun,
   shellFrame,
   statusBar,
-  stubTab,
   surface,
-  toggle,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
   ribbonGalleryStyle,
@@ -45,6 +42,7 @@ import {
   workspaceStyle,
   zoom,
 } from './shell-parts.ts';
+import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
 
 /**
  * **PowerPoint, assembled** — the ribbon, the thumbnail rail, the slide surface, a task pane and
@@ -143,15 +141,23 @@ const shapeCommands: readonly MiniCommand[] = [
   },
 ];
 
-// ── the ribbon ───────────────────────────────────────────────────────────────
+// ── the ribbon ──────────────────────────────────────────────────────────
 
 /**
- * PowerPoint's Home tab and the seven tabs beside it, plus a contextual set.
+ * **PowerPoint's ribbon, from `stories/ribbons/powerpoint.ts`** — the same functions
+ * `Ribbons/PowerPoint` audits.
  *
- * The contextual set is here rather than in a story of its own because a coloured band naming a set
- * of tabs is the single most obviously *compositional* thing in the ribbon: whether it reads as
- * belonging to this chrome, at this width, in both schemes, is not a question a component's own
- * story can put.
+ * The tabs used to be written here; moving them out is the ribbon programme's unit 0. What stays is
+ * what belongs to an *application* rather than to a ribbon: this machine's font list, this deck's
+ * palette, the id of the menu the paste button opens, the shape-style gallery's contents and the
+ * screentip that explains Arrange. They are bound by the stable command ids
+ * `dev/ribbons/census.ts` declares.
+ *
+ * `powerpointTabs()` leaves out the eight `appearance: 'view'` tabs — the two colour modes, the
+ * four masters, Print Preview and Background Removal — because Office shows none of them in the
+ * ordinary strip. The contextual set stays here as a call rather than as markup, for the reason it
+ * always had: a coloured band naming a set of tabs is the most obviously *compositional* thing in
+ * a ribbon, and whether it belongs to this chrome is not a question a component's own story can put.
  */
 function ribbon(): TemplateResult {
   return surface(
@@ -159,12 +165,9 @@ function ribbon(): TemplateResult {
     'flex:0 0 auto;min-inline-size:0',
     html`
       <mjx-ribbon label="PowerPoint" selected="home" @mjx-activate=${openDeclaredSurface}>
-        <mjx-ribbon-tab tab-id="home" label="Home">
-          ${group(
-            'Clipboard',
-            'secondary',
-            { launcher: 'Clipboard settings' },
-            html`<mjx-split-button
+        ${powerpointTabs({
+          controls: {
+            'powerpoint.home.clipboard.paste': html`<mjx-split-button
               slot="essential"
               label="Paste"
               icon="clipboard-paste"
@@ -173,30 +176,24 @@ function ribbon(): TemplateResult {
               data-opens="ppt-paste-menu"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
-            html`<mjx-button label="Cut" icon="cut"></mjx-button>`,
-            html`<mjx-button label="Copy" icon="copy"></mjx-button>`,
-            html`<mjx-button label="Format Painter" icon="settings"></mjx-button>`,
-          )}
-          ${group(
-            'Font',
-            'primary',
-            { launcher: 'Font settings' },
-            html`<mjx-font-picker
+            'powerpoint.home.font.name': html`<mjx-font-picker
               id="ppt-font"
               style=${ribbonFieldStyle}
               label="Font"
               value="Aptos"
               .fonts=${machineFonts}
             ></mjx-font-picker>`,
-            html`<mjx-dropdown id="ppt-size" label="Font size" value="18" style=${ribbonNarrowFieldStyle}>
+            'powerpoint.home.font.size': html`<mjx-dropdown
+              id="ppt-size"
+              label="Font size"
+              value="18"
+              style=${ribbonNarrowFieldStyle}
+            >
               ${['12', '14', '18', '24', '32', '44'].map(
                 (size) => html`<mjx-option value=${size} label=${size}></mjx-option>`,
               )}
             </mjx-dropdown>`,
-            toggle('Bold', 'text-bold', true),
-            toggle('Italic', 'text-italic'),
-            toggle('Underline', 'text-underline'),
-            html`<mjx-color-picker
+            'powerpoint.home.font.colour': html`<mjx-color-picker
               id="ppt-colour"
               style=${ribbonColourFieldStyle}
               label="Font colour"
@@ -205,23 +202,7 @@ function ribbon(): TemplateResult {
               .standardColors=${standardColors}
               .recentColors=${recentColors}
             ></mjx-color-picker>`,
-          )}
-          ${group(
-            'Paragraph',
-            'primary',
-            { launcher: 'Paragraph settings' },
-            toggle('Align left', 'text-align-left', true),
-            toggle('Centre', 'text-align-center'),
-            toggle('Align right', 'text-align-right'),
-            html`<mjx-button label="Bullets" icon="add"></mjx-button>`,
-            html`<mjx-button label="Numbering" icon="subtract"></mjx-button>`,
-            html`<mjx-button label="Convert to SmartArt" icon="table"></mjx-button>`,
-          )}
-          ${group(
-            'Drawing',
-            'standard',
-            { launcher: 'Shape settings' },
-            html`<mjx-gallery
+            'powerpoint.home.drawing.styles': html`<mjx-gallery
               id="ppt-shape-styles"
               label="Shape styles"
               value="office-1"
@@ -229,33 +210,16 @@ function ribbon(): TemplateResult {
             >
               ${largeGalleryItems().slice(0, 24)}
             </mjx-gallery>`,
-            html`<mjx-screentip
+            'powerpoint.home.drawing.arrange': html`<mjx-screentip
               heading="Arrange"
               description="Change how the selected shapes overlap one another, and how they line up."
               shortcut="Alt + J D A"
             >
               <mjx-button label="Arrange" icon="slide-layout"></mjx-button>
             </mjx-screentip>`,
-          )}
-          ${group(
-            'Editing',
-            'ancillary',
-            {},
-            html`<mjx-button slot="essential" label="Find" icon="search"></mjx-button>`,
-            html`<mjx-button label="Select" icon="checkmark"></mjx-button>`,
-          )}
-        </mjx-ribbon-tab>
-
-        ${stubTab('insert', 'Insert', 'New Slide', 'add')}
-        ${stubTab('design', 'Design', 'Themes', 'slide-layout')}
-        ${stubTab('transitions', 'Transitions', 'Morph', 'arrow-down-right')}
-        ${stubTab('animations', 'Animations', 'Add Animation', 'arrow-redo')}
-        ${stubTab('review', 'Review', 'New Comment', 'comment')}
-        ${stubTab('view', 'View', 'Slide Sorter', 'table')}
-
-        <mjx-contextual-tab-set label="Picture Tools">
-          ${stubTab('picture-format', 'Format', 'Crop', 'cut')}
-        </mjx-contextual-tab-set>
+          },
+        })}
+        ${powerpointContextualSets()}
       </mjx-ribbon>
     `,
   );

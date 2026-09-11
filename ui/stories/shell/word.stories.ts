@@ -23,7 +23,6 @@ import {
   documentColumn,
   documentPlaceholder,
   field,
-  group,
   navigatorPane,
   openDeclaredSurface,
   openSheetOnCommand,
@@ -34,9 +33,7 @@ import {
   selectionRun,
   shellFrame,
   statusBar,
-  stubTab,
   surface,
-  toggle,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
   ribbonGalleryStyle,
@@ -44,6 +41,7 @@ import {
   workspaceStyle,
   zoom,
 } from './shell-parts.ts';
+import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -189,20 +187,31 @@ const textCommands: readonly MiniCommand[] = [
   { command: 'comment', label: 'New comment', icon: 'comment', separatorBefore: true },
 ];
 
-// ── the ribbon ───────────────────────────────────────────────────────────────
+// ── the ribbon ──────────────────────────────────────────────────────────
 
+/**
+ * **Word's ribbon, from `stories/ribbons/word.ts`** — the same functions `Ribbons/Word` audits.
+ *
+ * The tabs used to be written here, and moving them out is the whole of the ribbon programme's
+ * unit 0. What stays is what genuinely belongs to an *application*: this machine's font list, this
+ * document's palette, the id of the menu the paste button opens, the contents of the styles
+ * gallery. A ribbon module cannot know any of those, so it names the commands and the shell binds
+ * them — keyed by the stable command ids `dev/ribbons/census.ts` declares, so neither side has to
+ * know how the other spelled its markup.
+ *
+ * `wordTabs()` leaves out the `appearance: 'view'` tabs — Outlining, Print Preview, Background
+ * Removal — because Office shows them only inside the view they name, and a shell that carried
+ * them in its default strip would be showing a ribbon that does not exist.
+ */
 function ribbon(): TemplateResult {
   return surface(
     'ribbon',
     'flex:0 0 auto;min-inline-size:0',
     html`
       <mjx-ribbon label="Word" selected="home" @mjx-activate=${openDeclaredSurface}>
-        <mjx-ribbon-tab tab-id="home" label="Home">
-          ${group(
-            'Clipboard',
-            'secondary',
-            { launcher: 'Clipboard settings' },
-            html`<mjx-split-button
+        ${wordTabs({
+          controls: {
+            'word.home.clipboard.paste': html`<mjx-split-button
               slot="essential"
               label="Paste"
               icon="clipboard-paste"
@@ -211,30 +220,24 @@ function ribbon(): TemplateResult {
               data-opens="word-paste-menu"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
-            html`<mjx-button label="Cut" icon="cut"></mjx-button>`,
-            html`<mjx-button label="Copy" icon="copy"></mjx-button>`,
-            html`<mjx-button label="Format Painter" icon="settings"></mjx-button>`,
-          )}
-          ${group(
-            'Font',
-            'primary',
-            { launcher: 'Font settings' },
-            html`<mjx-font-picker
+            'word.home.font.name': html`<mjx-font-picker
               id="word-font"
               style=${ribbonFieldStyle}
               label="Font"
               value="Cambria"
               .fonts=${machineFonts}
             ></mjx-font-picker>`,
-            html`<mjx-dropdown id="word-size" label="Font size" value="11" style=${ribbonNarrowFieldStyle}>
+            'word.home.font.size': html`<mjx-dropdown
+              id="word-size"
+              label="Font size"
+              value="11"
+              style=${ribbonNarrowFieldStyle}
+            >
               ${['9', '10', '11', '12', '14', '18'].map(
                 (size) => html`<mjx-option value=${size} label=${size}></mjx-option>`,
               )}
             </mjx-dropdown>`,
-            toggle('Bold', 'text-bold'),
-            toggle('Italic', 'text-italic', true),
-            toggle('Underline', 'text-underline'),
-            html`<mjx-color-picker
+            'word.home.font.colour': html`<mjx-color-picker
               id="word-colour"
               style=${ribbonColourFieldStyle}
               label="Font colour"
@@ -243,23 +246,7 @@ function ribbon(): TemplateResult {
               .standardColors=${standardColors}
               .recentColors=${recentColors}
             ></mjx-color-picker>`,
-          )}
-          ${group(
-            'Paragraph',
-            'primary',
-            { launcher: 'Paragraph settings' },
-            toggle('Align left', 'text-align-left', true),
-            toggle('Centre', 'text-align-center'),
-            toggle('Align right', 'text-align-right'),
-            html`<mjx-button label="Bullets" icon="add"></mjx-button>`,
-            html`<mjx-button label="Numbering" icon="subtract"></mjx-button>`,
-            html`<mjx-button label="Borders" icon="table"></mjx-button>`,
-          )}
-          ${group(
-            'Styles',
-            'standard',
-            { launcher: 'Styles pane' },
-            html`<mjx-gallery
+            'word.home.styles.gallery': html`<mjx-gallery
               id="word-styles"
               label="Styles"
               value="normal"
@@ -267,28 +254,9 @@ function ribbon(): TemplateResult {
             >
               ${styleGalleryItems()}
             </mjx-gallery>`,
-          )}
-          ${group(
-            'Editing',
-            'ancillary',
-            {},
-            html`<mjx-button slot="essential" label="Find" icon="search"></mjx-button>`,
-            html`<mjx-button label="Replace" icon="arrow-redo"></mjx-button>`,
-            html`<mjx-button label="Select" icon="checkmark"></mjx-button>`,
-          )}
-        </mjx-ribbon-tab>
-
-        ${stubTab('insert', 'Insert', 'Table', 'table')}
-        ${stubTab('layout', 'Layout', 'Margins', 'slide-layout')}
-        ${stubTab('references', 'References', 'Insert Citation', 'document')}
-        ${stubTab('mailings', 'Mailings', 'Start Mail Merge', 'folder-open')}
-        ${stubTab('review', 'Review', 'New Comment', 'comment')}
-        ${stubTab('view', 'View', 'Navigation Pane', 'search')}
-
-        <mjx-contextual-tab-set label="Table Tools">
-          ${stubTab('table-design', 'Design', 'Table Styles', 'table')}
-          ${stubTab('table-layout', 'Layout', 'Merge Cells', 'add')}
-        </mjx-contextual-tab-set>
+          },
+        })}
+        ${wordContextualSets()}
       </mjx-ribbon>
     `,
   );

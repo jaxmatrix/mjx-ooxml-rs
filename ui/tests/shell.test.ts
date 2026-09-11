@@ -43,18 +43,36 @@ import { catalogueByTag, catalogueComponents } from '../src/mobile/touch-audit.t
 
 const shellDirectory = resolve(import.meta.dirname, '../stories/shell');
 
-/** Every source file the assembly is written in. Read from the directory, never from a list. */
+/**
+ * The directories the assembly is written in.
+ *
+ * ⚠ **`stories/ribbons/` is here because the assembly moved, not because the rule was relaxed.**
+ * The ribbon programme's unit 0 took every tab of every application out of the three shell stories
+ * and into modules those stories now compose. A `<button>` written into a ribbon module would reach
+ * the rendered shell exactly as one written into the shell story did, so a sweep that read only
+ * `stories/shell/` would have been a sweep with a hole in it the size of a ribbon — and the hole
+ * would have opened silently, on the day the files moved, with the suite green.
+ */
+const assemblyDirectories = [shellDirectory, resolve(import.meta.dirname, '../stories/ribbons')];
+
+/** Every source file the assembly is written in. Read from the directories, never from a list. */
 function assemblySources(): { name: string; source: string }[] {
-  const names = readdirSync(shellDirectory).filter((name) => name.endsWith('.ts'));
+  const files = assemblyDirectories.flatMap((directory) =>
+    readdirSync(directory)
+      .filter((name) => name.endsWith('.ts'))
+      // Qualified by its folder: `word.stories.ts` now exists in both, and a finding that named
+      // only the file would send a reader to the wrong one.
+      .map((name) => ({
+        name: `${directory.split('/').at(-1) ?? ''}/${name}`,
+        source: readFileSync(resolve(directory, name), 'utf8'),
+      })),
+  );
   expect(
-    names.length,
-    'no sources found under stories/shell/. Every assertion below would pass over an empty set, ' +
-      'which is the failure mode this suite exists to avoid.',
-  ).toBeGreaterThanOrEqual(4);
-  return names.map((name) => ({
-    name,
-    source: readFileSync(resolve(shellDirectory, name), 'utf8'),
-  }));
+    files.length,
+    'no sources found under stories/shell/ or stories/ribbons/. Every assertion below would pass ' +
+      'over an empty set, which is the failure mode this suite exists to avoid.',
+  ).toBeGreaterThanOrEqual(11);
+  return files;
 }
 
 describe('the assembly is built from the catalogue and not from markup', () => {

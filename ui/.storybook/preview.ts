@@ -271,7 +271,14 @@ const preview: Preview = {
     // whole application would not think to look. The ticket asks for the nine shells to be
     // *reachable from one obvious place*, and a sort order is the only mechanism Storybook offers
     // for saying which place that is.
-    options: { storySort: { order: ['Shell', '*'] } },
+    //
+    // `Ribbons` follows it for the same reason and with the same problem: alphabetically it lands
+    // between `Ribbon` — the *component* folder, which is a different thing and one letter apart —
+    // and `Surfaces`, so the section holding every tab of every application would sit next to the
+    // section holding the container those tabs go in, indistinguishable in a sidebar. Second place
+    // says which of the two a reviewer is looking for, and keeps the pair adjacent for the times
+    // they are looking for the other.
+    options: { storySort: { order: ['Shell', 'Ribbons', '*'] } },
     controls: { matchers: { color: /(background|color)$/i } },
     // The panel's own verdict. The *gate* is `tests/browser/a11y.spec.ts`, which runs axe over
     // every story in the built catalogue and fails the build — a panel a person has to remember to

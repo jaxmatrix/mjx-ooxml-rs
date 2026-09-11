@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 83 glyphs, 18550 bytes of path data, subset from the
+ * 85 glyphs, 18709 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -279,6 +279,10 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 16 16',
     paths: ['M3 8c0-.28.22-.5.5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 8'],
   },
+  'mjx-fluent:subtract-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M3 10c0-.28.22-.5.5-.5h13a.5.5 0 0 1 0 1h-13A.5.5 0 0 1 3 10'],
+  },
   'mjx-fluent:radio-button-16-filled': {
     viewBox: '0 0 16 16',
     paths: ['M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6m0-9a6 6 0 1 0 0 12A6 6 0 0 0 8 2M3 8a5 5 0 1 1 10 0A5 5 0 0 1 3 8'],
@@ -351,10 +355,14 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 16 16',
     paths: ['M7.5 13a.5.5 0 0 0 0 1h6a.5.5 0 0 0 .5-.5v-6a.5.5 0 0 0-1 0v4.8L2.85 2.14a.5.5 0 1 0-.7.7L12.29 13z'],
   },
+  'mjx-fluent:arrow-down-right-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M8.5 16a.5.5 0 0 0 0 1h8a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-1 0v6.8L3.85 3.14a.5.5 0 1 0-.7.7L15.29 16z'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 83;
+export const subsetGlyphCount = 85;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -363,7 +371,7 @@ export const subsetGlyphCount = 83;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 18550;
+export const subsetPathBytes = 18709;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

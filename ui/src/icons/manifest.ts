@@ -198,9 +198,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'subtract',
-    sizes: [16],
+    sizes: [16, 20],
     variants: ['regular'],
-    why: "The indeterminate position of a tri-state checkbox (MJXOFF-186). A dash rather than a faint or half-drawn tick, and that is the whole reason it is a separate drawing: `mixed` must not read as a weaker `checked`, which is the same argument `controlStateSpecs.mixed` makes about the fill. 16 alone: it is a mark inside a square, never a command's icon.",
+    why: "The indeterminate position of a tri-state checkbox (MJXOFF-186). A dash rather than a faint or half-drawn tick, and that is the whole reason it is a separate drawing: `mixed` must not read as a weaker `checked`, which is the same argument `controlStateSpecs.mixed` makes about the fill. ⚠ **20 was added by the ribbon programme's unit 0, as a defect fix rather than a new command.** Word's and PowerPoint's Numbering and Excel's Decrease decimal have asked for `subtract` at the size a small ribbon button draws since the shells were written, and 16 was the only drawing here — so all three rendered an empty square, silently, exactly as `<mjx-icon>`'s own documentation warns. `tests/ribbons.test.ts` is the gate that found it and the gate that keeps it found.",
   },
   {
     name: 'radio-button',
@@ -240,9 +240,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'arrow-down-right',
-    sizes: [16],
+    sizes: [16, 20],
     variants: ['regular'],
-    why: "The dialog launcher's corner mark — Office's own glyph for *this group has a full dialog*. 16 alone: it is a mark rather than a command's icon, and is drawn one rung below one.",
+    why: "The dialog launcher's corner mark — Office's own glyph for *this group has a full dialog*, drawn at 16 because it is a mark rather than a command's icon. ⚠ **20 was added by the ribbon programme's unit 0, for the same reason `subtract` gained one**: Excel's Wrap Text and Sort & Filter are small ribbon buttons naming this icon, and a small button draws at 20, so both were blank squares.",
   },
 ];
 

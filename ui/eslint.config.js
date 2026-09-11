@@ -174,8 +174,16 @@ export default tseslint.config(
      * So this is a *narrowing* of the exemption rather than a widening of the rule: `stories/shell/`
      * is the assembly and nothing else, and `tests/design-values.test.ts` still lists which files
      * outside `src/` may legitimately carry a literal colour — none of them are here.
+     *
+     * **`stories/ribbons/` joins it because it is part of the same assembly.** The ribbon
+     * programme's unit 0 moved every tab of every application out of the three shell stories and
+     * into modules those stories now compose; the markup did not become less of an assembly by
+     * changing directory, and the temptation the rule exists against — a group width, a gap between
+     * commands, a divider colour written by hand — moved with it. Leaving the new directory
+     * exempt would have made the rule easy to escape by relocating a file, which is worse than the
+     * rule not existing.
      */
-    files: ['stories/shell/**/*.ts'],
+    files: ['stories/shell/**/*.ts', 'stories/ribbons/**/*.ts'],
     rules: { 'mjx/no-literal-design-values': 'error' },
   },
 
