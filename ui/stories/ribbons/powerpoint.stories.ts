@@ -37,6 +37,7 @@ import {
   themeGalleryItems,
   variantGalleryItems,
 } from './design-layout-menus.ts';
+import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
 import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { drawMenus } from './draw-menus.ts';
 import {
@@ -91,10 +92,11 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs.** **Table Design, Layout, Picture Format and Shape Format are authored**,
- * PowerPoint's first four. **The other two are placeholders** at the census's own priorities: Chart Design and Format.
- * Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone, which
- * is why Table Design's, Layout's and Shape Format's bindings and menus are written here and nowhere else, and why
+ * **Six more stories are the contextual tabs.** **Table Design, Layout, Picture Format, Shape Format and Chart Design
+ * are authored**, PowerPoint's first five. **The last is a placeholder** at the census's own priorities: Chart Tools'
+ * Format. Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools
+ * alone, which is why Table Design's, Layout's, Shape Format's and Chart Design's bindings and menus are written here and
+ * nowhere else, and why
  * Picture Format's are written in both hosts.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
@@ -118,8 +120,9 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout, Picture Format and Shape ' +
-          'Format are authored; Chart Design and Format are placeholders carrying the census’s own priorities.',
+          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout, Picture Format, Shape ' +
+          'Format and Chart Design are authored; Chart Tools’ Format is a placeholder carrying the census’s own ' +
+          'priorities.',
       },
     },
     mjx: conventions,
@@ -1406,6 +1409,51 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Chart Design (a contextual tab, in Chart Tools). `Shell/PowerPoint` draws Picture Tools and not Chart Tools, so these
+  // six bindings and `chartToolsMenus('powerpoint', …)` are written here alone, for Table Design's reason. They are
+  // `Ribbons/Word`'s six under PowerPoint's ids: every menu and the gallery's pictures are
+  // `stories/ribbons/chart-tools-menus.ts`'s, and the pictures read this deck's palette. Switch Row/Column, Select Data
+  // and Refresh Data are the generic large button; none is bound.
+  'powerpoint.chart-design.chart-layouts.add-chart-element': html`<mjx-button
+    label="Add Chart Element"
+    icon="data-bar-vertical-add"
+    size="large"
+    data-opens="ribbons-powerpoint-chart-design-chart-layouts-add-chart-element"
+  ></mjx-button>`,
+  'powerpoint.chart-design.chart-layouts.quick-layout': html`<mjx-button
+    label="Quick Layout"
+    icon="layout-cell-four"
+    size="large"
+    data-opens="ribbons-powerpoint-chart-design-chart-layouts-quick-layout"
+  ></mjx-button>`,
+  'powerpoint.chart-design.chart-styles.change-colours': html`<mjx-button
+    label="Change Colours"
+    icon="color"
+    size="large"
+    data-opens="ribbons-powerpoint-chart-design-chart-styles-change-colours"
+  ></mjx-button>`,
+  'powerpoint.chart-design.chart-styles.style-gallery': html`<mjx-gallery
+    id="ribbons-powerpoint-chart-design-chart-styles"
+    label="Chart Styles"
+    value="style-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${chartStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'powerpoint.chart-design.data.edit-data': html`<mjx-split-button
+    label="Edit Data"
+    icon="table-edit"
+    size="large"
+    menu-label="Edit Data"
+    data-opens="ribbons-powerpoint-chart-design-data-edit-data"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.chart-design.type.change-chart-type': html`<mjx-button
+    label="Change Chart Type"
+    icon="chart-multiple"
+    size="large"
+    data-opens="ribbons-powerpoint-chart-design-type-change-chart-type"
+  ></mjx-button>`,
 };
 
 /**
@@ -1437,6 +1485,7 @@ function ribbon(selected: string): TemplateResult {
     ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
     ${masterViewMenus('powerpoint', 'ribbons')} ${tableToolsMenus('powerpoint', 'ribbons')}
     ${pictureToolsMenus('powerpoint', 'ribbons')} ${drawingToolsMenus('powerpoint', 'ribbons')}
+    ${chartToolsMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -2143,8 +2192,39 @@ export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 
 /**
- * **Chart Design** — a placeholder. Four groups: Chart Layouts, Chart Styles, Data and Type, with Chart Layouts
- * primary.
+ * **Chart Design**: which elements a chart on a slide carries and how they are laid out, which colours and style it
+ * wears, where its data comes from, and what kind of chart it is. Chart Tools' first tab, and PowerPoint's fifth
+ * contextual tab authored; Office shows it only while a chart is selected. Four groups: Chart Layouts, Chart Styles, Data
+ * and Type, every command large. **It is `Ribbons/Word`'s Chart Design under PowerPoint's ids**, through the same
+ * functions, so judge the two side by side: any difference between them is a defect, because Office's two tabs do not
+ * differ. It is the census's `TabChartToolsDesignNew`. What to look at here, least certain first:
+ *
+ * 1. ⚠ **Change Chart Type opens a menu, where Office opens a dialog.** Its eight submenus are Excel's Insert → Charts
+ *    families, each holding exactly the list `Ribbons/Excel`'s Insert tab opens for it and ending on *More … Charts…*.
+ *    **No Map family**, though PowerPoint's dialog lists one. `GUESS:` both.
+ * 2. ⚠ **Add Chart Element's starts are Word's**, read as the Clustered Column PowerPoint inserts: **Chart Title**
+ *    (*Above Chart*), **Legend** (*Bottom*), **Gridlines** (*Primary Major Horizontal* ticked), **Axes** (both ticked),
+ *    **Axis Titles** (neither), **Data Labels**, **Data Table**, **Error Bars**, **Lines** and **Up/Down Bars** (each on
+ *    *None*) and **Trendline** (plain entries). Each ends on its *More … Options…*. **Lines and Up/Down Bars open**,
+ *    where Office greys both on a column chart. `GUESS:` that PowerPoint's inserted chart starts as Word's.
+ * 3. ⚠ **The Chart Styles gallery**, *Style 1* to *Style 16*, starting on Style 1, in the catalogue's one specimen theme,
+ *    the same one `Ribbons/Word` reads, so the pictures match Word's exactly. Each describes a look rather than rendering
+ *    Office's. `GUESS:` sixteen, and every look.
+ * 4. ⚠ **Quick Layout's glyph is the weakest on the tab**: four tiled regions, which reads *arrange windows* before
+ *    *arrange a chart's title, plot and legend*. Its menu is *Layout 1* to *Layout 11*, names where Office draws
+ *    thumbnails.
+ * 5. **Edit Data is a split button**: its face opens the data sheet over the slide, its arrow *Edit Data* and *Edit Data
+ *    in Excel*, Word's two. `GUESS:` both labels.
+ * 6. **Data is Word's four**, which the census's count of 6 (Word's own; Excel's is 2) supports. Switch Row/Column,
+ *    Select Data and Refresh Data are plain large buttons, drawn available; judge their glyphs together.
+ * 7. **Change Colours** opens *Colourful* (Palettes 1–4) and *Monochromatic* (Palettes 1–13), one set, on *Colourful
+ *    Palette 1*. `GUESS:` both counts.
+ * 8. **The spelling is the catalogue's**: *Change Colours*, *Colourful*, *Centred Overlay*, *Centre*.
+ * 9. **No dialog launcher** on any group.
+ * 10. **No survivor anywhere.** Drag narrow: Chart Styles and Type (`secondary`) give way first, then Data (`standard`),
+ *     and Chart Layouts (`primary`) last; each collapses to a trigger with nothing beside it.
+ * 11. **Not in `Shell/PowerPoint`**: its strip draws Picture Tools, so there is no Chart Design tab and none of its menus
+ *     is on that page.
  */
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 

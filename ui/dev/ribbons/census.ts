@@ -154,6 +154,9 @@
  * functions of the application and the tab (`chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands`,
  * `chartTypeCommands`) for PowerPoint's and Excel's Chart Design to call; its menus and gallery are in
  * `stories/ribbons/chart-tools-menus.ts`; see the *commands Chart Design shows* section.
+ * **PowerPoint's Chart Design** followed, the thirteenth and PowerPoint's first of Chart Tools, calling the same four
+ * functions and the same lists, and differing from Word's in no command, because Office's PowerPoint does not; see that
+ * section's *PowerPoint's Chart Design* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -202,8 +205,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Twelve contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format and
- * Shape Format, Excel's Table Design, Picture Format and Shape Format, and Word's Chart Design.** Each
+ * **Thirteen contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format, Shape
+ * Format and Chart Design, and Excel's Table Design, Picture Format and Shape Format.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -8732,7 +8735,8 @@ export function chartStylesCommands(application: RibbonApplication, tab: string)
  * and Refresh Data, all large, under `<application>.<tab>.data`. See Word's Chart Design's disagreements 7 and 8.
  *
  * Written once because the group repeats. **Excel's is the first two alone**: a workbook's chart reads its own cells, so
- * there is no separate data to edit or refresh, and Excel's census counts 2. `GUESS:` that PowerPoint's is Word's four.
+ * there is no separate data to edit or refresh, and Excel's census counts 2. PowerPoint's is Word's four, which its
+ * census count of 6, Word's own, supports; `GUESS:` still, since a count does not name what it counts.
  * **Edit Data is a split button** a host binds over `editDataEntries`; the other three are plain buttons.
  *
  * **No survivor**: a swap with no self-evident glyph, a dialog, a split button and a refresh no undo takes back.
@@ -8762,6 +8766,78 @@ export function chartDataCommands(application: RibbonApplication, tab: string): 
 export function chartTypeCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
   return [{ id: `${application}.${tab}.type.change-chart-type`, label: 'Change Chart Type', icon: 'chart-multiple', size: 'large' }];
 }
+
+// ## PowerPoint's Chart Design
+//
+// The unit after Word's Chart Design, one tab of one application: **PowerPoint's `TabChartToolsDesignNew`, in
+// `TabSetChartTools`**, all four in-scope groups and nine commands, and **the thirteenth contextual tab authored**,
+// PowerPoint's fifth and its first of Chart Tools. Office shows it under the *Chart Tools* band while a chart on a slide
+// is selected: which elements the chart carries and how they are laid out, which colours and style it wears, where its
+// data comes from, and what kind of chart it is.
+//
+// ## Office's groups, read onto the census's four
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupChartLayouts` (23) | Chart Layouts | Add Chart Element, Quick Layout |
+// | `GroupChartStyles` (2) | Chart Styles | Change Colours; the Chart Styles gallery |
+// | `GroupChartData` (6) | Data | Switch Row/Column, Select Data, Edit Data, Refresh Data |
+// | `GroupChartType` (1) | Type | Change Chart Type |
+//
+// **The brief's four groups map one to one onto the census's four, in the same order**, and every id, label, count and
+// priority is the contextual unit's, unchanged, **and identical to Word's**: Chart Layouts `primary` (23), Chart Styles
+// `secondary` (2), Data `standard` (6), Type `secondary` (1). No group carries a dialog launcher.
+//
+// ## Written once, reused, and PowerPoint's own
+//
+// - **Reused, every one as it stands**: `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` and
+//   `chartTypeCommands` with `'powerpoint'`, above; in `stories/ribbons/chart-tools-menus.ts`, `addChartElementEntries`
+//   (over `chartElements`), `quickLayoutEntries`, `changeColoursEntries`, `chartStyleGalleryItems`, `editDataEntries`
+//   and `changeChartTypeEntries` (over Excel's Insert → Charts lists). **No new glyph.**
+// - **PowerPoint's own**: only the `powerpoint` branch of `chartToolsMenus` (five `commandMenu` calls, a branch because
+//   an id carries its application), `powerpointChartDesignTab` in `stories/ribbons/powerpoint.ts`, and the six bindings
+//   in `Ribbons/PowerPoint`. **No list is PowerPoint's own**, and that is a reading rather than an omission: Office's
+//   PowerPoint Chart Design holds the same nine commands, and Edit Data's arrow the same two entries, as Word's. The
+//   brief's example of where Office might differ (the Data group, Edit Data's entries) was checked and found not to.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// Word's disagreements 1 (spelling), 2 (Change Chart Type opens a menu of families, no Map), 3 (Quick Layout's eleven
+// names), 4 (the sixteen-style gallery), 5 (Change Colours' 4 and 13), 6 (Add Chart Element's eleven submenus, Lines and
+// Up/Down Bars available), 8 (Switch Row/Column and Refresh Data drawn available) and 9 (the counts: Chart Layouts 23
+// drawing 2, Data 6 drawing 4, by the same readings) hold here unchanged, and are not restated.
+//
+// 1. **Data is Word's four.** `chartDataCommands` guessed so before this unit; PowerPoint's census count of 6, Word's
+//    own, supports the reading and Excel's 2 is the contrast. `GUESS:` still, since a count does not name its members.
+// 2. **Edit Data's arrow is Word's two entries**, *Edit Data* (the data sheet opens over the slide) and *Edit Data in
+//    Excel*, through `editDataEntries` unchanged. `GUESS:` both labels, as in Word.
+// 3. **The chart PowerPoint inserts starts as Word's does**: a Clustered Column with its title Above Chart, its legend at
+//    the Bottom, both axes and Primary Major Horizontal gridlines, so `chartElements`' starts are read as PowerPoint's
+//    too. `GUESS:` (PowerPoint's default chart is the same Clustered Column on a content placeholder; its exact
+//    elements are from memory).
+// 4. **The Chart Styles gallery's pictures read this deck's palette**, `documentThemePalette`, the same specimen Word's
+//    story reads, so the sixteen pictures look identical on both stories. That is the catalogue's one specimen theme, not
+//    a claim that a deck and a document share a theme.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws; Word's readings hold, group by
+// group:
+//
+// - **Chart Layouts**: none. Add Chart Element and Quick Layout both open a menu (rule 1).
+// - **Chart Styles**: none. Change Colours opens a menu and the gallery is a gallery (rule 1).
+// - **Data**: none. Select Data opens a dialog and Edit Data is a split button (rule 1); Switch Row/Column's swap glyph
+//   does not say *rows for columns* without its label (rule 2); Refresh Data reloads from a linked workbook, which one
+//   undo does not take back (rule 1).
+// - **Type**: none. Change Chart Type opens a menu (Office: a dialog; rule 1).
+//
+// ## Sizes, and every glyph
+//
+// **Every command is large**, as Word's, and the gallery stands in-ribbon beside Change Colours. **Eight of the nine
+// commands carry a glyph, every one Word's and every one `GUESS:`**: Add Chart Element `data-bar-vertical-add`, Quick
+// Layout `layout-cell-four` (**the weakest glyph on the tab**, reading *tiled windows* first), Change Colours `color`,
+// Switch Row/Column `table-switch`, Select Data `table-cursor`, Edit Data `table-edit`, Refresh Data `arrow-clockwise`,
+// Change Chart Type `chart-multiple`. **One carries none, and says why**: the Chart Styles gallery is its pictures.
 
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
@@ -8993,10 +9069,10 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
         groups: [
-          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
-          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true },
-          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true },
-          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true, commands: chartLayoutsCommands('powerpoint', 'chart-design') },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true, commands: chartStylesCommands('powerpoint', 'chart-design') },
+          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true, commands: chartDataCommands('powerpoint', 'chart-design') },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true, commands: chartTypeCommands('powerpoint', 'chart-design') },
         ],
       },
       {

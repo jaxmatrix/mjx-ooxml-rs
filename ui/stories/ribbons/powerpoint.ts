@@ -105,8 +105,14 @@
  * shape on a slide is drawn, changed and merged, styled, dressed as WordArt, described, placed and sized. Its menus,
  * gallery and starting measures are in `stories/ribbons/drawing-tools-menus.ts`, written for Word's and Excel's Shape
  * Format; WordArt Styles is `wordArtStylesCommands`, Arrange `arrangeCommands` and Size `sizeCommands` for a drawing.
- * **`Ribbons/PowerPoint` alone binds it**, because `Shell/PowerPoint` draws Picture Tools. **The other two, Chart
- * Design and Format, are placeholders**, each until its own unit.
+ * **`Ribbons/PowerPoint` alone binds it**, because `Shell/PowerPoint` draws Picture Tools.
+ *
+ * **Chart Design is authored**, the fifth and PowerPoint's first of Chart Tools: four groups and nine commands, which
+ * elements a chart on a slide carries and how they are laid out, its colours and style, its data, and its type. It is
+ * Word's tab through Word's functions: the census's `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands`
+ * and `chartTypeCommands`, and every menu and the gallery in `stories/ribbons/chart-tools-menus.ts`; it differs from
+ * Word's in no command, because Office's PowerPoint does not. **`Ribbons/PowerPoint` alone binds it**, because
+ * `Shell/PowerPoint` draws Picture Tools. **The last, Chart Tools' Format, is a placeholder** until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -864,15 +870,43 @@ export function powerpointShapeFormatTab(options: TabOptions = {}): TemplateResu
 }
 
 /**
- * Which function builds which contextual tab. **Table Design, Table Layout, Picture Format and Shape Format are
- * authored; every other entry is `placeholderTab` today** — see Word's.
+ * Chart Design: Chart Layouts, Chart Styles, Data, Type — PowerPoint's fifth contextual tab authored and the thirteenth
+ * of all, in **Office's** order, which is also the census's. It sits under the *Chart Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a chart on a slide is selected.** `Ribbons/PowerPoint` draws every
+ * contextual set and binds it; **`Shell/PowerPoint` draws Picture Tools alone**, so it binds none of this tab and
+ * renders none of its menus. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Word's Chart Design, under PowerPoint's ids.** Six of the nine commands are bound by the host: Add Chart Element,
+ * Quick Layout, Change Colours and Change Chart Type, large dropdowns; Edit Data, a large split button; the Chart Styles
+ * gallery. Every menu and the gallery's pictures are in `stories/ribbons/chart-tools-menus.ts`. Switch Row/Column,
+ * Select Data and Refresh Data are plain large buttons.
+ *
+ * **No dialog launcher**, as Microsoft 365 draws none on this tab. **No survivor.**
+ */
+export function powerpointChartDesignTab(options: TabOptions = {}): TemplateResult {
+  const chartDesign = entry('chart-design');
+  const controls = options.controls ?? {};
+  return tab(
+    chartDesign.id,
+    chartDesign.label,
+    censusGroup(chartDesign, 'GroupChartLayouts', {}, controls),
+    censusGroup(chartDesign, 'GroupChartStyles', {}, controls),
+    censusGroup(chartDesign, 'GroupChartData', {}, controls),
+    censusGroup(chartDesign, 'GroupChartType', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design, Table Layout, Picture Format, Shape Format and Chart
+ * Design are authored; Chart Tools' Format is `placeholderTab` today** — see Word's.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': powerpointTableDesignTab,
   'table-layout': powerpointTableLayoutTab,
   'picture-format': powerpointPictureFormatTab,
   'shape-format': powerpointShapeFormatTab,
-  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-design': powerpointChartDesignTab,
   'chart-format': () => placeholderTab(entry('chart-format')),
 };
 

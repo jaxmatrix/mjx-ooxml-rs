@@ -1360,8 +1360,8 @@ is drawn:
 **Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
 Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layout the fourth, Excel's Table Design
 the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, Excel's Picture Format the
-eighth, PowerPoint's Shape Format the ninth, Word's Shape Format the tenth, Excel's Shape Format the eleventh, and
-Word's Chart Design the twelfth.** A
+eighth, PowerPoint's Shape Format the ninth, Word's Shape Format the tenth, Excel's Shape Format the eleventh,
+Word's Chart Design the twelfth, and PowerPoint's Chart Design the thirteenth.** A
 contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
@@ -1405,7 +1405,8 @@ Layout*, **Excel's Table Design the fifth**, see *Excel's Table Design*, **Word'
 contextual tab `Shell/PowerPoint` shows authored, **Excel's Picture Format the eighth**, see *Excel's Picture
 Format*, **PowerPoint's Shape Format the ninth**, see *PowerPoint's Shape Format*, the first of Drawing Tools,
 **Word's Shape Format the tenth**, see *Word's Shape Format*, **Excel's Shape Format the eleventh**, see *Excel's
-Shape Format*, and **Word's Chart Design the twelfth**, see *Word's Chart Design*, the first of Chart Tools.
+Shape Format*, **Word's Chart Design the twelfth**, see *Word's Chart Design*, the first of Chart Tools, and
+**PowerPoint's Chart Design the thirteenth**, see *PowerPoint's Chart Design*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -2187,8 +2188,8 @@ commands and renders `chartToolsMenus('word', 'ribbons')`, five menus.
   Row/Column and Select Data alone, as its census count of 2 says) and `chartTypeCommands`.
 - **In `stories/ribbons/chart-tools-menus.ts`**, every list a function of nothing: `chartElements` and
   `addChartElementEntries`, `quickLayoutEntries`, `changeColoursEntries`, `chartStyles` and `chartStyleGalleryItems`,
-  `editDataEntries`, `changeChartTypeEntries`; `chartToolsMenus(application, host)` has a `word` branch and renders
-  nothing for the other two until their units.
+  `editDataEntries`, `changeChartTypeEntries`; `chartToolsMenus(application, host)` had a `word` branch and rendered
+  nothing for the other two until their units (PowerPoint's has since landed; see *PowerPoint's Chart Design*).
 - **Reused**: Excel's Insert → Charts lists, now exported from `insert-menus.ts`; `wordart-styles-menus.ts`' `submenu`;
   `palette-art.ts`' `paletteSlotColour` and `spacingStep`. **One new glyph**, `data-bar-vertical-add`; `table-switch`
   and `chart-multiple` gain a 24.
@@ -2212,6 +2213,50 @@ refresh no undo takes back; a menu.
 - **Spelling**: *Change Colours*, *Colourful*, *Centred Overlay*, where the brief and Office's US build write *Colors*.
 - **Glyphs**, all `GUESS:`. **Quick Layout's `layout-cell-four`, four tiled regions that read *arrange windows* first,
   is the weakest.** The gallery carries none.
+
+### PowerPoint's Chart Design
+
+**One tab of one application, and the thirteenth contextual tab authored**, PowerPoint's fifth and its first of Chart
+Tools. Four groups and nine commands, in Office's order, which is also the census's: Chart Layouts, Chart Styles, Data,
+Type. It is `TabChartToolsDesignNew` in `TabSetChartTools`, under the *Chart Tools* band while a chart on a slide is
+selected. **It is Word's Chart Design under PowerPoint's ids**, because Office's two tabs do not differ.
+
+**The census's groups, read.** `GroupChartLayouts` (23) Chart Layouts, `GroupChartStyles` (2) Chart Styles,
+`GroupChartData` (6) Data, `GroupChartType` (1) Type: every id, label, count and priority Word's own. The brief's four
+groups map one to one onto them. No group has a dialog launcher.
+
+**It renders in `Ribbons/PowerPoint` alone.** `Shell/PowerPoint` draws Picture Tools, so it binds none of the tab and
+renders none of its menus; the menu gate's `hostContextualSets` already says so, and needed no change.
+`Ribbons/PowerPoint` binds six commands and renders `chartToolsMenus('powerpoint', 'ribbons')`, five menus.
+
+- **Chart Layouts**: **Add Chart Element** (large, eleven submenus) and **Quick Layout** (large, Layout 1 to 11).
+- **Chart Styles**: **Change Colours** (large) and the **Chart Styles** gallery in-ribbon, Style 1 to Style 16.
+- **Data**: **Switch Row/Column**, **Select Data** and **Refresh Data**, plain large buttons, and **Edit Data**, a large
+  split button whose arrow opens Edit Data and Edit Data in Excel.
+- **Type**: **Change Chart Type**, a large dropdown over Excel's Insert → Charts families.
+
+**Reused, and PowerPoint's own.**
+
+- **Reused, all of it**: `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` and `chartTypeCommands`
+  with `'powerpoint'` in the census; in `stories/ribbons/chart-tools-menus.ts`, `addChartElementEntries`,
+  `quickLayoutEntries`, `changeColoursEntries`, `chartStyleGalleryItems`, `editDataEntries` and
+  `changeChartTypeEntries`. **No new glyph.**
+- **PowerPoint's own**: the `powerpoint` branch of `chartToolsMenus` (five `commandMenu` calls, because an id carries its
+  application), `powerpointChartDesignTab`, and the six bindings. **No list is PowerPoint's own**: the Data group and
+  Edit Data's entries, the likeliest places for Office to differ, were checked and read as Word's.
+
+**No survivors**, by Word's readings: two menus; a menu and a gallery; a swap with no self-evident glyph, a dialog, a
+split button and a refresh no undo takes back; a menu.
+
+⚠ **What is not Office's shape, or is `GUESS:`.** Word's Chart Design's list holds here unchanged. Beyond it:
+
+- **Data is Word's four**, which `chartDataCommands` guessed before this unit; the census's 6, Word's count, supports it.
+- **Edit Data's two entries are Word's**; the data sheet opens over the slide.
+- **The chart PowerPoint inserts starts as Word's does** (title Above Chart, legend Bottom, both axes, major horizontal
+  gridlines), so Add Chart Element's starts are Word's.
+- **The gallery's pictures read the catalogue's one specimen theme**, so they match `Ribbons/Word`'s exactly; that is
+  not a claim that a deck and a document share a theme.
+- **Glyphs**, all Word's and all `GUESS:`; Quick Layout's `layout-cell-four` is again the weakest.
 
 ### The entries beneath a colour picker's palette
 

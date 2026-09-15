@@ -1,6 +1,6 @@
 /**
- * **The menus and the gallery the Chart Design tab opens**, written once for all three applications: Word's Chart
- * Design today, and PowerPoint's and Excel's when their units land. Change Chart Type reads Excel's Insert → Charts
+ * **The menus and the gallery the Chart Design tab opens**, written once for all three applications: Word's and
+ * PowerPoint's Chart Design today, and Excel's when its unit lands. Change Chart Type reads Excel's Insert → Charts
  * lists (`stories/ribbons/insert-menus.ts`' `columnBarChartEntries()` and the seven beside it), so a chart family Office
  * offers on two tabs is written once.
  *
@@ -108,7 +108,8 @@ export interface ChartElementSpec {
 
 /**
  * **Add Chart Element's eleven submenus**, in Office's order, as Word's Chart Design shows them for the chart Word
- * inserts, a Clustered Column: every entry and the options entry under a separator.
+ * inserts, a Clustered Column, and PowerPoint's for the same Clustered Column PowerPoint inserts: every entry and the
+ * options entry under a separator. `GUESS:` that PowerPoint's inserted chart starts exactly as Word's does.
  *
  * - **Axes** and **Axis Titles**: Primary Horizontal and Primary Vertical, each independent. A new chart has both axes
  *   and no axis title.
@@ -390,8 +391,9 @@ export function chartStyleGalleryItems(palette: ThemeColorPalette): TemplateResu
 // ── Data: Edit Data ──────────────────────────────────────────────────────────
 
 /**
- * **Edit Data's arrow**: *Edit Data*, the small data sheet Word opens over the document, and *Edit Data in Excel*, the
- * whole workbook in Excel. Nothing is checked: each opens a window. PowerPoint's is the same two; Excel has no Edit Data.
+ * **Edit Data's arrow**: *Edit Data*, the small data sheet Word opens over the document and PowerPoint over the slide,
+ * and *Edit Data in Excel*, the whole workbook in Excel. Nothing is checked: each opens a window. PowerPoint's is the
+ * same two, and calls this function; Excel has no Edit Data.
  * `GUESS:` both labels.
  */
 export function editDataEntries(): TemplateResult[] {
@@ -407,7 +409,7 @@ export function editDataEntries(): TemplateResult[] {
  *
  * ⚠ **Office's Change Chart Type opens a dialog directly**; the catalogue opens a menu of the dialog's families, because
  * a dialog is not something this catalogue draws and the families are the choice the dialog offers. **No Map family**:
- * Word's dialog lists Map, which Excel reaches from Insert's Maps, not from these eight. `GUESS:` both.
+ * Word's and PowerPoint's dialogs list Map, which Excel reaches from Insert's Maps, not from these eight. `GUESS:` both.
  */
 export function changeChartTypeEntries(): TemplateResult[] {
   return [
@@ -440,15 +442,33 @@ function wordChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Chart Design tab opens, with ids for one host's page. **Word's is authored**;
- * PowerPoint's and Excel's render nothing until their units, exactly as `drawingToolsMenus` rendered nothing before
- * theirs. Those units add a branch here and call the lists above.
+ * PowerPoint's five menus: **Word's five, under PowerPoint's ids, over the same lists**. Office's PowerPoint Chart
+ * Design differs from Word's in no menu this tab opens (the census counts every group the same), so this branch writes
+ * no list of its own. It is a function only because a command's id carries its application, and
+ * `tests/ribbons.test.ts` reads each id from a literal `commandMenu(host, '…'` call.
+ */
+function powerpointChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.chart-design.chart-layouts.add-chart-element', 'Add Chart Element', ...addChartElementEntries())}
+    ${commandMenu(host, 'powerpoint.chart-design.chart-layouts.quick-layout', 'Quick Layout', ...quickLayoutEntries())}
+    ${commandMenu(host, 'powerpoint.chart-design.chart-styles.change-colours', 'Change Colours', ...changeColoursEntries())}
+    ${commandMenu(host, 'powerpoint.chart-design.data.edit-data', 'Edit Data', ...editDataEntries())}
+    ${commandMenu(host, 'powerpoint.chart-design.type.change-chart-type', 'Change Chart Type', ...changeChartTypeEntries())}
+  `;
+}
+
+/**
+ * Every menu one application's Chart Design tab opens, with ids for one host's page. **Word's and PowerPoint's are
+ * authored**; Excel's renders nothing until its unit, exactly as `drawingToolsMenus` rendered nothing before theirs.
+ * That unit adds a branch here and calls the lists above.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Chart Tools **and** binds its
- * commands: `Ribbons/Word` today. `Shell/Word` draws Table Tools, so it renders none of these, and
- * `tests/ribbons.test.ts` requires Word's menus of `Ribbons/Word` alone.
+ * commands: `Ribbons/Word` and `Ribbons/PowerPoint` today. `Shell/Word` draws Table Tools and `Shell/PowerPoint` Picture
+ * Tools, so neither renders any of these, and `tests/ribbons.test.ts` requires each application's menus of its
+ * `Ribbons/*` host alone.
  */
 export function chartToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult {
   if (application === 'word') return wordChartToolsMenus(host);
+  if (application === 'powerpoint') return powerpointChartToolsMenus(host);
   return html``;
 }
