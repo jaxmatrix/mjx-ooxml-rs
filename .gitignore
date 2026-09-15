@@ -38,3 +38,6 @@
 # MJXOFF-290 the derived gates sweep the *working tree* rather than the Git index — so a directory
 # that is not part of this repository has to say so where every tool already reads it.
 /.claude/
+
+# Render-test output: the render tests write our side of each comparison here, and it is never committed.
+tests/render/**/output/
