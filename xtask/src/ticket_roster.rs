@@ -65,6 +65,27 @@ pub(crate) const TICKETS_BESIDE_THE_ROSTER: [&str; 6] = [
     "MJXOFF-353",
 ];
 
+// Tickets of the roster whose work is merged, so no deferral or checklist row may name one as its owner, each with why.
+pub(crate) const CLOSED_TICKETS: [(&str, &str); 3] = [
+    ("MJXOFF-296", "RC00, the feature checklist, is merged"),
+    (
+        "MJXOFF-297",
+        "RC01, the ledger and checklist reconciliation, is merged",
+    ),
+    (
+        "MJXOFF-298",
+        "RC47, the deferral and completion-claim gates, closes with its audit fixes",
+    ),
+];
+
+// Why `candidate` is closed, or `None` when it is not.
+pub(crate) fn closed_reason(candidate: &str) -> Option<&'static str> {
+    CLOSED_TICKETS
+        .iter()
+        .find(|(ticket, _)| *ticket == candidate)
+        .map(|(_, reason)| *reason)
+}
+
 // Whether `candidate` is a ticket of the epic's roster.
 pub(crate) fn is_roster_ticket(candidate: &str) -> bool {
     TICKET_ROSTER.iter().any(|(_, ticket)| *ticket == candidate)
@@ -73,4 +94,9 @@ pub(crate) fn is_roster_ticket(candidate: &str) -> bool {
 // Whether `candidate` is any ticket a gate accepts as real.
 pub(crate) fn is_known_ticket(candidate: &str) -> bool {
     is_roster_ticket(candidate) || TICKETS_BESIDE_THE_ROSTER.contains(&candidate)
+}
+
+// Whether `candidate` is a real ticket that is still open, so it may own a deferral or a row.
+pub(crate) fn is_open_ticket(candidate: &str) -> bool {
+    is_known_ticket(candidate) && closed_reason(candidate).is_none()
 }

@@ -8,7 +8,7 @@ mod ticket_roster;
 use json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use ticket_roster::{is_roster_ticket, TICKET_ROSTER};
+use ticket_roster::{closed_reason, is_roster_ticket, TICKET_ROSTER};
 
 // The audit-id rosters of the 2026-09-15 renderer audits: prefix, the highest number issued, and the format audited.
 const AUDIT_ROSTERS: [(&str, u32, &str); 4] = [
@@ -120,38 +120,41 @@ fn ledger_row_ids() -> BTreeSet<String> {
     ids
 }
 
+// Why a row's ownership is wrong, or `None` when it has an owning ticket or an out-of-scope reason.
+fn ownership_problem(row: &Value) -> Option<String> {
+    let (owner, rc) = (text(row, "owner"), text(row, "rc"));
+    let out_of_scope = row.get("out_of_scope");
+    let decision = out_of_scope.map_or("", |value| text(value, "decision"));
+    let reason = out_of_scope.map_or("", |value| text(value, "reason"));
+    if let Some(closed) = closed_reason(owner) {
+        return Some(format!("owner {owner} is closed: {closed}"));
+    }
+    match (owner.is_empty(), out_of_scope.is_some()) {
+        (false, false) if TICKET_ROSTER.contains(&(rc, owner)) => None,
+        (false, false) if is_roster_ticket(owner) => Some(format!(
+            "rc {rc:?} is not the epic's label for owner {owner}"
+        )),
+        (false, false) => Some(format!("owner {owner:?} is not a ticket of the epic")),
+        (true, true) if !rc.is_empty() => Some(format!("is out of scope but carries rc {rc:?}")),
+        (true, true) if decision.is_empty() || reason.is_empty() => {
+            Some("out_of_scope needs a decision and a reason".to_owned())
+        }
+        (true, true) if !OUT_OF_SCOPE_DECISIONS.contains(&decision) => Some(format!(
+            "out-of-scope decision {decision:?} is not one of {OUT_OF_SCOPE_DECISIONS:?}"
+        )),
+        (true, true) => None,
+        (false, true) => Some("has both an owner and an out-of-scope reason".to_owned()),
+        (true, false) => Some("has neither an owning ticket nor an out-of-scope reason".to_owned()),
+    }
+}
+
 #[test]
 fn every_row_has_an_owning_ticket_or_an_out_of_scope_reason() {
     let document = checklist();
     let rows = rows_of(&document);
     let mut failures = Vec::new();
     for row in rows {
-        let (owner, rc) = (text(row, "owner"), text(row, "rc"));
-        let out_of_scope = row.get("out_of_scope");
-        let decision = out_of_scope.map_or("", |value| text(value, "decision"));
-        let reason = out_of_scope.map_or("", |value| text(value, "reason"));
-        let problem = match (owner.is_empty(), out_of_scope.is_some()) {
-            (false, false) if TICKET_ROSTER.contains(&(rc, owner)) => None,
-            (false, false) if is_roster_ticket(owner) => Some(format!(
-                "rc {rc:?} is not the epic's label for owner {owner}"
-            )),
-            (false, false) => Some(format!("owner {owner:?} is not a ticket of the epic")),
-            (true, true) if !rc.is_empty() => {
-                Some(format!("is out of scope but carries rc {rc:?}"))
-            }
-            (true, true) if decision.is_empty() || reason.is_empty() => {
-                Some("out_of_scope needs a decision and a reason".to_owned())
-            }
-            (true, true) if !OUT_OF_SCOPE_DECISIONS.contains(&decision) => Some(format!(
-                "out-of-scope decision {decision:?} is not one of {OUT_OF_SCOPE_DECISIONS:?}"
-            )),
-            (true, true) => None,
-            (false, true) => Some("has both an owner and an out-of-scope reason".to_owned()),
-            (true, false) => {
-                Some("has neither an owning ticket nor an out-of-scope reason".to_owned())
-            }
-        };
-        if let Some(problem) = problem {
+        if let Some(problem) = ownership_problem(row) {
             failures.push(format!("{}: {problem}", row_id(row)));
         }
     }
@@ -243,6 +246,9 @@ fn no_stage_owner_is_blank() {
             let created_by = text(owner, "created_by");
             let problem = match krate {
                 "" => Some("names no crate".to_owned()),
+                "none" if closed_reason(created_by).is_some() => {
+                    Some(format!("is `none` but `created_by` {created_by} is closed"))
+                }
                 "none" if !is_roster_ticket(created_by) => Some(format!(
                     "is `none` but `created_by` {created_by:?} is not a ticket of the epic"
                 )),
@@ -370,5 +376,26 @@ fn every_row_is_well_formed() {
             .count();
         assert!(count > 0, "no row for format `{format}`");
         println!("{format}: {count} rows");
+    }
+}
+
+#[test]
+fn a_closed_ticket_owns_no_row() {
+    for (rc, owner) in [
+        ("RC00", "MJXOFF-296"),
+        ("RC01", "MJXOFF-297"),
+        ("RC47", "MJXOFF-298"),
+    ] {
+        let row = json::parse(&format!(
+            r#"{{"id": "synthetic", "owner": "{owner}", "rc": "{rc}"}}"#
+        ))
+        .expect("the synthetic row is JSON");
+        let problem = ownership_problem(&row);
+        assert!(
+            problem
+                .as_deref()
+                .is_some_and(|problem| problem.contains("closed")),
+            "{owner} -> {problem:?}"
+        );
     }
 }

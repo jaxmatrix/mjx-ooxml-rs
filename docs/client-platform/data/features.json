@@ -2329,8 +2329,8 @@
         "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
         "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
       },
-      "owner": "MJXOFF-297",
-      "rc": "RC01",
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
       "ledger": "word-fields"
     },
     {
@@ -3133,8 +3133,8 @@
         "scene": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not display lists"},
         "paint": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not pixels"}
       },
-      "owner": "MJXOFF-297",
-      "rc": "RC01",
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
       "ledger": null
     },
     {
