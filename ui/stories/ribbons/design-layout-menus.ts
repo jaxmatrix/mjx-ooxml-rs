@@ -34,6 +34,8 @@
  *
  * Decision 3 of the approved plan, as on Insert: a handful of Office's own entries under each command,
  * by Office's own names, and one entry that reaches the rest (*Custom Margins…*, *More Paper Sizes…*).
+ * **Margins and Size are the exception since Word's Print Preview unit**, which reuses them under the
+ * end-to-end rule: both carry Office's whole list, in Office's order.
  * The current choice is checked, at Office's defaults for a new document in a British English build:
  * Office Theme, Normal margins, Portrait, A4, one column.
  *
@@ -197,28 +199,67 @@ function watermarkEntries(): TemplateResult[] {
 
 // ── page setup: Word's Layout and Excel's Page Layout ───────────────────────
 
-/** Margins: Office's presets by name (Word has five, Excel three), and the dialog. */
-function marginEntries(application: 'word' | 'excel'): TemplateResult[] {
+/**
+ * Margins: Office's whole list, in Office's order, and the dialog. Exported because Word's Print Preview opens
+ * the same list; see `stories/ribbons/print-preview-menus.ts`.
+ *
+ * - **Word**: Normal, Narrow, Moderate, Wide, Mirrored and Office 2003 Default, then *Custom Margins…*.
+ * - **Excel**: Normal, Wide and Narrow, then *Custom Margins…*.
+ *
+ * **Last Custom Setting leads the list only when present**: Office adds it once a person has set custom
+ * margins, and then checks it. A new document has none, so a host passes `lastCustomSetting: true` only for a
+ * document that does, and every host in this catalogue draws a new document, where Normal is checked.
+ */
+export function marginEntries(
+  application: 'word' | 'excel',
+  options: { readonly lastCustomSetting?: boolean } = {},
+): TemplateResult[] {
+  const custom = options.lastCustomSetting === true;
   const presets =
     application === 'word'
-      ? [choice('Normal', true), choice('Narrow'), choice('Moderate'), choice('Wide'), choice('Mirrored')]
-      : [choice('Normal', true), choice('Wide'), choice('Narrow')];
-  return [...presets, separator(), item('Custom Margins…')];
+      ? [
+          choice('Normal', !custom),
+          choice('Narrow'),
+          choice('Moderate'),
+          choice('Wide'),
+          choice('Mirrored'),
+          choice('Office 2003 Default'),
+        ]
+      : [choice('Normal', !custom), choice('Wide'), choice('Narrow')];
+  const last = custom ? [choice('Last Custom Setting', true)] : [];
+  return [...last, ...presets, separator(), item('Custom Margins…')];
 }
 
-/** Orientation: the two, and portrait is a new document's. */
-function orientationEntries(): TemplateResult[] {
+/** Orientation: the two, and portrait is a new document's. Exported for Print Preview, as Margins is. */
+export function orientationEntries(): TemplateResult[] {
   return [choice('Portrait', true), choice('Landscape')];
 }
 
-/** Size: a few paper sizes, A4 checked as a British build's default, and the dialog. */
-function sizeEntries(): TemplateResult[] {
+/**
+ * Size: Word's standard paper list, in Office's order, A4 checked as a British build's default, and the
+ * dialog. Exported for Print Preview.
+ *
+ * ⚠ **In Office the real list comes from the printer**: Size lists the paper sizes the selected printer's
+ * driver reports, so two machines show two lists. This is the standard list Word shows with no printer-specific
+ * sizes, which is the honest stand-in for a catalogue with no printer, as `printerList` is for Printer.
+ */
+export function sizeEntries(): TemplateResult[] {
   return [
-    choice('A4', true),
-    choice('A5'),
     choice('Letter'),
     choice('Legal'),
     choice('Executive'),
+    choice('A3'),
+    choice('A4', true),
+    choice('A5'),
+    choice('B4 (JIS)'),
+    choice('B5 (JIS)'),
+    choice('Tabloid'),
+    choice('Statement'),
+    choice('Envelope #10'),
+    choice('Envelope DL'),
+    choice('Envelope C5'),
+    choice('Envelope B5'),
+    choice('Envelope Monarch'),
     separator(),
     item('More Paper Sizes…'),
   ];

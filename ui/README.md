@@ -882,6 +882,52 @@ would exceed the ceiling of three.
   Document glyphs and Close's cross in a square are new.
 - **The two fields and the two checkboxes carry no icon**: a field draws its value, a checkbox its tick box.
 
+### Word's Print Preview
+
+**One tab of one application, and the second view tab authored**, after Word's Outlining. Four groups and
+seventeen commands, drawn in Office's order, which is also the census's: Print, Page Setup, Zoom, Preview. It
+is Word's classic Print Preview (Word 2007 and 2010, and Microsoft 365's *Print Preview Edit Mode*): the document
+as it will print, with the page setup and zoom a person needs to judge it.
+
+⚠ **A view tab renders in the catalogue alone, and this is the first with menus.** `tabsFor` leaves every
+`appearance: 'view'` tab out of a strip unless `includeViewTabs` is asked for, and only `Ribbons/Word` asks, so
+the tab's five bindings and `printPreviewMenus('word', 'ribbons')` are in `stories/ribbons/word.stories.ts` alone.
+**The surface gate required every declared menu of both hosts**, which for a view tab would have demanded a
+binding to nothing in `Shell/Word`. `tests/ribbons.test.ts` now asks a view tab's menu of the host that draws
+view tabs alone (`hostDrawsViewTabs`, held to each host's `includeViewTabs` in its source), and refuses a shell
+that opens one.
+
+- **Three dropdowns a host binds**: Margins, Orientation and Size, over `stories/ribbons/print-preview-menus.ts`,
+  which opens **Layout's own lists**: `marginEntries`, `orientationEntries` and `sizeEntries` are now exported
+  from `stories/ribbons/design-layout-menus.ts` rather than copied. The file is keyed by application, as
+  `view-menus.ts` is, so PowerPoint's and Excel's Print Preview units each add one function to it.
+- **Two checkboxes a host binds**: Show Ruler and Magnifier (ticked).
+- **Buttons**: Print, Options, Zoom, 100%, One Page, Two Pages, Page Width, Shrink One Page, Next Page, Previous
+  Page and Close Print Preview.
+- **One dialog launcher**, on Page Setup, as on Layout. No gallery, no split button, no exclusive set, no toggle
+  button.
+
+**Survivors**: 100%, One Page and Page Width in Zoom, as on View; Next Page and Previous Page in Preview, the
+Mailings record-navigator standard. Two Pages has no glyph. Shrink One Page fails rule 2, because arrows pressed
+together read as *minimise*. Close Print Preview leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Magnifier is a ticked checkbox, where the brief listed a toggle.** Office stacks Show Ruler and Magnifier
+  as two ticks above Shrink One Page. This also avoids a second magnifier beside Zoom's.
+- **The census counts more than Office draws, and nothing is padded**: Page Setup is 6 and draws 3 and a
+  launcher, and Zoom is 6 and draws 5. Zoom shares `GroupZoom`, View's census id, and is found inside this tab.
+- **Layout's Margins and Size lists are completed, and Layout's tab changes with them.** Margins adds *Office
+  2003 Default*, and *Last Custom Setting* at the top once custom margins exist (never in the catalogue's new
+  document). Size is Word's standard paper list, Letter to Envelope Monarch, A4 checked. ⚠ Office's real Size
+  list comes from the printer; `GUESS:` the order.
+- **Zoom draws `zoom-in`**, as PowerPoint's and Excel's View do for the same dialog, where Word's View draws none.
+- **Every glyph is judged from Fluent's drawings.** `settings` gains a 24 for Options. `arrow-minimize-vertical`,
+  `document-arrow-down` and `document-arrow-up` are new. Next Page and Previous Page may read as *download* and
+  *upload*.
+- **Carrying no glyph**: Size (Fluent draws no page size, Layout's reason), Two Pages (every two-page picture is
+  already Read Mode, Arrange All, Columns or Handout Master), and the two checkboxes.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

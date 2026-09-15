@@ -31,6 +31,7 @@ import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { outlineLevels, showLevels } from './outlining-menus.ts';
+import { printPreviewMenus } from './print-preview-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { viewMenus } from './view-menus.ts';
@@ -47,7 +48,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View and Outlining** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining and Print Preview** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -58,7 +59,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
- * Layout, References, Mailings, Review and View tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
+ * Layout, References, Mailings, Review, View and Print Preview tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -77,7 +78,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View and Outlining are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining and Print Preview are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -695,6 +696,29 @@ const bindings: ControlOverrides = {
   </mjx-dropdown>`,
   'word.outlining.outlining-tools.show-text-formatting': html`<mjx-checkbox id="ribbons-word-outlining-show-text-formatting" label="Show Text Formatting" checked="true"></mjx-checkbox>`,
   'word.outlining.outlining-tools.show-first-line-only': html`<mjx-checkbox id="ribbons-word-outlining-show-first-line-only" label="Show First Line Only"></mjx-checkbox>`,
+  // Print Preview (Word alone here, and a view tab). `Shell/Word` never draws a view tab, so these five
+  // bindings and the three menus they open are written here and nowhere else. Margins, Orientation and Size
+  // open Layout's own lists through `stories/ribbons/print-preview-menus.ts`; Show Ruler and Magnifier
+  // (ticked, as the census declares) are checkboxes.
+  'word.print-preview.page-setup.margins': html`<mjx-button
+    label="Margins"
+    icon="document-margins"
+    size="large"
+    data-opens="ribbons-word-print-preview-page-setup-margins"
+  ></mjx-button>`,
+  'word.print-preview.page-setup.orientation': html`<mjx-button
+    label="Orientation"
+    icon="orientation"
+    size="large"
+    data-opens="ribbons-word-print-preview-page-setup-orientation"
+  ></mjx-button>`,
+  'word.print-preview.page-setup.size': html`<mjx-button
+    label="Size"
+    size="small"
+    data-opens="ribbons-word-print-preview-page-setup-size"
+  ></mjx-button>`,
+  'word.print-preview.preview.show-ruler': html`<mjx-checkbox id="ribbons-word-print-preview-show-ruler" label="Show Ruler"></mjx-checkbox>`,
+  'word.print-preview.preview.magnifier': html`<mjx-checkbox id="ribbons-word-print-preview-magnifier" label="Magnifier" checked="true"></mjx-checkbox>`,
 };
 
 /**
@@ -725,7 +749,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
-    ${viewMenus('word', 'ribbons')}
+    ${viewMenus('word', 'ribbons')} ${printPreviewMenus('word', 'ribbons')}
   `;
 }
 
@@ -1023,7 +1047,31 @@ export const View: Story = { render: () => ribbon('view') };
  */
 export const Outlining: Story = { render: () => ribbon('outlining') };
 
-/** Unit 10, and a view tab. */
+/**
+ * **Print Preview**: the document as it will print, and a view tab Office shows only inside Print Preview.
+ * Authored after Outlining, one tab of one application, and the second view tab authored. Four groups: Print,
+ * Page Setup, Zoom and Preview. What to look at, least certain first:
+ *
+ * 1. ⚠ **Magnifier is a ticked checkbox, not a toggle button.** It sits under Show Ruler (unticked), above
+ *    Shrink One Page, as Office stacks them. `GUESS:` the shape and the tick, from memory of Word 2007 and
+ *    2010; the brief listed a toggle.
+ * 2. ⚠ **Next Page and Previous Page survive.** Drag narrow until Preview collapses: a page with an arrow
+ *    down and a page with an arrow up stay beside the trigger, and the other four open from it in order.
+ *    `GUESS:` that the glyphs read as pages rather than *download* and *upload*.
+ * 3. ⚠ **Margins, Orientation and Size open Layout's lists, now whole.** Margins: Normal (checked), Narrow,
+ *    Moderate, Wide, Mirrored, Office 2003 Default, then Custom Margins… (no Last Custom Setting, because a new
+ *    document has none). Orientation: Portrait (checked), Landscape. Size: Letter, Legal, Executive, A3, A4
+ *    (checked), A5, B4 (JIS), B5 (JIS), Tabloid, Statement, five envelopes, then More Paper Sizes…; it may
+ *    need to scroll. Layout's tab opens the same lists. `GUESS:` the Size order.
+ * 4. ⚠ **Zoom draws a magnifier, and Two Pages draws nothing.** Zoom and 100% are large; One Page, Two Pages
+ *    and Page Width stack beside them. Collapse Zoom and 100%, One Page and Page Width stay, as on View.
+ * 5. **Close Print Preview is large with a three-word label**, under Close Outline View's cross in a square.
+ *    It should wrap to two lines without an ellipsis.
+ * 6. **Print and Options are large**, a printer and a cog. **Page Setup has a dialog launcher**; Print, Zoom
+ *    and Preview have none. **Size is small** between two large neighbours, having no glyph.
+ * 7. **Not in `Shell/Word`**: switch to the shell and the strip has no Print Preview tab, and no Print Preview
+ *    menu is on the page.
+ */
 export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 
 /** A view tab: Office shows it only while a picture's background is being removed. */

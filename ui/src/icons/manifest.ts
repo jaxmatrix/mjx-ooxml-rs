@@ -154,7 +154,12 @@ export const iconRequests: readonly IconRequest[] = [
     variants: ['regular'],
     why: 'Find, in the chrome and inline in a filter field.',
   },
-  { name: 'settings', sizes: [20], variants: ['regular'], why: 'Options.' },
+  {
+    name: 'settings',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Options. **Since Word's Print Preview unit, also Print Preview's Options**, large, which opens Word Options: a cog. Hence 24 as well as 20. `GUESS:`.",
+  },
   {
     name: 'table',
     sizes: [20, 24],
@@ -327,7 +332,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'print',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Print — the headline of the Print group in Word and PowerPoint, `size=\"large\"`, hence 24 as well as 20. Excel has no Print group here; see `dev/ribbons/census.ts` on the census's missing `TabPrint` row.",
+    why: "Print — the headline of the Print group in Word and PowerPoint, `size=\"large\"`, hence 24 as well as 20. Excel has no Print group here; see `dev/ribbons/census.ts` on the census's missing `TabPrint` row. **Since Word's Print Preview unit, also Print Preview's Print**, large, which opens the Print dialog. `GUESS:`.",
   },
   {
     name: 'share',
@@ -1060,13 +1065,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-margins',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Margins, on Word's Layout and Excel's Page Layout, large: a page with its margins dashed in, which is Office's picture of the command.",
+    why: "Margins, on Word's Layout and Excel's Page Layout, large: a page with its margins dashed in, which is Office's picture of the command. **Since Word's Print Preview unit, also Print Preview's Margins**, the same command and Layout's list.",
   },
   {
     name: 'orientation',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice.",
+    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice. **Since Word's Print Preview unit, also Print Preview's Orientation**, the same command and Layout's list.",
   },
   {
     name: 'text-position-square',
@@ -1619,19 +1624,19 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'ratio-one-to-one',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "100%, the large button in Word's View Zoom group, and a survivor: *1:1*, actual size. Not `zoom-in`, which is a different command. `GUESS:` that it reads unlabelled. **Since Excel's View unit, also Excel's 100%**, large and a survivor there too.",
+    why: "100%, the large button in Word's View Zoom group, and a survivor: *1:1*, actual size. Not `zoom-in`, which is a different command. `GUESS:` that it reads unlabelled. **Since Excel's View unit, also Excel's 100%**, large and a survivor there too. **Since Word's Print Preview unit, also Print Preview's 100%**, large and a survivor, as on View.",
   },
   {
     name: 'document-fit',
     sizes: [20],
     variants: ['regular'],
-    why: "One Page, in Word's View Zoom group, and a survivor: a page inside four fit corners, one whole page fitted to the window. `GUESS:`.",
+    why: "One Page, in Word's View Zoom group, and a survivor: a page inside four fit corners, one whole page fitted to the window. `GUESS:`. **Since Word's Print Preview unit, also Print Preview's One Page**, a survivor, as on View.",
   },
   {
     name: 'auto-fit-width',
     sizes: [20],
     variants: ['regular'],
-    why: "Page Width, in Word's View Zoom group, and a survivor: a width between two stops, the page's width fitted to the window. `GUESS:`.",
+    why: "Page Width, in Word's View Zoom group, and a survivor: a width between two stops, the page's width fitted to the window. `GUESS:`. **Since Word's Print Preview unit, also Print Preview's Page Width**, a survivor, as on View.",
   },
   {
     name: 'window-new',
@@ -1715,7 +1720,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'zoom-in',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`. **Since Excel's View unit, also Excel's Zoom**, the same dialog.",
+    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`. **Since Excel's View unit, also Excel's Zoom**, the same dialog. **Since Word's Print Preview unit, also Print Preview's Zoom**, large, the same dialog; Word's View draws none, and the census records the disagreement.",
   },
   {
     name: 'page-fit',
@@ -1995,7 +2000,31 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dismiss-square',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`.",
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view.",
+  },
+  // ── Print Preview (Word's) ────────────────────────────────────────────────
+  //
+  // Word's Print Preview tab, the second view tab authored. **20 for a small command.** `print`, `settings`,
+  // `document-margins`, `orientation`, `zoom-in`, `ratio-one-to-one`, `document-fit`, `auto-fit-width` and
+  // `dismiss-square` above gained a command rather than a row here. The reasoning for every glyph is the
+  // *commands Print Preview shows* section of `dev/ribbons/census.ts`.
+  {
+    name: 'arrow-minimize-vertical',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Shrink One Page, small, in Word's Print Preview Preview group: two arrows pressed together from above and below, the document squeezed until its last page is gone. `GUESS:`.",
+  },
+  {
+    name: 'document-arrow-down',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Next Page, small, in Word's Print Preview Preview group, and a survivor: a page, and the direction Word's pages run. Not `caret-down`, a dropdown's arrow. `GUESS:` that it reads as a page rather than *download*.",
+  },
+  {
+    name: 'document-arrow-up',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Previous Page, small, in Word's Print Preview Preview group, and a survivor, beside Next Page. `GUESS:` that it reads as a page rather than *upload*.",
   },
 ];
 

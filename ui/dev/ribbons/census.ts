@@ -95,7 +95,8 @@
  * part. **PowerPoint's Slide Show** followed the three View tabs, one tab of one application again; see the
  * *commands Slide Show shows* section. **PowerPoint's Recording** followed Slide Show, one tab of one application
  * again; see the *commands Recording shows* section. **Word's Outlining** followed Recording, the first view tab
- * authored; see the *commands Outlining shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * authored; see the *commands Outlining shows* section. **Word's Print Preview** followed Outlining, the second
+ * view tab authored and the first with menus; see the *commands Print Preview shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4332,6 +4333,178 @@ const wordOutliningClose: readonly RibbonCommand[] = [
   { id: 'word.outlining.close.close-outline-view', label: 'Close Outline View', icon: 'dismiss-square', size: 'large' },
 ];
 
+// ── the commands Print Preview shows ─────────────────────────────────────────
+//
+// The ribbon programme's unit after Outlining: **Word's Print Preview tab**, all four in-scope groups and
+// seventeen commands, one tab of one application, and the second `appearance: 'view'` tab authored. It is
+// Word's classic Print Preview (Word 2007 and 2010, and Microsoft 365's *Print Preview Edit Mode*): the
+// document drawn as it will print, with the page setup and the zoom a person needs to judge it.
+//
+// ## A view tab renders in the catalogue alone
+//
+// Office shows the tab only inside Print Preview. `tabsFor` leaves every `appearance: 'view'` tab out of a
+// strip unless `includeViewTabs` is asked for, and **only `Ribbons/Word` asks**, so the five host bindings
+// and the three menus are rendered in `stories/ribbons/word.stories.ts` alone. `Shell/Word` never draws the
+// tab. **The surface gate knew nothing of that until this unit**: it required every declared menu to be
+// opened by both hosts, which for a view tab's menu would have demanded a binding to nothing in the shell.
+// `tests/ribbons.test.ts` now requires a view tab's menu of the host that draws view tabs alone, refuses the
+// shell opening one, and holds the claim about which host draws them to the hosts' own source.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Three dropdowns a host binds**, Margins, Orientation and Size, each opening **Layout's own list**
+// (`marginEntries('word')`, `orientationEntries()`, `sizeEntries()`, exported from
+// `stories/ribbons/design-layout-menus.ts` for this) through `stories/ribbons/print-preview-menus.ts`, which
+// declares the menu under this tab's command ids. **Two checkboxes a host binds**: Show Ruler and Magnifier
+// (ticked). **Buttons**: Print, Options, Zoom, 100%, One Page, Two Pages, Page Width, Shrink One Page, Next
+// Page, Previous Page and Close Print Preview. **One dialog launcher**, on Page Setup, which opens the Page
+// Setup dialog as Layout's does. **No gallery, no split button, no exclusive set, no toggle button.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The census counts more than Office draws, and nothing is padded.** Print is 2 and draws 2. Page Setup
+//    is 6 and draws 3 and a launcher: Margins, Orientation, Size. Zoom is 6 and draws 5. Preview is 6 and draws
+//    6. The census's extra controls are not named by it, and a command made up to reach a count would be a
+//    worse lie than a short group.
+// 2. **Zoom is `GroupZoom`, the same census id as View's Zoom**, because Office reuses the group. The group
+//    is found by id inside this tab's entry, so the two never meet, and the command ids differ by their tab
+//    segment (`word.print-preview.zoom.*` against `word.view.zoom.*`).
+// 3. **Magnifier is a checkbox, where the brief lists it as a toggle.** Office draws Show Ruler and Magnifier
+//    as two ticks stacked above Shrink One Page, and Magnifier starts ticked: the pointer is a magnifier that
+//    switches the page between 100% and the whole page, and clearing the tick is how a person edits in the
+//    preview. It is still a `toggle` in this census, as every checkbox is; what differs is the face. The
+//    shape also settles a glyph clash: a magnifier toggle beside Zoom's magnifier would be two identical
+//    pictures for two different commands. `GUESS:` the shape and the start, from memory of Word 2007 and 2010.
+// 4. **Two Pages, not Multiple Pages.** The classic tab lays exactly two pages side by side; View's Microsoft
+//    365 Zoom group renamed its neighbour Multiple Pages. The brief and Office agree on Two Pages.
+// 5. **Zoom draws `zoom-in` here and nothing on Word's View.** Word's View refused `zoom-in` because it reads
+//    as Zoom In; PowerPoint's and Excel's View units then drew it for the same Zoom dialog, because no Zoom In
+//    command exists in the subset. This tab follows the later two, so every face command with an honest glyph
+//    carries one, and records the disagreement with Word's View rather than re-deciding it.
+// 6. **Show Ruler starts unticked**, following Word's View, where Ruler starts unticked; Office carries the
+//    same setting into the preview.
+// 7. **The Page Setup menus are Layout's, completed by this unit, and Layout's tab changes with them**, as
+//    intended. Margins: Normal, Narrow, Moderate, Wide, Mirrored and Office 2003 Default, then *Custom
+//    Margins…*, with *Last Custom Setting* leading the list only once custom margins have been set (a new
+//    document, which the catalogue draws, has none). Orientation: Portrait and Landscape. Size: Letter,
+//    Legal, Executive, A3, A4 (checked), A5, B4 (JIS), B5 (JIS), Tabloid, Statement, Envelope #10, Envelope
+//    DL, Envelope C5, Envelope B5 and Envelope Monarch, then *More Paper Sizes…*. ⚠ Office's real Size list
+//    comes from the selected printer's driver; this is Word's standard list, standing in for no printer.
+//    `GUESS:` the Size order.
+// 8. **Office greys Next Page and Previous Page** at the last and the first page, and Shrink One Page when
+//    the document cannot lose a page. All are drawn available, because `disabled` is loop 2's.
+//
+// ## Survivors: Next Page and Previous Page, 100%, One Page and Page Width
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Print**: none. Print opens the Print dialog and Options opens Word Options; both fail rule 1.
+// - **Page Setup**: none. Margins, Orientation and Size each open a menu.
+// - **Zoom: 100%, One Page and Page Width survive**, for View's reason, word for word: each sets the zoom in
+//   one press, the zoom before it is one press away, and a zoom changes no document. Zoom opens a dialog.
+//   **Two Pages passes rule 1 and fails rule 2**: it carries no glyph (see *every glyph* below), and a fourth
+//   would pass the ceiling of three.
+// - **Preview: Next Page and Previous Page survive.** Each moves the preview one page with one press and the
+//   other takes it back: the Mailings record-navigator standard. `document-arrow-down` and
+//   `document-arrow-up` are a page and the way it moves, and no other command's glyph in this subset. Two,
+//   under the ceiling, and four commands stay in the popup. `GUESS:` rule 2 on both, since a page with an
+//   arrow down can read as *download*. **Shrink One Page passes rule 1** (one undo restores the font sizes)
+//   **and fails rule 2**: arrows squeezed together read as *minimise*. **Show Ruler and Magnifier** are
+//   checkboxes, which the gate refuses. **Close Print Preview** leaves the view and takes the tab with it,
+//   as Close Outline View does.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Office's shape**: Print, Options, Margins, Orientation, Zoom, 100% and Close Print Preview
+// are `large`; One Page, Two Pages, Page Width, Shrink One Page, Next Page and Previous Page are small, in the
+// columns Office stacks them in. **Size is small where Office draws it large**, because it carries no glyph.
+//
+// Every glyph below is `GUESS:`, judged from Fluent's drawings rather than from a build this project can cite:
+//
+// - **Print draws `print`**, File's Print. **Options draws `settings`**, a cog: it opens Word Options. It is
+//   large here, so `settings` gains a 24.
+// - **Margins draws `document-margins` and Orientation `orientation`**, Layout's own, for the same commands.
+// - **Zoom draws `zoom-in`**, PowerPoint's and Excel's Zoom; see disagreement 5. **100% draws
+//   `ratio-one-to-one`, One Page `document-fit` and Page Width `auto-fit-width`**, View's three.
+// - **Shrink One Page draws `arrow-minimize-vertical`**, two arrows pressed together from above and below:
+//   the document squeezed until its last page is gone.
+// - **Next Page draws `document-arrow-down` and Previous Page `document-arrow-up`**: a page, and the direction
+//   Word's pages run. Not `caret-down`, which reads as a dropdown's arrow, nor `chevron-double-down`, the
+//   gallery's More.
+// - **Close Print Preview draws `dismiss-square`**, Close Outline View's cross in a square: the same verb,
+//   leaving a view.
+//
+// **Three commands carry no glyph, and say why.** **Size**: Fluent draws no page size, which is Layout's
+// reason (`resize` says *resize this object*). **Two Pages**: every two-page picture Fluent draws is already
+// another command in this subset — `book-open` is Read Mode, `layout-column-two` is Arrange All,
+// `text-column-two` is Columns and `document-one-page-multiple` is Handout Master, which Word's View refused
+// for Multiple Pages. **Show Ruler and Magnifier** are checkboxes, which draw their tick box.
+
+/**
+ * Word's `GroupPrintPreviewPrint`, labelled **Print**: Print and Options, both large.
+ *
+ * **Print** opens the Print dialog; **Options** opens Word Options. `GUESS:` that Options opens it on its
+ * Display page, where the printing options are.
+ *
+ * **No survivor**: both open a dialog.
+ */
+const wordPrintPreviewPrint: readonly RibbonCommand[] = [
+  { id: 'word.print-preview.print.print', label: 'Print', icon: 'print', size: 'large' },
+  { id: 'word.print-preview.print.options', label: 'Options', icon: 'settings', size: 'large' },
+];
+
+/**
+ * Word's `GroupPrintPreviewPageSetup`, labelled **Page Setup**: Margins, Orientation and Size, and the Page
+ * Setup dialog launcher. See disagreements 1 and 7.
+ *
+ * **All three are dropdowns a host binds**, over Layout's own lists through
+ * `stories/ribbons/print-preview-menus.ts`. Size is small, having no glyph.
+ *
+ * **No survivor**: all three open a menu.
+ */
+const wordPrintPreviewPageSetup: readonly RibbonCommand[] = [
+  { id: 'word.print-preview.page-setup.margins', label: 'Margins', icon: 'document-margins', size: 'large' },
+  { id: 'word.print-preview.page-setup.orientation', label: 'Orientation', icon: 'orientation', size: 'large' },
+  { id: 'word.print-preview.page-setup.size', label: 'Size' },
+];
+
+/**
+ * Word's `GroupZoom` on Print Preview, labelled **Zoom**: Zoom and 100% large, then One Page, Two Pages and
+ * Page Width in a column. See disagreements 2, 4 and 5.
+ *
+ * **Zoom** opens the Zoom dialog. **100%**, **One Page** and **Page Width** are View's, glyphs included.
+ * **Two Pages** lays two whole pages side by side, and carries no glyph.
+ *
+ * **Survivors: 100%, One Page and Page Width.** See this section's header.
+ */
+const wordPrintPreviewZoom: readonly RibbonCommand[] = [
+  { id: 'word.print-preview.zoom.zoom', label: 'Zoom', icon: 'zoom-in', size: 'large' },
+  { id: 'word.print-preview.zoom.one-hundred-percent', label: '100%', icon: 'ratio-one-to-one', size: 'large', essential: true },
+  { id: 'word.print-preview.zoom.one-page', label: 'One Page', icon: 'document-fit', essential: true },
+  { id: 'word.print-preview.zoom.two-pages', label: 'Two Pages' },
+  { id: 'word.print-preview.zoom.page-width', label: 'Page Width', icon: 'auto-fit-width', essential: true },
+];
+
+/**
+ * Word's `GroupPrintPreviewPreview`, labelled **Preview**: Show Ruler, Magnifier and Shrink One Page in a
+ * column, Next Page and Previous Page in another, then Close Print Preview large. See disagreements 3, 6
+ * and 8.
+ *
+ * **Show Ruler and Magnifier are toggles drawn as checkboxes**, bound as `<mjx-checkbox>`, Magnifier ticked.
+ * **Shrink One Page** shrinks the text until the document is one page shorter. **Next Page** and **Previous
+ * Page** move the preview a page. **Close Print Preview** returns to the view the document was in.
+ *
+ * **Survivors: Next Page and Previous Page.** See this section's header.
+ */
+const wordPrintPreviewPreview: readonly RibbonCommand[] = [
+  { id: 'word.print-preview.preview.show-ruler', label: 'Show Ruler', toggle: true },
+  { id: 'word.print-preview.preview.magnifier', label: 'Magnifier', toggle: true, pressed: true },
+  { id: 'word.print-preview.preview.shrink-one-page', label: 'Shrink One Page', icon: 'arrow-minimize-vertical' },
+  { id: 'word.print-preview.preview.next-page', label: 'Next Page', icon: 'document-arrow-down', essential: true },
+  { id: 'word.print-preview.preview.previous-page', label: 'Previous Page', icon: 'document-arrow-up', essential: true },
+  { id: 'word.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -4720,10 +4893,10 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabPrintPreview' },
     groups: [
-      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupPrintPreviewPageSetup', label: 'Page Setup', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 6, inScope: true },
+      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true, commands: wordPrintPreviewPrint },
+      { id: 'GroupPrintPreviewPageSetup', label: 'Page Setup', priority: 'standard', controls: 6, inScope: true, commands: wordPrintPreviewPageSetup },
+      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 6, inScope: true, commands: wordPrintPreviewZoom },
+      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 6, inScope: true, commands: wordPrintPreviewPreview },
     ],
   },
   {

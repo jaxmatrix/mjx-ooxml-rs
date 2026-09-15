@@ -49,6 +49,10 @@
  * three groups and twenty-one commands, the tab that restructures a document by its headings. It opens no menu;
  * its two fields and two checkboxes are bound by `Ribbons/Word`, the only host that draws a view tab.
  *
+ * **Print Preview** followed Outlining, the second view tab authored: four groups and seventeen commands, the
+ * document as it will print. Margins, Orientation and Size open Layout's own lists through
+ * `stories/ribbons/print-preview-menus.ts`, and `Ribbons/Word` alone binds and renders them.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
  * declares, holding one honest button. Later units replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
@@ -57,9 +61,9 @@
  *
  * Outlining, Print Preview and Background Removal are `appearance: 'view'` — Office shows them only
  * inside the view they name — so `wordTabs()` leaves them out unless asked. The catalogue still
- * gives each one a story, because a tab nobody can look at cannot be audited. **Outlining is authored**,
- * and a host that binds a view tab's commands is therefore `Ribbons/Word` alone; the other two are
- * placeholders.
+ * gives each one a story, because a tab nobody can look at cannot be audited. **Outlining and Print
+ * Preview are authored**, and a host that binds a view tab's commands is therefore `Ribbons/Word` alone;
+ * Background Removal is a placeholder.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -416,11 +420,36 @@ export function wordOutliningTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordPrintPreviewTab(): TemplateResult {
-  return placeholderTab(entry('print-preview'));
+/**
+ * Print Preview: Print, Page Setup, Zoom, Preview — the second view tab authored, in **Office's** order,
+ * which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only inside Print Preview**, so `wordTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/Word` asks, which is why the tab's bindings and menus are
+ * written there and nowhere else. `dev/ribbons/census.ts` records every disagreement, Magnifier's shape and
+ * the census's counts among them.
+ *
+ * **Five of the tab's seventeen commands are bound by the host**: Margins, Orientation and Size are dropdowns
+ * over `stories/ribbons/print-preview-menus.ts`, which opens Layout's own lists, and Show Ruler and Magnifier
+ * are checkboxes. Everything else is the generic button.
+ *
+ * **One dialog launcher, on Page Setup**, as on Layout. **Five survivors**: 100%, One Page and Page Width in
+ * Zoom, as on View, and Next Page and Previous Page in Preview.
+ */
+export function wordPrintPreviewTab(options: TabOptions = {}): TemplateResult {
+  const printPreview = entry('print-preview');
+  const controls = options.controls ?? {};
+  return tab(
+    printPreview.id,
+    printPreview.label,
+    censusGroup(printPreview, 'GroupPrintPreviewPrint', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewPageSetup', { launcher: 'Page setup' }, controls),
+    censusGroup(printPreview, 'GroupZoom', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewPreview', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordBackgroundRemovalTab(): TemplateResult {
   return placeholderTab(entry('background-removal'));

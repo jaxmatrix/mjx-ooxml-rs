@@ -17,6 +17,7 @@ import {
   type RibbonGroupEntry,
   type RibbonSurfaceHost,
   type RibbonTabEntry,
+  type TabAppearance,
 } from '../dev/ribbons/census.ts';
 import { controlSizes, type ControlSize } from '../src/controls/control-states.ts';
 import { iconRequests } from '../src/icons/manifest.ts';
@@ -1260,6 +1261,21 @@ export function dataOpensIn(source: string): { readonly key: string | undefined;
   }));
 }
 
+/**
+ * **Whether a host draws the `appearance: 'view'` tabs.** `Ribbons/*` passes `includeViewTabs: true` to
+ * `tabsFor`, so a reviewer can audit a tab Office shows only inside its view; `Shell/*` draws the strip Office
+ * shows, and never does. `every surface a binding opens exists` holds this table to the hosts' own source.
+ */
+export const hostDrawsViewTabs: Readonly<Record<RibbonSurfaceHost, boolean>> = { ribbons: true, shell: false };
+
+/** The appearance of the tab a command id names, or `always` for an id the census does not declare. */
+export function appearanceOfCommand(command: string): TabAppearance {
+  const [application, tabId] = command.split('.');
+  const known = ribbonApplicationNames.find((name) => name === application);
+  if (known === undefined) return 'always';
+  return ribbonCensus[known].find((entry) => entry.id === tabId)?.appearance ?? 'always';
+}
+
 /** One host's assembly source, and which application and host it is. */
 interface HostSource {
   readonly name: string;
@@ -1280,9 +1296,11 @@ interface HostSource {
  * 1. a `data-opens` that names neither a literal `id="…"` in its own file nor a declared menu;
  * 2. a binding that opens a declared menu belonging to a **different** command — the copy-and-paste
  *    slip that opens Footer's menu from Header;
- * 3. a declared menu that one of its application's two hosts never opens from that command's own
- *    binding;
- * 4. a host that binds declared menus and never renders them.
+ * 3. a declared menu that a host of its application **which draws the command's tab** never opens from
+ *    that command's own binding — a view tab's menu is required of `Ribbons/*` alone, because `Shell/*`
+ *    never draws the tab (`hostDrawsViewTabs`);
+ * 4. a host that binds declared menus and never renders them;
+ * 5. a host that opens the menu of a tab it never draws, which is a binding to nothing.
  */
 export function surfaceFindings(
   hosts: readonly HostSource[],
@@ -1297,6 +1315,12 @@ export function surfaceFindings(
     for (const { key, opens } of opened) {
       const menu = menuForId.get(opens);
       if (menu !== undefined) {
+        if (!hostDrawsViewTabs[file.host] && appearanceOfCommand(menu) === 'view') {
+          findings.push(
+            `${file.name}: the binding for ${key ?? '(no command)'} opens the menu declared for ${menu}, ` +
+              'whose tab is a view tab this host never draws, so the binding is a binding to nothing.',
+          );
+        }
         if (key !== menu) {
           findings.push(
             `${file.name}: the binding for ${key ?? '(no command)'} opens the menu declared for ${menu}.`,
@@ -1309,7 +1333,11 @@ export function surfaceFindings(
         );
       }
     }
-    const ownMenus = menus.filter((command) => command.split('.')[0] === file.application);
+    const ownMenus = menus.filter(
+      (command) =>
+        command.split('.')[0] === file.application &&
+        (hostDrawsViewTabs[file.host] || appearanceOfCommand(command) !== 'view'),
+    );
     for (const command of ownMenus) {
       const wanted = commandSurfaceId(file.host, command);
       if (!opened.some(({ key, opens }) => key === command && opens === wanted)) {
@@ -1360,6 +1388,16 @@ describe('every surface a binding opens exists', () => {
   it('every declared menu names a command the census declares', () => {
     const declared = new Set(everyRibbonCommand().map((command) => command.id));
     expect(menuSources.flatMap(commandMenusIn).filter((command) => !declared.has(command))).toEqual([]);
+  });
+
+  it('draws view tabs in exactly the hosts `hostDrawsViewTabs` says, read from their source', () => {
+    for (const file of hosts) {
+      expect(/\bincludeViewTabs:\s*true\b/.test(file.source), file.name).toBe(hostDrawsViewTabs[file.host]);
+    }
+  });
+
+  it('finds a view tab with declared menus, or the view-tab exemption is exempting nothing', () => {
+    expect(menuSources.flatMap(commandMenusIn).some((command) => appearanceOfCommand(command) === 'view')).toBe(true);
   });
 });
 
@@ -1414,6 +1452,35 @@ describe('the surface rule can reject', () => {
     );
     expect(findings.some((finding) => finding.includes('opens the menu declared for word.insert.text.wordart'))).toBe(true);
     expect(findings.some((finding) => finding.includes('never opens the menu'))).toBe(true);
+  });
+
+  it("requires a view tab's menu of the host that draws view tabs, and of no other", () => {
+    const viewMenu = "commandMenu(host, 'word.print-preview.page-setup.margins', 'Margins', item('Normal'))";
+    expect(appearanceOfCommand('word.print-preview.page-setup.margins')).toBe('view');
+    expect(
+      surfaceFindings(
+        [
+          binding('ribbons', 'word.print-preview.page-setup.margins', 'ribbons-word-print-preview-page-setup-margins'),
+          binding('shell', 'word.insert.text.text-box', 'shell-word-paste'),
+        ],
+        [viewMenu],
+      ).filter((finding) => !finding.includes('names no element')),
+    ).toEqual([]);
+    expect(
+      surfaceFindings([binding('ribbons', 'word.insert.text.text-box', 'ribbons-word-paste')], [viewMenu]).some(
+        (finding) => finding.includes('never opens the menu declared for word.print-preview.page-setup.margins'),
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a shell that opens a view tab's menu", () => {
+    const viewMenu = "commandMenu(host, 'word.print-preview.page-setup.margins', 'Margins', item('Normal'))";
+    const findings = surfaceFindings(
+      [binding('shell', 'word.print-preview.page-setup.margins', 'shell-word-print-preview-page-setup-margins')],
+      [viewMenu],
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('a binding to nothing');
   });
 
   it('refuses a menu one host never opens, and a host that never renders its menus', () => {
