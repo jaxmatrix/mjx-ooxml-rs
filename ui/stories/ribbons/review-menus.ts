@@ -1,0 +1,217 @@
+/**
+ * **The menus the Review tab opens**, written once and rendered by both hosts.
+ *
+ * The ribbon programme's unit 8: **Word's Review tab, alone** — the unit was narrowed to one tab of one
+ * application, so PowerPoint's and Excel's Review menus are not here yet and `reviewMenus` renders
+ * nothing for either. The pattern is `stories/ribbons/insert-menus.ts`'s, for its reasons. A binding
+ * lives in its host. The menu it opens is written here, with its id from `commandSurfaceId(host,
+ * commandId)` through `commandMenu`. A host renders `reviewMenus(application, host)` once beside its
+ * ribbon. Every `commandMenu(host, '…'` call below spells its command id literally, so
+ * `tests/ribbons.test.ts` can read it.
+ *
+ * ## Complete, not shallow
+ *
+ * Earlier units wrote *a handful of Office's own entries*; the user rejected a sampled Transitions
+ * gallery, and since then a popup carries **every entry Office's popup has**, by Office's names and in
+ * Office's order. Two things are still not Office's shape, and both are older decisions:
+ *
+ * - **A submenu is flattened into a labelled section** — Show Markup's *Balloons* and *Specific People*,
+ *   Compare's *Show Source Documents* — as Insert flattened Page Number's.
+ * - **Show Markup's *Specific People* lists All Reviewers alone.** Office lists the document's reviewers
+ *   under it by name, and a reviewer is the document's data rather than Office's vocabulary: a name here
+ *   would name somebody's colleague, which is `insert-menus.ts`'s argument about a real printer.
+ *
+ * The current choice is checked where a menu has one: For Everyone, Contextual, Simple Markup's four
+ * markup kinds, Show Only Comments and Formatting in Balloons, All Reviewers, Show Both.
+ *
+ * ⚠ `GUESS:` **several entry lists are from memory of Microsoft 365 rather than from a build this project
+ * can cite**, and each says so where it is written. None is invented to fill a count.
+ *
+ * **Nothing here dispatches a command.** A menu opens and an entry can be chosen; no document changes,
+ * because command dispatch is loop 2.
+ *
+ * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
+ */
+
+import { html, nothing, type TemplateResult } from 'lit';
+
+import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
+import { commandMenu } from './ribbon-parts.ts';
+
+// ── the entries ──────────────────────────────────────────────────────────────
+
+/** One entry. */
+function item(label: string, shortcut?: string): TemplateResult {
+  return html`<mjx-menu-item label=${label} shortcut=${shortcut ?? ''}></mjx-menu-item>`;
+}
+
+/** One entry of a set whose current member is checked. */
+function choice(label: string, checked = false): TemplateResult {
+  return html`<mjx-menu-item kind="radio" label=${label} ?checked=${checked}></mjx-menu-item>`;
+}
+
+/** One entry that is a setting on its own, checked or not. */
+function setting(label: string, checked = false): TemplateResult {
+  return html`<mjx-menu-item kind="checkbox" label=${label} ?checked=${checked}></mjx-menu-item>`;
+}
+
+/** A labelled run of entries. */
+function section(label: string, ...entries: TemplateResult[]): TemplateResult {
+  return html`<mjx-menu-section label=${label}>${entries}</mjx-menu-section>`;
+}
+
+const separator = (): TemplateResult => html`<mjx-menu-separator></mjx-menu-separator>`;
+
+// ── Word's Review ────────────────────────────────────────────────────────────
+
+/**
+ * Check Accessibility's arrow: the checker, then the three doors Office puts beside it. `GUESS:` the
+ * list, from Microsoft 365's Word, and *Options: Accessibility* in particular.
+ */
+function checkAccessibilityEntries(): TemplateResult[] {
+  return [
+    item('Check Accessibility'),
+    item('Alt Text'),
+    item('Navigation Pane'),
+    separator(),
+    item('Options: Accessibility'),
+  ];
+}
+
+/** Translate: Microsoft 365's two, which replaced Word 2016's Mini Translator and Translate Document. */
+function translateEntries(): TemplateResult[] {
+  return [item('Translate Selection'), item('Translate Document')];
+}
+
+/** Language: Office's two dialogs. */
+function languageEntries(): TemplateResult[] {
+  return [item('Set Proofing Language…'), item('Language Preferences…')];
+}
+
+/** Delete's arrow: the comment, the comments a filter shows, and every comment. */
+function deleteCommentEntries(): TemplateResult[] {
+  return [item('Delete'), item('Delete All Comments Shown'), item('Delete All Comments in Document')];
+}
+
+/**
+ * Show Comments' arrow: Microsoft 365's two comment views, Contextual checked. `GUESS:` the whole
+ * shape; see `dev/ribbons/census.ts`.
+ */
+function showCommentsEntries(): TemplateResult[] {
+  return [choice('Contextual', true), choice('List')];
+}
+
+/** Track Changes' arrow: whose edits are tracked, then the password lock. */
+function trackChangesEntries(): TemplateResult[] {
+  return [choice('For Everyone', true), choice('Just Mine'), separator(), item('Lock Tracking')];
+}
+
+/**
+ * Show Markup: the four kinds of markup, each checked as in a new document, then Office's two submenus
+ * flattened. Balloons' three placements with Word's default checked; Specific People's All Reviewers.
+ */
+function showMarkupEntries(): TemplateResult[] {
+  return [
+    setting('Comments', true),
+    setting('Ink', true),
+    setting('Insertions and Deletions', true),
+    setting('Formatting', true),
+    section(
+      'Balloons',
+      choice('Show Revisions in Balloons'),
+      choice('Show All Revisions Inline'),
+      choice('Show Only Comments and Formatting in Balloons', true),
+    ),
+    section('Specific People', setting('All Reviewers', true)),
+  ];
+}
+
+/** Reviewing Pane's arrow: the pane's two orientations. The face opens the vertical one. */
+function reviewingPaneEntries(): TemplateResult[] {
+  return [item('Reviewing Pane Vertical…'), item('Reviewing Pane Horizontal…')];
+}
+
+/** Accept's arrow: Office's five, in Office's order. */
+function acceptEntries(): TemplateResult[] {
+  return [
+    item('Accept and Move to Next'),
+    item('Accept This Change'),
+    item('Accept All Changes Shown'),
+    item('Accept All Changes'),
+    item('Accept All Changes and Stop Tracking'),
+  ];
+}
+
+/** Reject's arrow: Office's five, in Office's order. */
+function rejectEntries(): TemplateResult[] {
+  return [
+    item('Reject and Move to Next'),
+    item('Reject Change'),
+    item('Reject All Changes Shown'),
+    item('Reject All Changes'),
+    item('Reject All Changes and Stop Tracking'),
+  ];
+}
+
+/** Compare: the two dialogs, then the Show Source Documents submenu flattened, Show Both checked. */
+function compareEntries(): TemplateResult[] {
+  return [
+    item('Compare…'),
+    item('Combine…'),
+    section(
+      'Show Source Documents',
+      choice('Hide Source Documents'),
+      choice('Show Original'),
+      choice('Show Revised'),
+      choice('Show Both', true),
+    ),
+  ];
+}
+
+/** Block Authors' arrow. `GUESS:` the pair, as Word 2010 drew it. */
+function blockAuthorsEntries(): TemplateResult[] {
+  return [item('Block Authors'), item('Release All of My Blocked Areas')];
+}
+
+/** Hide Ink's arrow. `GUESS:` the pair, from Microsoft 365. */
+function hideInkEntries(): TemplateResult[] {
+  return [setting('Hide Ink'), item('Delete All Ink in Document')];
+}
+
+/** Thirteen menus. Display for Review is a field the hosts bind. */
+function wordReviewMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'word.review.accessibility.check-accessibility', 'Check Accessibility', ...checkAccessibilityEntries())}
+    ${commandMenu(host, 'word.review.language.translate', 'Translate', ...translateEntries())}
+    ${commandMenu(host, 'word.review.language.language', 'Language', ...languageEntries())}
+    ${commandMenu(host, 'word.review.comments.delete', 'Delete', ...deleteCommentEntries())}
+    ${commandMenu(host, 'word.review.comments.show-comments', 'Show Comments', ...showCommentsEntries())}
+    ${commandMenu(host, 'word.review.tracking.track-changes', 'Track Changes', ...trackChangesEntries())}
+    ${commandMenu(host, 'word.review.tracking.show-markup', 'Show Markup', ...showMarkupEntries())}
+    ${commandMenu(host, 'word.review.tracking.reviewing-pane', 'Reviewing Pane', ...reviewingPaneEntries())}
+    ${commandMenu(host, 'word.review.changes.accept', 'Accept', ...acceptEntries())}
+    ${commandMenu(host, 'word.review.changes.reject', 'Reject', ...rejectEntries())}
+    ${commandMenu(host, 'word.review.compare.compare', 'Compare', ...compareEntries())}
+    ${commandMenu(host, 'word.review.protect.block-authors', 'Block Authors', ...blockAuthorsEntries())}
+    ${commandMenu(host, 'word.review.ink.hide-ink', 'Hide Ink', ...hideInkEntries())}
+  `;
+}
+
+// ── what a host renders ──────────────────────────────────────────────────────
+
+/**
+ * Word alone, until PowerPoint's and Excel's Review tabs have their own unit. A missing application is
+ * not a menu set found to be empty; it is one nobody has written yet.
+ */
+const menusByApplication: Partial<Record<RibbonApplication, (host: RibbonSurfaceHost) => TemplateResult>> = {
+  word: wordReviewMenus,
+};
+
+/**
+ * Every menu one application's Review tab opens, with ids for one host's page.
+ *
+ * Rendered once beside `<mjx-ribbon>`, floating and closed, exactly as `insertMenus` is.
+ */
+export function reviewMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult | typeof nothing {
+  return menusByApplication[application]?.(host) ?? nothing;
+}

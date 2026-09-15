@@ -47,7 +47,14 @@ import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
-import { citationStyles, copyCounts, mergeRecordNumbers, printerList } from '../ribbons/ribbon-parts.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
+import {
+  citationStyles,
+  copyCounts,
+  displayForReviewModes,
+  mergeRecordNumbers,
+  printerList,
+} from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -686,6 +693,101 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-word-mailings-finish-finish-merge"
             ></mjx-button>`,
+            // Review (unit 8, Word alone). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Display for Review is a dropdown field over `ribbon-parts.ts`'s list, starting on Simple Markup.
+            'word.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-word-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.language.translate': html`<mjx-button
+              label="Translate"
+              icon="translate"
+              size="large"
+              data-opens="shell-word-review-language-translate"
+            ></mjx-button>`,
+            'word.review.language.language': html`<mjx-button
+              label="Language"
+              icon="local-language"
+              size="large"
+              data-opens="shell-word-review-language-language"
+            ></mjx-button>`,
+            'word.review.comments.delete': html`<mjx-split-button
+              label="Delete"
+              icon="comment-dismiss"
+              size="large"
+              data-opens="shell-word-review-comments-delete"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.comments.show-comments': html`<mjx-split-button
+              label="Show Comments"
+              icon="comment-multiple"
+              size="small"
+              data-opens="shell-word-review-comments-show-comments"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.tracking.track-changes': html`<mjx-split-button
+              label="Track Changes"
+              icon="document-edit"
+              size="large"
+              data-opens="shell-word-review-tracking-track-changes"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.tracking.display-for-review': html`<mjx-dropdown
+              id="word-display-for-review"
+              label="Display for Review"
+              value="simple-markup"
+              style=${ribbonFieldStyle}
+            >
+              ${displayForReviewModes.map((mode) => html`<mjx-option value=${mode.value} label=${mode.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'word.review.tracking.show-markup': html`<mjx-button
+              label="Show Markup"
+              size="small"
+              data-opens="shell-word-review-tracking-show-markup"
+            ></mjx-button>`,
+            'word.review.tracking.reviewing-pane': html`<mjx-split-button
+              label="Reviewing Pane"
+              icon="panel-left-text"
+              size="small"
+              data-opens="shell-word-review-tracking-reviewing-pane"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.changes.accept': html`<mjx-split-button
+              label="Accept"
+              icon="document-checkmark"
+              size="large"
+              data-opens="shell-word-review-changes-accept"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.changes.reject': html`<mjx-split-button
+              label="Reject"
+              icon="document-dismiss"
+              size="small"
+              data-opens="shell-word-review-changes-reject"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.compare.compare': html`<mjx-button
+              label="Compare"
+              size="small"
+              data-opens="shell-word-review-compare-compare"
+            ></mjx-button>`,
+            'word.review.protect.block-authors': html`<mjx-split-button
+              label="Block Authors"
+              icon="person-lock"
+              size="large"
+              data-opens="shell-word-review-protect-block-authors"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.ink.hide-ink': html`<mjx-split-button
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-word-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -837,7 +939,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
       ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
-      ${mailingsAnimationsDataMenus('word', 'shell')}
+      ${mailingsAnimationsDataMenus('word', 'shell')} ${reviewMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

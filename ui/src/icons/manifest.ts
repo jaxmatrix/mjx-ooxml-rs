@@ -266,9 +266,9 @@ export const iconRequests: readonly IconRequest[] = [
   // wrong page.
   {
     name: 'document-lock',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Protect Document / Presentation / Workbook — the Info group's first command in all three applications. A document with a padlock rather than a bare `shield`: a shield says *this is defended*, and what the command actually does is put a lock on this one file. ⚠ **20 alone, and that is a rendering finding rather than a preference.** It was `size=\"large\"` and asked for 24 until the tab was looked at: a large button is bounded by `largeControlWidthUnits` so its label wraps to two lines inside about eighty pixels, and *Protect Document* came out as `Protect Docume…`. A truncated command is a command nobody can read, so the three Protect verbs are small — and the 24-pixel drawing nothing would have used went with them.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Protect Document / Presentation / Workbook — the Info group's first command in all three applications. A document with a padlock rather than a bare `shield`: a shield says *this is defended*, and what the command actually does is put a lock on this one file. ⚠ **20 alone, and that is a rendering finding rather than a preference.** It was `size=\"large\"` and asked for 24 until the tab was looked at: a large button is bounded by `largeControlWidthUnits` so its label wraps to two lines inside about eighty pixels, and *Protect Document* came out as `Protect Docume…`. A truncated command is a command nobody can read, so the three Protect verbs are small — and the 24-pixel drawing nothing would have used went with them. **Since unit 8, the 24 and the filled drawing are back, for Restrict Editing** on Word's Review tab: a large toggle whose two-word label fits, drawn pressed while its pane is open. Restrict Editing is what Protect Document's menu opens, so it is the same padlock on the same file.",
   },
   {
     name: 'document-search',
@@ -803,7 +803,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'comment-add',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Comment, the one command of the Insert tab's Comments group in all three applications, large. The speech bubble with a plus rather than the bare `comment` this subset carries for Review: that one marks a thread that exists, and this command starts one.",
+    why: "Comment, the one command of the Insert tab's Comments group in all three applications, large. The speech bubble with a plus rather than the bare `comment` this subset carries for Review: that one marks a thread that exists, and this command starts one. **Since unit 8, also New Comment** on Word's Review tab, large: the same command by its Review name.",
   },
   {
     name: 'document-header',
@@ -1194,7 +1194,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'book-search',
     sizes: [20],
     variants: ['regular'],
-    why: "Lookup & Reference, on Excel's Formulas tab, small (three tokens): Excel's book with a magnifier.",
+    why: "Lookup & Reference, on Excel's Formulas tab, small (three tokens): Excel's book with a magnifier. **Since unit 8, also Thesaurus** on Word's Review tab, small: a book being looked in for a word. `GUESS:`.",
   },
   {
     name: 'book-theta',
@@ -1442,6 +1442,97 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Hide Detail, beside Show Detail: the minus in a box.",
+  },
+  // ── Review (Word's Review) ──────────────────────────────────────────────────
+  //
+  // The ribbon programme's unit 8, narrowed to Word alone. **20 for a small command, and 20 and 24 for a
+  // large one.** No row here is a toggle's, so none carries `filled`; `document-lock` above gained it for
+  // Restrict Editing. Three rows above gained a command rather than a row here. Every command the tab draws
+  // without an icon is listed, with its reason, in the *commands Review shows* section of
+  // `dev/ribbons/census.ts`.
+  {
+    name: 'text-grammar-checkmark',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Spelling & Grammar, on Word's Review tab, small (three tokens): text with a tick, Office's *ABC✓*. Not `text-proofing-tools`, which is Home's Editor.",
+  },
+  {
+    name: 'text-word-count',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Word Count, on Word's Review tab: Fluent's own drawing of the command.",
+  },
+  {
+    name: 'accessibility-checkmark',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Check Accessibility, the split button on Word's Review tab, small (*Accessibility* is thirteen letters): the accessibility figure with a tick, the checker.",
+  },
+  {
+    name: 'translate',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Translate, the large dropdown on Word's Review tab: Fluent's own translation mark.",
+  },
+  {
+    name: 'local-language',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Language, the large dropdown on Word's Review tab: Fluent's own language mark.",
+  },
+  {
+    name: 'comment-dismiss',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Delete, the large split button on Word's Review Comments group: a speech bubble struck out, a comment deleted. Not `delete`, the bin, which deletes whatever is selected.",
+  },
+  {
+    name: 'comment-arrow-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Previous Comment, on Word's Review tab, and a survivor: a speech bubble with an arrow back. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'comment-arrow-right',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Next Comment, beside Previous Comment, and a survivor.",
+  },
+  {
+    name: 'comment-multiple',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Show Comments, the split button on Word's Review tab: many speech bubbles, every comment shown.",
+  },
+  {
+    name: 'document-edit',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Track Changes, the large split button on Word's Review tab: a page with a pencil, edits recorded against the page. A split button draws no pressed state, so no filled drawing.",
+  },
+  {
+    name: 'panel-left-text',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Reviewing Pane, the split button on Word's Review tab: a pane of text at the left, where Word opens it. `GUESS:`.",
+  },
+  {
+    name: 'document-checkmark',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Accept, the large split button on Word's Review Changes group: a page with a tick, the change kept.",
+  },
+  {
+    name: 'document-dismiss',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Reject, beside Accept: a page struck out, the change refused.",
+  },
+  {
+    name: 'person-lock',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Block Authors, on Word's Review Protect group, large: a person with a padlock, other authors kept out of a region. `GUESS:`.",
   },
 ];
 

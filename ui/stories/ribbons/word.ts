@@ -37,8 +37,12 @@
  * **Mailings** is unit 7: five groups and twenty-one commands, the mail merge pipeline from choosing a
  * document to finishing it, with a record navigator whose two carets survive a collapse.
  *
+ * **Review** is unit 8, and the first unit narrowed to one tab of one application: nine groups and
+ * twenty-three commands, the tab where a document is read by somebody else — its proofing, its comments,
+ * its tracked changes and the protection around them. Every menu on it carries Office's whole list.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 8 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Units 9 onward replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -308,11 +312,42 @@ export function wordMailingsTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordReviewTab(): TemplateResult {
-  return placeholderTab(entry('review'));
+/**
+ * Review: Proofing, Accessibility, Language, Comments, Tracking, Changes, Compare, Protect, Ink — the
+ * ribbon programme's unit 8, in **Office's** order.
+ *
+ * ⚠ **Ink is last here and fifth in the census's declaration.** Microsoft 365 draws it after Protect,
+ * and the group order is this module's decision, so Office's wins; `dev/ribbons/census.ts` records the
+ * disagreement. What Office draws that is not here is **Speech** (Read Aloud), which the census marks out
+ * of scope, and Resume and Linked Notes, which it does not carry at all.
+ *
+ * **Fourteen of the tab's twenty-three commands are bound by the host**: Check Accessibility, Delete, Show
+ * Comments, Track Changes, Reviewing Pane, Accept, Reject, Block Authors and Hide Ink are split buttons,
+ * Translate, Language, Show Markup and Compare are dropdowns, all over `stories/ribbons/review-menus.ts`,
+ * and Display for Review is a dropdown field. Restrict Editing is the generic toggle.
+ *
+ * **One dialog launcher, on Tracking**, because Office has one there: it opens Change Tracking Options.
+ * **Two survivors**, Previous Comment and Next Comment, and `dev/ribbons/census.ts` gives the reason.
+ */
+export function wordReviewTab(options: TabOptions = {}): TemplateResult {
+  const review = entry('review');
+  const controls = options.controls ?? {};
+  return tab(
+    review.id,
+    review.label,
+    censusGroup(review, 'GroupProofing', {}, controls),
+    censusGroup(review, 'GroupAccessibility', {}, controls),
+    censusGroup(review, 'GroupLanguage', {}, controls),
+    censusGroup(review, 'GroupComments', {}, controls),
+    censusGroup(review, 'GroupChangesTracking', { launcher: 'Change Tracking Options' }, controls),
+    censusGroup(review, 'GroupChanges', {}, controls),
+    censusGroup(review, 'GroupCompare', {}, controls),
+    censusGroup(review, 'GroupProtect', {}, controls),
+    censusGroup(review, 'GroupInk', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordViewTab(): TemplateResult {
   return placeholderTab(entry('view'));

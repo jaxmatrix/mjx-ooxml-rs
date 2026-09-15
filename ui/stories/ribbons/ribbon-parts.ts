@@ -208,6 +208,19 @@ export const animationStarts: readonly { readonly value: string; readonly label:
 /** The Delay field's list. See `mergeRecordNumbers`. */
 export const animationDelays: readonly string[] = ['00.00', '00.25', '00.50', '01.00', '02.00'];
 
+/**
+ * **The field Word's Review tab binds** (unit 8), for `fitPageCounts`' reason: two hosts bind it.
+ *
+ * `displayForReviewModes` is Tracking's *Display for Review* box: **every** mode Office offers, in
+ * Office's order. A host starts it on Simple Markup, a new document's mode since Word 2013.
+ */
+export const displayForReviewModes: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'simple-markup', label: 'Simple Markup' },
+  { value: 'all-markup', label: 'All Markup' },
+  { value: 'no-markup', label: 'No Markup' },
+  { value: 'original', label: 'Original' },
+];
+
 // ── the parts ────────────────────────────────────────────────────────────────
 
 /** One tab of a ribbon. */

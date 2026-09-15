@@ -12,6 +12,7 @@ import {
 import {
   citationStyles,
   copyCounts,
+  displayForReviewModes,
   mergeRecordNumbers,
   openDeclaredSurface,
   printerList,
@@ -30,6 +31,7 @@ import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
+import { reviewMenus } from './review-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
 /**
@@ -43,7 +45,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References and Mailings** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References, Mailings and Review** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -54,7 +56,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
- * Layout, References and Mailings tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
+ * Layout, References, Mailings and Review tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -73,7 +75,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References and Mailings are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References, Mailings and Review are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -556,6 +558,101 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-word-mailings-finish-finish-merge"
   ></mjx-button>`,
+  // Review (unit 8, Word alone). Split buttons and dropdowns open their menus from
+  // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Display for Review is a dropdown field over `ribbon-parts.ts`'s list, starting on Simple Markup.
+  'word.review.accessibility.check-accessibility': html`<mjx-split-button
+    label="Check Accessibility"
+    icon="accessibility-checkmark"
+    size="small"
+    data-opens="ribbons-word-review-accessibility-check-accessibility"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.language.translate': html`<mjx-button
+    label="Translate"
+    icon="translate"
+    size="large"
+    data-opens="ribbons-word-review-language-translate"
+  ></mjx-button>`,
+  'word.review.language.language': html`<mjx-button
+    label="Language"
+    icon="local-language"
+    size="large"
+    data-opens="ribbons-word-review-language-language"
+  ></mjx-button>`,
+  'word.review.comments.delete': html`<mjx-split-button
+    label="Delete"
+    icon="comment-dismiss"
+    size="large"
+    data-opens="ribbons-word-review-comments-delete"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.comments.show-comments': html`<mjx-split-button
+    label="Show Comments"
+    icon="comment-multiple"
+    size="small"
+    data-opens="ribbons-word-review-comments-show-comments"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.tracking.track-changes': html`<mjx-split-button
+    label="Track Changes"
+    icon="document-edit"
+    size="large"
+    data-opens="ribbons-word-review-tracking-track-changes"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.tracking.display-for-review': html`<mjx-dropdown
+    id="ribbons-word-display-for-review"
+    label="Display for Review"
+    value="simple-markup"
+    style=${ribbonFieldStyle}
+  >
+    ${displayForReviewModes.map((mode) => html`<mjx-option value=${mode.value} label=${mode.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'word.review.tracking.show-markup': html`<mjx-button
+    label="Show Markup"
+    size="small"
+    data-opens="ribbons-word-review-tracking-show-markup"
+  ></mjx-button>`,
+  'word.review.tracking.reviewing-pane': html`<mjx-split-button
+    label="Reviewing Pane"
+    icon="panel-left-text"
+    size="small"
+    data-opens="ribbons-word-review-tracking-reviewing-pane"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.changes.accept': html`<mjx-split-button
+    label="Accept"
+    icon="document-checkmark"
+    size="large"
+    data-opens="ribbons-word-review-changes-accept"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.changes.reject': html`<mjx-split-button
+    label="Reject"
+    icon="document-dismiss"
+    size="small"
+    data-opens="ribbons-word-review-changes-reject"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.compare.compare': html`<mjx-button
+    label="Compare"
+    size="small"
+    data-opens="ribbons-word-review-compare-compare"
+  ></mjx-button>`,
+  'word.review.protect.block-authors': html`<mjx-split-button
+    label="Block Authors"
+    icon="person-lock"
+    size="large"
+    data-opens="ribbons-word-review-protect-block-authors"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.review.ink.hide-ink': html`<mjx-split-button
+    label="Hide Ink"
+    size="small"
+    data-opens="ribbons-word-review-ink-hide-ink"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -585,7 +682,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
-    ${mailingsAnimationsDataMenus('word', 'ribbons')}
+    ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
   `;
 }
 
@@ -796,7 +893,29 @@ export const References: Story = { render: () => ribbon('references') };
  */
 export const Mailings: Story = { render: () => ribbon('mailings') };
 
-/** Unit 8. */
+/**
+ * **Review**: the tab where a document is read by somebody else, and the ribbon programme's unit 8 — the
+ * first unit narrowed to one tab of one application. Nine groups: Proofing, Accessibility, Language,
+ * Comments, Tracking, Changes, Compare, Protect and Ink. What to look at:
+ *
+ * 1. ⚠ **Ink is last**, after Protect, where Microsoft 365 draws it; the census declares it fifth.
+ *    `GUESS:` the position. Speech (Read Aloud) is not here: the census marks it out of scope.
+ * 2. **Every menu is Office's whole list.** Track Changes' arrow: For Everyone (checked), Just Mine, Lock
+ *    Tracking. Show Markup: Comments, Ink, Insertions and Deletions and Formatting (all ticked), then
+ *    *Balloons* (Show Only Comments and Formatting in Balloons checked) and *Specific People* (All
+ *    Reviewers). Accept and Reject: five entries each. Compare: Compare, Combine, then *Show Source
+ *    Documents* (Show Both checked). Display for Review is a dropdown on Simple Markup, over its four modes.
+ * 3. ⚠ **Track Changes, Show Comments and Hide Ink are split buttons, and cannot draw pressed.** Office
+ *    draws each as a state with a menu, and `<mjx-split-button>` has no pressed state (unit 4's Eraser
+ *    gap). **Restrict Editing is the tab's only toggle**: press it and it draws pressed. `GUESS:` Show
+ *    Comments' Contextual/List arrow and Hide Ink's shape; the brief's *Show Ink* is Office's *Hide Ink*.
+ * 4. **Previous Comment and Next Comment are the tab's only survivors.** Drag narrow until Comments
+ *    collapses: the two comment arrows stay beside its trigger. Previous Change and Next Change carry no
+ *    icon, so they give way with their group.
+ * 5. **Labels, not glyphs**: Show Markup, Compare, Previous Change, Next Change and Hide Ink carry no icon.
+ *    Spelling & Grammar and Check Accessibility are small where Office draws them large, because their
+ *    labels do not fit a large button. Tracking has the tab's one dialog launcher.
+ */
 export const Review: Story = { render: () => ribbon('review') };
 
 /** Unit 9. */

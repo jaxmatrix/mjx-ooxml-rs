@@ -536,6 +536,35 @@ through `ref`, and marks the button `disabled` for a transition Office gives no 
 Timing in two columns; `<mjx-ribbon-group>` draws every command in one row at full width, so the order
 is Office's and the columns are not.
 
+### Word's Review (unit 8 of the ribbon programme)
+
+**One tab of one application**: the unit was narrowed to Word's Review, so PowerPoint's and Excel's Review
+tabs are still placeholders. Nine groups and twenty-three commands, in Office's order: Proofing,
+Accessibility, Language, Comments, Tracking, Changes, Compare, Protect, Ink.
+
+- **A dropdown or split button** over a menu written once in `stories/ribbons/review-menus.ts`: Translate,
+  Language, Show Markup and Compare are dropdowns; Check Accessibility, Delete, Show Comments, Track
+  Changes, Reviewing Pane, Accept, Reject, Block Authors and Hide Ink are split buttons.
+- **A field**: Display for Review is `<mjx-dropdown>` over `ribbon-parts.ts`'s `displayForReviewModes`.
+- **A toggle**: Restrict Editing, pressed while its pane is open.
+
+**Every menu carries Office's whole list**, not a sample, since the user rejected a sampled Transitions
+gallery. Submenus (Show Markup's *Balloons* and *Specific People*, Compare's *Show Source Documents*) are
+flattened into labelled sections, as before.
+
+**Survivors**: Previous Comment and Next Comment. Previous Change and Next Change pass rule 1 and have no
+honest glyph, because Fluent's page-with-an-arrow means upload and download.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Track Changes, Show Comments and Hide Ink cannot draw pressed.** Office draws each as a state with a
+  menu, and `<mjx-split-button>` has no pressed state: unit 4's Eraser gap, now on three more commands.
+- **Ink is drawn last**, where Microsoft 365 draws it; the census declares it fifth.
+- **Office's face says *Previous* and *Next* twice.** The labels here are Office's tooltips (Previous
+  Comment, Next Change and the rest), because a label is also the accessible name.
+- **Show Comments' Contextual/List arrow, Hide Ink's shape, Block Authors' arrow and Check Accessibility's
+  entries** are from memory of Microsoft 365 and Word 2010, not from a build this project can cite.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, and Mailings, Animations and Data.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, Mailings, Animations and Data, and Word's Review.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -87,7 +87,8 @@
  * Layout show* section. Unit 6 authored **Word's References, PowerPoint's Transitions and Excel's
  * Formulas**; see the *commands References, Transitions and Formulas show* section. Unit 7 authored **Word's
  * Mailings, PowerPoint's Animations and Excel's Data**; see the *commands Mailings, Animations and Data show*
- * section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * section. Unit 8 authored **Word's Review** alone, the first unit narrowed to one tab of one application;
+ * see the *commands Review shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -2440,6 +2441,233 @@ const excelDataOutline: readonly RibbonCommand[] = [
   { id: 'excel.data.outline.hide-detail', label: 'Hide Detail', icon: 'subtract-square' },
 ];
 
+// ── the commands Review shows ────────────────────────────────────────────────
+//
+// The ribbon programme's **unit 8**: **Word's Review tab**, all nine in-scope groups. ⚠ **Word alone.**
+// The unit was narrowed to one tab of one application, so PowerPoint's and Excel's Review tabs are
+// still placeholders, and nothing below is written as a function of the application yet. Proofing,
+// Accessibility, Language, Comments and Ink carry the same group ids in all three census tabs, but their
+// faces differ (Excel's Proofing is Spelling, Thesaurus and Workbook Statistics; Excel's Comments are
+// three generations), so **whether any of them is one declaration is the next unit's question**, asked
+// with the other two faces in front of it rather than answered here in advance.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// Unit 7's shapes. **Dropdown or split button** over a menu written once in
+// `stories/ribbons/review-menus.ts`: Translate, Language, Show Markup and Compare are dropdowns; Check
+// Accessibility, Delete, Show Comments, Track Changes, Reviewing Pane, Accept, Reject, Block Authors and
+// Hide Ink are split buttons. **Field**: Display for Review is `<mjx-dropdown>` over
+// `ribbon-parts.ts`'s `displayForReviewModes`. **Toggle**: Restrict Editing, which Office draws pressed
+// while its pane is open. **No gallery** on this tab.
+//
+// Every menu carries **every entry Office's menu has**, by Office's names and in Office's order — the
+// user rejected a sampled Transitions gallery, and the rule since is that a popup is complete. Where
+// Office nests a submenu (Show Markup's *Balloons* and *Specific People*, Compare's *Show Source
+// Documents*) it is flattened into a labelled section, as every earlier unit flattened one.
+//
+// ⚠ **Three of the brief's expected toggles are split buttons, because Office draws them so, and a
+// split button has no pressed state** (the gap unit 4 recorded on Word's Eraser):
+//
+// - **Track Changes** is a split button, as the brief expected: the face turns tracking on and off, and
+//   the arrow offers For Everyone, Just Mine and Lock Tracking. It cannot draw pressed.
+// - **Show Comments** is `GUESS:` a split button in Microsoft 365's modern comments: the face shows the
+//   comments, and the arrow chooses Contextual or List. Word 2016 drew a plain toggle.
+// - **Show Ink is not a name Office's Review tab uses.** Microsoft 365's Ink group is **Hide Ink**, a
+//   split button (`GUESS:` the shape) whose arrow holds Hide Ink and Delete All Ink in Document. Word
+//   2016's Ink group held Start Inking instead, which is the Draw tab's job now.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **The declaration puts Ink between Comments and Tracking; Microsoft 365 draws it after Protect.**
+//    Office's Review tab reads Proofing, Speech, Accessibility, Language, Comments, Tracking, Changes,
+//    Compare, Protect, Ink. The group *order* is the tab module's decision (`censusGroup`'s doc says so),
+//    so `wordReviewTab` draws Office's order and the declaration below is left as transcribed. `GUESS:`
+//    Ink's position, from Microsoft 365's face; no build this project can cite is checked.
+// 2. **Office draws groups the census marks out of scope, and they are not drawn here**: **Speech**
+//    (Read Aloud, between Proofing and Accessibility) and **Chinese Translation**. Office's **Resume**
+//    (Resume Assistant) and **Linked Notes** (OneNote) have no census row at all. The census wins.
+// 3. **Proofing is drawn as Spelling & Grammar, Thesaurus and Word Count.** Microsoft 365 builds between
+//    Editor's arrival and its retirement drew **Editor** here in place of Spelling & Grammar. Editor is
+//    already Home's `GroupEditor`, and Draw's rule applies: a command is drawn once. `GUESS:` the face.
+// 4. **Office's face labels two commands *Previous* and two *Next*** (one pair in Comments, one in
+//    Changes). A label here is also the accessible name, and four names for two meanings would be the
+//    collision rule 2 exists to refuse, so the labels are **Office's own tooltips**: Previous Comment,
+//    Next Comment, Previous Change, Next Change.
+// 5. **The census's counts are larger than the faces**, and nothing is padded: Tracking is 22 (every
+//    entry of every menu in the group) and draws four; Language is 14 and draws two.
+//
+// ## Survivors: Previous Comment and Next Comment, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Comments' Previous Comment and Next Comment survive.** One press moves to one comment, and the
+//   other press moves back: the Mailings record-navigator standard, because moving between comments
+//   changes no document. `comment-arrow-left` and `comment-arrow-right` are a speech bubble with an
+//   arrow, which says *comment* and *which way* and is no other command's glyph. `GUESS:` rule 2.
+// - **Changes' Previous Change and Next Change pass rule 1 and fail rule 2**, because they carry no
+//   glyph: Fluent's page with an arrow (`document-arrow-up`, `document-arrow-down`) is *upload* and
+//   *download* everywhere else, so it would be a wrong icon rather than a missing one.
+// - **Restrict Editing** is a toggle that opens a pane, and a pane is something opened. **Word Count**
+//   and **Spelling & Grammar** open a dialog and a pane. Everything else opens a menu, is a split
+//   button, or is a field. Each group states its own reason below.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// Unit 6's rule: `large` where Office draws it large **and** there is an honest glyph **and** the label
+// wraps inside `largeControlWidthUnits`. **Spelling & Grammar** is three tokens and **Check
+// Accessibility** holds a thirteen-letter word, so both are `small` where Office draws them large.
+//
+// A wrong icon is worse than none. Fluent draws **no markup view** (Office's page with a balloon), **no
+// document comparison** (`column-double-compare` compares two columns, at 20 alone, and `document-copy`
+// is Copy), **no previous or next change** (see above) and **no hidden ink** (`pen-off` is a pen that
+// cannot be used, which is Draw's Stop Inking idea rather than ink hidden from the page). So **Show
+// Markup**, **Compare**, **Previous Change**, **Next Change** and **Hide Ink** are `small`, and the label
+// is the command. The Display for Review field carries none either.
+
+/**
+ * Word's Proofing group: Spelling & Grammar, Thesaurus, Word Count.
+ *
+ * **Spelling & Grammar draws `text-grammar-checkmark`**, text with a tick, Office's *ABC✓*, and opens the
+ * proofing pane (F7). It is `small`: three tokens. `text-proofing-tools` is Home's Editor, the pane's
+ * other door. **Thesaurus draws `book-search`**, a book being looked in, and opens the Thesaurus pane
+ * (Shift+F7). `GUESS:` the book, which Excel's Lookup & Reference also draws on another application's
+ * tab. **Word Count draws `text-word-count`**, Fluent's own, and opens the Word Count dialog
+ * (Ctrl+Shift+G). See disagreement 3 in this section's header about Editor.
+ *
+ * **No survivor**: two panes and a dialog.
+ */
+const wordReviewProofing: readonly RibbonCommand[] = [
+  { id: 'word.review.proofing.spelling-grammar', label: 'Spelling & Grammar', icon: 'text-grammar-checkmark' },
+  { id: 'word.review.proofing.thesaurus', label: 'Thesaurus', icon: 'book-search' },
+  { id: 'word.review.proofing.word-count', label: 'Word Count', icon: 'text-word-count' },
+];
+
+/**
+ * Word's Accessibility group: Check Accessibility.
+ *
+ * **A split button drawing `accessibility-checkmark`**, Fluent's accessibility figure with a tick. The
+ * face runs the checker and opens its pane; the arrow offers Check Accessibility, Alt Text, Navigation
+ * Pane and Options: Accessibility. `small`, because *Accessibility* is thirteen letters.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const wordReviewAccessibility: readonly RibbonCommand[] = [
+  { id: 'word.review.accessibility.check-accessibility', label: 'Check Accessibility', icon: 'accessibility-checkmark' },
+];
+
+/**
+ * Word's Language group: Translate and Language, both large dropdowns.
+ *
+ * **Translate draws `translate`** and offers Translate Selection and Translate Document. **Language draws
+ * `local-language`** and offers Set Proofing Language and Language Preferences. Both glyphs are Fluent's
+ * own for the idea.
+ *
+ * **No survivor**: two menus.
+ */
+const wordReviewLanguage: readonly RibbonCommand[] = [
+  { id: 'word.review.language.translate', label: 'Translate', icon: 'translate', size: 'large' },
+  { id: 'word.review.language.language', label: 'Language', icon: 'local-language', size: 'large' },
+];
+
+/**
+ * Word's Comments group: New Comment, Delete, Previous Comment, Next Comment, Show Comments.
+ *
+ * **New Comment draws `comment-add`**, Insert's Comment glyph, because it is the same command
+ * (Ctrl+Alt+M). **Delete draws `comment-dismiss`** and is a large split button (Delete, Delete All
+ * Comments Shown, Delete All Comments in Document). **Previous Comment and Next Comment draw
+ * `comment-arrow-left` and `comment-arrow-right`**, labelled, as Office draws them. **Show Comments
+ * draws `comment-multiple`** and is `GUESS:` a split button; see this section's header.
+ *
+ * **Survivors: Previous Comment and Next Comment.** See this section's header.
+ */
+const wordReviewComments: readonly RibbonCommand[] = [
+  { id: 'word.review.comments.new-comment', label: 'New Comment', icon: 'comment-add', size: 'large' },
+  { id: 'word.review.comments.delete', label: 'Delete', icon: 'comment-dismiss', size: 'large' },
+  { id: 'word.review.comments.previous-comment', label: 'Previous Comment', icon: 'comment-arrow-left', essential: true },
+  { id: 'word.review.comments.next-comment', label: 'Next Comment', icon: 'comment-arrow-right', essential: true },
+  { id: 'word.review.comments.show-comments', label: 'Show Comments', icon: 'comment-multiple' },
+];
+
+/**
+ * Word's Ink group: Hide Ink. See this section's header on why it is not *Show Ink*.
+ *
+ * `GUESS:` **a split button**: the face hides every ink stroke in the document and shows them again, and
+ * the arrow holds Hide Ink and Delete All Ink in Document. It carries no icon, so it is `small` where
+ * Office draws it large.
+ *
+ * **No survivor**: a split button, no glyph, and the only command.
+ */
+const wordReviewInk: readonly RibbonCommand[] = [
+  { id: 'word.review.ink.hide-ink', label: 'Hide Ink' },
+];
+
+/**
+ * Word's `GroupChangesTracking`, labelled **Tracking**: Track Changes large, then Display for Review, Show
+ * Markup and Reviewing Pane in a column.
+ *
+ * **Track Changes draws `document-edit`**, a page with a pencil, and is a split button (Ctrl+Shift+E):
+ * the face turns tracking on and off, and the arrow offers For Everyone, checked, Just Mine and Lock
+ * Tracking. **Display for Review is a dropdown field** of Simple Markup, All Markup, No Markup and
+ * Original, starting on Simple Markup. `GUESS:` that start, which is a new document's in Word 2013 and
+ * later. **Show Markup is a dropdown** of every kind of markup, its balloon placement and its reviewers.
+ * **Reviewing Pane draws `panel-left-text`**, a pane of text at the left where Word opens it, and is a
+ * split button (Reviewing Pane Vertical, Reviewing Pane Horizontal). `GUESS:` the pane glyph. Office's
+ * dialog launcher here opens Change Tracking Options.
+ *
+ * **No survivor**: three split buttons or menus and a field.
+ */
+const wordReviewTracking: readonly RibbonCommand[] = [
+  { id: 'word.review.tracking.track-changes', label: 'Track Changes', icon: 'document-edit', size: 'large' },
+  { id: 'word.review.tracking.display-for-review', label: 'Display for Review' },
+  { id: 'word.review.tracking.show-markup', label: 'Show Markup' },
+  { id: 'word.review.tracking.reviewing-pane', label: 'Reviewing Pane', icon: 'panel-left-text' },
+];
+
+/**
+ * Word's Changes group: Accept large, then Reject, Previous Change and Next Change in a column.
+ *
+ * **Accept draws `document-checkmark`** and **Reject draws `document-dismiss`**, a page ticked and a page
+ * struck out, and both are split buttons. Accept's arrow offers Accept and Move to Next, Accept This
+ * Change, Accept All Changes Shown, Accept All Changes and Accept All Changes and Stop Tracking; Reject's
+ * is the same five for rejecting. **Previous Change and Next Change** carry no icon; see this section's
+ * header.
+ *
+ * **No survivor**: two split buttons, and two navigators with no glyph.
+ */
+const wordReviewChanges: readonly RibbonCommand[] = [
+  { id: 'word.review.changes.accept', label: 'Accept', icon: 'document-checkmark', size: 'large' },
+  { id: 'word.review.changes.reject', label: 'Reject', icon: 'document-dismiss' },
+  { id: 'word.review.changes.previous-change', label: 'Previous Change' },
+  { id: 'word.review.changes.next-change', label: 'Next Change' },
+];
+
+/**
+ * Word's Compare group: Compare, a dropdown of Compare, Combine and the Show Source Documents choices.
+ *
+ * **No icon**, so `small` where Office draws it large; see this section's header.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+const wordReviewCompare: readonly RibbonCommand[] = [
+  { id: 'word.review.compare.compare', label: 'Compare' },
+];
+
+/**
+ * Word's Protect group: Block Authors and Restrict Editing, both large.
+ *
+ * **Block Authors draws `person-lock`**, a person with a padlock, and is `GUESS:` a split button (Block
+ * Authors, Release All of My Blocked Areas), as Word 2010 drew it. Office greys it for a document that is
+ * not on a shared server. **Restrict Editing is a toggle drawing `document-lock`**, File's Protect
+ * Document glyph, because Restrict Editing is what Protect Document's menu opens: Office draws it pressed
+ * while the Restrict Editing pane is open.
+ *
+ * **No survivor**: a split button, and a toggle that opens a pane.
+ */
+const wordReviewProtect: readonly RibbonCommand[] = [
+  { id: 'word.review.protect.block-authors', label: 'Block Authors', icon: 'person-lock', size: 'large' },
+  { id: 'word.review.protect.restrict-editing', label: 'Restrict Editing', icon: 'document-lock', size: 'large', toggle: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -2785,15 +3013,15 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabReviewWord' },
     groups: [
-      { id: 'GroupProofing', label: 'Proofing', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 14, inScope: true },
-      { id: 'GroupComments', label: 'Comments', priority: 'primary', controls: 16, inScope: true },
-      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupChangesTracking', label: 'Tracking', priority: 'primary', controls: 22, inScope: true },
-      { id: 'GroupChanges', label: 'Changes', priority: 'standard', controls: 14, inScope: true },
-      { id: 'GroupCompare', label: 'Compare', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupProtect', label: 'Protect', priority: 'standard', controls: 4, inScope: true },
+      { id: 'GroupProofing', label: 'Proofing', priority: 'standard', controls: 8, inScope: true, commands: wordReviewProofing },
+      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 6, inScope: true, commands: wordReviewAccessibility },
+      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 14, inScope: true, commands: wordReviewLanguage },
+      { id: 'GroupComments', label: 'Comments', priority: 'primary', controls: 16, inScope: true, commands: wordReviewComments },
+      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 4, inScope: true, commands: wordReviewInk },
+      { id: 'GroupChangesTracking', label: 'Tracking', priority: 'primary', controls: 22, inScope: true, commands: wordReviewTracking },
+      { id: 'GroupChanges', label: 'Changes', priority: 'standard', controls: 14, inScope: true, commands: wordReviewChanges },
+      { id: 'GroupCompare', label: 'Compare', priority: 'standard', controls: 8, inScope: true, commands: wordReviewCompare },
+      { id: 'GroupProtect', label: 'Protect', priority: 'standard', controls: 4, inScope: true, commands: wordReviewProtect },
     ],
   },
   {
