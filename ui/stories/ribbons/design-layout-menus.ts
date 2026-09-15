@@ -376,7 +376,8 @@ function printAreaEntries(): TemplateResult[] {
 // serve Word's Picture Format**, whose Arrange group is `arrangeCommands` for a picture: its menus are rendered by
 // `stories/ribbons/picture-tools-menus.ts` under that tab's ids, so Position, Wrap Text, Group and Rotate are exported
 // too. **PowerPoint's Picture Format** renders Bring Forward, Send Backward, Align, Group and Rotate for PowerPoint there
-// in the same way; it has no Position or Wrap Text.
+// in the same way; it has no Position or Wrap Text. **Excel's Picture Format** renders the same five for Excel, Align
+// ending on Excel's snaps.
 
 /** Position, in Word: in line, three of Office's nine wrapped positions, and the dialog. */
 export function positionEntries(): TemplateResult[] {

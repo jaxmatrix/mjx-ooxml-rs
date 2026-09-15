@@ -1,6 +1,6 @@
 /**
- * **The menus, fields and gallery the Picture Format tab opens**, written once for all three applications: Word's and
- * PowerPoint's Picture Format today, and Excel's when its unit lands.
+ * **The menus, fields and gallery the Picture Format tab opens**, written once for all three applications: Word's,
+ * PowerPoint's and Excel's Picture Format.
  *
  * The pattern is `stories/ribbons/table-tools-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -14,13 +14,14 @@
  *
  * - **Adjust**: `pictureCorrectionsEntries`, `pictureColourEntries`, `artisticEffectEntries`,
  *   `pictureTransparencyEntries`, `changePictureEntries` and `resetPictureEntries`. `GUESS:` that PowerPoint's and
- *   Excel's lists are Word's; PowerPoint's calls them unchanged.
+ *   Excel's lists are Word's; PowerPoint's and Excel's call them unchanged.
  * - **Picture Styles**: `pictureStyles`, the twenty-eight styles, and `pictureStyleGalleryItems(palette)`; then
  *   `pictureEffectsEntries` and `pictureLayoutEntries`, which PowerPoint's Convert to SmartArt opens under its own
- *   name. Picture Border is a colour picker over the document's palette, which a host owns, with
- *   `stories/ribbons/colour-picker-entries.ts`' `outlineEntries` beneath it; PowerPoint's host passes the Eyedropper.
- * - **Size**: `cropEntries`, over `cropShapeEntries` and `aspectRatioEntries`, and `wordPictureMeasures` and
- *   `powerpointPictureMeasures`, the height and width each host starts its two fields on.
+ *   name and Excel's Picture Layout under Word's. Picture Border is a colour picker over the document's palette, which
+ *   a host owns, with `stories/ribbons/colour-picker-entries.ts`' `outlineEntries` beneath it; PowerPoint's host passes
+ *   the Eyedropper, and Word's and Excel's do not.
+ * - **Size**: `cropEntries`, over `cropShapeEntries` and `aspectRatioEntries`, and `wordPictureMeasures`,
+ *   `powerpointPictureMeasures` and `excelPictureMeasures`, the height and width each host starts its two fields on.
  * - **Arrange is not here**: its commands are the census's `arrangeCommands` and its lists are
  *   `stories/ribbons/design-layout-menus.ts`' Arrange lists, which take the application. The menus themselves are
  *   rendered here, because their ids are Picture Format's.
@@ -543,6 +544,14 @@ export const wordPictureMeasures = { height: '8.57', width: '11.43', step: '0.01
  */
 export const powerpointPictureMeasures = { height: '19.05', width: '25.4', step: '0.01' } as const;
 
+/**
+ * **The height and width an Excel host starts Size's two fields on**, in centimetres: a 640 × 480 photograph at 96 dpi,
+ * which Excel inserts at its own size, so 9.53 cm by 12.7 cm. **Excel's own**, because a worksheet scales a picture to
+ * nothing: Word's is scaled to a column and PowerPoint's to a slide's height. `GUESS:` the photograph, both numbers and
+ * the 0.01 cm step.
+ */
+export const excelPictureMeasures = { height: '9.53', width: '12.7', step: '0.01' } as const;
+
 // ── Picture Styles: the gallery ──────────────────────────────────────────────
 
 /** What a picture style's thumbnail shows. A description of a look, never a render of the style's `a:spPr`. */
@@ -749,17 +758,41 @@ function powerpointPictureToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Picture Format tab opens, with ids for one host's page. **Word's and PowerPoint's are
- * authored**; Excel's renders nothing until its unit, exactly as `tableToolsMenus` rendered nothing for Excel before
- * its Table Design.
+ * Excel's fourteen menus. **Adjust's six**, Word's lists. **Picture Styles' two**: Picture Effects and Picture Layout,
+ * Word's names and lists. **Arrange's five**, over `stories/ribbons/design-layout-menus.ts`' Excel lists: Bring Forward
+ * and Send Backward with no text layer, Align ending on Snap to Grid, Snap to Shape and View Gridlines, then Group and
+ * Rotate. **No Position or Wrap Text**: cells do not wrap around a picture. **Size's one**: Crop's arrow.
+ */
+function excelPictureToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'excel.picture-format.adjust.corrections', 'Corrections', ...pictureCorrectionsEntries())}
+    ${commandMenu(host, 'excel.picture-format.adjust.colour', 'Colour', ...pictureColourEntries())}
+    ${commandMenu(host, 'excel.picture-format.adjust.artistic-effects', 'Artistic Effects', ...artisticEffectEntries())}
+    ${commandMenu(host, 'excel.picture-format.adjust.transparency', 'Transparency', ...pictureTransparencyEntries())}
+    ${commandMenu(host, 'excel.picture-format.adjust.change-picture', 'Change Picture', ...changePictureEntries())}
+    ${commandMenu(host, 'excel.picture-format.adjust.reset-picture', 'Reset Picture', ...resetPictureEntries())}
+    ${commandMenu(host, 'excel.picture-format.picture-styles.picture-effects', 'Picture Effects', ...pictureEffectsEntries())}
+    ${commandMenu(host, 'excel.picture-format.picture-styles.picture-layout', 'Picture Layout', ...pictureLayoutEntries())}
+    ${commandMenu(host, 'excel.picture-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('excel'))}
+    ${commandMenu(host, 'excel.picture-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('excel'))}
+    ${commandMenu(host, 'excel.picture-format.arrange.align', 'Align', ...alignEntries('excel'))}
+    ${commandMenu(host, 'excel.picture-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'excel.picture-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+    ${commandMenu(host, 'excel.picture-format.size.crop', 'Crop', ...cropEntries())}
+  `;
+}
+
+/**
+ * Every menu one application's Picture Format tab opens, with ids for one host's page. **All three are authored.**
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Picture Tools **and** binds its
- * commands: `Ribbons/Word`, `Ribbons/PowerPoint` and `Shell/PowerPoint`, whose deck's selection is a picture.
- * `Shell/Word` draws Table Tools alone, so it renders none of Word's, and `tests/ribbons.test.ts` requires Word's menus
- * of `Ribbons/Word` alone and PowerPoint's of both PowerPoint hosts.
+ * commands: `Ribbons/Word`, `Ribbons/PowerPoint`, `Shell/PowerPoint`, whose deck's selection is a picture, and
+ * `Ribbons/Excel`. `Shell/Word` and `Shell/Excel` draw Table Tools alone, so they render none of these, and
+ * `tests/ribbons.test.ts` requires Word's and Excel's menus of their `Ribbons/*` host alone and PowerPoint's of both
+ * PowerPoint hosts.
  */
 export function pictureToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult {
   if (application === 'word') return wordPictureToolsMenus(host);
   if (application === 'powerpoint') return powerpointPictureToolsMenus(host);
-  return html``;
+  return excelPictureToolsMenus(host);
 }

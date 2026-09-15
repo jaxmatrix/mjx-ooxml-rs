@@ -23,11 +23,13 @@ import {
   scalePercentages,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { colourPickerEntries, outlineEntries } from './colour-picker-entries.ts';
 import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
+import { excelPictureMeasures, pictureStyleGalleryItems, pictureToolsMenus } from './picture-tools-menus.ts';
 import { printPreviewMenus } from './print-preview-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
@@ -49,10 +51,11 @@ import { excelSheetViews, viewMenus } from './view-menus.ts';
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
- * Print Preview and Background Removal. **Of the five contextual tabs, Table Design is authored**, Excel's first; **the
- * other four are placeholders** at the census's own priorities: Picture Format, Shape Format, Chart Design and Format.
- * Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone, and binds
- * Table Design as this file does. See
+ * Print Preview and Background Removal. **Of the five contextual tabs, Table Design and Picture Format are authored**,
+ * Excel's first two; **the other three are placeholders** at the census's own priorities: Shape Format, Chart Design
+ * and Format. Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone,
+ * and binds Table Design as this file does, which is why Picture Format's bindings and menus are written here and
+ * nowhere else. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -74,8 +77,8 @@ const meta: Meta = {
           'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
           'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, Table ' +
-          'Design is authored; Picture Format, Shape Format, Chart Design and Format are placeholders carrying the ' +
-          'census’s priorities.',
+          'Design and Picture Format are authored; Shape Format, Chart Design and Format are placeholders carrying ' +
+          'the census’s priorities.',
       },
     },
     mjx: conventions,
@@ -648,6 +651,143 @@ const bindings: ControlOverrides = {
   >
     ${excelTableStyleGalleryItems(documentThemePalette)} ${excelTableStyleGalleryFooter()}
   </mjx-gallery>`,
+  // Picture Format (a contextual tab, in Picture Tools). `Shell/Excel` draws Table Tools alone, so this binding is
+  // written here and nowhere else. Every menu, the gallery's styles and the two starting measures are
+  // `stories/ribbons/picture-tools-menus.ts`'s; Arrange's menus are Arrange's Excel lists under this tab's ids. Remove
+  // Background, Compress Pictures, Alt Text, Selection Pane and Play Animation are the generic button or toggle and are
+  // not bound.
+  'excel.picture-format.adjust.corrections': html`<mjx-button
+    label="Corrections"
+    icon="brightness-high"
+    size="large"
+    data-opens="ribbons-excel-picture-format-adjust-corrections"
+  ></mjx-button>`,
+  'excel.picture-format.adjust.colour': html`<mjx-button
+    label="Colour"
+    icon="color"
+    size="large"
+    data-opens="ribbons-excel-picture-format-adjust-colour"
+  ></mjx-button>`,
+  'excel.picture-format.adjust.artistic-effects': html`<mjx-button
+    label="Artistic Effects"
+    icon="photo-filter"
+    size="large"
+    data-opens="ribbons-excel-picture-format-adjust-artistic-effects"
+  ></mjx-button>`,
+  'excel.picture-format.adjust.transparency': html`<mjx-button
+    label="Transparency"
+    icon="transparency-square"
+    size="large"
+    data-opens="ribbons-excel-picture-format-adjust-transparency"
+  ></mjx-button>`,
+  'excel.picture-format.adjust.change-picture': html`<mjx-button
+    label="Change Picture"
+    icon="image-arrow-forward"
+    size="small"
+    data-opens="ribbons-excel-picture-format-adjust-change-picture"
+  ></mjx-button>`,
+  'excel.picture-format.adjust.reset-picture': html`<mjx-split-button
+    label="Reset Picture"
+    icon="image-arrow-counterclockwise"
+    size="small"
+    menu-label="Reset Picture"
+    data-opens="ribbons-excel-picture-format-adjust-reset-picture"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.picture-format.picture-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-xl-picture-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${pictureStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'excel.picture-format.picture-styles.picture-border': html`<mjx-color-picker
+    id="ribbons-xl-picture-format-picture-border"
+    style=${ribbonColourFieldStyle}
+    label="Picture Border"
+    show-no-fill
+    no-fill-label="No Outline"
+    value="none"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Picture Border',
+      outlineEntries({ moreColours: 'More Outline Colours…', weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'excel.picture-format.picture-styles.picture-effects': html`<mjx-button
+    label="Picture Effects"
+    icon="image-shadow"
+    size="small"
+    data-opens="ribbons-excel-picture-format-picture-styles-picture-effects"
+  ></mjx-button>`,
+  'excel.picture-format.picture-styles.picture-layout': html`<mjx-button
+    label="Picture Layout"
+    icon="diagram"
+    size="small"
+    data-opens="ribbons-excel-picture-format-picture-styles-picture-layout"
+  ></mjx-button>`,
+  'excel.picture-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="large"
+    data-opens="ribbons-excel-picture-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.picture-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="large"
+    data-opens="ribbons-excel-picture-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.picture-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-excel-picture-format-arrange-align"
+  ></mjx-button>`,
+  'excel.picture-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-excel-picture-format-arrange-group"
+  ></mjx-button>`,
+  'excel.picture-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-excel-picture-format-arrange-rotate"
+  ></mjx-button>`,
+  'excel.picture-format.size.crop': html`<mjx-split-button
+    toggle
+    label="Crop"
+    icon="crop"
+    size="large"
+    menu-label="Crop"
+    data-opens="ribbons-excel-picture-format-size-crop"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.picture-format.size.height': html`<mjx-measure-input
+    id="ribbons-xl-picture-format-height"
+    label="Height"
+    value=${excelPictureMeasures.height}
+    unit="cm"
+    step=${excelPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'excel.picture-format.size.width': html`<mjx-measure-input
+    id="ribbons-xl-picture-format-width"
+    label="Width"
+    value=${excelPictureMeasures.width}
+    unit="cm"
+    step=${excelPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -676,7 +816,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
     ${viewMenus('excel', 'ribbons')} ${printPreviewMenus('excel', 'ribbons')}
-    ${tableToolsMenus('excel', 'ribbons')}
+    ${tableToolsMenus('excel', 'ribbons')} ${pictureToolsMenus('excel', 'ribbons')}
   `;
 }
 
@@ -985,8 +1125,45 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 
 /**
- * **Picture Format** — a placeholder. Word's six groups under Excel's counts: Adjust, Picture Styles, Accessibility,
- * Arrange, Size and Image Play.
+ * **Picture Format**: how a picture floating over a worksheet is corrected, framed, described, placed among the sheet's
+ * objects, cropped and sized. Picture Tools' one tab, and Excel's second contextual tab authored; Office shows it only
+ * while a picture is selected. Six groups: Adjust, Picture Styles, Accessibility, Arrange, Size and Image Play. **It is
+ * Word's tab through Word's functions**, so see `Ribbons/Word → Picture Format` for every list; what to look at here is
+ * where Excel's differs, and what is still least certain, least certain first:
+ *
+ * 1. ⚠ **Image Play is the census's, not the brief's.** Play Animation, a large toggle, starts pressed. `GUESS:` all of
+ *    it, as on Word's and PowerPoint's.
+ * 2. ⚠ **Picture Border has no Eyedropper**: open it, and beneath the palette read More Outline Colours…, Weight ▸,
+ *    Sketched ▸ and Dashes ▸, exactly Word's. *No Outline* is the chip, starting on none. PowerPoint's has an
+ *    Eyedropper; `GUESS:` that Excel's has none.
+ * 3. ⚠ **Arrange has six commands, and Bring Forward and Send Backward are large** at the head of the group, as on Page
+ *    Layout, where Word and PowerPoint draw them small. Their arrows list Bring Forward and Bring to Front, and Send
+ *    Backward and Send to Back, **without Word's text layers**. **Align** opens the six alignments and two
+ *    distributions, then **Snap to Grid, Snap to Shape and View Gridlines, the last ticked**. Group opens Group, Regroup
+ *    and Ungroup; Rotate its four turns and flips and More Rotation Options…. Selection Pane is a small toggle with no
+ *    glyph. **No Position or Wrap Text.**
+ * 4. ⚠ **Height and Width start on 9.53 cm and 12.7 cm**, a 640 × 480 photograph at its own size, stepping by 0.01.
+ *    `GUESS:` both numbers. They do not follow each other, because nothing dispatches.
+ * 5. **Two launchers**: *Format Picture* at Picture Styles' corner, and **Size and Properties** at Size's, where Word's
+ *    says Layout and PowerPoint's Size and Position. `GUESS:` both labels.
+ * 6. **Picture Layout, as Word says**, third in Picture Styles' small column, with the diagram glyph, opening the
+ *    thirty-one picture layouts. PowerPoint calls the same button Convert to SmartArt.
+ * 7. **Adjust is Word's**: Remove Background, Corrections, Colour, Artistic Effects and Transparency large; Compress
+ *    Pictures, Change Picture and Reset Picture small. Press Corrections, Colour, Artistic Effects and Transparency:
+ *    each is Word's whole list with the unchanged state checked. Remove Background is a plain button, and in Office
+ *    opens the Background Removal tab, which is authored (`BackgroundRemoval`).
+ * 8. **The Quick Styles gallery is Word's twenty-eight**, drawn in this workbook's palette. Nothing is selected.
+ *    `GUESS:` every look.
+ * 9. **Crop is a split toggle.** Press its face: it fills; again, it releases. Its arrow opens Crop, Crop to Shape (147
+ *    shapes), Aspect Ratio and Fill and Fit.
+ * 10. **Picture Effects** opens Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and 3-D Rotation.
+ * 11. **Alt Text is a large toggle**, unpressed. No pane opens, nor does Selection Pane's, Compress Pictures' dialog or
+ *     either launcher's.
+ * 12. **Glyphs**: every one is Word's Picture Format's or Arrange's, reused; **Remove Background's is still the
+ *     weakest**. The gallery, Picture Border, Height, Width and Selection Pane carry none.
+ * 13. **No survivor anywhere.** Drag narrow: Image Play (`ancillary`) gives way first, Accessibility (`secondary`) next,
+ *     then Arrange and Size, and Adjust and Picture Styles last; each collapses to a trigger with nothing beside it.
+ * 14. **Not in `Shell/Excel`**, which draws Table Tools: the shell's strip has no Picture Tools band.
  */
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 

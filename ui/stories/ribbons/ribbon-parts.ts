@@ -323,7 +323,7 @@ export function commandMenu(
  * A tab whose unit has not landed yet: one group carrying the tab's name, and one honest button.
  *
  * **Every core and view tab has landed, and so have Word's and PowerPoint's Table Design, Table Layout and Picture
- * Format and Excel's Table Design; the other contextual tabs of the four common sets are what still draw through
+ * Format and Excel's Table Design and Picture Format; the other contextual tabs of the four common sets are what still draw through
  * this**, each until its own unit authors it.
  *
  * ⚠ **The priority is the census's, not a constant**, and that is the whole point of the

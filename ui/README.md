@@ -498,7 +498,7 @@ Layout. Almost every command opens something, and each host binds one of three s
   and Excel's Sheet Options are `<mjx-checkbox>`.
 
 `dev/ribbons/census.ts` records two design decisions. **Arrange is declared once for Word and Excel**,
-by `arrangeCommands`, which PowerPoint's Table Layout (for a table: no Group or Rotate) and Word's and PowerPoint's Picture Format now call too. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
+by `arrangeCommands`, which PowerPoint's Table Layout (for a table: no Group or Rotate) and Word's, PowerPoint's and Excel's Picture Format now call too. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
 at the foot of PowerPoint's Variants gallery. No command on the four tabs survives a collapse.
 
 ⚠ **Two shapes are `GUESS:`.**
@@ -1349,7 +1349,8 @@ is drawn:
 
 **Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
 Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layout the fourth, Excel's Table Design
-the fifth, Word's Picture Format the sixth, and PowerPoint's Picture Format the seventh.** A contextual tab
+the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, and Excel's Picture Format the
+eighth.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1388,8 +1389,9 @@ was `placeholderTab` when the sets were declared; **Word's Table Design is the f
 Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, **PowerPoint's Table Design
 the third**, see *PowerPoint's Table Design*, **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
 Layout*, **Excel's Table Design the fifth**, see *Excel's Table Design*, **Word's Picture Format the sixth**, see
-*Word's Picture Format*, and **PowerPoint's Picture Format the seventh**, see *PowerPoint's Picture Format*, the first
-contextual tab `Shell/PowerPoint` shows authored.
+*Word's Picture Format*, **PowerPoint's Picture Format the seventh**, see *PowerPoint's Picture Format*, the first
+contextual tab `Shell/PowerPoint` shows authored, and **Excel's Picture Format the eighth**, see *Excel's Picture
+Format*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1890,6 +1892,65 @@ Tools for the PowerPoint shell, and needed no change.
 - **Glyphs**, all reused and all `GUESS:`; Remove Background's `video-background-effect` is still the weakest. The
   gallery, the colour picker, the two fields and Selection Pane carry none.
 
+### Excel's Picture Format
+
+**One tab of one application, and the eighth contextual tab authored**, Excel's second and the last of Picture Tools.
+Six groups and twenty-three commands, in Office's order, which is also the census's: Adjust, Picture Styles,
+Accessibility, Arrange, Size, Image Play. It is `TabPictureToolsFormat` in `TabSetPictureTools`, under the *Picture
+Tools* band while a picture over a worksheet is selected. **It is Word's tab through Word's functions**, and differs
+only where Office does.
+
+**The census's groups, read as Word's.** `GroupPictureTools` (30) Adjust, `GroupPictureStyles` (28) Picture Styles,
+`GroupAltText` (1) Accessibility, `GroupArrangeWith3DEditor` (47) Arrange, `GroupPictureSize` (20) Size,
+`GroupImagePlay` (1) Image Play. Office's five named groups map one to one onto the first five; Image Play is the
+census's. The ids, labels and priorities are the contextual unit's, unchanged.
+
+**It renders in `Ribbons/Excel` alone.** `Shell/Excel` draws Table Tools, so it binds none of the tab and renders none
+of its menus; the menu gate's `hostContextualSets` already says so, and needed no change. `Ribbons/Excel` binds
+eighteen commands and renders `pictureToolsMenus('excel', 'ribbons')`, fourteen menus.
+
+- **Adjust**: Word's eight, in Word's shapes and sizes, opening Word's lists.
+- **Picture Styles**: Quick Styles (Word's twenty-eight, in the workbook's palette); Picture Border (a colour picker,
+  *No Outline*, with More Outline Colours…, Weight, Sketched and Dashes beneath it, **no Eyedropper**, as Word's);
+  Picture Effects; **Picture Layout**, Word's name, over the same thirty-one layouts. Launcher: *Format Picture*.
+- **Accessibility**: Alt Text, a large toggle.
+- **Arrange**: `arrangeCommands('excel', 'picture-format')`, exactly Office's six and Page Layout's shape: **Bring
+  Forward and Send Backward large** split buttons (no text layers), then Selection Pane, Align (**Snap to Grid, Snap to
+  Shape, View Gridlines ticked**), Group and Rotate small. **No Position or Wrap Text.**
+- **Size**: Crop (a large split toggle, Word's list), then Height and Width (9.53 cm and 12.7 cm). Launcher: **Size and
+  Properties**.
+- **Image Play**: Play Animation, a large toggle, pressed.
+
+**Reused, and Excel's own.**
+
+- **Reused as they stand**: `arrangeCommands`, `sizeCommands`, every Adjust list, `pictureStyleGalleryItems` and its
+  thumbnail builder, `pictureEffectsEntries`, `pictureLayoutEntries`, `cropEntries`, `outlineEntries` with Word's
+  options, and `design-layout-menus.ts`' Excel Arrange lists. **No icon is new.**
+- **Excel's own, because Office's entries differ**: `excelPictureMeasures`, a picture at its own size, beside Word's
+  and PowerPoint's; the Size and Properties launcher; `pictureToolsMenus`' Excel branch, which leaves out Position and
+  Wrap Text. The large layer commands and the snapping Align were already Excel's in `arrangeCommands` and
+  `alignEntries`, and needed nothing new.
+- **The gate**: Excel's Crop joins the split-toggle rule's named list in `tests/ribbons.test.ts`, once.
+
+**No survivors**, for Word's reasons group by group; `dev/ribbons/census.ts` gives each.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Image Play is the census's**, and the brief lists five groups. Play Animation is `GUESS:`, as on Word's.
+- **Picture Border carries no Eyedropper.** `GUESS:`: recent Microsoft 365 builds may carry one in Excel. The census's
+  Picture Styles count, 28, equals Word's and is two short of PowerPoint's, which is indirect support. **The weakest
+  call on the tab.**
+- **The counts.** Accessibility, Image Play and (by Word's reading) Size are met, and Picture Styles' 28 is Word's
+  gallery reading again. **Adjust counts 30 and Arrange 47**, against 8 and 6 drawn; no reading reaches either (47 is
+  Page Layout's Arrange count). Nothing is padded.
+- **Every list is Word's** (`GUESS:` that Excel's are the same), with the census's spelling (*Colour*, *Recolour*,
+  *Greyscale*, *Centre*); five galleries are menus of names; the gallery is a stand-in photograph.
+- **Height and Width's starting measures**, both launchers' labels, and View Gridlines ticked under Align.
+- **Remove Background opens the Background Removal tab in Office**, Compress Pictures and both launchers open dialogs
+  or the Format Picture pane, and Alt Text and Selection Pane panes; none of them opens anything here.
+- **Glyphs**, all reused and all `GUESS:`; Remove Background's `video-background-effect` is still the weakest. The
+  gallery, the colour picker, the two fields and Selection Pane carry none.
+
 ### The entries beneath a colour picker's palette
 
 **Office's colour grids carry commands under the swatches, and `<mjx-color-picker>` now draws them.** A host slots
@@ -1910,8 +1971,9 @@ Choosing an entry closes the picker and returns focus to the field. `no-fill-lab
   which Pen Style now also reads), `lineSketchEntries`, `lineArrowEntries`, `gradientEntries`, `textureEntries` and
   `tableBackgroundEntries`. Shape Format's Shape Fill and Shape Outline are expected to call the same two functions.
 - **Bound today**: Word's Table Design Shading and Pen Colour (both hosts), PowerPoint's Table Design Shading, Text
-  Fill, Text Outline and Pen Colour, Word's Picture Format Picture Border (`Ribbons/Word`), and PowerPoint's Picture
-  Format Picture Border, with an Eyedropper (both hosts). `GUESS:` which entries each carries, every label and preset, and that Word's
+  Fill, Text Outline and Pen Colour, Word's Picture Format Picture Border (`Ribbons/Word`), PowerPoint's Picture
+  Format Picture Border, with an Eyedropper (both hosts), and Excel's Picture Format Picture Border, without one
+  (`Ribbons/Excel`). `GUESS:` which entries each carries, every label and preset, and that Word's
   carry More Colours… alone.
 - ⚠ **Table Background's colour grid is not drawn.** Its submenu lists its four commands; a menu holds commands, not
   swatches.

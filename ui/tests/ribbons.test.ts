@@ -933,10 +933,12 @@ describe('a split button whose face is a state draws pressed, in every host', ()
       .filter((bound) => bound.tag === 'mjx-split-button' && /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes));
     // Word's Eraser, Track Changes, Show Comments and Hide Ink, PowerPoint's Eraser, Show Comments and Hide
     // Ink, and Excel's Hide Ink, each in two hosts; Word's Picture Format Crop, in `Ribbons/Word` alone, because
-    // `Shell/Word` draws Table Tools; and PowerPoint's Picture Format Crop, in both hosts, because `Shell/PowerPoint`
-    // draws Picture Tools.
+    // `Shell/Word` draws Table Tools; PowerPoint's Picture Format Crop, in both hosts, because `Shell/PowerPoint`
+    // draws Picture Tools; and Excel's Picture Format Crop, in `Ribbons/Excel` alone, because `Shell/Excel` draws Table
+    // Tools.
     expect(toggling.map((bound) => bound.key).sort()).toEqual(
       [
+        'excel.picture-format.size.crop',
         'excel.review.ink.hide-ink',
         'excel.review.ink.hide-ink',
         'powerpoint.draw.write.eraser',

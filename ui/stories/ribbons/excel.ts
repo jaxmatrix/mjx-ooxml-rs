@@ -47,7 +47,15 @@
  * **Table Design is authored**, Excel's first contextual tab: five groups and nineteen commands, a worksheet table's
  * name and range, what it turns into, its external data, its style options and its style. Its gallery, field list and
  * two menus are in `stories/ribbons/table-tools-menus.ts`, over the table art Word's unit wrote. **Both Excel hosts
- * bind it**, because both draw Table Tools. **The other four are placeholders**, each until its own unit.
+ * bind it**, because both draw Table Tools.
+ *
+ * **Picture Format is authored**, the second: six groups and twenty-three commands, how a picture over a worksheet is
+ * corrected, framed, described, placed, cropped and sized. It is Word's tab through Word's functions: every menu, the
+ * gallery and the thumbnails in `stories/ribbons/picture-tools-menus.ts`, Arrange from `arrangeCommands` and Size from
+ * `sizeCommands`. It differs where Office does: no Position or Wrap Text, Bring Forward and Send Backward large, Align
+ * snapping to the grid, a picture's native starting size and Size's *Size and Properties* launcher. **`Ribbons/Excel`
+ * alone binds it**, because `Shell/Excel` draws Table Tools. **The other three are placeholders**, each until its own
+ * unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -487,12 +495,45 @@ export function excelTableDesignTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
- * Which function builds which contextual tab. **Table Design is authored; every other entry is `placeholderTab`
- * today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
+ * Picture Format: Adjust, Picture Styles, Accessibility, Arrange, Size, Image Play — Excel's second contextual tab
+ * authored and the eighth of all, in **Office's** order, which is also the census's. It sits under the *Picture Tools*
+ * band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a picture over the sheet is selected.** `Ribbons/Excel` draws every
+ * contextual set and binds it. **`Shell/Excel` draws Table Tools alone**, because its workbook's selection is a cell in
+ * a table, so it binds none of this tab and renders none of its menus. `dev/ribbons/census.ts` records every
+ * disagreement.
+ *
+ * **Eighteen of the tab's twenty-three commands are bound by the host**: Corrections, Colour, Artistic Effects,
+ * Transparency, Change Picture, Picture Effects, Picture Layout, Align, Group and Rotate, dropdowns; Reset Picture,
+ * Bring Forward and Send Backward, split buttons, and Crop, a split toggle; the Quick Styles gallery; Picture Border, a
+ * colour picker; Height and Width, measure fields. Every menu is in `stories/ribbons/picture-tools-menus.ts`. Remove
+ * Background and Compress Pictures are plain buttons, and Alt Text, Selection Pane and Play Animation generic toggles.
+ *
+ * **Two dialog launchers**: Format Picture on Picture Styles, Size and Properties on Size. **No survivor.**
+ */
+export function excelPictureFormatTab(options: TabOptions = {}): TemplateResult {
+  const pictureFormat = entry('picture-format');
+  const controls = options.controls ?? {};
+  return tab(
+    pictureFormat.id,
+    pictureFormat.label,
+    censusGroup(pictureFormat, 'GroupPictureTools', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureStyles', { launcher: 'Format Picture' }, controls),
+    censusGroup(pictureFormat, 'GroupAltText', {}, controls),
+    censusGroup(pictureFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureSize', { launcher: 'Size and Properties' }, controls),
+    censusGroup(pictureFormat, 'GroupImagePlay', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design and Picture Format are authored; every other entry is
+ * `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': excelTableDesignTab,
-  'picture-format': () => placeholderTab(entry('picture-format')),
+  'picture-format': excelPictureFormatTab,
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),

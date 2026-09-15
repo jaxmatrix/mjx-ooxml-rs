@@ -136,6 +136,9 @@
  * `arrangeCommands`, `sizeCommands` and every list in that file, and differing from Word's only where Office does:
  * no Position or Wrap Text, an Eyedropper under Picture Border, Convert to SmartArt for Picture Layout, a slide's
  * starting measures and the Size and Position launcher; see that section's *PowerPoint's Picture Format* part.
+ * **Excel's Picture Format** followed, the eighth and Excel's second, calling the same functions and differing from
+ * Word's only where Office does: no Position or Wrap Text, Excel's large layer commands and snapping Align, a picture's
+ * native starting size and the Size and Properties launcher; see that section's *Excel's Picture Format* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -184,8 +187,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Seven contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format, and
- * Excel's Table Design.** Each
+ * **Eight contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format, and
+ * Excel's Table Design and Picture Format.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -7959,6 +7962,161 @@ const powerpointPictureFormatImagePlay: readonly RibbonCommand[] = [
   { id: 'powerpoint.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
 ];
 
+// ## Excel's Picture Format
+//
+// The unit after PowerPoint's Picture Format, one tab of one application: **Excel's `TabPictureToolsFormat`, in
+// `TabSetPictureTools`**, all six in-scope groups and twenty-three commands, and **the eighth contextual tab authored**,
+// Excel's second and the last of Picture Tools. Office shows it under the *Picture Tools* band while a picture floating
+// over a worksheet is selected. It is Word's tab with the picture over a grid of cells rather than in a run of text:
+// no Position or Wrap Text, Excel's own Arrange sizes and Align entries, a picture at its native size, and Size's
+// launcher named for Excel's Format Picture pane.
+//
+// ## Office's groups, read onto the census's six
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupPictureTools` (30) | Adjust | Remove Background, Corrections, Colour, Artistic Effects, Transparency; Compress Pictures, Change Picture, Reset Picture |
+// | `GroupPictureStyles` (28) | Picture Styles | the Quick Styles gallery; Picture Border, Picture Effects, Picture Layout; the Format Picture launcher |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrangeWith3DEditor` (47) | Arrange | Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupPictureSize` (20) | Size | Crop; Height, Width; the Size and Properties launcher |
+// | `GroupImagePlay` (1) | Image Play | Play Animation |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and the reading is Word's and PowerPoint's: the
+// same six groups in the same order. Office's five named groups map one to one onto the first five; the sixth,
+// `GroupImagePlay`, is the census's alone (disagreement 1). `GroupArrangeWith3DEditor`'s 47 is Page Layout's Arrange
+// count, exactly as Word's 65 is Layout's, and it holds Page Layout's six commands.
+//
+// ## Reused, and what is Excel's own
+//
+// **Reused as they stand**: `sizeCommands('excel', 'picture-format', 'picture')`; `arrangeCommands('excel',
+// 'picture-format')`, which for an Excel drawing already gives exactly Office's six (no Position or Wrap Text, the
+// layer commands large at the head, as on Page Layout); and every list, the gallery and the thumbnail builder in
+// `stories/ribbons/picture-tools-menus.ts`, whose Excel branch this unit fills. Arrange's menus are
+// `design-layout-menus.ts`' lists for Excel (Bring Forward and Send Backward without Word's text layers; Align ending on
+// Snap to Grid, Snap to Shape and View Gridlines, as Page Layout's does). Picture Border's entries are `outlineEntries`
+// with Word's options. Picture Effects' five text lists are `wordart-styles-menus.ts`'. **Picture Layout is Word's
+// command under Excel's id**, not PowerPoint's Convert to SmartArt. The commands are declared here rather than called
+// from Word's for PowerPoint's reason: a command's id carries its application, and Word's lists are literals.
+//
+// **Excel's own, each because Office's entries genuinely differ:**
+//
+// - **Arrange draws Bring Forward and Send Backward large**, and **Align ends on Snap to Grid, Snap to Shape and View
+//   Gridlines** (ticked): a picture over a sheet snaps to cells, where Word's aligns to the page and PowerPoint's to
+//   the slide. Both come from `arrangeCommands` and `alignEntries` taking the application; nothing new was written.
+// - **No Position or Wrap Text**: cells do not wrap around a picture.
+// - **Height and Width start on 9.53 cm and 12.7 cm** (`excelPictureMeasures`): Excel inserts a picture at its own
+//   size rather than scaling it to a column or a slide, so a 640 × 480 photograph at 96 dpi arrives at 12.7 cm by
+//   9.53 cm. Word's starts on a picture scaled to a column, PowerPoint's to a slide's height.
+// - **Size's launcher is *Size and Properties***, which opens Excel's Format Picture pane at its *Size & Properties*
+//   section, where a picture's move-and-size-with-cells setting lives; Word's opens the Layout dialog and PowerPoint's
+//   says Size and Position.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Six groups, not five.** The brief lists Adjust, Picture Styles, Accessibility, Arrange and Size; the census also
+//    carries `GroupImagePlay` in scope, and the census wins. **Image Play draws Word's Play Animation**, a large
+//    toggle, pressed. `GUESS:` the command, its label, glyph, size and start, as on Word's and PowerPoint's.
+// 2. **The counts.** **Accessibility (1) and Image Play (1) are met. Size counts 20**, and Word's reading makes 20
+//    again. **Picture Styles counts 28**, Word's count exactly, which Word's reading took for the gallery alone; it is
+//    two fewer than PowerPoint's 30, and that is weak evidence for disagreement 3. **Adjust counts 30 and draws 8**,
+//    between Word's 29 and PowerPoint's 31, and no reading reaches it. **Arrange counts 47 and draws 6**; the lists
+//    behind the six hold 23 entries (Bring Forward 2, Send Backward 2, Align 11, Group 3, Rotate 5), and 47 is Page
+//    Layout's count, which that unit could not reach either. `GUESS:` every reading. Nothing is padded.
+// 3. **Picture Border carries no Eyedropper**, as Word's does not and PowerPoint's does. `GUESS:`: recent Microsoft 365
+//    builds may have brought the Eyedropper to Excel's colour grids; the census's 28, equal to Word's, is the only
+//    evidence here, and it is indirect.
+// 4. **Picture Layout, not Convert to SmartArt.** The brief names the button *Picture Layout*, as Word's tab does, and
+//    it opens the same thirty-one layouts. `GUESS:` that Excel's list is Word's.
+// 5. **Everything Word's disagreements 3 to 11 record holds here unchanged**: the four galleries and Picture Layout as
+//    menus of names, the census's spelling (*Colour*, *Recolour*, *Greyscale*, *Centre*), the stand-in photograph in
+//    Quick Styles (drawn in the workbook's palette), Picture Effects' seven submenus, Crop as a split toggle, Remove
+//    Background opening a view tab in Office (Excel's Background Removal is authored), dialogs and panes opening
+//    nothing, and Change Picture's and Reset Picture's lists. `GUESS:` that each of Excel's lists is Word's.
+// 6. **Height and Width start on 9.53 cm and 12.7 cm**, stepping by 0.01 cm. `GUESS:` both numbers, the step, and that
+//    a workbook in a metric locale shows centimetres.
+// 7. **The launchers**: *Format Picture* on Picture Styles and *Size and Properties* on Size. `GUESS:` both labels. No
+//    launcher on Adjust, Accessibility, Arrange or Image Play.
+// 8. **Align ticks View Gridlines and neither snap**, as Page Layout's Align does. `GUESS:`.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Adjust**: none. Four galleries, a menu and a split button (rule 1); Remove Background opens a view tab and
+//   Compress Pictures a dialog that discards cropped pixels for good.
+// - **Picture Styles**: none. A gallery, a colour grid and two menus (rule 1).
+// - **Accessibility**: none. Alt Text opens a pane (rule 1), and it is the group's only command (rule 4).
+// - **Arrange**: none. Two split buttons and three menus (rule 1); Selection Pane opens a pane and has no glyph (rule 2).
+// - **Size**: none. Crop is a split button (rule 1), and Height and Width are fields.
+// - **Image Play**: none. Play Animation is its group's only command, so a survivor would leave the popup empty.
+//
+// ## Sizes, and every glyph
+//
+// **Word's sizes, less Position and Wrap Text, with Excel's large layer commands**: Adjust's five large and three
+// small; the gallery in-ribbon, then Picture Border, Picture Effects and Picture Layout small in a column; Alt Text
+// large; Bring Forward and Send Backward large, then Selection Pane, Align, Group and Rotate small; Crop large, then
+// Height and Width; Play Animation large. **Eighteen of the twenty-three commands carry a glyph** (Adjust 8, Picture
+// Styles 2, Accessibility 1, Arrange 5, Size 1, Image Play 1), every one reused from Word's Picture Format or
+// `arrangeCommands`, and all `GUESS:`; no icon is new.
+//
+// **Five carry none, and say why**: the Quick Styles gallery is its pictures; Picture Border is a colour picker, which
+// draws a swatch; Height and Width are fields; Selection Pane for `arrangeCommands`' reason (Fluent draws no selection
+// pane).
+
+/**
+ * Excel's `GroupPictureTools` on Picture Format, labelled **Adjust**: Word's eight, in Word's shapes, sizes and glyphs.
+ * See disagreements 2 and 5.
+ *
+ * **No survivor**: four galleries, a menu, a split button, a view tab and a dialog.
+ */
+const excelPictureFormatAdjust: readonly RibbonCommand[] = [
+  { id: 'excel.picture-format.adjust.remove-background', label: 'Remove Background', icon: 'video-background-effect', size: 'large' },
+  { id: 'excel.picture-format.adjust.corrections', label: 'Corrections', icon: 'brightness-high', size: 'large' },
+  { id: 'excel.picture-format.adjust.colour', label: 'Colour', icon: 'color', size: 'large' },
+  { id: 'excel.picture-format.adjust.artistic-effects', label: 'Artistic Effects', icon: 'photo-filter', size: 'large' },
+  { id: 'excel.picture-format.adjust.transparency', label: 'Transparency', icon: 'transparency-square', size: 'large' },
+  { id: 'excel.picture-format.adjust.compress-pictures', label: 'Compress Pictures', icon: 'arrow-minimize' },
+  { id: 'excel.picture-format.adjust.change-picture', label: 'Change Picture', icon: 'image-arrow-forward' },
+  { id: 'excel.picture-format.adjust.reset-picture', label: 'Reset Picture', icon: 'image-arrow-counterclockwise' },
+];
+
+/**
+ * Excel's `GroupPictureStyles`, labelled **Picture Styles**: the Quick Styles gallery in-ribbon, then Picture Border,
+ * Picture Effects and Picture Layout small in a column, and the Format Picture launcher the tab module passes. See
+ * disagreements 2, 3, 4 and 5.
+ *
+ * **Picture Border** is a colour picker with Word's entries beneath it and no Eyedropper. **Picture Layout** is Word's
+ * command, drawing Word's glyph.
+ *
+ * **No survivor**: a gallery, a colour grid and two menus.
+ */
+const excelPictureFormatPictureStyles: readonly RibbonCommand[] = [
+  { id: 'excel.picture-format.picture-styles.quick-styles', label: 'Quick Styles' },
+  { id: 'excel.picture-format.picture-styles.picture-border', label: 'Picture Border' },
+  { id: 'excel.picture-format.picture-styles.picture-effects', label: 'Picture Effects', icon: 'image-shadow' },
+  { id: 'excel.picture-format.picture-styles.picture-layout', label: 'Picture Layout', icon: 'diagram' },
+];
+
+/**
+ * Excel's `GroupAltText`, labelled **Accessibility**: Alt Text, large, a generic toggle, unpressed, as Word's.
+ *
+ * **No survivor**: it opens a pane, and it is the group's only command.
+ */
+const excelPictureFormatAccessibility: readonly RibbonCommand[] = [
+  { id: 'excel.picture-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
+];
+
+/**
+ * Excel's `GroupImagePlay`, labelled **Image Play**: Play Animation, large, a generic toggle, pressed, as Word's. See
+ * disagreement 1. `GUESS:` all of it.
+ *
+ * **No survivor**: the group's only command.
+ */
+const excelPictureFormatImagePlay: readonly RibbonCommand[] = [
+  { id: 'excel.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -8252,12 +8410,12 @@ export const excelRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
         groups: [
-          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 30, inScope: true },
-          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 47, inScope: true },
-          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
-          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 30, inScope: true, commands: excelPictureFormatAdjust },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true, commands: excelPictureFormatPictureStyles },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: excelPictureFormatAccessibility },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 47, inScope: true, commands: arrangeCommands('excel', 'picture-format') },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true, commands: sizeCommands('excel', 'picture-format', 'picture') },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true, commands: excelPictureFormatImagePlay },
         ],
       },
     ],
