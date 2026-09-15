@@ -11,14 +11,14 @@ use mjx_layout_pptx::{PageCatalogue as SlideCatalogue, SlideBoxModel, SlideDeck}
 use mjx_layout_xlsx::{SheetBoxModel, SheetGrid};
 use mjx_ooxml_core::measure::Emu;
 use mjx_paint::{
-    DrawReport, EncodedImages, FaceLibrary, FontSource, OffscreenSurface, PaintError, Painter,
-    PainterLossKind, PdfPainter, Pixels, Resources, SoftwarePainter, SvgPainter, Viewport,
-    WgpuPainter,
+    plan_frame_from, DrawOp, DrawReport, EncodedImages, FaceLibrary, FontSource, OffscreenSurface,
+    PaintError, Painter, PainterLossKind, PdfPainter, Pixels, PlanOptions, PlanSources, Resources,
+    SoftwarePainter, SvgPainter, Viewport, WgpuPainter,
 };
 use mjx_pptx::Presentation;
 use mjx_scene::{
     build_page, Command, DisplayList, GeometryProvider, LossCategory, OutlineProvenance,
-    SceneLossKind, SceneOptions, SceneRect,
+    SceneLossKind, SceneOptions, SceneRect, Tessellator,
 };
 use mjx_scene_pptx::{SlideGeometry, SlideResources};
 use mjx_scene_xlsx::{SheetGeometry, SheetPalette, SheetResources};
@@ -311,14 +311,49 @@ fn ink_split(pixels: &Pixels, rect: [i32; 4]) -> (usize, usize) {
     (inside, outside)
 }
 
-// Layout losses as [chart, diagram, object, ink, picture, unshaped, not read, approximated].
-fn layout_vector(losses: &LayoutLosses) -> [usize; 8] {
+// Label-ink pixels in the middle half of a device-pixel rectangle's height, where a placeholder sets its label.
+fn label_ink(pixels: &Pixels, rect: [i32; 4]) -> usize {
+    let height = rect[3] - rect[1];
+    let (top, bottom) = (rect[1] + height / 4, rect[3] - height / 4);
+    let mut ink = 0;
+    for y in top.max(0)..bottom.max(0) {
+        for x in rect[0].max(0)..rect[2].max(0) {
+            if pixels
+                .pixel(x as u32, y as u32)
+                .is_some_and(|[red, green, blue, alpha]| {
+                    alpha >= 0xe0
+                        && green <= 0x20
+                        && (0x40..=0x80).contains(&red)
+                        && red.abs_diff(blue) <= 8
+                })
+            {
+                ink += 1;
+            }
+        }
+    }
+    ink
+}
+
+// Asserts every rectangle carries a readable label in the software painter's pixels.
+fn assert_labelled(pixels: &Pixels, rects: &[[i32; 4]]) {
+    for rect in rects {
+        let ink = label_ink(pixels, *rect);
+        assert!(
+            ink > 0,
+            "{ink} label pixels inside the placeholder at {rect:?}; its label must be readable in the PNG"
+        );
+    }
+}
+
+// Layout losses as [chart, diagram, object, ink, picture, shape, unshaped, not read, approximated].
+fn layout_vector(losses: &LayoutLosses) -> [usize; 9] {
     let counts = [
         LayoutLossKind::FrameContentNotLaidOut(FrameContent::Chart),
         LayoutLossKind::FrameContentNotLaidOut(FrameContent::Diagram),
         LayoutLossKind::FrameContentNotLaidOut(FrameContent::EmbeddedObject),
         LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink),
         LayoutLossKind::FrameContentNotLaidOut(FrameContent::Picture),
+        LayoutLossKind::FrameContentNotLaidOut(FrameContent::Shape),
         LayoutLossKind::TextMeasuredNotShaped,
         LayoutLossKind::DroppedByReader,
         LayoutLossKind::ValueApproximated,
@@ -332,22 +367,46 @@ fn layout_vector(losses: &LayoutLosses) -> [usize; 8] {
     counts
 }
 
-// Scene losses as [chart, colour, fill picture, text paint].
-fn scene_vector(list: &DisplayList) -> [usize; 4] {
+// Scene losses as [chart, colour, fill picture, text paint, paint approximated].
+fn scene_vector(list: &DisplayList) -> [usize; 5] {
     let losses = list.losses();
     let counts = [
         SceneLossKind::ChartNotResolved,
         SceneLossKind::ColourNotResolved,
         SceneLossKind::FillImageNotSupplied,
         SceneLossKind::TextPaintDefaulted,
+        SceneLossKind::PaintApproximated,
     ]
     .map(|kind| losses.count(kind));
     assert_eq!(
         counts.iter().sum::<usize>(),
-        losses.len(),
+        losses
+            .iter()
+            .filter(|loss| matches!(loss.category, LossCategory::Scene(_)))
+            .count(),
         "a scene loss of a kind this vector does not name"
     );
     counts
+}
+
+// The labels of the placeholders one lowering of the page draws, whichever stage lost what they stand for.
+fn plan_labels(page: &mut Page, options: PlanOptions) -> Vec<&'static str> {
+    let resources = Resources::new(&mut page.atlas, page.geometry.as_ref(), &page.images);
+    let plan = plan_frame_from(
+        &page.list,
+        PlanSources::from_resources(&resources),
+        &mut Tessellator::new(),
+        options,
+    )
+    .expect("no loss fails a plan");
+    plan.layers()
+        .iter()
+        .flat_map(|layer| &layer.ops)
+        .filter_map(|op| match op {
+            DrawOp::Placeholder { label, .. } => Some(*label),
+            _ => None,
+        })
+        .collect()
 }
 
 // Painter losses as [image pixels, glyph run, effect, line end, outline].
@@ -757,12 +816,12 @@ fn rc02_01_a_shape_whose_fill_cannot_be_answered_is_a_labelled_placeholder() {
     let shape = px(914400, 914400, 3657600, 2743200);
     assert_eq!(
         layout_vector(&page.losses),
-        [0; 8],
+        [0; 9],
         "the shape lays out whole"
     );
     assert_eq!(
         scene_vector(&page.list),
-        [0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
         "one picture fill the resolver cannot supply"
     );
     assert_eq!(
@@ -784,6 +843,7 @@ fn rc02_01_a_shape_whose_fill_cannot_be_answered_is_a_labelled_placeholder() {
         inside > 0 && outside == 0,
         "{inside} inked pixels inside the shape and {outside} outside; today the shape draws nothing"
     );
+    assert_labelled(&pixels, &[shape]);
 }
 
 #[test]
@@ -792,10 +852,10 @@ fn rc02_02_a_run_whose_paint_is_defaulted_is_counted() {
     const NAME: &str = "02-text-colour-default";
     let bytes = input(NAME, "input.pptx", inputs::red_run());
     let mut page = deck_page(&bytes);
-    assert_eq!(layout_vector(&page.losses), [0; 8]);
+    assert_eq!(layout_vector(&page.losses), [0; 9]);
     assert_eq!(
         scene_vector(&page.list),
-        [0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
         "the one red run is drawn in the default colour"
     );
     let run = page
@@ -806,7 +866,7 @@ fn rc02_02_a_run_whose_paint_is_defaulted_is_counted() {
         .expect("the run lays out");
     let loss = page.list.losses().iter().next().cloned().expect("one loss");
     assert_eq!(
-        (loss.source, loss.kind.label()),
+        (loss.source, loss.category.label()),
         (run, LABEL_TEXT_PAINT),
         "the loss names the run it approximated"
     );
@@ -829,10 +889,10 @@ fn rc02_03_an_unresolved_colour_is_a_labelled_placeholder() {
     const NAME: &str = "03-unresolved-colour";
     let bytes = input(NAME, "input.pptx", inputs::placeholder_colours());
     let mut page = deck_page(&bytes);
-    assert_eq!(layout_vector(&page.losses), [0; 8]);
+    assert_eq!(layout_vector(&page.losses), [0; 9]);
     assert_eq!(
         scene_vector(&page.list),
-        [0, 2, 0, 0],
+        [0, 2, 0, 0, 0],
         "a bare scheme colour and a transformed one"
     );
     assert_eq!(
@@ -852,8 +912,15 @@ fn rc02_03_an_unresolved_colour_is_a_labelled_placeholder() {
             ),
         ]
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 2);
+    assert_labelled(
+        &pixels,
+        &[
+            px(914400, 914400, 3657600, 2743200),
+            px(4572000, 914400, 7315200, 2743200),
+        ],
+    );
 }
 
 #[test]
@@ -863,10 +930,10 @@ fn rc02_04_a_picture_with_no_pixels_is_a_labelled_placeholder() {
     let bytes = input(NAME, "input.pptx", inputs::absent_picture());
     let mut page = deck_page(&bytes);
     let picture = px(914400, 914400, 3657600, 2743200);
-    assert_eq!(layout_vector(&page.losses), [0; 8]);
+    assert_eq!(layout_vector(&page.losses), [0; 9]);
     assert_eq!(
         scene_vector(&page.list),
-        [0; 4],
+        [0; 5],
         "the scene cannot know the part is absent"
     );
     let (drawn, pixels) = software(NAME, &mut page);
@@ -877,14 +944,16 @@ fn rc02_04_a_picture_with_no_pixels_is_a_labelled_placeholder() {
         "no picture drawn and one placeholder; today the report claims one picture"
     );
     assert_eq!(
-        PainterLossKind::ImageWithNoPixels.label(),
-        LABEL_IMAGE_PIXELS
+        plan_labels(&mut page, PlanOptions::for_raster()),
+        [LABEL_IMAGE_PIXELS],
+        "the painter's one placeholder reads the loss it stands for"
     );
     let (inside, outside) = ink_split(&pixels, picture);
     assert!(
         inside > 0 && outside == 0,
         "{inside} inked pixels inside the picture's box and {outside} outside"
     );
+    assert_labelled(&pixels, &[picture]);
 }
 
 #[test]
@@ -893,7 +962,7 @@ fn rc02_05_a_glyph_run_the_pdf_cannot_embed_is_a_labelled_placeholder() {
     const NAME: &str = "05-pdf-glyph-run";
     let bytes = input(NAME, "input.pptx", inputs::hello_text());
     let mut page = deck_page(&bytes);
-    assert_eq!(scene_vector(&page.list), [0, 0, 0, 1]);
+    assert_eq!(scene_vector(&page.list), [0, 0, 0, 1, 0]);
     let mut pdf = PdfPainter::new();
     let (drawn, _) = paint(&mut pdf, &mut page, &FaceLibrary::new());
     assert_eq!(
@@ -952,14 +1021,18 @@ fn rc02_07_a_line_end_that_is_not_drawn_is_counted() {
     const NAME: &str = "07-line-ends";
     let bytes = input(NAME, "input.pptx", inputs::arrow_connector());
     let mut page = deck_page(&bytes);
-    assert_eq!(scene_vector(&page.list), [0; 4]);
+    assert_eq!(scene_vector(&page.list), [0; 5]);
     let (drawn, _) = software(NAME, &mut page);
     assert_eq!(
         (painter_vector(&drawn), drawn.loss_placeholders),
         ([0, 0, 0, 2, 0], 0),
         "a head and a tail; a zero-height connector has no room for a placeholder"
     );
-    assert_eq!(PainterLossKind::LineEndNotDrawn.label(), LABEL_LINE_END);
+    let labels = plan_labels(&mut page, PlanOptions::for_raster());
+    assert!(
+        labels.is_empty() && !labels.contains(&LABEL_LINE_END),
+        "an arrowhead is counted and draws no placeholder, and the plan drew {labels:?}"
+    );
 }
 
 #[test]
@@ -970,12 +1043,12 @@ fn rc02_08_a_slide_chart_is_one_labelled_placeholder() {
     let mut page = deck_page(&bytes);
     assert_eq!(
         layout_vector(&page.losses),
-        [0; 8],
-        "the chart engine lays the chart out"
+        [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        "the chart engine lays the chart out and measures its text with nominal metrics, once"
     );
     assert_eq!(
         scene_vector(&page.list),
-        [1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
         "one chart, however many handles"
     );
     assert_eq!(
@@ -1004,8 +1077,20 @@ fn rc02_08_a_slide_chart_is_one_labelled_placeholder() {
             .map(|found| found.label),
         None
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 1);
+    assert_labelled(&pixels, &[px(914400, 914400, 6400800, 4572000)]);
+    assert_eq!(
+        drawn.page_losses(&page.list).vector(),
+        vec![
+            (
+                LossCategory::Layout(LayoutLossKind::TextMeasuredNotShaped),
+                1
+            ),
+            (LossCategory::Scene(SceneLossKind::ChartNotResolved), 1),
+        ],
+        "the page's whole loss vector"
+    );
 }
 
 #[test]
@@ -1014,8 +1099,8 @@ fn rc02_09_a_sheet_chart_is_one_labelled_placeholder() {
     const NAME: &str = "09-sheet-chart";
     let bytes = input(NAME, "input.xlsx", inputs::sheet_chart());
     let mut page = sheet_page(&bytes, 6.0, 4.0);
-    assert_eq!(layout_vector(&page.losses), [0; 8]);
-    assert_eq!(scene_vector(&page.list), [1, 0, 0, 0]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 0, 0, 1, 0, 0]);
+    assert_eq!(scene_vector(&page.list), [1, 0, 0, 0, 0]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
@@ -1025,8 +1110,20 @@ fn rc02_09_a_sheet_chart_is_one_labelled_placeholder() {
             &[u32::MAX, 0]
         )]
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 1);
+    assert_labelled(&pixels, &[px(581025, 190500, 3486150, 2286000)]);
+    assert_eq!(
+        drawn.page_losses(&page.list).vector(),
+        vec![
+            (
+                LossCategory::Layout(LayoutLossKind::TextMeasuredNotShaped),
+                1
+            ),
+            (LossCategory::Scene(SceneLossKind::ChartNotResolved), 1),
+        ],
+        "the page's whole loss vector"
+    );
 }
 
 #[test]
@@ -1038,8 +1135,8 @@ fn rc02_10_a_diagram_frame_is_one_labelled_placeholder() {
     let category = LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
         FrameContent::Diagram,
     ));
-    assert_eq!(layout_vector(&page.losses), [0, 1, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(scene_vector(&page.list), [0; 4]);
+    assert_eq!(layout_vector(&page.losses), [0, 1, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(scene_vector(&page.list), [0; 5]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
@@ -1055,8 +1152,9 @@ fn rc02_10_a_diagram_frame_is_one_labelled_placeholder() {
             .map(|found| found.category),
         Some(category)
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 1);
+    assert_labelled(&pixels, &[px(914400, 914400, 6400800, 4572000)]);
 }
 
 #[test]
@@ -1065,7 +1163,7 @@ fn rc02_11_an_embedded_object_frame_is_one_labelled_placeholder() {
     const NAME: &str = "11-ole-frame";
     let bytes = input(NAME, "input.pptx", inputs::ole_frame());
     let mut page = deck_page(&bytes);
-    assert_eq!(layout_vector(&page.losses), [0, 0, 1, 0, 0, 0, 0, 0]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 1, 0, 0, 0, 0, 0, 0]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
@@ -1077,8 +1175,9 @@ fn rc02_11_an_embedded_object_frame_is_one_labelled_placeholder() {
             &[0, 0]
         )]
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 1);
+    assert_labelled(&pixels, &[px(914400, 914400, 4572000, 3657600)]);
 }
 
 #[test]
@@ -1087,18 +1186,20 @@ fn rc02_12_an_ink_part_is_one_labelled_placeholder() {
     const NAME: &str = "12-ink-frame";
     let bytes = input(NAME, "input.pptx", inputs::ink_part());
     let mut page = deck_page(&bytes);
-    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 1, 0, 0, 0, 0]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 1, 0, 0, 0, 0, 0]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
             px(914400, 914400, 3657600, 2743200),
             LABEL_INK,
             LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink)),
-            &[0, 0]
-        )]
+            &[0, u32::MAX, 2]
+        )],
+        "the wrapped part is addressed as the shape tree's third child element, outside the shape index space"
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 1);
+    assert_labelled(&pixels, &[px(914400, 914400, 3657600, 2743200)]);
 }
 
 #[test]
@@ -1110,7 +1211,7 @@ fn rc02_13_every_chosen_icon_is_a_labelled_placeholder() {
     let category = LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
         FrameContent::Picture,
     ));
-    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 3, 0, 0, 0]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 3, 0, 0, 0, 0]);
     assert_eq!(
         placeholders(&page.list),
         vec![
@@ -1129,8 +1230,16 @@ fn rc02_13_every_chosen_icon_is_a_labelled_placeholder() {
             ),
         ]
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(drawn.loss_placeholders, 3);
+    assert_labelled(
+        &pixels,
+        &[
+            px(0, 0, 581025, 190500),
+            px(0, 190500, 581025, 381000),
+            px(0, 381000, 581025, 571500),
+        ],
+    );
 }
 
 #[test]
@@ -1140,7 +1249,7 @@ fn rc02_14_a_dropped_diagonal_border_is_a_labelled_placeholder() {
     let bytes = input(NAME, "input.xlsx", inputs::diagonal_sheet());
     let mut page = sheet_page(&bytes, 6.0, 4.0);
     let cell = px(657225, 190500, 1314450, 381000);
-    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 0, 0, 1, 0]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 0, 0, 0, 1, 0]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
@@ -1157,6 +1266,7 @@ fn rc02_14_a_dropped_diagonal_border_is_a_labelled_placeholder() {
         inside > 0 && outside == 0,
         "{inside} inked pixels inside B2 and {outside} outside; today the sheet draws nothing"
     );
+    assert_labelled(&pixels, &[cell]);
 }
 
 #[test]
@@ -1165,7 +1275,7 @@ fn rc02_15_flattened_rich_text_is_counted_as_approximated() {
     const NAME: &str = "15-excel-rich-text";
     let bytes = input(NAME, "input.xlsx", inputs::rich_text_sheet());
     let mut page = sheet_page(&bytes, 6.0, 4.0);
-    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 0, 0, 0, 1]);
+    assert_eq!(layout_vector(&page.losses), [0, 0, 0, 0, 0, 0, 0, 0, 1]);
     let loss = page.losses.iter().next().cloned().expect("one loss");
     assert_eq!(
         (loss.source.path().segments().to_vec(), loss.kind.label()),
@@ -1201,6 +1311,7 @@ fn rc02_16_the_four_painters_agree_on_the_loss_counts() {
         "software.png",
         &mjx_paint::export::png(pixels.width, pixels.height, &pixels.rgba),
     );
+    assert_labelled(&pixels, &[px(914400, 2743200, 3657600, 4572000)]);
     reports.push((
         tiny_skia.name(),
         painter_vector(&drawn),
@@ -1253,7 +1364,7 @@ fn rc02_17_the_real_deck_journey_has_an_exact_loss_vector() {
         mjx_fixtures::fixture("text_levels.pptx"),
     );
     let mut page = deck_page(&bytes);
-    assert_eq!(layout_vector(&page.losses), [0; 8]);
+    assert_eq!(layout_vector(&page.losses), [0; 9]);
     let runs = page
         .list
         .commands()
@@ -1262,7 +1373,7 @@ fn rc02_17_the_real_deck_journey_has_an_exact_loss_vector() {
     assert_eq!(runs, 14, "nine text runs and five bullet markers");
     assert_eq!(
         scene_vector(&page.list),
-        [0, 0, 0, 14],
+        [0, 0, 0, 14, 0],
         "every run's paint is defaulted"
     );
     assert_eq!(placeholders(&page.list), vec![]);
@@ -1270,6 +1381,11 @@ fn rc02_17_the_real_deck_journey_has_an_exact_loss_vector() {
     assert_eq!(
         (painter_vector(&drawn), drawn.loss_placeholders),
         ([0; 5], 0)
+    );
+    assert_eq!(
+        drawn.page_losses(&page.list).vector(),
+        vec![(LossCategory::Scene(SceneLossKind::TextPaintDefaulted), 14)],
+        "the page's whole loss vector"
     );
 }
 
@@ -1285,10 +1401,10 @@ fn rc02_18_the_real_worksheet_journey_has_an_exact_loss_vector() {
     let mut page = sheet_page(&bytes, 8.0, 5.0);
     assert_eq!(
         layout_vector(&page.losses),
-        [0, 0, 0, 0, 0, 0, 1, 1],
+        [0, 0, 0, 0, 0, 0, 0, 1, 1],
         "A1's up diagonal is dropped and its dash-dot-dot right edge is drawn solid"
     );
-    assert_eq!(scene_vector(&page.list), [0; 4]);
+    assert_eq!(scene_vector(&page.list), [0; 5]);
     assert_eq!(
         placeholders(&page.list),
         vec![placeholder(
@@ -1298,10 +1414,19 @@ fn rc02_18_the_real_worksheet_journey_has_an_exact_loss_vector() {
             &[0, 0]
         )]
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(
         (painter_vector(&drawn), drawn.loss_placeholders),
         ([0; 5], 1)
+    );
+    assert_labelled(&pixels, &[px(0, 0, 581025, 190500)]);
+    assert_eq!(
+        drawn.page_losses(&page.list).vector(),
+        vec![
+            (LossCategory::Layout(LayoutLossKind::DroppedByReader), 1),
+            (LossCategory::Layout(LayoutLossKind::ValueApproximated), 1),
+        ],
+        "the page's whole loss vector"
     );
 }
 
@@ -1333,12 +1458,13 @@ fn rc02_19_an_unresolved_worksheet_outline_is_a_placeholder_not_a_failure() {
         Some((OutlineProvenance::Placeholder, LABEL_OUTLINE.to_owned())),
         "the worksheet's geometry answers a stand-in instead of refusing handle {handle}"
     );
-    let (drawn, _) = software(NAME, &mut page);
+    let (drawn, pixels) = software(NAME, &mut page);
     assert_eq!(
         (painter_vector(&drawn), drawn.loss_placeholders),
         ([0; 5], 1),
         "the chart is one placeholder and no outline request fails the frame"
     );
+    assert_labelled(&pixels, &[px(581025, 190500, 3486150, 2286000)]);
     assert_eq!(
         page.list
             .placeholder_at(200.0, 120.0)

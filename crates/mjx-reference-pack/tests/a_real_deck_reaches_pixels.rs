@@ -35,16 +35,13 @@
 //! * that the ink sits inside the rectangles the fragment tree named, so a render that filled the
 //!   page with one colour fails even at the right coverage.
 
-use mjx_layout::{
-    BoxModel, Fragment, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, PageIndex,
-};
+use mjx_layout::{BoxModel, Fragment, FragmentTree, LayoutLosses, PageIndex};
 use mjx_layout_pptx::{constraints_for, SlideBoxModel, SlideDeck};
 use mjx_paint::{
-    render_offscreen, DrawReport, NoImages, PainterLossKind, Pixels, Resources, SoftwarePainter,
-    SOFTWARE_PAINTER,
+    render_offscreen, DrawReport, NoImages, Pixels, Resources, SoftwarePainter, SOFTWARE_PAINTER,
 };
 use mjx_pptx::Presentation;
-use mjx_scene::{build_page, DisplayList, SceneLossKind, SceneOptions};
+use mjx_scene::{build_page, DisplayList, LossCategory, SceneLossKind, SceneOptions};
 use mjx_scene_pptx::{SlideGeometry, SlideResources};
 use mjx_text::{FontResolver, GlyphAtlas};
 
@@ -446,27 +443,25 @@ fn a_deck_with_theme_effects_reaches_the_painters_layers() {
     );
 }
 
-/// Every loss of the text deck, asserted kind by kind, and nothing it does not name (MJXOFF-299).
+/// Every loss of the text deck, as the page's whole vector, and nothing it does not name (MJXOFF-299).
 #[test]
 fn the_text_deck_loses_exactly_its_run_colours() {
     let journey = journey("text_levels.pptx", 0);
-    assert_eq!(
-        journey.layout_losses.len(),
-        0,
-        "nothing on the slide is laid out as an empty frame"
-    );
-    let losses = journey.list.losses();
+    let losses = journey.drawn.page_losses(&journey.list);
     // Nine text runs and five bullet markers, each drawn in the default colour until run paint is wired (MJXOFF-311).
     assert_eq!(losses.count(SceneLossKind::TextPaintDefaulted), 14);
     assert_eq!(
-        losses.len(),
-        14,
-        "a scene loss of a kind this suite does not name"
+        losses.vector(),
+        vec![(LossCategory::Scene(SceneLossKind::TextPaintDefaulted), 14)],
+        "the page's whole loss vector, layout, scene and painter together"
     );
     assert_eq!(
-        journey.drawn.losses.len(),
-        0,
-        "the painter loses nothing of the text deck"
+        losses
+            .iter()
+            .filter(|loss| matches!(loss.category, LossCategory::Layout(_)))
+            .count(),
+        journey.layout_losses.len(),
+        "the list carries every loss the layout recorded"
     );
     assert_eq!(
         journey
@@ -479,19 +474,15 @@ fn the_text_deck_loses_exactly_its_run_colours() {
     );
     assert_eq!(
         (
-            journey.list.placeholders().len(),
+            journey
+                .list
+                .placeholders()
+                .into_iter()
+                .map(|placeholder| placeholder.label)
+                .collect::<Vec<_>>(),
             journey.drawn.loss_placeholders
         ),
-        (0, 0),
+        (Vec::<String>::new(), 0),
         "an approximation draws no placeholder"
-    );
-    assert_eq!(
-        PainterLossKind::ALL.len() + LayoutLossKind::ALL.len(),
-        13,
-        "the vector this suite states spans every layout and painter kind"
-    );
-    assert_eq!(
-        LayoutLossKind::FrameContentNotLaidOut(FrameContent::Chart).label(),
-        "Chart not rendered"
     );
 }

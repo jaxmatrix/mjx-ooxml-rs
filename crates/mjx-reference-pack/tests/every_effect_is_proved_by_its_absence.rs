@@ -126,7 +126,9 @@ fn render(effects: &EffectListSpec) -> Pixels {
         ),
         stroke: None,
         opacity: 1.0,
-        effects: effect_styles(effects, scale, &no_images).expect("every effect colour resolves"),
+        effects: effect_styles(effects, scale, &no_images)
+            .answered()
+            .expect("every effect colour resolves"),
     };
     let resolver = OneShape { decoration };
 
@@ -310,6 +312,7 @@ fn the_parameters_are_not_identity_values() {
     let no_images = |_: &str| None;
     for kind in EffectKind::ALL {
         let chain = effect_styles(&only(kind), DeviceScale::UNZOOMED, &no_images)
+            .answered()
             .expect("every effect colour resolves");
         let entry = chain
             .first()

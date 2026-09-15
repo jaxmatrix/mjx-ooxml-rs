@@ -520,53 +520,49 @@ fn a_hairline_border_puts_ink_on_the_page() {
     );
 }
 
-/// Every loss of the styled worksheet, asserted kind by kind, and nothing it does not name (MJXOFF-299).
+/// Every loss of the styled worksheet, as the page's whole vector, and nothing it does not name (MJXOFF-299).
 #[test]
 fn the_styled_sheet_loses_exactly_its_diagonal_and_its_dash() {
     let mut book = fixture("style_resources.xlsx");
     let journey = journey(&mut book, 0, &viewport(8.0, 5.0));
+    let losses = journey.drawn.page_losses(&journey.list);
     // A1's up diagonal reaches no band, and its dash-dot-dot right edge is drawn solid.
+    assert_eq!(losses.count(LayoutLossKind::DroppedByReader), 1);
+    assert_eq!(losses.count(LayoutLossKind::ValueApproximated), 1);
     assert_eq!(
-        journey.layout_losses.count(LayoutLossKind::DroppedByReader),
-        1
+        losses.vector(),
+        vec![
+            (LossCategory::Layout(LayoutLossKind::DroppedByReader), 1),
+            (LossCategory::Layout(LayoutLossKind::ValueApproximated), 1),
+        ],
+        "the page's whole loss vector: the resolver and the painter lose nothing of the sheet"
     );
     assert_eq!(
-        journey
-            .layout_losses
-            .count(LayoutLossKind::ValueApproximated),
-        1
-    );
-    assert_eq!(
+        losses.len(),
         journey.layout_losses.len(),
-        2,
-        "a layout loss of a kind this suite does not name"
-    );
-    assert_eq!(
-        journey.list.losses().len(),
-        0,
-        "the resolver answers everything on the sheet"
-    );
-    assert_eq!(
-        journey.drawn.losses.len(),
-        0,
-        "the painter loses nothing of the sheet"
+        "the list carries every loss the layout recorded"
     );
     assert!(
         journey.pixels.covered() > 0,
         "the sheet still reaches pixels with its losses counted"
     );
-    let placeholders: Vec<LossCategory> = journey
-        .list
-        .placeholders()
-        .into_iter()
-        .map(|placeholder| placeholder.category)
-        .collect();
     assert_eq!(
-        (placeholders, journey.drawn.loss_placeholders),
         (
-            vec![LossCategory::Layout(LayoutLossKind::DroppedByReader)],
+            journey
+                .list
+                .placeholders()
+                .into_iter()
+                .map(|placeholder| (placeholder.category, placeholder.label))
+                .collect::<Vec<_>>(),
+            journey.drawn.loss_placeholders
+        ),
+        (
+            vec![(
+                LossCategory::Layout(LayoutLossKind::DroppedByReader),
+                "Content not read".to_owned()
+            )],
             1
         ),
-        "the dropped diagonal draws one placeholder over A1 and the approximated dash draws none"
+        "the dropped diagonal draws one labelled placeholder over A1 and the approximated dash draws none"
     );
 }
