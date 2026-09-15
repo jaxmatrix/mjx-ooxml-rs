@@ -462,6 +462,11 @@ may only open its own command's menu, every declared menu must be opened by both
 hosts, and a host that binds menus must render them. Each refusal is watched firing on a hand-made
 source.
 
+**Shapes is the one Insert menu that is no longer a sample.** PowerPoint's Shape Format opens the same gallery twice
+(Shapes, and Edit Shape ▸ Change Shape), so the whole gallery is written once in
+`stories/ribbons/drawing-tools-menus.ts` and all three Insert Shapes menus call `insertShapesEntries(application)`:
+every section and shape, PowerPoint's Action Buttons and Word's New Drawing Canvas. See *PowerPoint's Shape Format*.
+
 ⚠ **A one-region dropdown does not announce its menu.** `<mjx-button>` observes no `aria-haspopup`
 or `aria-expanded`, so a screen reader hears *Table, button* where Office says *Table, menu button,
 collapsed*. The menu itself is a real `<mjx-menu>` — roving focus, Escape restores focus to the
@@ -498,7 +503,7 @@ Layout. Almost every command opens something, and each host binds one of three s
   and Excel's Sheet Options are `<mjx-checkbox>`.
 
 `dev/ribbons/census.ts` records two design decisions. **Arrange is declared once for Word and Excel**,
-by `arrangeCommands`, which PowerPoint's Table Layout (for a table: no Group or Rotate) and Word's, PowerPoint's and Excel's Picture Format now call too. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
+by `arrangeCommands`, which PowerPoint's Table Layout (for a table: no Group or Rotate), Word's, PowerPoint's and Excel's Picture Format and PowerPoint's Shape Format now call too. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
 at the foot of PowerPoint's Variants gallery. No command on the four tabs survives a collapse.
 
 ⚠ **Two shapes are `GUESS:`.**
@@ -1349,8 +1354,8 @@ is drawn:
 
 **Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
 Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layout the fourth, Excel's Table Design
-the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, and Excel's Picture Format the
-eighth.** A contextual tab
+the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, Excel's Picture Format the
+eighth, and PowerPoint's Shape Format the ninth.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1390,8 +1395,8 @@ Table Design* below, **Word's Table Layout the second**, see *Word's Table Layou
 the third**, see *PowerPoint's Table Design*, **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
 Layout*, **Excel's Table Design the fifth**, see *Excel's Table Design*, **Word's Picture Format the sixth**, see
 *Word's Picture Format*, **PowerPoint's Picture Format the seventh**, see *PowerPoint's Picture Format*, the first
-contextual tab `Shell/PowerPoint` shows authored, and **Excel's Picture Format the eighth**, see *Excel's Picture
-Format*.
+contextual tab `Shell/PowerPoint` shows authored, **Excel's Picture Format the eighth**, see *Excel's Picture
+Format*, and **PowerPoint's Shape Format the ninth**, see *PowerPoint's Shape Format*, the first of Drawing Tools.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1951,6 +1956,74 @@ eighteen commands and renders `pictureToolsMenus('excel', 'ribbons')`, fourteen 
 - **Glyphs**, all reused and all `GUESS:`; Remove Background's `video-background-effect` is still the weakest. The
   gallery, the colour picker, the two fields and Selection Pane carry none.
 
+### PowerPoint's Shape Format
+
+**One tab of one application, and the ninth contextual tab authored**, PowerPoint's fourth and the first of Drawing
+Tools. Six groups and twenty-one commands, in Office's order, which is also the census's: Insert Shapes, Shape Styles,
+WordArt Styles, Accessibility, Arrange, Size. It is `TabDrawingToolsFormat` in `TabSetDrawingTools`, under the
+*Drawing Tools* band while a shape, a text box or a WordArt on a slide is selected.
+
+**The census's groups, read.** `GroupShapes` (13) Insert Shapes, `GroupShapeStyles` (40) Shape Styles,
+`GroupWordArtStyles` (33) WordArt Styles, `GroupAltText` (1) Accessibility, `GroupArrangeWith3DEditor` (24) Arrange,
+`GroupSize` (3) Size. Office's six groups map one to one onto them. The ids, labels and priorities are the contextual
+unit's, unchanged.
+
+**It renders in `Ribbons/PowerPoint` alone.** `Shell/PowerPoint` draws Picture Tools, so it binds none of the tab and
+renders none of its menus; the menu gate's `hostContextualSets` already says so, and needed no change.
+`Ribbons/PowerPoint` binds eighteen commands and renders `drawingToolsMenus('powerpoint', 'ribbons')`, eleven menus.
+
+- **Insert Shapes**: **Shapes** (a large dropdown over the whole shape gallery, Action Buttons included), then **Edit
+  Shape** (Change Shape ▸, Edit Points, Reroute Connectors unavailable), **Text Box** (a plain button) and **Merge
+  Shapes** (Union, Combine, Fragment, Intersect, Subtract), small.
+- **Shape Styles**: **Theme Styles** (a gallery of forty-nine shape styles, six Theme Styles rows and one Presets row,
+  each an *Abc* box in the deck's palette, with **Other Theme Fills** in its footer opening Style 1 to Style 12);
+  **Shape Fill** (a colour picker on Accent 1, *No Fill*, with More Fill Colours…, Eyedropper, Picture…, Gradient and
+  Texture beneath); **Shape Outline** (on Accent 1, Darker 50%, *No Outline*, with More Outline Colours…, Eyedropper,
+  Weight, Sketched, Dashes and **Arrows**); **Shape Effects** (Picture Effects' seven submenus). Launcher: *Format
+  Shape*.
+- **WordArt Styles**: Table Design's group under this tab's ids; Text Fill starts on Background 1. Launcher: *Format Text
+  Effects*.
+- **Accessibility**: Alt Text, a large toggle.
+- **Arrange**: `arrangeCommands('powerpoint', 'shape-format')`, Picture Format's six, Align to Slide ticked.
+- **Size**: Height and Width (2.54 cm each), no Crop. Launcher: *Size and Position*.
+
+**Written once, reused, and new shared code.**
+
+- **New, in `stories/ribbons/drawing-tools-menus.ts`, shaped for Word's and Excel's Shape Format**: the shape gallery
+  (`shapeGallerySections`, `insertShapesEntries`, `changeShapeEntries`, `editShapeEntries`), `mergeShapesEntries`,
+  `shapeStyles` with `shapeStylePicture` and `shapeStyleGalleryItems`, `otherThemeFillEntries`, `shapeEffectsEntries`,
+  `shapeFillEntryOptions` and `shapeOutlineEntryOptions` (Eyedropper for PowerPoint only), `powerpointShapeMeasures`,
+  and `drawingToolsMenus`, whose Word and Excel branches render nothing yet.
+- **New, in `dev/ribbons/census.ts`**: `insertShapesCommands(application, tab)` (Merge Shapes for PowerPoint only) and
+  `shapeStylesCommands(application, tab)`, for Word's and Excel's Shape Format and Chart Format.
+- **Reused as they stand**: `wordArtStylesCommands` and every list in `wordart-styles-menus.ts`; `arrangeCommands` and
+  `design-layout-menus.ts`' PowerPoint Arrange lists; `sizeCommands(…, 'drawing')`; `fillEntries` and
+  `outlineEntries`; `pictureEffectsEntries` (Shape Effects) and `cropShapes` (Change Shape, and the body of the Shapes
+  gallery) from `picture-tools-menus.ts`; `accentNames`.
+- **Changed outside the tab**: **Insert's three Shapes menus now open the whole gallery** through
+  `insertShapesEntries`, rather than nine sampled shapes. Their commands, ids and bindings are unchanged.
+- **Two new glyphs**: `bezier-curve-square` (Edit Shape) and `shape-union` (Merge Shapes).
+
+**No survivors.** A gallery, two menus and a drawing gesture; a gallery, two colour grids and a menu, twice; a pane; two
+split buttons, three menus and a pane; two fields.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Shapes is a large dropdown over names**, where Office draws an in-ribbon gallery of outlines.
+- **Theme Styles**: the label (Office's collapsed button says *Quick Styles*), all forty-nine names and looks, that
+  Presets is one row, and Other Theme Fills' twelve. Other Theme Fills' menu id is the gallery command's.
+- **Insert's Shapes menus changed**, against Decision 3's *menus stay shallow*, so that one Office gallery is written
+  once; the brief said to reuse Insert's list, which was a sample. No *Recently Used Shapes* section.
+- **Merge Shapes is PowerPoint's alone** (the census counts PowerPoint's Insert Shapes 13 and Word's and Excel's 12).
+- **Change Shape leaves out Lines and the text boxes**, and Reroute Connectors is drawn unavailable.
+- **Text Box has no Horizontal/Vertical arrow.**
+- **Shape Fill's and Shape Outline's entries and starts**, Text Fill on Background 1, that Shape Effects' lists are a
+  picture's, Height and Width's 2.54 cm, all three launchers' labels, and Align to Slide ticked.
+- **The counts.** Accessibility and Size are met. Insert Shapes counts 13 and draws 4, Shape Styles 40 and 4, WordArt
+  Styles 33 and 4, Arrange 24 and 6; no reading reaches any of them. Nothing is padded.
+- **Glyphs**, all `GUESS:`. **Alt Text's `image-alt-text`, a picture with a label on a shape's tab, is the weakest.**
+  The two galleries, the four colour pickers, the two fields and Selection Pane carry none.
+
 ### The entries beneath a colour picker's palette
 
 **Office's colour grids carry commands under the swatches, and `<mjx-color-picker>` now draws them.** A host slots
@@ -1969,11 +2042,13 @@ Choosing an entry closes the picker and returns focus to the field. `no-fill-lab
 - **The lists are written once**, in `stories/ribbons/colour-picker-entries.ts`: `fillEntries` and `outlineEntries`
   take options for each entry, over `lineWeightEntries` (`tableLineWeights`), `lineDashEntries` (`presetLineDashes`,
   which Pen Style now also reads), `lineSketchEntries`, `lineArrowEntries`, `gradientEntries`, `textureEntries` and
-  `tableBackgroundEntries`. Shape Format's Shape Fill and Shape Outline are expected to call the same two functions.
+  `tableBackgroundEntries`. Shape Format's Shape Fill and Shape Outline call the same two functions, with options from
+  `stories/ribbons/drawing-tools-menus.ts`' `shapeFillEntryOptions` and `shapeOutlineEntryOptions`.
 - **Bound today**: Word's Table Design Shading and Pen Colour (both hosts), PowerPoint's Table Design Shading, Text
   Fill, Text Outline and Pen Colour, Word's Picture Format Picture Border (`Ribbons/Word`), PowerPoint's Picture
-  Format Picture Border, with an Eyedropper (both hosts), and Excel's Picture Format Picture Border, without one
-  (`Ribbons/Excel`). `GUESS:` which entries each carries, every label and preset, and that Word's
+  Format Picture Border, with an Eyedropper (both hosts), Excel's Picture Format Picture Border, without one
+  (`Ribbons/Excel`), and PowerPoint's Shape Format Shape Fill, Shape Outline (the first to carry **Arrows ▸**), Text
+  Fill and Text Outline (`Ribbons/PowerPoint`). `GUESS:` which entries each carries, every label and preset, and that Word's
   carry More Colours… alone.
 - ⚠ **Table Background's colour grid is not drawn.** Its submenu lists its four commands; a menu holds commands, not
   swatches.

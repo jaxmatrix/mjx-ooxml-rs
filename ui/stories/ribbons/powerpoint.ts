@@ -99,8 +99,14 @@
  * gallery and the thumbnails in `stories/ribbons/picture-tools-menus.ts`, Arrange from `arrangeCommands` and Size from
  * `sizeCommands`. It differs where Office does: no Position or Wrap Text, an Eyedropper under Picture Border, Convert to
  * SmartArt for Picture Layout, a slide's starting measures and Size's *Size and Position* launcher. **Both PowerPoint
- * hosts bind it**, because `Shell/PowerPoint` draws Picture Tools. **The other three are placeholders**, each until its
- * own unit.
+ * hosts bind it**, because `Shell/PowerPoint` draws Picture Tools.
+ *
+ * **Shape Format is authored**, the fourth and the first of Drawing Tools: six groups and twenty-one commands, how a
+ * shape on a slide is drawn, changed and merged, styled, dressed as WordArt, described, placed and sized. Its menus,
+ * gallery and starting measures are in `stories/ribbons/drawing-tools-menus.ts`, written for Word's and Excel's Shape
+ * Format; WordArt Styles is `wordArtStylesCommands`, Arrange `arrangeCommands` and Size `sizeCommands` for a drawing.
+ * **`Ribbons/PowerPoint` alone binds it**, because `Shell/PowerPoint` draws Picture Tools. **The other two, Chart
+ * Design and Format, are placeholders**, each until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -824,14 +830,48 @@ export function powerpointPictureFormatTab(options: TabOptions = {}): TemplateRe
 }
 
 /**
- * Which function builds which contextual tab. **Table Design, Table Layout and Picture Format are authored; every other
- * entry is `placeholderTab` today** — see Word's.
+ * Shape Format: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange, Size — PowerPoint's fourth
+ * contextual tab authored and the ninth of all, in **Office's** order, which is also the census's. It sits under the
+ * *Drawing Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a shape, a text box or a WordArt on a slide is selected.**
+ * `Ribbons/PowerPoint` draws every contextual set and binds it. **`Shell/PowerPoint` draws Picture Tools alone**,
+ * because its deck's selection is a picture, so it binds none of this tab and renders none of its menus.
+ * `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Eighteen of the tab's twenty-one commands are bound by the host**: Shapes, Edit Shape, Merge Shapes, Shape Effects,
+ * Text Effects, Align, Group and Rotate, dropdowns; Bring Forward and Send Backward, split buttons; the Theme Styles and
+ * Quick Styles galleries, the first with Other Theme Fills under it; Shape Fill, Shape Outline, Text Fill and Text
+ * Outline, colour pickers; Height and Width, measure fields. Every menu is in `stories/ribbons/drawing-tools-menus.ts`.
+ * Text Box is a plain button, and Alt Text and Selection Pane generic toggles.
+ *
+ * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, Size and Position on
+ * Size. **No survivor.**
+ */
+export function powerpointShapeFormatTab(options: TabOptions = {}): TemplateResult {
+  const shapeFormat = entry('shape-format');
+  const controls = options.controls ?? {};
+  return tab(
+    shapeFormat.id,
+    shapeFormat.label,
+    censusGroup(shapeFormat, 'GroupShapes', {}, controls),
+    censusGroup(shapeFormat, 'GroupShapeStyles', { launcher: 'Format Shape' }, controls),
+    censusGroup(shapeFormat, 'GroupWordArtStyles', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(shapeFormat, 'GroupAltText', {}, controls),
+    censusGroup(shapeFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(shapeFormat, 'GroupSize', { launcher: 'Size and Position' }, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design, Table Layout, Picture Format and Shape Format are
+ * authored; every other entry is `placeholderTab` today** — see Word's.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': powerpointTableDesignTab,
   'table-layout': powerpointTableLayoutTab,
   'picture-format': powerpointPictureFormatTab,
-  'shape-format': () => placeholderTab(entry('shape-format')),
+  'shape-format': powerpointShapeFormatTab,
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),
 };

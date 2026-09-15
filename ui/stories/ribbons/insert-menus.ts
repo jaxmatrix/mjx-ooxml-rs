@@ -20,6 +20,12 @@
  * opens it. Office's submenu arrows (Page Number → Top of Page, Quick Tables) are flattened for the
  * same reason.
  *
+ * **Shapes is no longer shallow.** PowerPoint's Shape Format unit needed the same gallery for its own Shapes command
+ * and for Edit Shape ▸ Change Shape, and two copies of one Office gallery, one of them sampled, would be two places
+ * for it to drift. So all three applications' Shapes menus now call
+ * `stories/ribbons/drawing-tools-menus.ts`' `insertShapesEntries(application)`: every section and every shape, with
+ * PowerPoint's Action Buttons and Word's New Drawing Canvas. `GUESS:` every name, as that file says.
+ *
  * Two lists name things that are *this machine's* rather than Office's — a link menu's recent items
  * and a screenshot menu's available windows. The first uses invented file names, as
  * `ribbon-parts.ts`'s printers do; the second shows no windows at all, because a list of somebody's
@@ -42,6 +48,7 @@
 import { html, type TemplateResult } from 'lit';
 
 import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
+import { insertShapesEntries } from './drawing-tools-menus.ts';
 import { commandMenu } from './ribbon-parts.ts';
 
 // ── the entries ──────────────────────────────────────────────────────────────
@@ -63,16 +70,6 @@ const separator = (): TemplateResult => html`<mjx-menu-separator></mjx-menu-sepa
 /** Pictures, in Word and PowerPoint: the three places a picture comes from. */
 function picturesEntries(): TemplateResult[] {
   return [item('This Device…'), item('Stock Images…'), item('Online Pictures…')];
-}
-
-/** Shapes, in all three: a few of each of the gallery's first four categories. */
-function shapesEntries(): TemplateResult[] {
-  return [
-    section('Lines', item('Line'), item('Line Arrow')),
-    section('Rectangles', item('Rectangle'), item('Rectangle: Rounded Corners')),
-    section('Basic Shapes', item('Text Box'), item('Oval'), item('Isosceles Triangle')),
-    section('Block Arrows', item('Arrow: Right'), item('Arrow: Left')),
-  ];
 }
 
 /** 3D Models, in all three. */
@@ -177,14 +174,7 @@ function wordInsertMenus(host: RibbonSurfaceHost): TemplateResult {
       item('Quick Tables'),
     )}
     ${commandMenu(host, 'word.insert.illustrations.pictures', 'Pictures', ...picturesEntries())}
-    ${commandMenu(
-      host,
-      'word.insert.illustrations.shapes',
-      'Shapes',
-      ...shapesEntries(),
-      separator(),
-      item('New Drawing Canvas'),
-    )}
+    ${commandMenu(host, 'word.insert.illustrations.shapes', 'Shapes', ...insertShapesEntries('word'))}
     ${commandMenu(host, 'word.insert.illustrations.3d-models', '3D Models', ...threeDModelsEntries())}
     ${commandMenu(host, 'word.insert.illustrations.screenshot', 'Screenshot', ...screenshotEntries())}
     ${commandMenu(host, 'word.insert.links.link', 'Link', ...linkEntries())}
@@ -307,7 +297,7 @@ function powerpointInsertMenus(host: RibbonSurfaceHost): TemplateResult {
       item('New Photo Album…'),
       item('Edit Photo Album…'),
     )}
-    ${commandMenu(host, 'powerpoint.insert.illustrations.shapes', 'Shapes', ...shapesEntries())}
+    ${commandMenu(host, 'powerpoint.insert.illustrations.shapes', 'Shapes', ...insertShapesEntries('powerpoint'))}
     ${commandMenu(host, 'powerpoint.insert.illustrations.3d-models', '3D Models', ...threeDModelsEntries())}
     ${commandMenu(host, 'powerpoint.insert.camera.cameo', 'Cameo', ...cameoEntries())}
     ${commandMenu(
@@ -346,7 +336,7 @@ function excelInsertMenus(host: RibbonSurfaceHost): TemplateResult {
       section('Place in Cell', ...picturesEntries()),
       section('Place over Cells', ...picturesEntries()),
     )}
-    ${commandMenu(host, 'excel.insert.illustrations.shapes', 'Shapes', ...shapesEntries())}
+    ${commandMenu(host, 'excel.insert.illustrations.shapes', 'Shapes', ...insertShapesEntries('excel'))}
     ${commandMenu(host, 'excel.insert.illustrations.3d-models', '3D Models', ...threeDModelsEntries())}
     ${commandMenu(host, 'excel.insert.illustrations.screenshot', 'Screenshot', ...screenshotEntries())}
     ${commandMenu(

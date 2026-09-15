@@ -39,6 +39,13 @@ import {
 } from './design-layout-menus.ts';
 import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { drawMenus } from './draw-menus.ts';
+import {
+  drawingToolsMenus,
+  powerpointShapeMeasures,
+  shapeFillEntryOptions,
+  shapeOutlineEntryOptions,
+  shapeStyleGalleryItems,
+} from './drawing-tools-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import {
   followTransitionEffectOptions,
@@ -84,11 +91,11 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs.** **Table Design, Layout and Picture Format are authored**, PowerPoint's
- * first three. **The other three are placeholders** at the census's own priorities: Shape Format, Chart Design and
- * Format. Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools
- * alone, which is why Table Design's and Layout's bindings and menus are written here and nowhere else, and why Picture
- * Format's are written in both hosts.
+ * **Six more stories are the contextual tabs.** **Table Design, Layout, Picture Format and Shape Format are authored**,
+ * PowerPoint's first four. **The other two are placeholders** at the census's own priorities: Chart Design and Format.
+ * Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone, which
+ * is why Table Design's, Layout's and Shape Format's bindings and menus are written here and nowhere else, and why
+ * Picture Format's are written in both hosts.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
  * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
@@ -111,8 +118,8 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout and Picture Format are ' +
-          'authored; Shape Format, Chart Design and Format are placeholders carrying the census’s own priorities.',
+          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout, Picture Format and Shape ' +
+          'Format are authored; Chart Design and Format are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -1235,6 +1242,170 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Shape Format (a contextual tab, in Drawing Tools). `Shell/PowerPoint` draws Picture Tools and not Drawing Tools, so
+  // these eighteen bindings and `drawingToolsMenus('powerpoint', …)` are written here alone, for Table Design's
+  // reason. Every menu, the Theme Styles gallery, the entry options and the starting measures are
+  // `stories/ribbons/drawing-tools-menus.ts`'s; the WordArt gallery is `stories/ribbons/wordart-styles-menus.ts`'; the
+  // four pickers and both galleries' pictures read this deck's palette. Other Theme Fills, under the Theme Styles
+  // gallery, opens the menu declared for the gallery's own command. Text Box is the generic button, and Alt Text and
+  // Selection Pane the generic toggle; none is bound.
+  'powerpoint.shape-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-powerpoint-shape-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'powerpoint.shape-format.insert-shapes.edit-shape': html`<mjx-button
+    label="Edit Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-insert-shapes-edit-shape"
+  ></mjx-button>`,
+  'powerpoint.shape-format.insert-shapes.merge-shapes': html`<mjx-button
+    label="Merge Shapes"
+    icon="shape-union"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-insert-shapes-merge-shapes"
+  ></mjx-button>`,
+  'powerpoint.shape-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-shape-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-powerpoint-shape-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'powerpoint.shape-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-powerpoint-shape-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="theme:accent1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.shape-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-powerpoint-shape-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="theme:accent1/darker50"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(shapeOutlineEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.shape-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'powerpoint.shape-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-shape-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'powerpoint.shape-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-powerpoint-shape-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:background1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Text Fill',
+      fillEntries({ moreColours: 'More Fill Colours…', eyedropper: true, picture: true, gradient: true, texture: true }),
+    )}
+  </mjx-color-picker>`,
+  'powerpoint.shape-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-powerpoint-shape-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Text Outline',
+      outlineEntries({ moreColours: 'More Outline Colours…', eyedropper: true, weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'powerpoint.shape-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'powerpoint.shape-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.shape-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.shape-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-arrange-align"
+  ></mjx-button>`,
+  'powerpoint.shape-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-arrange-group"
+  ></mjx-button>`,
+  'powerpoint.shape-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-powerpoint-shape-format-arrange-rotate"
+  ></mjx-button>`,
+  'powerpoint.shape-format.size.height': html`<mjx-measure-input
+    id="ribbons-powerpoint-shape-format-height"
+    label="Height"
+    value=${powerpointShapeMeasures.height}
+    unit="cm"
+    step=${powerpointShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.shape-format.size.width': html`<mjx-measure-input
+    id="ribbons-powerpoint-shape-format-width"
+    label="Width"
+    value=${powerpointShapeMeasures.width}
+    unit="cm"
+    step=${powerpointShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1265,7 +1436,7 @@ function ribbon(selected: string): TemplateResult {
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
     ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
     ${masterViewMenus('powerpoint', 'ribbons')} ${tableToolsMenus('powerpoint', 'ribbons')}
-    ${pictureToolsMenus('powerpoint', 'ribbons')}
+    ${pictureToolsMenus('powerpoint', 'ribbons')} ${drawingToolsMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -1923,8 +2094,51 @@ export const TableLayout: Story = { render: () => ribbon('table-layout') };
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 
 /**
- * **Shape Format** — a placeholder. Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange
- * and Size, with Shape Styles primary.
+ * **Shape Format**: which shape a slide's shape is and what it merges with, how it is filled, outlined and given effects,
+ * how its text is dressed, how it is described, where it sits among the slide's objects, and its size. Drawing Tools'
+ * one tab, and PowerPoint's fourth contextual tab authored; Office shows it only while a shape, a text box or a WordArt
+ * is selected. Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange and Size. WordArt Styles
+ * is `TableDesign`'s group and Arrange is `PictureFormat`'s, so see those stories for their lists; what to look at here,
+ * least certain first:
+ *
+ * 1. ⚠ **The Theme Styles pictures.** Expand the gallery: *Theme Styles*, six rows of seven *Abc* boxes (Coloured
+ *    Outline, Coloured Fill, Light 1 Outline Coloured Fill, Subtle Effect, Moderate Effect, Intense Effect, each for
+ *    Dark 1 and the six accents), then *Presets*, seven Transparent, Coloured Outline boxes over a chequerboard, all in
+ *    the deck's palette. Judge whether the six rows read as six families, and whether Transparent is told from Coloured
+ *    Outline. Nothing is selected. Hover one to read its name. `GUESS:` every name and look, and that Presets is one row.
+ * 2. ⚠ **Other Theme Fills, the gallery's footer**, opens a menu of *Style 1* to *Style 12* anchored to the footer.
+ *    Check that it opens from inside the expanded gallery and that the gallery's popup does not swallow it. `GUESS:` the
+ *    twelve and that nothing else is in the submenu.
+ * 3. ⚠ **Shapes is a large button, where Office draws an in-ribbon gallery of outlines.** Press it: Lines (12),
+ *    Rectangles (9), Basic Shapes (43, starting with Text Box and Vertical Text Box), Block Arrows (27), Equation Shapes
+ *    (6), Flowchart (28), Stars and Banners (20), Callouts (16) and **Action Buttons (12)**, every shape by name. **The
+ *    same list now opens from `Insert → Shapes`** in all three applications, which used to show nine. `GUESS:` every
+ *    name.
+ * 4. ⚠ **Shape Fill and Shape Outline are colour fields.** Shape Fill starts on Accent 1, with *No Fill* and More Fill
+ *    Colours…, Eyedropper, Picture…, Gradient ▸ and Texture ▸ beneath the palette. Shape Outline starts on Accent 1,
+ *    Darker 50%, with *No Outline* and More Outline Colours…, Eyedropper, Weight ▸, Sketched ▸, Dashes ▸ and **Arrows ▸**
+ *    (eleven line ends, then More Arrows…). `GUESS:` both starts and every entry.
+ * 5. ⚠ **Edit Shape**: Change Shape ▸ (the Shapes list without Lines or the text boxes, with Action Buttons), Edit
+ *    Points, and **Reroute Connectors unavailable** with its explanation, because this selection is not a connector.
+ *    Arrow onto it: it stays in the sequence and does nothing.
+ * 6. **Merge Shapes** opens Union, Combine, Fragment, Intersect and Subtract. Its glyph and Edit Shape's are the two new
+ *    ones: `shape-union`, two shapes as one outline, and `bezier-curve-square`, a square with handles. Judge both.
+ * 7. **Shape Effects** opens Picture Effects' seven submenus: Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and
+ *    3-D Rotation.
+ * 8. **WordArt Styles is Table Design's**: Quick Styles' twenty letters and Clear WordArt, Text Fill (**starting on
+ *    Background 1**, the white text of an inserted shape), Text Outline and Text Effects' six submenus.
+ * 9. **Arrange is Picture Format's six**, all small: Bring Forward and Send Backward split buttons without text layers,
+ *    Selection Pane with no glyph, Align with **Align to Slide ticked**, Group and Rotate.
+ * 10. **Height and Width start on 2.54 cm**, stepping by 0.01. `GUESS:` both. They do not follow each other.
+ * 11. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', *Size and
+ *     Position* at Size's. `GUESS:` all three.
+ * 12. **Text Box** is a small plain button and **Alt Text** a large toggle, unpressed; neither opens anything here.
+ *     Alt Text's glyph, a picture with a label, is **the weakest on the tab**.
+ * 13. **No survivor anywhere.** Drag narrow: Accessibility (`secondary`) gives way first, then Insert Shapes, WordArt
+ *     Styles, Arrange and Size (`standard`), and Shape Styles (`primary`) last; each collapses to a trigger with nothing
+ *     beside it.
+ * 14. **Not in `Shell/PowerPoint`**: its strip draws Picture Tools, so there is no Shape Format tab and none of its menus
+ *     is on that page.
  */
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 

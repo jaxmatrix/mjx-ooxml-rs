@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 645 glyphs, 242630 bytes of path data, subset from the
+ * 647 glyphs, 243742 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -2599,10 +2599,18 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 24 24',
     paths: ['M5 5.27c0-1.7 1.83-2.79 3.33-1.97l12.36 6.72a2.25 2.25 0 0 1 0 3.96L8.33 20.7A2.25 2.25 0 0 1 5 18.73z'],
   },
+  'mjx-fluent:bezier-curve-square-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M5 3a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm11 9.92a3.5 3.5 0 0 1-1.86-.88 5.4 5.4 0 0 1-1.3-2.2l-.28-.87-.13-.41a9 9 0 0 0-.47-1.19q-.26-.56-.74-.96Q10.72 6 10 6t-1.22.4q-.48.4-.74.97-.27.56-.47 1.19l-.13.4q-.13.44-.29.87c-.3.86-.67 1.64-1.29 2.21a3.5 3.5 0 0 1-1.86.88V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1zM4 13.93a4.6 4.6 0 0 0 2.54-1.16c.8-.74 1.24-1.7 1.56-2.6l.3-.92.12-.38q.2-.6.41-1.05.22-.44.46-.63.22-.18.61-.19.39 0 .6.2.25.18.47.62a8 8 0 0 1 .4 1.05l.13.38.3.92c.32.9.76 1.86 1.56 2.6q.93.9 2.54 1.16V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z'],
+  },
+  'mjx-fluent:shape-union-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M4.5 2A2.5 2.5 0 0 0 2 4.5v6A2.5 2.5 0 0 0 4.3 13H7v2.5A2.5 2.5 0 0 0 9.5 18h6.22a2.5 2.5 0 0 0 2.27-2.28v-.01l.01-.21v-6A2.5 2.5 0 0 0 15.5 7H13V4.5a2.5 2.5 0 0 0-.5-1.5 2.5 2.5 0 0 0-2-1zm6.65 1.15-8 8A2 2 0 0 1 3 10.5v-.94L9.56 3h.94q.35 0 .65.15m-7.3 8.7 8-8q.15.3.15.65v.8L5.3 12h-.8a2 2 0 0 1-.65-.15M12 6.71v.79c0 .21.13.4.32.47l-4.35 4.35A.5.5 0 0 0 7.5 12h-.8zM13.7 8h1.6L8 15.3v-1.6zm2.7.3q.49.38.59 1L9.3 17a1.5 1.5 0 0 1-1-.59zm.6 2.4v1.6L12.3 17h-1.6zm0 3v1.6L15.3 17h-1.6zM3 8.15V6.56L6.56 3h1.58zm0-3V4.5C3 3.67 3.67 3 4.5 3h.64z'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 645;
+export const subsetGlyphCount = 647;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -2611,7 +2619,7 @@ export const subsetGlyphCount = 645;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 242630;
+export const subsetPathBytes = 243742;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

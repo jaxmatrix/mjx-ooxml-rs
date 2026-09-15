@@ -139,6 +139,11 @@
  * **Excel's Picture Format** followed, the eighth and Excel's second, calling the same functions and differing from
  * Word's only where Office does: no Position or Wrap Text, Excel's large layer commands and snapping Align, a picture's
  * native starting size and the Size and Properties launcher; see that section's *Excel's Picture Format* part.
+ * **PowerPoint's Shape Format** followed, the ninth, PowerPoint's fourth and the first of Drawing Tools, writing Insert
+ * Shapes and Shape Styles once as `insertShapesCommands` and `shapeStylesCommands`, functions of the application and the
+ * tab, for Word's and Excel's Shape Format and for Chart Format to call, and calling `wordArtStylesCommands`,
+ * `arrangeCommands` and `sizeCommands` for a drawing; its menus and gallery are in
+ * `stories/ribbons/drawing-tools-menus.ts`; see the *commands Shape Format shows* section.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -187,8 +192,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Eight contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format, and
- * Excel's Table Design and Picture Format.** Each
+ * **Nine contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format,
+ * Excel's Table Design and Picture Format, and PowerPoint's Shape Format.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -8117,6 +8122,186 @@ const excelPictureFormatImagePlay: readonly RibbonCommand[] = [
   { id: 'excel.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
 ];
 
+// ── the commands Shape Format shows ──────────────────────────────────────────
+//
+// ## PowerPoint's Shape Format
+//
+// The unit after Excel's Picture Format, one tab of one application: **PowerPoint's `TabDrawingToolsFormat`, in
+// `TabSetDrawingTools`**, all six in-scope groups and twenty-one commands, and **the ninth contextual tab authored**,
+// PowerPoint's fourth and the first of Drawing Tools. Office shows it under the *Drawing Tools* band while a shape, a
+// text box or a WordArt on a slide is selected: which shape it is and what it merges with, how it is filled, outlined
+// and given effects, how its text is dressed, how it is described, where it sits among the slide's objects, and its
+// size.
+//
+// ## Office's groups, read onto the census's six
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupShapes` (13) | Insert Shapes | Shapes; Edit Shape, Text Box, Merge Shapes |
+// | `GroupShapeStyles` (40) | Shape Styles | the Theme Styles gallery; Shape Fill, Shape Outline, Shape Effects; the Format Shape launcher |
+// | `GroupWordArtStyles` (33) | WordArt Styles | Quick Styles, Text Fill, Text Outline, Text Effects; the Format Text Effects launcher |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrangeWith3DEditor` (24) | Arrange | Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupSize` (3) | Size | Height, Width; the Size and Position launcher |
+//
+// **Office's six groups map one to one onto the census's six, in the same order**, and every id, label and priority is
+// the contextual unit's, unchanged. PowerPoint's census carries no `GroupTextbox` (Word's *Text* group on this tab), and
+// Office's PowerPoint has none: its Text Box is in Insert Shapes.
+//
+// ## Written once, reused, and PowerPoint's own
+//
+// - **Written once, here**: `insertShapesCommands(application, tab)` and `shapeStylesCommands(application, tab)`, because
+//   Insert Shapes and Shape Styles repeat on Word's and Excel's Shape Format and (as `GroupShapesChart` and
+//   `GroupChartShapeStyles`) on Chart Format. Merge Shapes is PowerPoint's alone (disagreement 4).
+// - **Written once, in `stories/ribbons/drawing-tools-menus.ts`**: the whole shape gallery, which **Insert's Shapes
+//   menus now read too** (disagreement 3), Change Shape, Edit Shape, Merge Shapes, the forty-nine shape styles and
+//   their pictures, Other Theme Fills, the fill and outline entry options per application, and the starting measures.
+// - **Reused as they stand**: `wordArtStylesCommands('powerpoint', 'shape-format')` with its gallery and Text Effects
+//   lists from `stories/ribbons/wordart-styles-menus.ts`; `arrangeCommands('powerpoint', 'shape-format')`, exactly
+//   Office's six; `sizeCommands('powerpoint', 'shape-format', 'drawing')`, Height and Width with no Crop;
+//   `fillEntries` and `outlineEntries`, Arrows included; `pictureEffectsEntries`, which is Shape Effects' menu;
+//   `cropShapes`, which is Change Shape's list; `design-layout-menus.ts`' PowerPoint Arrange lists. Alt Text is
+//   Picture Format's command under this tab's id.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The Shapes gallery is a large dropdown over a menu of names.** Office draws an in-ribbon gallery of shape
+//    outlines, three rows deep, with a More button. Its hundred and eighty-odd entries are outlines a gallery item
+//    would have to draw one by one, and a gallery of pictures drawn as a menu of names is this catalogue's shape for
+//    it, as Picture Format's Corrections is. So Shapes carries Insert's glyph, `shapes`, large, standing where the
+//    gallery stands. `GUESS:` the size.
+// 2. **Theme Styles is the gallery's label and id.** Office's gallery shows its sections as *Theme Styles* and *Presets*
+//    and, collapsed, names its button *Quick Styles*; the brief names it Theme Styles, and a second *Quick Styles* on
+//    one tab, beside WordArt's, would be two controls with one name. **It holds forty-nine styles**: six rows of seven
+//    under *Theme Styles* (Coloured Outline, Coloured Fill, Light 1 Outline Coloured Fill, Subtle Effect, Moderate
+//    Effect, Intense Effect, each for Dark 1 and the six accents) and one row of seven under *Presets* (Transparent,
+//    Coloured Outline). **Other Theme Fills is its footer**, opening the theme's twelve background fills; that menu's
+//    id is the gallery command's, because the footer is written inside the gallery's binding. Nothing is selected.
+//    `GUESS:` every name (*Coloured* in the census's spelling), every look, that Presets is one row, and the footer.
+// 3. **Insert's Shapes is no longer shallow.** The brief says to reuse Insert's Shapes list; that list was nine shapes
+//    from four sections, written under Decision 3's *menus stay shallow*. Reusing it here would have left Shape Format
+//    with a sample, and writing a full one beside it would have left one Office gallery twice. So the full gallery is
+//    written once in `drawing-tools-menus.ts` (`insertShapesEntries`), from `picture-tools-menus.ts`' `cropShapes` with
+//    Lines, the two text boxes and PowerPoint's Action Buttons added, and **Insert's three Shapes menus call it**.
+//    Insert's commands, ids and bindings are unchanged; only its menus grew. No *Recently Used Shapes* section, for
+//    Insert's Screenshot's reason. `GUESS:` every name and order.
+// 4. **Merge Shapes is PowerPoint's alone.** `insertShapesCommands` gives it to PowerPoint and not to Word or Excel.
+//    The counts support it indirectly: PowerPoint's `GroupShapes` counts 13 and Word's and Excel's 12. `GUESS:` that
+//    Microsoft 365's Word and Excel still lack it. Its five entries are Office's: Union, Combine, Fragment, Intersect,
+//    Subtract.
+// 5. **Edit Shape is a dropdown** over Change Shape ▸, Edit Points and Reroute Connectors. **Change Shape lists
+//    `cropShapes` and Action Buttons**: no Lines, because a closed shape does not become one, and no text box.
+//    **Reroute Connectors is drawn unavailable**, with its explanation, because the selection is not a connector.
+//    `GUESS:` all three readings.
+// 6. **Text Box is a plain button, small**, as Insert's is in PowerPoint: it arms a drawing gesture and opens nothing.
+//    `GUESS:` that Microsoft 365 draws no Horizontal/Vertical arrow on it here.
+// 7. **Shape Fill and Shape Outline are the catalogue's colour picker**, as every colour command on the ribbon is. Office
+//    draws each as a small split button with a coloured bar. Beneath the palettes: Shape Fill carries More Fill Colours…,
+//    Eyedropper, Picture…, Gradient ▸ and Texture ▸; Shape Outline carries More Outline Colours…, Eyedropper, Weight ▸,
+//    Sketched ▸, Dashes ▸ and **Arrows ▸**, which `outlineEntries` has held for this command since the colour picker's
+//    entries landed. **Shape Fill starts on Accent 1 and Shape Outline on Accent 1, Darker 50%**, the look Office 2013
+//    and later give an inserted shape. `GUESS:` the entries, the Eyedroppers (the census's Shape Styles 40 against Word's
+//    and Excel's 37 is indirect support), and both starts.
+// 8. **Shape Effects is Picture Effects' menu**: Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and 3-D Rotation,
+//    each Office's whole list. `GUESS:` that a shape's lists are a picture's.
+// 9. **WordArt Styles is Table Design's group under this tab's ids**: the twenty WordArt styles with Clear WordArt,
+//    Text Fill and Text Outline with Table Design's entries, and Text Effects' six submenus. **Text Fill starts on
+//    Background 1**, the white text Office puts on an inserted shape; Text Outline starts on none. `GUESS:` both.
+// 10. **The counts.** **Accessibility (1) and Size (3, reading Height, Width and the launcher) are met.** **Insert Shapes
+//    counts 13 and draws 4**; the gallery's four parts, Edit Shape and its three entries, Text Box and Merge Shapes
+//    make 10. **Shape Styles counts 40 and draws 4 and a launcher**, **WordArt Styles 33 and draws 4 and a launcher**,
+//    and **Arrange 24 and draws 6**, as on Picture Format. No reading reaches any of the four. Nothing is padded.
+// 11. **Height and Width start on 2.54 cm**, a shape inserted with one click, one inch square, stepping by 0.01 cm.
+//    `GUESS:` both numbers and the step.
+// 12. **The launchers**: *Format Shape* on Shape Styles, *Format Text Effects* on WordArt Styles, *Size and Position*
+//    on Size. `GUESS:` all three labels, and no launcher on Insert Shapes, Accessibility or Arrange.
+// 13. **Align ticks Align to Slide**, as on Picture Format and Table Layout. `GUESS:`.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Insert Shapes**: none. Shapes is a gallery, Edit Shape and Merge Shapes open menus (rule 1), and Text Box arms a
+//   drawing gesture rather than doing one thing in one press, as on Insert.
+// - **Shape Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **WordArt Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **Accessibility**: none. Alt Text opens a pane, and it is the group's only command.
+// - **Arrange**: none, for `arrangeCommands`' reason: two split buttons and three menus (rule 1), and Selection Pane
+//   opens a pane.
+// - **Size**: none. Height and Width are fields.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Shapes large where the gallery stands, then Edit Shape, Text Box and Merge
+// Shapes small in a column; the Theme Styles gallery in-ribbon, then Shape Fill, Shape Outline and Shape Effects small
+// in a column; the Quick Styles gallery in-ribbon, then Text Fill, Text Outline and Text Effects small; Alt Text large;
+// Arrange's six small; Height and Width in a column. **Twelve of the twenty-one commands carry a glyph**, all
+// `GUESS:`:
+//
+// - **New**: Edit Shape draws `bezier-curve-square`, a square with Bézier handles on its corners, which is what Edit
+//   Points puts on a shape; Merge Shapes draws `shape-union`, two shapes drawn as one outline, the first of its five.
+// - **Reused**: Shapes `shapes` and Text Box `textbox`, Insert's; Shape Effects `square-shadow`, Home's; Text Effects
+//   `text-effects`, Table Design's WordArt; Alt Text `image-alt-text`, Picture Format's, **the weakest glyph on the tab**,
+//   a picture with a label standing for a shape; Bring Forward, Send Backward, Align, Group and Rotate,
+//   `arrangeCommands`' own.
+//
+// **Nine carry none, and say why**: the Theme Styles and Quick Styles galleries are their pictures; Shape Fill, Shape
+// Outline, Text Fill and Text Outline are colour pickers, which draw a swatch; Height and Width are fields; Selection
+// Pane for `arrangeCommands`' reason (Fluent draws no selection pane).
+
+/**
+ * **Insert Shapes, as Office draws it on Shape Format**: Shapes large, then Edit Shape, Text Box and, in PowerPoint,
+ * Merge Shapes small, under `<application>.<tab>.insert-shapes`. See disagreements 1, 3, 4, 5 and 6.
+ *
+ * Written once because the group repeats on Word's and Excel's Shape Format. **Shapes, Edit Shape and Merge Shapes are
+ * dropdowns** a host binds over `stories/ribbons/drawing-tools-menus.ts`' lists; **Text Box is a plain button**.
+ *
+ * **No survivor**: a gallery, two menus and a drawing gesture.
+ */
+export function insertShapesCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  const powerpointOnly: readonly RibbonCommand[] =
+    application === 'powerpoint'
+      ? [{ id: `powerpoint.${tab}.insert-shapes.merge-shapes`, label: 'Merge Shapes', icon: 'shape-union' }]
+      : [];
+  return [
+    { id: `${application}.${tab}.insert-shapes.shapes`, label: 'Shapes', icon: 'shapes', size: 'large' },
+    { id: `${application}.${tab}.insert-shapes.edit-shape`, label: 'Edit Shape', icon: 'bezier-curve-square' },
+    { id: `${application}.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' },
+    ...powerpointOnly,
+  ];
+}
+
+/**
+ * **Shape Styles, as Office draws it on Shape Format and Chart Format**: the Theme Styles gallery in-ribbon, then Shape
+ * Fill, Shape Outline and Shape Effects small in a column, under `<application>.<tab>.shape-styles`. See disagreements
+ * 2, 7 and 8.
+ *
+ * Written once because the group repeats: `GroupShapeStyles` on every Shape Format, `GroupChartShapeStyles` on every
+ * Chart Format. **The gallery**, and **Shape Fill and Shape Outline**, colour pickers, carry no glyph; **Shape Effects
+ * is a dropdown** drawing Home's `square-shadow`. All four are bound by a host. Each unit that calls it records its own
+ * counts and launcher.
+ *
+ * **No survivor**: a gallery, two colour grids and a menu.
+ */
+export function shapeStylesCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.${tab}.shape-styles.theme-styles`, label: 'Theme Styles' },
+    { id: `${application}.${tab}.shape-styles.shape-fill`, label: 'Shape Fill' },
+    { id: `${application}.${tab}.shape-styles.shape-outline`, label: 'Shape Outline' },
+    { id: `${application}.${tab}.shape-styles.shape-effects`, label: 'Shape Effects', icon: 'square-shadow' },
+  ];
+}
+
+/**
+ * PowerPoint's `GroupAltText` on Shape Format, labelled **Accessibility**: Alt Text, large, a generic toggle, unpressed,
+ * as Picture Format's, drawing Picture Format's glyph (the weakest on the tab).
+ *
+ * **No survivor**: it opens a pane, and it is the group's only command.
+ */
+const powerpointShapeFormatAccessibility: readonly RibbonCommand[] = [
+  { id: 'powerpoint.shape-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -8325,12 +8510,12 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetDrawingTools', tab: 'TabDrawingToolsFormat' },
         groups: [
-          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 13, inScope: true },
-          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 40, inScope: true },
-          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true },
-          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 13, inScope: true, commands: insertShapesCommands('powerpoint', 'shape-format') },
+          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 40, inScope: true, commands: shapeStylesCommands('powerpoint', 'shape-format') },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true, commands: wordArtStylesCommands('powerpoint', 'shape-format') },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: powerpointShapeFormatAccessibility },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true, commands: arrangeCommands('powerpoint', 'shape-format') },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true, commands: sizeCommands('powerpoint', 'shape-format', 'drawing') },
         ],
       },
     ],

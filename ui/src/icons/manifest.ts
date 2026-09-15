@@ -588,7 +588,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'square-shadow',
     sizes: [20],
     variants: ['regular'],
-    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still. **Since PowerPoint's Slide Master unit, also Edit Theme's Effects**, small, which opens the theme effect sets Design's Effects opens: the drop shadow is one of them. **Since PowerPoint's Handout Master unit, also Handout Master's Effects**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Effects**, the same shared group. **Since PowerPoint's Table Design unit, also Table Design's Effects**, small, which opens Cell Bevel, Shadow and Reflection for the table's cells: the shadow is one of the three, the same idea applied to cells. `GUESS:`.",
+    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still. **Since PowerPoint's Slide Master unit, also Edit Theme's Effects**, small, which opens the theme effect sets Design's Effects opens: the drop shadow is one of them. **Since PowerPoint's Handout Master unit, also Handout Master's Effects**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Effects**, the same shared group. **Since PowerPoint's Table Design unit, also Table Design's Effects**, small, which opens Cell Bevel, Shadow and Reflection for the table's cells: the shadow is one of the three, the same idea applied to cells. **Since PowerPoint's Shape Format unit, also Shape Format's Shape Effects**, small, which is Home's Shape Effects on the contextual tab and opens the same seven lists. `GUESS:`.",
   },
   {
     name: 'border-all',
@@ -666,7 +666,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'shapes',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Shapes, the first command of PowerPoint's Drawing group. Three overlapping outlines, which is what the gallery underneath it contains. 24 since unit 3, where Shapes is a `size=\"large\"` command of the Insert tab's Illustrations group in all three applications.",
+    why: "Shapes, the first command of PowerPoint's Drawing group. Three overlapping outlines, which is what the gallery underneath it contains. 24 since unit 3, where Shapes is a `size=\"large\"` command of the Insert tab's Illustrations group in all three applications. **Since PowerPoint's Shape Format unit, also Insert Shapes' Shapes**, large, standing where Office draws its in-ribbon shape gallery, and opening the same whole gallery Insert's opens.",
   },
   {
     name: 'layer',
@@ -842,7 +842,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'textbox',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Text Box, the large headline of the Insert tab's Text group in all three applications. Fluent spells it as one word and draws a box with lines of text in it; `text-box-settings`, the only other candidate, is a cog on a box.",
+    why: "Text Box, the large headline of the Insert tab's Text group in all three applications. Fluent spells it as one word and draws a box with lines of text in it; `text-box-settings`, the only other candidate, is a cog on a box. **Since PowerPoint's Shape Format unit, also Insert Shapes' Text Box**, small, the same command beside the shape gallery.",
   },
   {
     name: 'signature',
@@ -2353,7 +2353,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'image-alt-text',
     sizes: [24],
     variants: ['regular', 'filled'],
-    why: "Alt Text, the large toggle in Picture Format's Accessibility group, which opens the Alt Text pane and draws pressed while it is open: Fluent's own picture with a text label. Filled for the pressed state. `GUESS:`.",
+    why: "Alt Text, the large toggle in Picture Format's Accessibility group, which opens the Alt Text pane and draws pressed while it is open: Fluent's own picture with a text label. Filled for the pressed state. **Since PowerPoint's Shape Format unit, also Shape Format's Alt Text**, the same large toggle for a shape: Fluent draws no shape with a label, and the pane it opens is the same one. `GUESS:`.",
   },
   {
     name: 'crop',
@@ -2366,6 +2366,22 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [24],
     variants: ['regular', 'filled'],
     why: "Play Animation, the large toggle in Picture Format's Image Play group, which plays or pauses a moving picture: the play mark, filled while it plays. Not `play-circle`, Recording's Preview, which plays a slide. `GUESS:` the command, its label and its glyph; see the census.",
+  },
+  // ── Shape Format (PowerPoint's, the first Drawing Tools tab authored) ─────────
+  // Two new glyphs. Every other glyph on the tab is reused: `shapes` (Shapes, large), `textbox` (Text Box, small),
+  // `square-shadow` (Shape Effects), `text-effects` (Text Effects), `image-alt-text` (Alt Text) and `arrangeCommands`'
+  // five. The census's *commands Shape Format shows* section says why each command carries what it carries.
+  {
+    name: 'bezier-curve-square',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Edit Shape, the small dropdown in Shape Format's Insert Shapes group, which opens Change Shape, Edit Points and Reroute Connectors: a square whose corners carry Bézier handles, which is what Edit Points puts on a shape. Not `draw-shape`, a pencil drawing a new shape, which is Insert's Shapes. Fluent draws it at 12 and 20 only, and the command is small. `GUESS:`.",
+  },
+  {
+    name: 'shape-union',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Merge Shapes, the small dropdown in PowerPoint's Shape Format Insert Shapes group, which opens Union, Combine, Fragment, Intersect and Subtract: two overlapping shapes drawn as one outline, which is Union, the first of the five and the operation a person means by merging. `shape-subtract`, `shape-intersect` and `shape-exclude` are the other entries, and a menu row carries no glyph here. `GUESS:`.",
   },
 ];
 

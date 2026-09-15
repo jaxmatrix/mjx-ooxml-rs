@@ -28,6 +28,8 @@
  * - **The effect presets are not here either**: Shadow, Reflection, Glow, Bevel and 3-D Rotation are
  *   `stories/ribbons/wordart-styles-menus.ts`' lists, which Text Effects and Table Design's Effects already show.
  *   Preset and Soft Edges, which only a picture or a shape carries, are written here.
+ * - **Two lists here also serve Shape Format**, through `stories/ribbons/drawing-tools-menus.ts`: `pictureEffectsEntries`
+ *   is Shape Effects' menu, and `cropShapes` is Change Shape's list and the body of the whole Shapes gallery.
  *
  * `GUESS:` every label, order and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * spelling the census's wins (*Colour*, *Greyscale*, *Centre*, *Recolour*).
