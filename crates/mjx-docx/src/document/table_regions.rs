@@ -620,6 +620,7 @@ impl Document {
     /// This reader does not yet resolve a cell paragraph's own numbering (`w:numPr`) — no fixture in
     /// this crate's own table coverage carries one; a caller with that need should extend this
     /// alongside [`Document::effective_run_properties`]'s own numbering resolution.
+    /// Owned by MJXOFF-323 (RC30), numbering.
     ///
     /// Same name and `(table, row, column, paragraph, run)` shape as
     /// `mjx_pptx::Presentation::effective_cell_run_properties`.

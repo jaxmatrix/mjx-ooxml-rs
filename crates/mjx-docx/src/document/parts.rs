@@ -185,6 +185,7 @@ impl DocumentParts {
 /// part, so "first" and "only" coincide for a conformant document; a non-conformant duplicate is not
 /// rejected here (this crate does not yet validate WordprocessingML-specific invariants — see
 /// [`crate::Document::validate`]).
+/// Owned by MJXOFF-352, WordprocessingML package rules.
 pub(crate) fn single(
     source: &PartName,
     rels: &Relationships,

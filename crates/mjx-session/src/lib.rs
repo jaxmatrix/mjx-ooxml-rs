@@ -85,6 +85,7 @@
 //! not and which is a change to the fidelity writer rather than to this crate. The trait method is
 //! where it would go, and it is named here so that the next reader finds a stated gap rather than an
 //! assumption.
+//! Owned by MJXOFF-353, a resumable commit on wasm32.
 //!
 //! # Example
 //!

@@ -55,8 +55,15 @@ pub(crate) const TICKET_ROSTER: [(&str, &str); 48] = [
     ("RC46", "MJXOFF-338"),
 ];
 
-// Tickets filed beside the epic's roster that a deferral may still be owned by: the post-loop follow-ups.
-pub(crate) const TICKETS_BESIDE_THE_ROSTER: [&str; 2] = ["MJXOFF-348", "MJXOFF-349"];
+// Backlog tickets filed beside the epic's roster that a deferral may still be owned by.
+pub(crate) const TICKETS_BESIDE_THE_ROSTER: [&str; 6] = [
+    "MJXOFF-348",
+    "MJXOFF-349",
+    "MJXOFF-350",
+    "MJXOFF-351",
+    "MJXOFF-352",
+    "MJXOFF-353",
+];
 
 // Whether `candidate` is a ticket of the epic's roster.
 pub(crate) fn is_roster_ticket(candidate: &str) -> bool {

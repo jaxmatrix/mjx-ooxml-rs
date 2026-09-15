@@ -4,6 +4,7 @@
 //! the mechanical tier's native values. Meanings/units are **derived from `presetShapeDefinitions.xml`**
 //! (see the derivation table in the batch plan), never guessed; shapes not yet ported fall through to
 //! [`ShapeGeometry::Unmodeled`], so the type is total and still fully round-trips via the fidelity model.
+//! Owned by MJXOFF-350, typed adjustment structs for the unported presets.
 //!
 //! [`set_shape`]: PresetGeometry::set_shape
 
@@ -1050,6 +1051,7 @@ pub enum ShapeGeometry {
     },
     /// A known preset this tier does not yet model. Its adjustments (if any) remain available by wire
     /// name through [`PresetGeometry::adjustment`] / [`set_adjustment`](PresetGeometry::set_adjustment).
+    /// Owned by MJXOFF-350, typed adjustment structs for the unported presets.
     Unmodeled(PresetShapeType),
 }
 

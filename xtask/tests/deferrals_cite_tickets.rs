@@ -813,6 +813,6 @@ fn a_comment_is_its_consecutive_lines_and_a_citation_anywhere_in_them_counts() {
     let read = comments_of(multiline);
     assert_eq!(read.len(), 1, "{read:?}");
     assert_eq!(read[0].line, 3);
-    assert!(is_known_ticket("MJXOFF-348") && is_known_ticket("MJXOFF-311"));
+    assert!(is_known_ticket("MJXOFF-353") && is_known_ticket("MJXOFF-311"));
     assert!(!is_known_ticket("MJXOFF-177"));
 }
