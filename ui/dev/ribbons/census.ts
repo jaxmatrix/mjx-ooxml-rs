@@ -93,7 +93,8 @@
  * followed, one tab of one application again; see the *commands View shows* section. **PowerPoint's View**
  * followed it, in that section's *PowerPoint's View* part, and **Excel's View** followed that, in its *Excel's View*
  * part. **PowerPoint's Slide Show** followed the three View tabs, one tab of one application again; see the
- * *commands Slide Show shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * *commands Slide Show shows* section. **PowerPoint's Recording** followed Slide Show, one tab of one application
+ * again; see the *commands Recording shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -956,11 +957,17 @@ const powerpointInsertIllustrations: readonly RibbonCommand[] = [
  * `GUESS:` **a split button** — the face inserts the feed on this slide, the arrow offers This Slide
  * and All Slides. The census counts three, which is that shape.
  *
+ * **One declaration, two tabs.** `GroupChunkCameoCamera` is a *chunk* in the census's own spelling: Office
+ * places the same group on Insert and on Recording, so both call this with their tab id and differ in
+ * nothing else. `stories/ribbons/insert-menus.ts`'s `cameoEntries` is the menu both open.
+ *
  * **No survivor**: a split button, and the only command.
  */
-const powerpointInsertCamera: readonly RibbonCommand[] = [
-  { id: 'powerpoint.insert.camera.cameo', label: 'Cameo', icon: 'camera', size: 'large' },
-];
+function cameraCommands(tab: 'insert' | 'recording'): readonly RibbonCommand[] {
+  return [{ id: `powerpoint.${tab}.camera.cameo`, label: 'Cameo', icon: 'camera', size: 'large' }];
+}
+
+const powerpointInsertCamera: readonly RibbonCommand[] = cameraCommands('insert');
 
 /**
  * PowerPoint's Links group: Zoom, Link and Action.
@@ -3952,6 +3959,209 @@ const powerpointSlideShowMonitors: readonly RibbonCommand[] = [
   { id: 'powerpoint.slide-show.monitors.use-presenter-view', label: 'Use Presenter View', toggle: true, pressed: true },
 ];
 
+// ── the commands Recording shows ─────────────────────────────────────────────
+//
+// The ribbon programme's unit after Slide Show: **PowerPoint's Recording tab**, all ten in-scope groups and
+// fifteen commands, one tab of one application. It is PowerPoint's alone, so `stories/ribbons/recording-menus.ts`
+// renders nothing for Word or Excel.
+//
+// ## ⚠ The census declares two generations of one tab, and that is the reading everything below rests on
+//
+// Five of the ten group ids end in `TabRecord`: `GroupRecordTabRecord`, `GroupEditTabRecord`,
+// `GroupExportTabRecord`, `GroupPreviewTabRecord`, `GroupHelpTabRecord`. The other five do not: `GroupRecord`,
+// `GroupContentRecording`, `GroupAutoPlayMediaRecording`, `GroupSaveRecording`, and the `GroupChunkCameoCamera`
+// chunk that Insert also carries. `GUESS:` **the census dump merged two tabs under `TabRecording`**:
+//
+// - **The Recording tab** Microsoft 365 has shipped since 2017, turned on in Customize Ribbon: Record, Content,
+//   Auto-Play Media, Save, with Camera (Cameo) added later.
+// - **The Record tab** of the newer recording experience, whose window has a Record screen and an Export
+//   screen: a Record button, Clear Recording and Reset to Cameo, Export, a preview of the recording, help.
+//
+// Office never draws both at once. A group the census declares in scope is a group this catalogue draws, so
+// the tab draws all ten, which is Draw's answer to Draw's two generations, and **draws each command once
+// wherever the two shapes are the same command**. The one exception is Record; see disagreement 3.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Buttons**: From Beginning, From Current Slide, Screen Recording, Save as Show, Export to Video, Preview and
+// Help. **Two split buttons a host binds**: Record, whose arrow chooses where to start, and Cameo, Insert's own.
+// **Five dropdowns a host binds**: Screenshot, Video and Audio (Insert's own menus), Clear Recording, Reset to
+// Cameo and Export. All seven menus are written in `stories/ribbons/recording-menus.ts`, and the four Insert
+// already had are *called* from `stories/ribbons/insert-menus.ts` rather than copied. **No toggle, no exclusive
+// set, no split toggle, no gallery, no field, no checkbox, no dialog launcher**: nothing on this tab holds a
+// state, and Office puts no launcher here.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The order is `GUESS:` the declaration's**: Record, Recording, Content, Camera, Auto-play Media, Edit,
+//    Save, Export, Preview, Help. No Office build draws the union. The declaration keeps the Recording tab's
+//    own four in Office's order (Record, Content, Auto-Play Media, Save), which is what the brief lists.
+// 2. **`GroupRecord` counts eight and draws two**: From Beginning and From Current Slide, as Microsoft 365
+//    draws them and the brief lists them. Eight is exactly PowerPoint 2016's *Record Slide Show* split
+//    (its face, From Current Slide…, From Beginning…, Clear, and Clear's four), which Slide Show's Record
+//    already carries. Nothing is padded.
+// 3. **`GroupRecordTabRecord` is labelled *Recording* by the census**, and Office's new tab calls its group
+//    Record. Its command is **Record**, the large split button Microsoft 365 renamed from *Record Slide Show*:
+//    the face records from the current slide, and the arrow holds From Current Slide… and From Beginning….
+//    It is the same verb as the Record group's two buttons in a different shape, so it is **the one place
+//    this tab draws a command twice**. Dropping either would leave a declared in-scope group empty. `GUESS:`
+//    the command and its entries.
+// 4. **Content is Screenshot and Screen Recording**, as the brief lists. The 2017 Recording tab also held
+//    *Apps and Quizzes*, Office Mix's door, which Microsoft retired in 2018, and is not drawn. Screenshot's menu
+//    is Insert's (Screen Clipping and no windows, for Insert's reason).
+// 5. **Camera is Insert's Cameo, declared once.** `cameraCommands` above is called by both tabs, and the
+//    menu is Insert's `cameoEntries`.
+// 6. **`GroupAutoPlayMediaRecording` is labelled *Auto-play Media* by the census**, and Office writes
+//    *Auto-Play Media*. The census's label is kept. Video and Audio open Insert's own menus. The 2017 tab also
+//    put Screen Recording here; Microsoft 365 and the brief put it in Content, and it is drawn once, there.
+//    The census counts five and the face is two.
+// 7. **Edit is Clear Recording and Reset to Cameo**, each a dropdown over *on Current Slide* and *on All
+//    Slides*, in Microsoft's support wording for the record window. Two menus of a face and two entries is
+//    exactly the census's six. `GUESS:` that these are the group's commands. Office's record window also
+//    has an *Edit* button that returns to the deck; the ribbon's Edit group is not that.
+// 8. **Save is Save as Show and Export to Video**, as the brief lists; the census counts three.
+// 9. **Export is one dropdown, Export, over Export Video and Customize Export**, the two things the record
+//    window's Export screen offers. `GUESS:` all of it. It is not Save's Export to Video, which opens File's
+//    Create a Video page, rather than the recorder's own export.
+// 10. **Preview is one button, Preview**, which plays the current slide's recording without leaving the record
+//     window, and **Help is one button, Help**. The census names each group, counts one control and names
+//     none. `GUESS:` both labels.
+//
+// ## Survivors: none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws. Nothing here does.
+//
+// - **From Beginning, From Current Slide and Record** take over the screen with the record window, which no
+//   undo takes back: rule 1, and Slide Show's From Beginning.
+// - **Screenshot, Video, Audio, Clear Recording, Reset to Cameo and Export** are menus, **Record and Cameo** are
+//   split buttons, and **Save as Show** opens the Save As dialog: rule 1.
+// - **Screen Recording** opens the recording dock, which is Insert's reason. **Export to Video** opens File's
+//   Create a Video page.
+// - **Preview and Help** are each their group's only command, so a survivor would leave the popup empty. Preview
+//   also plays media, which is not a state an undo returns.
+//
+// ## Sizes, and every glyph
+//
+// Every command is `large`, as Office draws the whole tab, and every label wraps inside two lines (*From
+// Current Slide* and *Screen Recording* are already drawn large on Slide Show and Insert).
+//
+// **Every command carries a glyph.** Eight are reused, because the command is the same one: Screenshot
+// (`screenshot`), Screen Recording (`record`), Cameo (`camera`), Video (`video`), Audio (`speaker-2`), Help
+// (`question-circle`), and the three record commands below. Every glyph judgement is `GUESS:`, from Fluent's
+// drawings rather than from a build this project can cite:
+//
+// - **From Beginning draws `slide-multiple-arrow-right` and From Current Slide draws `slide-play`**, Slide Show's
+//   own two. They start the same show from the same place, with the recorder on, and the tab says the
+//   recorder is on. Fluent draws no stack of slides with a record mark, so the record mark is not what tells
+//   the two apart.
+// - **Record draws `slide-record`**, Slide Show's Record, because it is that command.
+// - **Clear Recording draws `delete`**, the bin the record window's own Delete button draws. It gains a 24.
+// - **Reset to Cameo draws `arrow-reset`**, Home's Reset, because the verb is the same: put the slide back to what
+//   it was made with. It gains a 24.
+// - **Save as Show draws `save-arrow-right`**, a save carried onward, a copy saved to open straight into the
+//   show. Not `save-edit`, which is File's Save As.
+// - **Export to Video draws `video-clip`**, the clip the export writes. Not `video`, which is Video two groups
+//   along on this same tab and inserts one.
+// - **Export draws `arrow-export`**, the arrow leaving a box, Excel's Export Workbook Data. It gains a 24.
+// - **Preview draws `play-circle`**, a play mark. Not `slide-transition`, Transitions' Preview, which previews a
+//   transition rather than a recording.
+
+/**
+ * PowerPoint's `GroupRecord`, labelled **Record**: From Beginning and From Current Slide, large. See
+ * disagreement 2 on the census's eight.
+ *
+ * **No survivor**: both take over the screen.
+ */
+const powerpointRecordingRecord: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.record.from-beginning', label: 'From Beginning', icon: 'slide-multiple-arrow-right', size: 'large' },
+  { id: 'powerpoint.recording.record.from-current-slide', label: 'From Current Slide', icon: 'slide-play', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupRecordTabRecord`, labelled **Recording** by the census: Record, a large split button a host
+ * binds. `GUESS:` the command; see disagreement 3.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const powerpointRecordingRecording: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.recording.record', label: 'Record', icon: 'slide-record', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupContentRecording`, labelled **Content**: Screenshot, a dropdown a host binds over Insert's
+ * menu, and Screen Recording, both large. See disagreement 4.
+ *
+ * **No survivor**: a menu, and a command that opens the recording dock.
+ */
+const powerpointRecordingContent: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.content.screenshot', label: 'Screenshot', icon: 'screenshot', size: 'large' },
+  { id: 'powerpoint.recording.content.screen-recording', label: 'Screen Recording', icon: 'record', size: 'large' },
+];
+
+/** PowerPoint's `GroupChunkCameoCamera` on Recording: Insert's Cameo. See `cameraCommands` and disagreement 5. */
+const powerpointRecordingCamera: readonly RibbonCommand[] = cameraCommands('recording');
+
+/**
+ * PowerPoint's `GroupAutoPlayMediaRecording`, labelled **Auto-play Media**: Video and Audio, large dropdowns a
+ * host binds over Insert's menus. See disagreement 6.
+ *
+ * **No survivor**: both are menus.
+ */
+const powerpointRecordingAutoPlayMedia: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.auto-play-media.video', label: 'Video', icon: 'video', size: 'large' },
+  { id: 'powerpoint.recording.auto-play-media.audio', label: 'Audio', icon: 'speaker-2', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupEditTabRecord`, labelled **Edit**: Clear Recording and Reset to Cameo, large dropdowns a
+ * host binds. `GUESS:` both; see disagreement 7.
+ *
+ * **No survivor**: both are menus.
+ */
+const powerpointRecordingEdit: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.edit.clear-recording', label: 'Clear Recording', icon: 'delete', size: 'large' },
+  { id: 'powerpoint.recording.edit.reset-to-cameo', label: 'Reset to Cameo', icon: 'arrow-reset', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupSaveRecording`, labelled **Save**: Save as Show and Export to Video, large. See
+ * disagreement 8.
+ *
+ * **No survivor**: a dialog, and File's Create a Video page.
+ */
+const powerpointRecordingSave: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.save.save-as-show', label: 'Save as Show', icon: 'save-arrow-right', size: 'large' },
+  { id: 'powerpoint.recording.save.export-to-video', label: 'Export to Video', icon: 'video-clip', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupExportTabRecord`, labelled **Export**: Export, a large dropdown a host binds. `GUESS:`; see
+ * disagreement 9.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+const powerpointRecordingExport: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.export.export', label: 'Export', icon: 'arrow-export', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupPreviewTabRecord`, labelled **Preview**: Preview, large. `GUESS:`; see disagreement 10.
+ *
+ * **No survivor**: the only command.
+ */
+const powerpointRecordingPreview: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.preview.preview', label: 'Preview', icon: 'play-circle', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupHelpTabRecord`, labelled **Help**: Help, large. `GUESS:`; see disagreement 10.
+ *
+ * **No survivor**: the only command.
+ */
+const powerpointRecordingHelp: readonly RibbonCommand[] = [
+  { id: 'powerpoint.recording.help.help', label: 'Help', icon: 'question-circle', size: 'large' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -4476,16 +4686,16 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabRecording' },
     groups: [
-      { id: 'GroupRecord', label: 'Record', priority: 'primary', controls: 8, inScope: true },
-      { id: 'GroupRecordTabRecord', label: 'Recording', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupContentRecording', label: 'Content', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupChunkCameoCamera', label: 'Camera', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupAutoPlayMediaRecording', label: 'Auto-play Media', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupEditTabRecord', label: 'Edit', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupSaveRecording', label: 'Save', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupExportTabRecord', label: 'Export', priority: 'ancillary', controls: 2, inScope: true },
-      { id: 'GroupPreviewTabRecord', label: 'Preview', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupHelpTabRecord', label: 'Help', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupRecord', label: 'Record', priority: 'primary', controls: 8, inScope: true, commands: powerpointRecordingRecord },
+      { id: 'GroupRecordTabRecord', label: 'Recording', priority: 'standard', controls: 4, inScope: true, commands: powerpointRecordingRecording },
+      { id: 'GroupContentRecording', label: 'Content', priority: 'standard', controls: 3, inScope: true, commands: powerpointRecordingContent },
+      { id: 'GroupChunkCameoCamera', label: 'Camera', priority: 'standard', controls: 3, inScope: true, commands: powerpointRecordingCamera },
+      { id: 'GroupAutoPlayMediaRecording', label: 'Auto-play Media', priority: 'standard', controls: 5, inScope: true, commands: powerpointRecordingAutoPlayMedia },
+      { id: 'GroupEditTabRecord', label: 'Edit', priority: 'standard', controls: 6, inScope: true, commands: powerpointRecordingEdit },
+      { id: 'GroupSaveRecording', label: 'Save', priority: 'standard', controls: 3, inScope: true, commands: powerpointRecordingSave },
+      { id: 'GroupExportTabRecord', label: 'Export', priority: 'ancillary', controls: 2, inScope: true, commands: powerpointRecordingExport },
+      { id: 'GroupPreviewTabRecord', label: 'Preview', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointRecordingPreview },
+      { id: 'GroupHelpTabRecord', label: 'Help', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointRecordingHelp },
     ],
   },
   {

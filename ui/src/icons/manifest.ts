@@ -142,7 +142,12 @@ export const iconRequests: readonly IconRequest[] = [
     variants: ['regular'],
     why: "Insertion, in a toolbar and inline in a list. **Since Excel's View unit, also New**, small, in Excel's View Sheet View group: a new temporary sheet view. `GUESS:`.",
   },
-  { name: 'delete', sizes: [16, 20], variants: ['regular'], why: 'Removal.' },
+  {
+    name: 'delete',
+    sizes: [16, 20, 24],
+    variants: ['regular'],
+    why: "Removal. **Since PowerPoint's Recording unit, also Clear Recording**, the large dropdown in Recording's Edit group, which is the bin the record window's own Delete button draws, so 24 as well. `GUESS:`.",
+  },
   {
     name: 'search',
     sizes: [16, 20],
@@ -404,9 +409,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'arrow-export',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Export Workbook Data, beside it. The arrow leaving a box, against `arrow-upload`'s arrow entering one — the two commands on that page send different things in different directions, and drawing them alike would hide that.",
+    why: "**Since PowerPoint's Recording unit, also Export**, the large dropdown in Recording's Export group, an arrow leaving a box, so 24 as well (`GUESS:`). Export Workbook Data, beside it. The arrow leaving a box, against `arrow-upload`'s arrow entering one — the two commands on that page send different things in different directions, and drawing them alike would hide that.",
   },
   {
     name: 'data-histogram',
@@ -601,9 +606,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'arrow-reset',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once.",
+    why: "**Since PowerPoint's Recording unit, also Reset to Cameo**, the large dropdown in Recording's Edit group, the same verb, so 24 as well (`GUESS:`). Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once.",
   },
   {
     name: 'font-space-tracking-out',
@@ -1881,6 +1886,32 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Record, the large split button in PowerPoint's Slide Show Set Up group: a slide with the record mark. Not `record`, Insert's Screen Recording, which records the screen rather than the slides. `GUESS:`.",
+  },
+  // ── Recording (PowerPoint's) ──────────────────────────────────────────────
+  //
+  // PowerPoint's Recording tab, the only application with one. Every command here is large, so **20 and 24**,
+  // and nothing is a toggle, so no `filled`. Eight commands reuse a glyph because they are the same command as
+  // one drawn elsewhere (`slide-multiple-arrow-right`, `slide-play`, `slide-record`, `screenshot`, `record`,
+  // `camera`, `video`, `speaker-2`, `question-circle`), and `delete`, `arrow-reset` and `arrow-export` above
+  // gained a 24 drawing rather than a row here. The reasoning for every glyph is the *commands Recording shows*
+  // section of `dev/ribbons/census.ts`.
+  {
+    name: 'save-arrow-right',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Save as Show, the large button in PowerPoint's Recording Save group: a save carried onward, a copy that opens straight into the show. Not `save-edit`, File's Save As. `GUESS:`.",
+  },
+  {
+    name: 'video-clip',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Export to Video, the large button in PowerPoint's Recording Save group: the clip the export writes. Not `video`, which is Video in Auto-play Media on the same tab and inserts one. `GUESS:`.",
+  },
+  {
+    name: 'play-circle',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Preview, the large button in PowerPoint's Recording Preview group, which plays the current slide's recording: a play mark. Not `slide-transition`, Transitions' Preview, which previews a transition. `GUESS:`.",
   },
 ];
 

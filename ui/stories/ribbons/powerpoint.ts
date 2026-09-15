@@ -43,6 +43,10 @@
  * **Slide Show** followed the three View tabs, one tab of one application again: four groups and fourteen
  * commands, the tab that plays the deck. Three of its commands open menus, and Hide Slide survives a collapse.
  *
+ * **Recording** followed Slide Show, one tab of one application again: ten groups and fifteen commands, drawn
+ * from two generations of Office's recorder that the census declares on one tab. Eight commands open menus, four
+ * of them Insert's, and nothing survives a collapse.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -351,11 +355,43 @@ export function powerpointSlideShowTab(options: TabOptions = {}): TemplateResult
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointRecordingTab(): TemplateResult {
-  return placeholderTab(entry('recording'));
+/**
+ * Recording: Record, Recording, Content, Camera, Auto-play Media, Edit, Save, Export, Preview, Help, in the
+ * **census's declared** order.
+ *
+ * ⚠ **The census declares two generations of the tab**, the Recording tab Microsoft 365 has shipped since 2017 and
+ * the newer recorder's Record tab, and Office never draws both. `GUESS:` that reading, and the order, since no
+ * Office build draws the union; the declaration keeps the older tab's Record, Content, Auto-Play Media and Save
+ * in Office's order. `dev/ribbons/census.ts` records every disagreement, including the one command drawn twice
+ * (Record, beside From Beginning and From Current Slide).
+ *
+ * **Eight of the tab's fifteen commands are bound by the host**: Record and Cameo are split buttons; Screenshot,
+ * Video, Audio, Clear Recording, Reset to Cameo and Export are dropdowns. All eight open menus from
+ * `stories/ribbons/recording-menus.ts`, four of which call Insert's lists. Camera is declared by Insert's
+ * `cameraCommands`.
+ *
+ * **No dialog launchers**, because Office puts none here, and **no survivor**.
+ */
+export function powerpointRecordingTab(options: TabOptions = {}): TemplateResult {
+  const recording = entry('recording');
+  const controls = options.controls ?? {};
+  return tab(
+    recording.id,
+    recording.label,
+    censusGroup(recording, 'GroupRecord', {}, controls),
+    censusGroup(recording, 'GroupRecordTabRecord', {}, controls),
+    censusGroup(recording, 'GroupContentRecording', {}, controls),
+    censusGroup(recording, 'GroupChunkCameoCamera', {}, controls),
+    censusGroup(recording, 'GroupAutoPlayMediaRecording', {}, controls),
+    censusGroup(recording, 'GroupEditTabRecord', {}, controls),
+    censusGroup(recording, 'GroupSaveRecording', {}, controls),
+    censusGroup(recording, 'GroupExportTabRecord', {}, controls),
+    censusGroup(recording, 'GroupPreviewTabRecord', {}, controls),
+    censusGroup(recording, 'GroupHelpTabRecord', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideMasterTab(): TemplateResult {
   return placeholderTab(entry('slide-master'));

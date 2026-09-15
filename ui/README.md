@@ -801,6 +801,45 @@ and From Current Slide take over the screen, which no undo takes back.
 - **Every glyph is judged from Fluent's drawings.** Present Online shares File's `presenter`.
 - **Monitor and the four checkboxes carry no icon**: a field draws its value, a checkbox its tick box.
 
+### PowerPoint's Recording
+
+**One tab of one application, and the only application with the tab**, after Slide Show. Ten groups and fifteen
+commands, drawn in the census's declared order: Record, Recording, Content, Camera, Auto-play Media, Edit, Save,
+Export, Preview, Help. The tab records a deck with its narration and camera, then saves or exports it.
+
+⚠ **The census declares two generations of the tab.** Five group ids end in `TabRecord` (Recording, Edit,
+Export, Preview, Help) and read as the newer recorder's Record tab. The other five (Record, Content, Camera,
+Auto-play Media, Save) read as the Recording tab Microsoft 365 has shipped since 2017. Office never draws both,
+and the tab draws all ten, which is Draw's answer. `GUESS:` the reading.
+
+- **Buttons**: From Beginning, From Current Slide, Screen Recording, Save as Show, Export to Video, Preview, Help.
+- **Two split buttons** over `stories/ribbons/recording-menus.ts`: Record (From Current Slide…, From Beginning…)
+  and Cameo.
+- **Six dropdowns**: Screenshot, Video, Audio, Clear Recording, Reset to Cameo, Export.
+- **Insert's code, reused rather than rewritten**: Camera is `cameraCommands('recording')`, and the Screenshot,
+  Cameo, Video and Audio menus call `insert-menus.ts`'s `screenshotEntries`, `cameoEntries`,
+  `powerpointVideoEntries` and `powerpointAudioEntries`, which Insert now calls too.
+- **No toggle, no exclusive set, no split toggle, no gallery, no field, no checkbox, no dialog launcher.**
+
+**Survivors: none.** Every command takes over the screen, opens a menu, a dialog or a page, or is its group's only
+command.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Record is drawn twice in effect**: the Record group's two buttons and the Recording group's Record split. Each
+  is one generation's shape of one verb, and dropping either would empty a declared group.
+- **The counts are larger than the faces, and nothing is padded.** Record counts 8, which is exactly PowerPoint
+  2016's Record Slide Show split and its Clear submenu, and draws two. Auto-play Media counts 5 and draws two.
+  Edit's 6 is exactly two menus of a face and two entries.
+- **Every command in Recording, Edit, Export, Preview and Help is `GUESS:`**, from Microsoft's support wording
+  for the record window: Clear Recording and Reset to Cameo, each *on Current Slide* and *on All Slides*;
+  Export's Export Video and Customize Export.
+- **Content drops Apps and Quizzes**, Office Mix's door, which Microsoft retired in 2018.
+- **Two labels are the census's**: *Recording* (Office: Record) and *Auto-play Media* (Office: Auto-Play Media).
+- **Every glyph is judged from Fluent's drawings.** From Beginning and From Current Slide share Slide Show's
+  glyphs; Record shares Slide Show's Record. `delete`, `arrow-reset` and `arrow-export` gain 24s;
+  `save-arrow-right`, `video-clip` and `play-circle` are new. Every command carries an icon.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

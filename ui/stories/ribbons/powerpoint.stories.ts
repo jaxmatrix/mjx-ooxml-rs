@@ -52,6 +52,7 @@ import {
   startingAnimation,
 } from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
+import { recordingMenus } from './recording-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
 import { viewMenus } from './view-menus.ts';
@@ -70,7 +71,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Review and View** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review and View** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -90,7 +91,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Review and View are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review and View are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -540,6 +541,59 @@ const bindings: ControlOverrides = {
     ${slideShowMonitors.map((monitor) => html`<mjx-option value=${monitor.value} label=${monitor.label}></mjx-option>`)}
   </mjx-dropdown>`,
   'powerpoint.slide-show.monitors.use-presenter-view': html`<mjx-checkbox id="ribbons-powerpoint-slide-show-use-presenter-view" label="Use Presenter View" checked="true"></mjx-checkbox>`,
+  // Recording. Record and Cameo are split buttons; Screenshot, Video, Audio, Clear Recording, Reset to Cameo and
+  // Export are dropdowns. All eight open their menus from `stories/ribbons/recording-menus.ts`, with `data-opens`
+  // `commandSurfaceId('ribbons', <this key>)`. The other seven commands are generic buttons.
+  'powerpoint.recording.recording.record': html`<mjx-split-button
+    label="Record"
+    icon="slide-record"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-recording-record"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.recording.content.screenshot': html`<mjx-button
+    label="Screenshot"
+    icon="screenshot"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-content-screenshot"
+  ></mjx-button>`,
+  'powerpoint.recording.camera.cameo': html`<mjx-split-button
+    label="Cameo"
+    icon="camera"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-camera-cameo"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.recording.auto-play-media.video': html`<mjx-button
+    label="Video"
+    icon="video"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-auto-play-media-video"
+  ></mjx-button>`,
+  'powerpoint.recording.auto-play-media.audio': html`<mjx-button
+    label="Audio"
+    icon="speaker-2"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-auto-play-media-audio"
+  ></mjx-button>`,
+  'powerpoint.recording.edit.clear-recording': html`<mjx-button
+    label="Clear Recording"
+    icon="delete"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-edit-clear-recording"
+  ></mjx-button>`,
+  'powerpoint.recording.edit.reset-to-cameo': html`<mjx-button
+    label="Reset to Cameo"
+    icon="arrow-reset"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-edit-reset-to-cameo"
+  ></mjx-button>`,
+  'powerpoint.recording.export.export': html`<mjx-button
+    label="Export"
+    icon="arrow-export"
+    size="large"
+    data-opens="ribbons-powerpoint-recording-export-export"
+  ></mjx-button>`,
 };
 
 /**
@@ -568,6 +622,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
+    ${recordingMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -758,7 +813,33 @@ export const Animations: Story = { render: () => ribbon('animations') };
  */
 export const SlideShow: Story = { render: () => ribbon('slide-show') };
 
-/** Unit 10. */
+/**
+ * **Recording**: the tab that records a deck with its narration and camera, and saves or exports what was
+ * recorded. Authored after Slide Show, one tab of one application. Ten groups: Record, Recording, Content,
+ * Camera, Auto-play Media, Edit, Save, Export, Preview and Help. What to look at, least certain first:
+ *
+ * 1. ⚠ **Recording, Edit, Export, Preview and Help are the newer recorder's groups, and every command in them is
+ *    `GUESS:`.** The census names each group and counts its controls and names none. Recording is one large
+ *    Record split button (a slide with a record mark), Edit is Clear Recording (a bin) and Reset to Cameo (a
+ *    reset loop), Export is one Export dropdown, Preview one play mark, Help one question mark.
+ * 2. ⚠ **Record is drawn twice in effect**: the Record group's From Beginning and From Current Slide, then the
+ *    Recording group's Record, whose arrow lists From Current Slide… and From Beginning…. Office never draws
+ *    both, because they are two generations of the tab; the census declares both groups.
+ * 3. ⚠ **The menus written for this tab are from Microsoft's support wording.** Press each arrow or dropdown:
+ *    Record lists From Current Slide…, From Beginning…; Clear Recording lists on Current Slide and on All
+ *    Slides; Reset to Cameo the same pair; Export lists Export Video and Customize Export. Press Record's face
+ *    and nothing opens.
+ * 4. **Screenshot, Cameo, Video and Audio open Insert's own menus.** Compare with the Insert story: Screen
+ *    Clipping; This Slide and All Slides; This Device…, Stock Videos…, Online Videos…; Audio on My PC…, Record
+ *    Audio…. They should be identical.
+ * 5. **Glyphs to judge**, all `GUESS:`: From Beginning and From Current Slide share Slide Show's glyphs; Save as
+ *    Show draws a save with an arrow; Export to Video a film clip, which must read differently from Video's
+ *    camera two groups before it; Export an arrow leaving a box.
+ * 6. **Nothing survives a collapse.** Drag narrow: every group collapses to its trigger alone, and each popup
+ *    holds every command in declared order.
+ * 7. **The order is the census's declaration**, and the group labels *Recording* and *Auto-play Media* are
+ *    the census's (Office writes Record and Auto-Play Media). No dialog launchers, no toggles.
+ */
 export const Recording: Story = { render: () => ribbon('recording') };
 
 /**

@@ -66,6 +66,7 @@ import {
   mailingsAnimationsDataMenus,
   startingAnimation,
 } from '../ribbons/mailings-animations-data-menus.ts';
+import { recordingMenus } from '../ribbons/recording-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
 import { slideShowMenus, slideShowMonitors } from '../ribbons/slide-show-menus.ts';
 import { viewMenus } from '../ribbons/view-menus.ts';
@@ -647,6 +648,59 @@ function ribbon(): TemplateResult {
               ${slideShowMonitors.map((monitor) => html`<mjx-option value=${monitor.value} label=${monitor.label}></mjx-option>`)}
             </mjx-dropdown>`,
             'powerpoint.slide-show.monitors.use-presenter-view': html`<mjx-checkbox id="ppt-slide-show-use-presenter-view" label="Use Presenter View" checked="true"></mjx-checkbox>`,
+            // PowerPoint's Recording. Record and Cameo are split buttons; Screenshot, Video, Audio, Clear
+            // Recording, Reset to Cameo and Export are dropdowns. All eight open their menus from
+            // `stories/ribbons/recording-menus.ts`, with `data-opens` `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.recording.recording.record': html`<mjx-split-button
+              label="Record"
+              icon="slide-record"
+              size="large"
+              data-opens="shell-powerpoint-recording-recording-record"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.recording.content.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="large"
+              data-opens="shell-powerpoint-recording-content-screenshot"
+            ></mjx-button>`,
+            'powerpoint.recording.camera.cameo': html`<mjx-split-button
+              label="Cameo"
+              icon="camera"
+              size="large"
+              data-opens="shell-powerpoint-recording-camera-cameo"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.recording.auto-play-media.video': html`<mjx-button
+              label="Video"
+              icon="video"
+              size="large"
+              data-opens="shell-powerpoint-recording-auto-play-media-video"
+            ></mjx-button>`,
+            'powerpoint.recording.auto-play-media.audio': html`<mjx-button
+              label="Audio"
+              icon="speaker-2"
+              size="large"
+              data-opens="shell-powerpoint-recording-auto-play-media-audio"
+            ></mjx-button>`,
+            'powerpoint.recording.edit.clear-recording': html`<mjx-button
+              label="Clear Recording"
+              icon="delete"
+              size="large"
+              data-opens="shell-powerpoint-recording-edit-clear-recording"
+            ></mjx-button>`,
+            'powerpoint.recording.edit.reset-to-cameo': html`<mjx-button
+              label="Reset to Cameo"
+              icon="arrow-reset"
+              size="large"
+              data-opens="shell-powerpoint-recording-edit-reset-to-cameo"
+            ></mjx-button>`,
+            'powerpoint.recording.export.export': html`<mjx-button
+              label="Export"
+              icon="arrow-export"
+              size="large"
+              data-opens="shell-powerpoint-recording-export-export"
+            ></mjx-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -899,6 +953,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
       ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
       ${viewMenus('powerpoint', 'shell')} ${slideShowMenus('powerpoint', 'shell')}
+      ${recordingMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

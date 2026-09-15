@@ -87,8 +87,29 @@ function threeDModelsEntries(): TemplateResult[] {
  * claiming to know what somebody has open; one that shows none is what Office shows on a machine with
  * nothing else running.
  */
-function screenshotEntries(): TemplateResult[] {
+export function screenshotEntries(): TemplateResult[] {
   return [item('Screen Clipping')];
+}
+
+// ── what PowerPoint's Insert and Recording tabs open identically ─────────────
+//
+// Cameo, Video and Audio are one command each, drawn on two PowerPoint tabs. `dev/ribbons/census.ts` records why
+// the Recording tab carries them, and `stories/ribbons/recording-menus.ts` calls these rather than writing the
+// lists a second time. Screenshot above is the fourth.
+
+/** Cameo's arrow: where the camera feed goes. */
+export function cameoEntries(): TemplateResult[] {
+  return [item('This Slide'), item('All Slides')];
+}
+
+/** PowerPoint's Video: the three places a video comes from. */
+export function powerpointVideoEntries(): TemplateResult[] {
+  return [item('This Device…'), item('Stock Videos…'), item('Online Videos…')];
+}
+
+/** PowerPoint's Audio: a file, or a recording made now. */
+export function powerpointAudioEntries(): TemplateResult[] {
+  return [item('Audio on My PC…'), item('Record Audio…')];
 }
 
 /** Link's arrow, in all three: recent items, then the dialog. The file names are invented. */
@@ -288,7 +309,7 @@ function powerpointInsertMenus(host: RibbonSurfaceHost): TemplateResult {
     )}
     ${commandMenu(host, 'powerpoint.insert.illustrations.shapes', 'Shapes', ...shapesEntries())}
     ${commandMenu(host, 'powerpoint.insert.illustrations.3d-models', '3D Models', ...threeDModelsEntries())}
-    ${commandMenu(host, 'powerpoint.insert.camera.cameo', 'Cameo', item('This Slide'), item('All Slides'))}
+    ${commandMenu(host, 'powerpoint.insert.camera.cameo', 'Cameo', ...cameoEntries())}
     ${commandMenu(
       host,
       'powerpoint.insert.links.zoom',
@@ -300,21 +321,8 @@ function powerpointInsertMenus(host: RibbonSurfaceHost): TemplateResult {
     ${commandMenu(host, 'powerpoint.insert.links.link', 'Link', ...linkEntries())}
     ${commandMenu(host, 'powerpoint.insert.text.wordart', 'WordArt', ...wordArtEntries())}
     ${commandMenu(host, 'powerpoint.insert.symbols.equation', 'Equation', ...equationEntries())}
-    ${commandMenu(
-      host,
-      'powerpoint.insert.media-clips.video',
-      'Video',
-      item('This Device…'),
-      item('Stock Videos…'),
-      item('Online Videos…'),
-    )}
-    ${commandMenu(
-      host,
-      'powerpoint.insert.media-clips.audio',
-      'Audio',
-      item('Audio on My PC…'),
-      item('Record Audio…'),
-    )}
+    ${commandMenu(host, 'powerpoint.insert.media-clips.video', 'Video', ...powerpointVideoEntries())}
+    ${commandMenu(host, 'powerpoint.insert.media-clips.audio', 'Audio', ...powerpointAudioEntries())}
   `;
 }
 
