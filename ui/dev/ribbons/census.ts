@@ -103,7 +103,9 @@
  * Background Removal** followed that, in its *Excel's Background Removal* part. **PowerPoint's Print Preview**
  * followed, PowerPoint's second view tab authored, in the *commands Print Preview shows* section's *PowerPoint's
  * Print Preview* part, and **Excel's Print Preview** followed that, Excel's second view tab authored, in its
- * *Excel's Print Preview* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * *Excel's Print Preview* part. **PowerPoint's Slide Master** followed, PowerPoint's third view tab authored, its
+ * Edit Theme, Background and Close groups written once as functions of the master view; see the *commands the
+ * master views show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4918,6 +4920,195 @@ function backgroundRemovalCloseCommands(application: RibbonApplication): readonl
   ];
 }
 
+// ── the commands the master views show ───────────────────────────────────────
+//
+// ## PowerPoint's Slide Master
+//
+// The unit after Excel's Print Preview, one tab of one application: **PowerPoint's Slide Master tab**, all six
+// in-scope groups and eighteen commands, and PowerPoint's third view tab authored. Office shows it only in Slide
+// Master view, which View's *Slide Master* opens: the master and its layouts in the thumbnail pane, and this tab
+// to add, rename and preserve them, choose what placeholders a layout carries, and change the theme and the
+// background every slide inherits. *Close Master View* takes the deck back to Normal.
+//
+// ## Three groups written once, for three master views
+//
+// **`GroupMasterEditTheme`, `GroupBackground` and `GroupMasterClose` are the same three rows, with the same
+// counts (4, 11 and 1), on `TabSlideMaster`, `TabHandoutMaster` and `TabNotesMaster`**, and Office draws the
+// same commands in all three. So they are `masterEditThemeCommands`, `masterBackgroundCommands` and
+// `masterCloseCommands`, functions of the master tab exactly as Background Removal's two groups are functions
+// of the application. **Slide Master's entry calls them first**; the Handout Master and Notes Master units add
+// `commands:` to their own three rows with their own tab id and write no second declaration. Edit Master,
+// Master Layout and Size are Slide Master's alone and are declared as constants.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **One toggle**, Preserve, which keeps a master in the deck when no slide uses it, starting unpressed.
+// **One split button a host binds**, Insert Placeholder: its face inserts a Content placeholder and its arrow
+// opens Office's ten. **Three checkboxes a host binds**: Title and Footers, ticked, and Hide Background
+// Graphics, unticked. **Six dropdowns a host binds**: Themes, Colours, Fonts, Effects, Background Styles and
+// Slide Size, over the menus in `stories/ribbons/slide-master-menus.ts`, **every list reused from
+// `stories/ribbons/design-layout-menus.ts`** rather than written again. **Buttons**: Insert Slide Master, Insert
+// Layout, Delete, Rename, Master Layout and Close Master View. **One dialog launcher**, on Background, which
+// opens the Format Background pane. **No field, no gallery, no exclusive set, no split toggle.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Colours, Fonts and Effects are in Edit Theme, as the brief and PowerPoint 2010 place them.** Microsoft
+//    365 draws Edit Theme as Themes alone and moves Colours, Fonts and Effects into Background, beside Background
+//    Styles. The census's count of 4 for Edit Theme fits the brief's four exactly, and nothing in the census says
+//    where the three belong, so the brief is followed. `GUESS:` Microsoft 365's placement, from memory.
+// 2. **Master Layout counts 15 and draws 4.** `GUESS:` the reading that the census counts Insert Placeholder's
+//    two halves and its ten entries as twelve controls, and Master Layout, Title and Footers as the other three.
+//    Nothing is padded.
+// 3. **Background counts 11 and draws 2 and a launcher.** `GUESS:` that the census reads Microsoft 365's group,
+//    which holds Colours, Fonts and Effects too (disagreement 1), and counts some of their menus' footers
+//    (Customise Colours…, Customise Fonts…, Format Background…, Reset Slide Background). No reading this unit
+//    can cite reaches 11 exactly, and nothing is padded.
+// 4. **Size counts 2 and draws 1.** `GUESS:` the census counts Slide Size's face and its arrow.
+// 5. **Edit Master (5), Edit Theme (4) and Close (1) draw exactly their counts.**
+// 6. **Every theme list is Design's, and this unit completed three of them.** Office's Colours, Fonts and
+//    Effects menus and its Background Styles gallery carry more entries than Design's did, so
+//    `themeColourEntries`, `themeFontEntries`, `themeEffectEntries` and `backgroundStyleEntries` now carry
+//    Office's whole lists, and **Word's Design, Excel's Page Layout and PowerPoint's Variants footer draw the
+//    same lists**. PowerPoint's Themes list is the Design gallery's `themes`, completed to Office's built-in set
+//    and drawn here as a menu (`powerpointThemeEntries`). `GUESS:` every list, from memory of Microsoft 365.
+// 7. **The census's spelling wins**: *Colours*, *Customise Colours…*, *Greyscale*, where Office writes *Colors*.
+// 8. **Office greys** Delete and Rename while the master's in-use layouts are selected, Title and Footers while
+//    the master itself is selected, Hide Background Graphics on the master, and Reset Slide Background in master
+//    view. All are drawn available, because `disabled` is loop 2's.
+// 9. **Preserve starts unpressed.** `GUESS:` that a new deck's one master is not preserved; PowerPoint
+//    preserves a master only once a second is inserted or a person presses it.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Edit Master**: none. Insert Slide Master and Insert Layout pass rule 1, but `slide-text-title-add` and
+//   `slide-layout` read as New Slide and Layout once the label is gone (rule 2's standard); Rename opens a dialog;
+//   Delete removes a master or a layout; and **un-pressing Preserve on a master no slide uses asks whether to
+//   delete it**, so Preserve fails rule 1.
+// - **Master Layout**: none. Master Layout opens a dialog, Insert Placeholder is a split button, and Title and
+//   Footers are checkboxes, which the gate refuses.
+// - **Edit Theme**: none. All four open menus.
+// - **Background**: none. Background Styles opens a menu and Hide Background Graphics is a checkbox.
+// - **Size**: none. Slide Size opens a menu, and it is the group's only command.
+// - **Close**: none. Close Master View leaves the view and takes the tab with it, and it is the only command.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows PowerPoint 2010's shape**: Insert Slide Master, Insert Layout, Master Layout, Insert Placeholder,
+// Themes, Slide Size and Close Master View are `large`. Delete, Rename and Preserve are small in a column, as are
+// Colours, Fonts and Effects, and Background Styles. Every glyph is `GUESS:`:
+//
+// - **Insert Slide Master draws `slide-text-title-add`**, a slide with a title bar and a plus: a master is the
+//   slide carrying the title placeholder, added. Not `slide-add`, which is New Slide's.
+// - **Insert Layout draws `slide-layout`**, Home's Layout glyph, a slide with a layout inside it, now at 24 too:
+//   the command adds a layout. Fluent draws no layout with a plus.
+// - **Delete draws `delete`**, the bin. **Rename draws `rename`**, a text cursor in a field.
+// - **Preserve draws `pin`**, the pushpin Office itself draws for Preserve, filled while pressed.
+// - **Master Layout draws `slide-text-title-checkmark`**, a slide with a title and a tick: the dialog is a list of
+//   ticks for the placeholders a master carries.
+// - **Insert Placeholder draws `slide-content`**, a slide holding a picture and lines, which is the Content
+//   placeholder its face inserts.
+// - **Themes draws `style-guide`**, a fanned swatch book: a set of colours, fonts and effects chosen together.
+//   Not `color`, which Colours draws beside it, nor `design-ideas`, Designer's. Word's and Excel's Themes carry
+//   none, and this is the first Themes command to carry a glyph.
+// - **Colours, Fonts and Effects draw `color`, `text-font` and `square-shadow`**, Design's and Page Layout's.
+// - **Background Styles draws `color-background`**, the glyph the Variants footer draws for it.
+// - **Slide Size draws `slide-size`**, Design's. **Close Master View draws `dismiss-square`**, the cross in a
+//   square every Close view command draws.
+//
+// **Three commands carry no glyph, and say why**: Title, Footers and Hide Background Graphics are checkboxes,
+// which draw their tick box.
+
+/** A master view: the three tabs whose Edit Theme, Background and Close groups are one declaration. */
+type MasterViewTab = 'slide-master' | 'handout-master' | 'notes-master';
+
+/**
+ * PowerPoint's `GroupMasterEdit`, labelled **Edit Master**: Insert Slide Master and Insert Layout large, then
+ * Delete, Rename and Preserve in a column. See disagreements 5, 8 and 9.
+ *
+ * **Preserve is a toggle**, unpressed. The rest are buttons: Rename opens the Rename Layout dialog.
+ *
+ * **No survivor**: two glyphs that read as other commands, a dialog, a deletion, and a toggle whose release can
+ * ask to delete.
+ */
+const powerpointSlideMasterEditMaster: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-master.edit-master.insert-slide-master', label: 'Insert Slide Master', icon: 'slide-text-title-add', size: 'large' },
+  { id: 'powerpoint.slide-master.edit-master.insert-layout', label: 'Insert Layout', icon: 'slide-layout', size: 'large' },
+  { id: 'powerpoint.slide-master.edit-master.delete', label: 'Delete', icon: 'delete' },
+  { id: 'powerpoint.slide-master.edit-master.rename', label: 'Rename', icon: 'rename' },
+  { id: 'powerpoint.slide-master.edit-master.preserve', label: 'Preserve', icon: 'pin', toggle: true },
+];
+
+/**
+ * PowerPoint's `GroupMasterLayout`, labelled **Master Layout**: Master Layout and Insert Placeholder large, then
+ * Title and Footers in a column. See disagreement 2.
+ *
+ * **Master Layout** opens the Master Layout dialog. **Insert Placeholder is a split button** a host binds, over
+ * Office's ten placeholders. **Title and Footers are toggles drawn as checkboxes**, both ticked.
+ *
+ * **No survivor**: a dialog, a split button and two checkboxes.
+ */
+const powerpointSlideMasterMasterLayout: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-master.master-layout.master-layout', label: 'Master Layout', icon: 'slide-text-title-checkmark', size: 'large' },
+  { id: 'powerpoint.slide-master.master-layout.insert-placeholder', label: 'Insert Placeholder', icon: 'slide-content', size: 'large' },
+  { id: 'powerpoint.slide-master.master-layout.title', label: 'Title', toggle: true, pressed: true },
+  { id: 'powerpoint.slide-master.master-layout.footers', label: 'Footers', toggle: true, pressed: true },
+];
+
+/**
+ * `GroupMasterEditTheme`, labelled **Edit Theme**, on any master view: Themes large, then Colours, Fonts and
+ * Effects in a column. See disagreements 1, 5 and 6.
+ *
+ * **All four are dropdowns** a host binds, over Design's lists.
+ *
+ * **No survivor**: four menus.
+ */
+function masterEditThemeCommands(tab: MasterViewTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.edit-theme.themes`, label: 'Themes', icon: 'style-guide', size: 'large' },
+    { id: `powerpoint.${tab}.edit-theme.colours`, label: 'Colours', icon: 'color' },
+    { id: `powerpoint.${tab}.edit-theme.fonts`, label: 'Fonts', icon: 'text-font' },
+    { id: `powerpoint.${tab}.edit-theme.effects`, label: 'Effects', icon: 'square-shadow' },
+  ];
+}
+
+/**
+ * `GroupBackground`, labelled **Background**, on any master view: Background Styles, then Hide Background
+ * Graphics, and the Format Background launcher the tab module passes. See disagreements 3 and 8.
+ *
+ * **Background Styles is a dropdown** a host binds; **Hide Background Graphics is a toggle drawn as a
+ * checkbox**, unticked.
+ *
+ * **No survivor**: a menu and a checkbox.
+ */
+function masterBackgroundCommands(tab: MasterViewTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.background.background-styles`, label: 'Background Styles', icon: 'color-background' },
+    { id: `powerpoint.${tab}.background.hide-background-graphics`, label: 'Hide Background Graphics', toggle: true },
+  ];
+}
+
+/**
+ * `GroupMasterClose`, labelled **Close**, on any master view: Close Master View, large.
+ *
+ * **No survivor**: it leaves the view, and it is the only command.
+ */
+function masterCloseCommands(tab: MasterViewTab): readonly RibbonCommand[] {
+  return [{ id: `powerpoint.${tab}.close.close-master-view`, label: 'Close Master View', icon: 'dismiss-square', size: 'large' }];
+}
+
+/**
+ * PowerPoint's `GroupSlideSize` on Slide Master, labelled **Size**: Slide Size, large, Design's command under this
+ * tab's id. See disagreement 4.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+const powerpointSlideMasterSize: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-master.size.slide-size', label: 'Slide Size', icon: 'slide-size', size: 'large' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -5490,12 +5681,12 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabSlideMaster' },
     groups: [
-      { id: 'GroupMasterEdit', label: 'Edit Master', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupMasterLayout', label: 'Master Layout', priority: 'primary', controls: 15, inScope: true },
-      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupBackground', label: 'Background', priority: 'standard', controls: 11, inScope: true },
-      { id: 'GroupSlideSize', label: 'Size', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupMasterEdit', label: 'Edit Master', priority: 'standard', controls: 5, inScope: true, commands: powerpointSlideMasterEditMaster },
+      { id: 'GroupMasterLayout', label: 'Master Layout', priority: 'primary', controls: 15, inScope: true, commands: powerpointSlideMasterMasterLayout },
+      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true, commands: masterEditThemeCommands('slide-master') },
+      { id: 'GroupBackground', label: 'Background', priority: 'standard', controls: 11, inScope: true, commands: masterBackgroundCommands('slide-master') },
+      { id: 'GroupSlideSize', label: 'Size', priority: 'secondary', controls: 2, inScope: true, commands: powerpointSlideMasterSize },
+      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: masterCloseCommands('slide-master') },
     ],
   },
   {

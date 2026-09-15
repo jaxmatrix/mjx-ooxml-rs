@@ -55,6 +55,10 @@
  * Colour/Greyscale are fields, all from `stories/ribbons/print-preview-menus.ts`, and `Ribbons/PowerPoint`
  * alone binds and renders them.
  *
+ * **Slide Master** followed Excel's Print Preview, PowerPoint's third view tab authored: six groups and eighteen
+ * commands, the master and its layouts. Edit Theme, Background and Close are declared once for every master view,
+ * and every menu is from `stories/ribbons/slide-master-menus.ts`, over Design's own lists.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -453,11 +457,38 @@ export function powerpointPrintPreviewTab(options: TabOptions = {}): TemplateRes
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointSlideMasterTab(): TemplateResult {
-  return placeholderTab(entry('slide-master'));
+/**
+ * Slide Master: Edit Master, Master Layout, Edit Theme, Background, Size, Close — PowerPoint's third view tab
+ * authored, in **Office's** order, which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only in Slide Master view**, so `powerpointTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks, which is why the tab's bindings and menus are
+ * written there and nowhere else. `dev/ribbons/census.ts` records every disagreement, where Colours, Fonts and
+ * Effects sit among them.
+ *
+ * **Ten of the tab's eighteen commands are bound by the host**: Insert Placeholder is a split button; Themes,
+ * Colours, Fonts, Effects, Background Styles and Slide Size are dropdowns over
+ * `stories/ribbons/slide-master-menus.ts`; Title, Footers and Hide Background Graphics are checkboxes. Preserve is
+ * the generic toggle, and everything else the generic button.
+ *
+ * **One dialog launcher, on Background**, which opens the Format Background pane. **No survivor.**
+ */
+export function powerpointSlideMasterTab(options: TabOptions = {}): TemplateResult {
+  const slideMaster = entry('slide-master');
+  const controls = options.controls ?? {};
+  return tab(
+    slideMaster.id,
+    slideMaster.label,
+    censusGroup(slideMaster, 'GroupMasterEdit', {}, controls),
+    censusGroup(slideMaster, 'GroupMasterLayout', {}, controls),
+    censusGroup(slideMaster, 'GroupMasterEditTheme', {}, controls),
+    censusGroup(slideMaster, 'GroupBackground', { launcher: 'Format Background' }, controls),
+    censusGroup(slideMaster, 'GroupSlideSize', {}, controls),
+    censusGroup(slideMaster, 'GroupMasterClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideMasterHomeTab(): TemplateResult {
   return placeholderTab(entry('slide-master-home'));

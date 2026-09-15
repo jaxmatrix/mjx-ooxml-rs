@@ -1069,6 +1069,63 @@ It renders in `Ribbons/Excel` alone, as every view tab does. The one binding and
 - **Every command but the checkbox carries a glyph, and no glyph is new**: `print`, `settings`, `zoom-in`,
   `document-arrow-down`, `document-arrow-up`, `dismiss-square`.
 
+### PowerPoint's Slide Master
+
+**One tab of one application, and PowerPoint's third view tab authored**, after Excel's Print Preview. Six groups
+and eighteen commands, in Office's order, which is also the census's: Edit Master, Master Layout, Edit Theme,
+Background, Size, Close. It is the tab Slide Master view shows: the master and its layouts, the placeholders a
+layout carries, and the theme and background every slide inherits.
+
+**Three groups are declared once for every master view.** Edit Theme, Background and Close are the same rows, with
+the same counts, on `TabSlideMaster`, `TabHandoutMaster` and `TabNotesMaster`, so the census declares them as
+`masterEditThemeCommands`, `masterBackgroundCommands` and `masterCloseCommands`, functions of the master view.
+`stories/ribbons/slide-master-menus.ts` shares their lists the same way (`editThemeMenuEntries`,
+`backgroundMenuEntries`); a menu's id must be spelt literally, so the Handout Master and Notes Master units each add
+one function to its `menusByTab` and write no list.
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does: the ten bindings and
+`masterViewMenus('powerpoint', 'ribbons')` are in `stories/ribbons/powerpoint.stories.ts`, and `Shell/PowerPoint`
+draws neither.
+
+- **One split button a host binds**: Insert Placeholder, whose arrow opens Office's ten placeholders.
+- **Six dropdowns a host binds**: Themes, Colours, Fonts, Effects, Background Styles and Slide Size, **every list
+  reused from `stories/ribbons/design-layout-menus.ts`**. Themes is the Design gallery's `themes` as a menu
+  (`powerpointThemeEntries`).
+- **Three checkboxes a host binds**: Title and Footers, ticked; Hide Background Graphics, unticked.
+- **One toggle**: Preserve, unpressed.
+- **Buttons**: Insert Slide Master, Insert Layout, Delete, Rename, Master Layout and Close Master View.
+- **One dialog launcher**, *Format Background*, on Background.
+
+**No survivors.** Insert Slide Master's and Insert Layout's glyphs read as New Slide and Layout without a label;
+Rename, Master Layout and every menu open something; Delete removes; un-pressing Preserve on an unused master asks to
+delete it; the checkboxes are refused by the gate; Size and Close hold one command each.
+
+**Shared lists changed.** Office's Colours, Fonts, Effects and Background Styles carry more than Design did, so
+`themeColourEntries` (24 sets), `themeFontEntries` (20 pairs), `themeEffectEntries` (15) and
+`backgroundStyleEntries` (Style 1 to 12) are now whole, and the Design gallery's `themes` holds Office's 31. **Word's
+Design, Excel's Page Layout and PowerPoint's Design tab draw the same lists.** `slideSizeEntries` is exported.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Colours, Fonts and Effects are in Edit Theme**, as the brief and PowerPoint 2010 place them. Microsoft 365 draws
+  them in Background. The census's Edit Theme count of 4 fits the brief. `GUESS:` the 365 placement.
+- **Master Layout counts 15 and draws 4.** `GUESS:` Insert Placeholder's two halves and ten entries are twelve.
+- **Background counts 11 and draws 2 and a launcher.** `GUESS:` the census reads 365's group with Colours, Fonts and
+  Effects and some menu footers; no reading reaches 11 exactly.
+- **Size counts 2 and draws 1.** `GUESS:` Slide Size's face and arrow. Edit Master (5), Edit Theme (4) and Close
+  (1) draw their counts.
+- **Every entry of every theme list**, their order, and the font pairs are `GUESS:`, from memory of Microsoft 365.
+- **Preserve starts unpressed**, and Title and Footers ticked. `GUESS:` both.
+- **Office greys** Delete, Rename, Title, Footers, Hide Background Graphics and Reset Slide Background in some
+  selections. All are drawn available, because `disabled` is loop 2's.
+- **Insert Placeholder's entries carry no glyph**, where Office draws one each: Fluent has no vertical content
+  placeholder, and nine glyphs with a gap would read as broken.
+- **Glyphs**, every one `GUESS:`. Six are new: `slide-text-title-add` (Insert Slide Master), `rename`, `pin`
+  (Preserve, filled while pressed), `slide-text-title-checkmark` (Master Layout), `slide-content` (Insert
+  Placeholder) and `style-guide` (Themes, the first Themes to carry a glyph). Reused: `slide-layout` (Insert Layout,
+  now also at 24), `delete`, `color`, `text-font`, `square-shadow`, `color-background`, `slide-size`,
+  `dismiss-square`. Title, Footers and Hide Background Graphics are checkboxes and carry none.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

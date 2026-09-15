@@ -146,7 +146,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'delete',
     sizes: [16, 20, 24],
     variants: ['regular'],
-    why: "Removal. **Since PowerPoint's Recording unit, also Clear Recording**, the large dropdown in Recording's Edit group, which is the bin the record window's own Delete button draws, so 24 as well. `GUESS:`.",
+    why: "Removal. **Since PowerPoint's Recording unit, also Clear Recording**, the large dropdown in Recording's Edit group, which is the bin the record window's own Delete button draws, so 24 as well. `GUESS:`. **Since PowerPoint's Slide Master unit, also Slide Master's Delete**, small, which deletes the selected master or layout.",
   },
   {
     name: 'search',
@@ -166,7 +166,12 @@ export const iconRequests: readonly IconRequest[] = [
     variants: ['regular'],
     why: "The shared table command, which Word and Excel both need. ⚠ **24 was added by the ribbon programme's unit 3**: Table is the headline of the Insert tab's Tables group in all three applications, and a `size=\"large\"` button draws at 24. `tests/ribbons.test.ts` had used exactly this row as its example of a large button with no 24-pixel drawing, and now uses `table-checker`, which the vendor ships at 20 alone and therefore can never stop being an example.",
   },
-  { name: 'slide-layout', sizes: [20], variants: ['regular'], why: "PowerPoint's layout command." },
+  {
+    name: 'slide-layout',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "PowerPoint's layout command. **Since PowerPoint's Slide Master unit, also Insert Layout**, large, in Edit Master: a slide with a layout inside it, the layout the command adds. Hence 24 as well as 20. Fluent draws no layout with a plus. `GUESS:`.",
+  },
   {
     name: 'comment',
     sizes: [16, 20],
@@ -583,7 +588,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'square-shadow',
     sizes: [20],
     variants: ['regular'],
-    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still.",
+    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still. **Since PowerPoint's Slide Master unit, also Edit Theme's Effects**, small, which opens the theme effect sets Design's Effects opens: the drop shadow is one of them.",
   },
   {
     name: 'border-all',
@@ -1047,13 +1052,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'color',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`.",
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list.",
   },
   {
     name: 'text-font',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Fonts, the theme font pairs, on Word's Design (large) and Excel's Page Layout (small): two letters of two sizes, a heading font over a body font. Not `text-color` or `font-increase`, which act on the selected text.",
+    why: "Fonts, the theme font pairs, on Word's Design (large) and Excel's Page Layout (small): two letters of two sizes, a heading font over a body font. Not `text-color` or `font-increase`, which act on the selected text. **Since PowerPoint's Slide Master unit, also Edit Theme's Fonts**, small, over the same list.",
   },
   {
     name: 'document-border',
@@ -1113,13 +1118,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'slide-size',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Slide Size, on PowerPoint's Customise group, large: a frame with an arrow to its corner, the slide being resized.",
+    why: "Slide Size, on PowerPoint's Customise group, large: a frame with an arrow to its corner, the slide being resized. **Since PowerPoint's Slide Master unit, also Slide Master's Size**, large, the same command and list.",
   },
   {
     name: 'color-background',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`).",
+    why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`). **Since PowerPoint's Slide Master unit, also Background Styles** on the Background group, small, the glyph the Variants footer already draws for it.",
   },  // ── References, Transitions and Formulas (Word's References, PowerPoint's Transitions, Excel's Formulas) ──
   //
   // The ribbon programme's unit 6. Nothing here draws pressed: the one toggle with a state Office draws,
@@ -2000,7 +2005,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dismiss-square',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command.",
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command. **Since PowerPoint's Slide Master unit, also Close Master View**, large: the same verb, leaving a view.",
   },
   // ── Print Preview (Word's) ────────────────────────────────────────────────
   //
@@ -2055,6 +2060,46 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Keep Changes, large, beside Discard All Changes: a tick, the background removed. Not `document-checkmark`, which is Review's Accept. `GUESS:`.",
+  },
+  // ── Slide Master (PowerPoint's) ───────────────────────────────────────────
+  //
+  // Six new glyphs; Delete, Insert Layout, Colours, Fonts, Effects, Background Styles, Slide Size and Close Master
+  // View reuse rows above, each of which says so. `dev/ribbons/census.ts` gives the reasoning for every choice.
+  {
+    name: 'slide-text-title-add',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Insert Slide Master, large, in Slide Master's Edit Master group: a slide with a title bar and a plus, the slide that carries the title placeholder, added. Not `slide-add`, which is New Slide. `GUESS:`.",
+  },
+  {
+    name: 'rename',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Rename, small, in Slide Master's Edit Master group, which opens the Rename Layout dialog: a text cursor in a field. `GUESS:`.",
+  },
+  {
+    name: 'pin',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Preserve, the small toggle in Slide Master's Edit Master group: a pushpin, which is Office's own picture of the command, filled while the master is preserved. `GUESS:`.",
+  },
+  {
+    name: 'slide-text-title-checkmark',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Master Layout, large, in Slide Master's Master Layout group, which opens a dialog of ticks for the placeholders a master carries: a slide with a title and a tick. Not `slide-settings`, Set Up Slide Show. `GUESS:`.",
+  },
+  {
+    name: 'slide-content',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Insert Placeholder, the large split button in Slide Master's Master Layout group: a slide holding a picture and lines, the Content placeholder its face inserts. `GUESS:`.",
+  },
+  {
+    name: 'style-guide',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Themes, large, in Slide Master's Edit Theme group: a fanned swatch book, colours, fonts and effects chosen as one set. Not `color`, Colours beside it, nor `design-ideas`, Designer. Word's and Excel's Themes carry none. `GUESS:`.",
   },
 ];
 

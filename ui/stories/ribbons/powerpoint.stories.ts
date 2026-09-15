@@ -55,6 +55,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 import { powerpointPrintColourModes, powerpointPrintWhat, printPreviewMenus } from './print-preview-menus.ts';
 import { recordingMenus } from './recording-menus.ts';
 import { reviewMenus } from './review-menus.ts';
+import { masterViewMenus } from './slide-master-menus.ts';
 import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
 import { viewMenus } from './view-menus.ts';
 
@@ -72,7 +73,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal and Print Preview** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview and Slide Master** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -92,7 +93,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal and Print Preview are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview and Slide Master are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -626,6 +627,59 @@ const bindings: ControlOverrides = {
   >
     ${powerpointPrintColourModes.map((mode) => html`<mjx-option value=${mode.value} label=${mode.label}></mjx-option>`)}
   </mjx-dropdown>`,
+  // Slide Master (a view tab). `Shell/PowerPoint` never draws a view tab, so these ten bindings and the seven menus
+  // they open are written here and nowhere else. Insert Placeholder is a split button; the six dropdowns open their
+  // menus from `stories/ribbons/slide-master-menus.ts`; Title, Footers and Hide Background Graphics are checkboxes.
+  'powerpoint.slide-master.master-layout.insert-placeholder': html`<mjx-split-button
+    label="Insert Placeholder"
+    icon="slide-content"
+    size="large"
+    menu-label="Placeholders"
+    data-opens="ribbons-powerpoint-slide-master-master-layout-insert-placeholder"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.slide-master.master-layout.title': html`<mjx-checkbox id="ribbons-powerpoint-slide-master-title" label="Title" checked="true"></mjx-checkbox>`,
+  'powerpoint.slide-master.master-layout.footers': html`<mjx-checkbox id="ribbons-powerpoint-slide-master-footers" label="Footers" checked="true"></mjx-checkbox>`,
+  'powerpoint.slide-master.edit-theme.themes': html`<mjx-button
+    label="Themes"
+    icon="style-guide"
+    size="large"
+    data-opens="ribbons-powerpoint-slide-master-edit-theme-themes"
+  ></mjx-button>`,
+  'powerpoint.slide-master.edit-theme.colours': html`<mjx-button
+    label="Colours"
+    icon="color"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-edit-theme-colours"
+  ></mjx-button>`,
+  'powerpoint.slide-master.edit-theme.fonts': html`<mjx-button
+    label="Fonts"
+    icon="text-font"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-edit-theme-fonts"
+  ></mjx-button>`,
+  'powerpoint.slide-master.edit-theme.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-edit-theme-effects"
+  ></mjx-button>`,
+  'powerpoint.slide-master.background.background-styles': html`<mjx-button
+    label="Background Styles"
+    icon="color-background"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-background-background-styles"
+  ></mjx-button>`,
+  'powerpoint.slide-master.background.hide-background-graphics': html`<mjx-checkbox
+    id="ribbons-powerpoint-slide-master-hide-background-graphics"
+    label="Hide Background Graphics"
+  ></mjx-checkbox>`,
+  'powerpoint.slide-master.size.slide-size': html`<mjx-button
+    label="Slide Size"
+    icon="slide-size"
+    size="large"
+    data-opens="ribbons-powerpoint-slide-master-size-slide-size"
+  ></mjx-button>`,
 };
 
 /**
@@ -655,6 +709,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
     ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
+    ${masterViewMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -936,7 +991,36 @@ export const Review: Story = { render: () => ribbon('review') };
  */
 export const View: Story = { render: () => ribbon('view') };
 
-/** Unit 10, and a view tab: Office shows it only in Slide Master view. */
+/**
+ * **Slide Master**: the master and its layouts, and the theme and background every slide inherits. A view tab
+ * Office shows only in Slide Master view. Authored after Excel's Print Preview, one tab of one application, and
+ * PowerPoint's third view tab. Six groups: Edit Master, Master Layout, Edit Theme, Background, Size and Close.
+ * What to look at, least certain first:
+ *
+ * 1. ⚠ **Colours, Fonts and Effects are in Edit Theme**, small in a column beside a large Themes, as PowerPoint
+ *    2010 draws them. `GUESS:` that Microsoft 365 draws them in Background instead; the census's count of 4 fits
+ *    this placement.
+ * 2. ⚠ **Every theme list is Design's, now whole.** Press Themes: *This Presentation* (Office Theme, checked), then
+ *    *Office* with thirty themes from Facet to Wood Type, then Browse for Themes… and Save Current Theme…. Colours
+ *    lists twenty-four sets and Customise Colours…; Fonts twenty pairs and Customise Fonts…; Effects fifteen.
+ *    Background Styles lists Style 1 (checked) to Style 12, Format Background… and Reset Slide Background.
+ *    `GUESS:` every list. Design's Themes gallery and Variants footer, Word's Design and Excel's Page Layout now
+ *    draw the same lists.
+ * 3. ⚠ **Insert Placeholder is a split button.** The face does nothing here; the arrow opens Content, Content
+ *    (Vertical), Text, Text (Vertical), Picture, Chart, Table, SmartArt, Media, Online Image, none with a glyph.
+ * 4. **Preserve is a toggle, unpressed.** Press it: the pin fills. Press again: it releases. `GUESS:` the start.
+ * 5. **Three checkboxes**: Title and Footers ticked, stacked after Insert Placeholder; Hide Background Graphics
+ *    unticked, under Background Styles. Tick one and it ticks.
+ * 6. **The launcher at Background's corner is *Format Background*.** No other group has one.
+ * 7. **Glyphs to judge**, all `GUESS:`: Insert Slide Master's slide with a title and a plus, Insert Layout's
+ *    layout (Home's Layout glyph, now large), the bin, Rename's cursor in a field, Preserve's pin, Master Layout's
+ *    slide with a title and a tick, Insert Placeholder's slide with a picture and lines, Themes' swatch book, then
+ *    Design's palette, letters, shadowed square, paint bucket and resized frame, and the cross in a square.
+ * 8. **No survivor anywhere.** Drag narrow: each group collapses to a trigger with nothing beside it, and every
+ *    command opens from its popup.
+ * 9. **Not in `Shell/PowerPoint`**: the shell's strip has no Slide Master tab, and no Slide Master menu is on that
+ *    page.
+ */
 export const SlideMaster: Story = { render: () => ribbon('slide-master') };
 
 /** Unit 10, and the *second* tab called Home — see this file's header. */

@@ -100,45 +100,85 @@ function themeEntries(application: 'word' | 'excel'): TemplateResult[] {
   ];
 }
 
-/** Colours: Office's theme colour sets, by their own names, and the dialog. */
+/**
+ * Colours: **Office's whole list** of theme colour sets, by their own names in Office's order, and the dialog.
+ *
+ * Completed by PowerPoint's Slide Master unit, whose Edit Theme opens it, so Word's Design, Excel's Page Layout
+ * and PowerPoint's Variants footer draw the whole list too. `GUESS:` the list and its order, from memory of
+ * Microsoft 365, in the census's spelling (*Greyscale*).
+ */
 export function themeColourEntries(): TemplateResult[] {
   return [
     section(
       'Office',
       choice('Office', true),
+      choice('Office 2013 – 2022'),
       choice('Office 2007 – 2010'),
       choice('Greyscale'),
       choice('Blue Warm'),
       choice('Blue'),
+      choice('Blue II'),
+      choice('Blue Green'),
       choice('Green'),
+      choice('Green Yellow'),
+      choice('Yellow'),
+      choice('Yellow Orange'),
       choice('Orange'),
+      choice('Orange Red'),
+      choice('Red Orange'),
       choice('Red'),
+      choice('Red Violet'),
       choice('Violet'),
+      choice('Violet II'),
+      choice('Median'),
+      choice('Paper'),
+      choice('Marquee'),
+      choice('Slipstream'),
+      choice('Aspect'),
     ),
     separator(),
     item('Customise Colours…'),
   ];
 }
 
-/** Fonts: Office's theme font pairs, heading font then body font, and the dialog. */
+/**
+ * Fonts: **Office's whole list** of theme font pairs, heading font then body font where the two differ, and the
+ * dialog. Completed by PowerPoint's Slide Master unit, as Colours was. `GUESS:` the list, its order and each pair.
+ */
 export function themeFontEntries(): TemplateResult[] {
   return [
     section(
       'Office',
       choice('Office: Aptos Display, Aptos', true),
+      choice('Office 2013 – 2022: Calibri Light, Calibri'),
       choice('Office 2007 – 2010: Cambria, Calibri'),
-      choice('Calibri: Calibri Light, Calibri'),
+      choice('Calibri'),
       choice('Arial'),
       choice('Corbel'),
       choice('Candara'),
       choice('Franklin Gothic: Franklin Gothic Medium, Franklin Gothic Book'),
+      choice('Century Gothic'),
+      choice('Tw Cen MT'),
+      choice('Cambria'),
+      choice('Garamond'),
+      choice('Georgia'),
+      choice('Trebuchet MS'),
+      choice('Tw Cen MT Condensed: Tw Cen MT Condensed, Tw Cen MT'),
+      choice('Gill Sans MT'),
+      choice('Arial Black: Arial Black, Arial'),
+      choice('Rockwell Condensed: Rockwell Condensed, Rockwell'),
+      choice('Consolas: Consolas, Verdana'),
+      choice('Century Gothic: Century Gothic, Palatino Linotype'),
     ),
     separator(),
     item('Customise Fonts…'),
   ];
 }
 
-/** Effects: Office's theme effect sets, by their own names. Office puts nothing under them. */
+/**
+ * Effects: **Office's whole list** of theme effect sets, by their own names. Office puts nothing under them.
+ * Completed by PowerPoint's Slide Master unit, as Colours was. `GUESS:` the list and its order.
+ */
 export function themeEffectEntries(): TemplateResult[] {
   return [
     section(
@@ -149,15 +189,30 @@ export function themeEffectEntries(): TemplateResult[] {
       choice('Banded Edge'),
       choice('Smokey Glass'),
       choice('Glow Edge'),
+      choice('Grunge Texture'),
       choice('Frosted Glass'),
+      choice('Top Shadow'),
+      choice('Inset'),
+      choice('Milk Glass'),
+      choice('Riblet'),
+      choice('Reflection'),
+      choice('Extreme Shadow'),
+      choice('Glossy'),
     ),
   ];
 }
 
-/** Background Styles, at the foot of PowerPoint's Variants: the first styles, the pane, and the reset. */
+/**
+ * Background Styles, at the foot of PowerPoint's Variants and on every master view's Background group: **Office's
+ * twelve styles**, the pane, and the reset. Completed by PowerPoint's Slide Master unit, which found four.
+ * `GUESS:` that Office's names for the twelve are *Style 1* to *Style 12*, its tooltips.
+ */
 export function backgroundStyleEntries(): TemplateResult[] {
   return [
-    section('Background Styles', choice('Style 1', true), choice('Style 2'), choice('Style 3'), choice('Style 4')),
+    section(
+      'Background Styles',
+      ...Array.from({ length: 12 }, (_, index) => choice(`Style ${String(index + 1)}`, index === 0)),
+    ),
     separator(),
     item('Format Background…'),
     item('Reset Slide Background'),
@@ -412,8 +467,11 @@ function rotateEntries(): TemplateResult[] {
 
 // ── PowerPoint's Customise ───────────────────────────────────────────────────
 
-/** Slide Size: the two built-in shapes, widescreen being a new deck's, and the dialog. */
-function slideSizeEntries(): TemplateResult[] {
+/**
+ * Slide Size: the two built-in shapes, widescreen being a new deck's, and the dialog. Office's whole list.
+ * Exported because Slide Master's Size opens the same list; see `stories/ribbons/slide-master-menus.ts`.
+ */
+export function slideSizeEntries(): TemplateResult[] {
   return [choice('Standard (4:3)'), choice('Widescreen (16:9)', true), separator(), item('Custom Slide Size…')];
 }
 
@@ -506,7 +564,12 @@ const themePictures: readonly TemplateResult[] = [
     </span></span>`,
 ];
 
-/** PowerPoint's themes, by Office's names. */
+/**
+ * PowerPoint's themes, by Office's names: the deck's own first, then **Office's whole built-in set**, in Office's
+ * order. Completed by PowerPoint's Slide Master unit, whose Themes opens the same list as a menu
+ * (`powerpointThemeEntries`), so the Design gallery draws the whole set too. `GUESS:` the set and its order,
+ * from memory of Microsoft 365.
+ */
 const themes: readonly { readonly value: string; readonly label: string; readonly picture: number }[] = [
   { value: 'office-theme', label: 'Office Theme', picture: 0 },
   { value: 'facet', label: 'Facet', picture: 1 },
@@ -517,7 +580,50 @@ const themes: readonly { readonly value: string; readonly label: string; readonl
   { value: 'retrospect', label: 'Retrospect', picture: 0 },
   { value: 'slice', label: 'Slice', picture: 3 },
   { value: 'wisp', label: 'Wisp', picture: 2 },
+  { value: 'badge', label: 'Badge', picture: 0 },
+  { value: 'banded', label: 'Banded', picture: 1 },
+  { value: 'basis', label: 'Basis', picture: 2 },
+  { value: 'berlin', label: 'Berlin', picture: 3 },
+  { value: 'celestial', label: 'Celestial', picture: 0 },
+  { value: 'circuit', label: 'Circuit', picture: 1 },
+  { value: 'damask', label: 'Damask', picture: 2 },
+  { value: 'depth', label: 'Depth', picture: 3 },
+  { value: 'dividend', label: 'Dividend', picture: 0 },
+  { value: 'droplet', label: 'Droplet', picture: 1 },
+  { value: 'frame', label: 'Frame', picture: 2 },
+  { value: 'gallery', label: 'Gallery', picture: 3 },
+  { value: 'main-event', label: 'Main Event', picture: 0 },
+  { value: 'mesh', label: 'Mesh', picture: 1 },
+  { value: 'metropolitan', label: 'Metropolitan', picture: 2 },
+  { value: 'parallax', label: 'Parallax', picture: 3 },
+  { value: 'parcel', label: 'Parcel', picture: 0 },
+  { value: 'quotable', label: 'Quotable', picture: 1 },
+  { value: 'savon', label: 'Savon', picture: 2 },
+  { value: 'vapor-trail', label: 'Vapor Trail', picture: 3 },
+  { value: 'view', label: 'View', picture: 0 },
+  { value: 'wood-type', label: 'Wood Type', picture: 1 },
 ];
+
+/** Where a theme is listed: the deck's own theme under *This Presentation*, and Office's set under *Office*. */
+function themeCategory(index: number): string {
+  return index === 0 ? 'This Presentation' : 'Office';
+}
+
+/**
+ * **PowerPoint's Themes as a menu**, for a master view's Edit Theme, where Office draws Themes as a dropdown
+ * rather than Design's in-ribbon gallery: the same `themes`, under the gallery's two headings, the deck's own
+ * checked, then the gallery's two footer commands.
+ */
+export function powerpointThemeEntries(): TemplateResult[] {
+  const listed = themes.map((theme, index) => ({ theme, index }));
+  return [
+    section(themeCategory(0), ...listed.filter(({ index }) => index === 0).map(({ theme }) => choice(theme.label, true))),
+    section(themeCategory(1), ...listed.filter(({ index }) => index > 0).map(({ theme }) => choice(theme.label))),
+    separator(),
+    item('Browse for Themes…'),
+    item('Save Current Theme…'),
+  ];
+}
 
 /** The Themes gallery's items, for PowerPoint's Design tab. A host starts on `office-theme`. */
 export function themeGalleryItems(): TemplateResult[] {
@@ -525,7 +631,7 @@ export function themeGalleryItems(): TemplateResult[] {
     (theme, index) => html`<mjx-gallery-item
       value=${theme.value}
       label=${theme.label}
-      category=${index === 0 ? 'This Presentation' : 'Office'}
+      category=${themeCategory(index)}
       >${themePictures[theme.picture] ?? themePictures[0]}</mjx-gallery-item
     >`,
   );
