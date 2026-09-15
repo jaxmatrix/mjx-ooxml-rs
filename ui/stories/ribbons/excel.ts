@@ -13,6 +13,10 @@
  *    they arrive with the rest of Home. The second of them is the one group on this tab whose
  *    single control the census names only by the group's own id, and `dev/ribbons/census.ts`
  *    records that rather than inventing an Office command to fill it.
+ * 3. **Insert is unit 3, and the largest of the three**: ten groups and thirty-five commands, because
+ *    Charts alone draws eleven — Recommended Charts, eight chart families as glyphs, Maps and
+ *    PivotChart. Nineteen commands are dropdowns or split buttons a host binds by id, and Charts is
+ *    the only group on any application's Insert tab with a dialog launcher.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -96,11 +100,47 @@ export function excelHomeTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelInsertTab(): TemplateResult {
-  return placeholderTab(entry('insert'));
+/**
+ * Insert: Tables, Illustrations, Charts, Sparklines, Filters, Links, Comments, Text, Symbols, Cell
+ * Controls — the ribbon programme's unit 3.
+ *
+ * `GUESS:` **Cell Controls is drawn last**, where the declaration puts it; Office added the group
+ * recently and this project cannot cite a build that fixes its position. The other nine are Office's
+ * order. Office's Add-ins and Tours (3D Map) groups are out of scope in the census and are not drawn.
+ * The group Office labels **Filters** is `GroupSlicerInsert` and draws the census's *Slicers*; see
+ * `dev/ribbons/census.ts` on why the label is not changed here.
+ *
+ * **Nineteen of the tab's thirty-five commands are bound by the host**: PivotTable, Pictures, Shapes,
+ * 3D Models, Screenshot, the eight chart families, Maps, PivotChart, Link, WordArt, Signature Line
+ * and Equation. Each opens a menu from `stories/ribbons/insert-menus.ts`.
+ *
+ * **One dialog launcher, on Charts**, because Office has one there: it opens the Insert Chart dialog
+ * on its All Charts page, which is the whole gallery the eight glyphs are the front of. No other
+ * group on the tab has a property sheet behind it.
+ *
+ * **No group keeps a survivor** — including Cell Controls, whose Checkbox passes rules 1 and 2 and is
+ * the group's only command.
+ */
+export function excelInsertTab(options: TabOptions = {}): TemplateResult {
+  const insert = entry('insert');
+  const controls = options.controls ?? {};
+  return tab(
+    insert.id,
+    insert.label,
+    censusGroup(insert, 'GroupInsertTablesExcel', {}, controls),
+    censusGroup(insert, 'GroupInsertIllustrations', {}, controls),
+    censusGroup(insert, 'GroupInsertChartsExcel', { launcher: 'See all charts' }, controls),
+    censusGroup(insert, 'GroupSparklinesInsert', {}, controls),
+    censusGroup(insert, 'GroupSlicerInsert', {}, controls),
+    censusGroup(insert, 'GroupInsertLinks', {}, controls),
+    censusGroup(insert, 'GroupInsertComments', {}, controls),
+    censusGroup(insert, 'GroupInsertText', {}, controls),
+    censusGroup(insert, 'GroupInsertSymbols', {}, controls),
+    censusGroup(insert, 'GroupCellControls', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelDrawTab(): TemplateResult {
   return placeholderTab(entry('draw'));

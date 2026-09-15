@@ -1,18 +1,21 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  commandSurfaceId,
   essentialCommands,
   everyRibbonCommand,
   ribbonApplicationNames,
   ribbonCensus,
   ribbonCensusSource,
+  ribbonSurfaceHostNames,
   strongestPriority,
   tabAppearanceNames,
   type RibbonApplication,
   type RibbonCommand,
   type RibbonGroupEntry,
+  type RibbonSurfaceHost,
   type RibbonTabEntry,
 } from '../dev/ribbons/census.ts';
 import { controlSizes, type ControlSize } from '../src/controls/control-states.ts';
@@ -474,12 +477,15 @@ describe('the icon rule can reject', () => {
   });
 
   it('catches a large button whose icon has no 24px drawing', () => {
-    // `table` is drawn at 20 alone, and `large` asks for 24 — the exact shape of the defect the
-    // ribbon programme hit with `folder-open`, and the reason this suite exists.
+    // `table-checker` is drawn at 20 alone, and `large` asks for 24 — the exact shape of the defect
+    // the ribbon programme hit with `folder-open`, and the reason this suite exists. It used to be
+    // `table`, until unit 3 made Table the large headline of the Insert tab and requested its 24;
+    // `table-checker` is the better specimen because the vendor ships no 24 of it at all, so no later
+    // unit can quietly turn this refusal into an acceptance.
     const findings = iconFindings({
-      id: 'word.insert.tables.table',
-      label: 'Table',
-      icon: 'table',
+      id: 'excel.home.styles.format-as-table',
+      label: 'Format as Table',
+      icon: 'table-checker',
       size: 'large',
     });
     expect(findings).toHaveLength(1);
@@ -803,6 +809,201 @@ describe('the order rule can reject', () => {
     expect(interleavesSurvivors([c('a', true), c('b')])).toBe(false);
     expect(interleavesSurvivors([c('a'), c('b', true)])).toBe(false);
     expect(interleavesSurvivors([c('a'), c('b')])).toBe(false);
+  });
+});
+
+// ── every surface a binding opens exists ─────────────────────────────────────
+
+/**
+ * Every command id a `commandMenu(host, '<id>', …)` call declares a menu for.
+ *
+ * `stories/ribbons/ribbon-parts.ts`'s `commandMenu` documents that its first argument is always
+ * spelt `host` at a call site; this is the reader that relies on it.
+ */
+export function commandMenusIn(source: string): string[] {
+  return [...source.matchAll(/commandMenu\(\s*host\s*,\s*'([a-z]+(?:\.[a-z0-9-]+){3})'/g)].map(
+    (match) => match[1] ?? '',
+  );
+}
+
+/** Every `data-opens` in a host's source, attributed to the binding key written nearest above it. */
+export function dataOpensIn(source: string): { readonly key: string | undefined; readonly opens: string }[] {
+  const keys = [...source.matchAll(/'([a-z]+(?:\.[a-z0-9-]+){3})'\s*:/g)].map((match) => ({
+    key: match[1] ?? '',
+    at: match.index,
+  }));
+  return [...source.matchAll(/\bdata-opens="([^"]+)"/g)].map((match) => ({
+    key: keys.filter((entry) => entry.at < match.index).at(-1)?.key,
+    opens: match[1] ?? '',
+  }));
+}
+
+/** One host's assembly source, and which application and host it is. */
+interface HostSource {
+  readonly name: string;
+  readonly application: RibbonApplication;
+  readonly host: RibbonSurfaceHost;
+  readonly source: string;
+}
+
+/**
+ * **What is wrong with the surfaces the hosts open.**
+ *
+ * `openDeclaredSurface` looks the `data-opens` id up and returns silently when nothing has it — a
+ * binding with a misspelt id is a button that looks right and opens nothing, which no screenshot
+ * shows. And the menus a unit writes live in a different file from the bindings that open them
+ * (`stories/ribbons/insert-menus.ts` against six host files), so the two can drift apart on either
+ * side. Four refusals:
+ *
+ * 1. a `data-opens` that names neither a literal `id="…"` in its own file nor a declared menu;
+ * 2. a binding that opens a declared menu belonging to a **different** command — the copy-and-paste
+ *    slip that opens Footer's menu from Header;
+ * 3. a declared menu that one of its application's two hosts never opens from that command's own
+ *    binding;
+ * 4. a host that binds declared menus and never renders them.
+ */
+export function surfaceFindings(
+  hosts: readonly HostSource[],
+  menuSources: readonly string[],
+): string[] {
+  const menus = [...new Set(menuSources.flatMap(commandMenusIn))];
+  const findings: string[] = [];
+  for (const file of hosts) {
+    const literalIds = new Set([...file.source.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1] ?? ''));
+    const menuForId = new Map(menus.map((command) => [commandSurfaceId(file.host, command), command]));
+    const opened = dataOpensIn(file.source);
+    for (const { key, opens } of opened) {
+      const menu = menuForId.get(opens);
+      if (menu !== undefined) {
+        if (key !== menu) {
+          findings.push(
+            `${file.name}: the binding for ${key ?? '(no command)'} opens the menu declared for ${menu}.`,
+          );
+        }
+      } else if (!literalIds.has(opens)) {
+        findings.push(
+          `${file.name}: data-opens="${opens}" (in the binding for ${key ?? '(no command)'}) names no ` +
+            'element on the page, so openDeclaredSurface finds nothing and the control opens nothing.',
+        );
+      }
+    }
+    const ownMenus = menus.filter((command) => command.split('.')[0] === file.application);
+    for (const command of ownMenus) {
+      const wanted = commandSurfaceId(file.host, command);
+      if (!opened.some(({ key, opens }) => key === command && opens === wanted)) {
+        findings.push(
+          `${file.name} never opens the menu declared for ${command} from that command's binding ` +
+            `(data-opens="${wanted}"), so the menu is unreachable on this host.`,
+        );
+      }
+    }
+    const renders = new RegExp(`\\b[a-z][A-Za-z]*Menus\\(\\s*'${file.application}'\\s*,\\s*'${file.host}'\\s*\\)`);
+    if (ownMenus.length > 0 && !renders.test(file.source)) {
+      findings.push(
+        `${file.name} binds commands to declared menus and never renders them for its host ` +
+          `('${file.application}', '${file.host}').`,
+      );
+    }
+  }
+  return findings;
+}
+
+describe('every surface a binding opens exists', () => {
+  const ribbonsDirectory = resolve(import.meta.dirname, '../stories/ribbons');
+  const menuSources = readdirSync(ribbonsDirectory)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.stories.ts'))
+    .map((name) => readFileSync(resolve(ribbonsDirectory, name), 'utf8'));
+  const hosts: HostSource[] = ribbonApplicationNames.flatMap((application) =>
+    ribbonSurfaceHostNames.map((host) => ({
+      name: `${host}/${application}.stories.ts`,
+      application,
+      host,
+      source: readFileSync(resolve(import.meta.dirname, `../stories/${host}/${application}.stories.ts`), 'utf8'),
+    })),
+  );
+
+  it('reads menus and bindings at all, or it is checking nothing', () => {
+    const menus = new Set(menuSources.flatMap(commandMenusIn));
+    expect(menus.size, 'no commandMenu(host, …) call found under stories/ribbons/').toBeGreaterThan(40);
+    for (const application of ribbonApplicationNames) {
+      expect([...menus].some((command) => command.startsWith(`${application}.`))).toBe(true);
+    }
+    expect(hosts.flatMap((file) => dataOpensIn(file.source)).length).toBeGreaterThan(100);
+  });
+
+  it('every menu declared is opened by both hosts, and every data-opens resolves to its own command', () => {
+    expect(surfaceFindings(hosts, menuSources)).toEqual([]);
+  });
+
+  it('every declared menu names a command the census declares', () => {
+    const declared = new Set(everyRibbonCommand().map((command) => command.id));
+    expect(menuSources.flatMap(commandMenusIn).filter((command) => !declared.has(command))).toEqual([]);
+  });
+});
+
+describe('the surface rule can reject', () => {
+  const menu = "commandMenu(host, 'word.insert.text.wordart', 'WordArt', item('Fill'))";
+  const binding = (host: RibbonSurfaceHost, key: string, opens: string, renders = true): HostSource => ({
+    name: `${host}/word.stories.ts`,
+    application: 'word',
+    host,
+    source:
+      `const bindings = {\n  '${key}': html\`<mjx-button data-opens="${opens}"></mjx-button>\`,\n};\n` +
+      (renders ? `html\`\${insertMenus('word', '${host}')}\`` : ''),
+  });
+
+  it('accepts a menu both hosts open from its own binding', () => {
+    expect(
+      surfaceFindings(
+        [
+          binding('ribbons', 'word.insert.text.wordart', 'ribbons-word-insert-text-wordart'),
+          binding('shell', 'word.insert.text.wordart', 'shell-word-insert-text-wordart'),
+        ],
+        [menu],
+      ),
+    ).toEqual([]);
+  });
+
+  it('reads a binding key and its data-opens together, and a menu call by its literal id', () => {
+    expect(commandMenusIn(menu)).toEqual(['word.insert.text.wordart']);
+    expect(commandMenusIn("commandMenu(host, commandId, 'Computed')"), 'a computed id is invisible').toEqual([]);
+    expect(dataOpensIn(binding('shell', 'word.insert.text.wordart', 'x').source)).toEqual([
+      { key: 'word.insert.text.wordart', opens: 'x' },
+    ]);
+  });
+
+  it('refuses a data-opens that names nothing', () => {
+    const findings = surfaceFindings([binding('ribbons', 'word.home.font.name', 'ribbons-nowhere')], []);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('names no element');
+  });
+
+  it('accepts a data-opens that names a literal id in its own file', () => {
+    const file = binding('ribbons', 'word.home.clipboard.paste', 'ribbons-word-paste');
+    expect(
+      surfaceFindings([{ ...file, source: `${file.source}\n<mjx-menu id="ribbons-word-paste"></mjx-menu>` }], []),
+    ).toEqual([]);
+  });
+
+  it("refuses a binding that opens a sibling's menu, and the menu its own command then never gets", () => {
+    const findings = surfaceFindings(
+      [binding('ribbons', 'word.insert.text.text-box', 'ribbons-word-insert-text-wordart')],
+      [menu],
+    );
+    expect(findings.some((finding) => finding.includes('opens the menu declared for word.insert.text.wordart'))).toBe(true);
+    expect(findings.some((finding) => finding.includes('never opens the menu'))).toBe(true);
+  });
+
+  it('refuses a menu one host never opens, and a host that never renders its menus', () => {
+    expect(surfaceFindings([binding('shell', 'word.insert.text.text-box', 'shell-word-paste')], [menu]).some(
+      (finding) => finding.includes('never opens the menu declared for word.insert.text.wordart'),
+    )).toBe(true);
+    const unrendered = surfaceFindings(
+      [binding('shell', 'word.insert.text.wordart', 'shell-word-insert-text-wordart', false)],
+      [menu],
+    );
+    expect(unrendered).toHaveLength(1);
+    expect(unrendered[0]).toContain('never renders them');
   });
 });
 

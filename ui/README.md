@@ -405,6 +405,29 @@ popup.
 | `reduced` | compact density; a large command lays out sideways and clamps to one line; two rows | at or below it |
 | `collapsed` | one button carrying the name, the essential commands beside it, the rest in a popup | at or below the priority's collapse width |
 
+### A bound command opens a menu that exists (unit 3 of the ribbon programme)
+
+The Insert tab is the first where most of a group's face opens something: fifty-one of its ninety-one
+commands across the three applications are a dropdown or a split button in Office. `RibbonCommand`
+stays a button or a toggle, so each is declared in `dev/ribbons/census.ts` with the label, icon and
+size Office draws it with — keeping the glyph inside `tests/ribbons.test.ts`'s icon gate — and both
+hosts bind a real control over it: `<mjx-split-button>` where Office draws two hit regions, and
+`<mjx-button>` where it draws one, whose press opens the menu through `openDeclaredSurface`.
+
+The menus are written **once**, in `stories/ribbons/insert-menus.ts`, and a host renders
+`insertMenus(application, host)` beside its ribbon. The binding and the menu therefore live in
+different files, and a `data-opens` that names nothing is a button that looks right and opens
+nothing. So the id is **derived** — `commandSurfaceId(host, commandId)` — and
+`tests/ribbons.test.ts` reads both sides: every `data-opens` in the six hosts must resolve, a binding
+may only open its own command's menu, every declared menu must be opened by both of its application's
+hosts, and a host that binds menus must render them. Each refusal is watched firing on a hand-made
+source.
+
+⚠ **A one-region dropdown does not announce its menu.** `<mjx-button>` observes no `aria-haspopup`
+or `aria-expanded`, so a screen reader hears *Table, button* where Office says *Table, menu button,
+collapsed*. The menu itself is a real `<mjx-menu>` — roving focus, Escape restores focus to the
+button — but the announcement before the press is a component gap, not something a binding can fix.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

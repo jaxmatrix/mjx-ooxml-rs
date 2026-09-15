@@ -22,6 +22,7 @@ import {
   type ControlOverrides,
 } from './ribbon-parts.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
+import { insertMenus } from './insert-menus.ts';
 
 /**
  * **Excel's ribbon, tab by tab** — the same functions `Shell/Excel` composes.
@@ -32,7 +33,7 @@ import { excelContextualSets, excelTabs } from './excel.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File and Home** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home and Insert** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -52,7 +53,8 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File and Home are authored; the rest are placeholders carrying the census’s priorities.',
+          'File, Home and Insert are authored; the rest are placeholders carrying the census’s ' +
+          'priorities.',
       },
     },
     mjx: conventions,
@@ -122,6 +124,126 @@ const bindings: ControlOverrides = {
   >
     ${largeGalleryItems().slice(0, 18)}
   </mjx-gallery>`,
+  // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+  // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+  // opens the menu, a split button opens it from its arrow. `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+  'excel.insert.tables.pivottable': html`<mjx-split-button
+    label="PivotTable"
+    size="small"
+    data-opens="ribbons-excel-insert-tables-pivottable"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.insert.illustrations.pictures': html`<mjx-button
+    label="Pictures"
+    icon="image"
+    size="large"
+    data-opens="ribbons-excel-insert-illustrations-pictures"
+  ></mjx-button>`,
+  'excel.insert.illustrations.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-excel-insert-illustrations-shapes"
+  ></mjx-button>`,
+  'excel.insert.illustrations.3d-models': html`<mjx-button
+    label="3D Models"
+    icon="cube"
+    size="small"
+    data-opens="ribbons-excel-insert-illustrations-3d-models"
+  ></mjx-button>`,
+  'excel.insert.illustrations.screenshot': html`<mjx-button
+    label="Screenshot"
+    icon="screenshot"
+    size="small"
+    data-opens="ribbons-excel-insert-illustrations-screenshot"
+  ></mjx-button>`,
+  'excel.insert.charts.column-bar': html`<mjx-button
+    label="Insert Column or Bar Chart"
+    icon="data-bar-vertical"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-column-bar"
+  ></mjx-button>`,
+  'excel.insert.charts.hierarchy': html`<mjx-button
+    label="Insert Hierarchy Chart"
+    icon="data-treemap"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-hierarchy"
+  ></mjx-button>`,
+  'excel.insert.charts.waterfall': html`<mjx-button
+    label="Insert Waterfall, Funnel, Stock, Surface or Radar Chart"
+    icon="data-waterfall"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-waterfall"
+  ></mjx-button>`,
+  'excel.insert.charts.line-area': html`<mjx-button
+    label="Insert Line or Area Chart"
+    icon="data-line"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-line-area"
+  ></mjx-button>`,
+  'excel.insert.charts.statistic': html`<mjx-button
+    label="Insert Statistic Chart"
+    icon="data-histogram"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-statistic"
+  ></mjx-button>`,
+  'excel.insert.charts.combo': html`<mjx-button
+    label="Insert Combo Chart"
+    size="small"
+    data-opens="ribbons-excel-insert-charts-combo"
+  ></mjx-button>`,
+  'excel.insert.charts.pie-doughnut': html`<mjx-button
+    label="Insert Pie or Doughnut Chart"
+    icon="data-pie"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-pie-doughnut"
+  ></mjx-button>`,
+  'excel.insert.charts.scatter-bubble': html`<mjx-button
+    label="Insert Scatter (X, Y) or Bubble Chart"
+    icon="data-scatter"
+    size="icon"
+    data-opens="ribbons-excel-insert-charts-scatter-bubble"
+  ></mjx-button>`,
+  'excel.insert.charts.maps': html`<mjx-button
+    label="Maps"
+    icon="map"
+    size="large"
+    data-opens="ribbons-excel-insert-charts-maps"
+  ></mjx-button>`,
+  'excel.insert.charts.pivotchart': html`<mjx-split-button
+    label="PivotChart"
+    size="small"
+    data-opens="ribbons-excel-insert-charts-pivotchart"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.insert.links.link': html`<mjx-split-button
+    label="Link"
+    icon="link"
+    size="large"
+    data-opens="ribbons-excel-insert-links-link"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.insert.text.wordart': html`<mjx-button
+    label="WordArt"
+    icon="text-effects"
+    size="large"
+    data-opens="ribbons-excel-insert-text-wordart"
+  ></mjx-button>`,
+  'excel.insert.text.signature-line': html`<mjx-split-button
+    label="Signature Line"
+    icon="signature"
+    size="small"
+    data-opens="ribbons-excel-insert-text-signature-line"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.insert.symbols.equation': html`<mjx-split-button
+    label="Equation"
+    icon="math-formula"
+    size="large"
+    data-opens="ribbons-excel-insert-symbols-equation"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -145,6 +267,8 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-separator></mjx-menu-separator>
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
+
+    ${insertMenus('excel', 'ribbons')}
   `;
 }
 
@@ -194,7 +318,31 @@ export const File: Story = { render: () => ribbon('file') };
  */
 export const Home: Story = { render: () => ribbon('home') };
 
-/** Unit 3. */
+/**
+ * **Insert** — ten groups and thirty-five commands, the largest of the three, and the ribbon
+ * programme's unit 3. See `Ribbons/Word → Insert` for the two rules that shape every Insert tab. What
+ * is Excel's own:
+ *
+ * 1. **Charts is eleven commands, and eight of them are glyphs alone** — the one place on any Insert
+ *    tab where Office draws no names. Each chart family's accessible name is Office's tooltip,
+ *    *Insert Column or Bar Chart* and the rest, and each opens a menu of real chart types under
+ *    Office's own section headings. **Insert Combo Chart is the one labelled command in the row**:
+ *    Fluent draws columns and lines, never both in one picture. Charts also carries the only dialog
+ *    launcher on any application's Insert tab, because Excel has one there.
+ * 2. **PivotTable, the headline of the tab, carries no icon.** Fluent draws no pivot, and the nearest
+ *    pictures say *refresh* and *swap*. It is a labelled split button beside Recommended PivotTables,
+ *    which carries no glyph either, and a large Table.
+ * 3. **The group Office calls Filters is labelled Slicers**, which is the census's `GroupSlicerInsert`.
+ *    Its commands are Office's: Slicer and Timeline.
+ * 4. **Cell Controls is new in Office and drawn last** (`GUESS:`), holding Checkbox — the one command
+ *    on the tab that passes demotion rules 1 and 2, and still keeps nothing, because it is its group's
+ *    only command and a survivor would leave the collapsed popup empty.
+ * 5. **Nineteen commands open a menu**, from PivotTable's data sources to PivotChart's two shapes;
+ *    **seven carry no icon** — PivotTable, Recommended PivotTables, Insert Combo Chart, PivotChart,
+ *    Win/Loss, Object and Symbol.
+ *
+ * Tables and Charts are the primary groups, so they are the last two standing.
+ */
 export const Insert: Story = { render: () => ribbon('insert') };
 
 /** Unit 4. */

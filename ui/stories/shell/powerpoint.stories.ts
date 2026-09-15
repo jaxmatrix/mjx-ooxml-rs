@@ -43,6 +43,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
@@ -244,6 +245,98 @@ function ribbon(): TemplateResult {
             >
               <mjx-button label="Arrange" icon="layer"></mjx-button>
             </mjx-screentip>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'powerpoint.insert.slides.new-slide': html`<mjx-split-button
+              label="New Slide"
+              icon="slide-add"
+              size="large"
+              data-opens="shell-powerpoint-insert-slides-new-slide"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.tables.table': html`<mjx-button
+              label="Table"
+              icon="table"
+              size="large"
+              data-opens="shell-powerpoint-insert-tables-table"
+            ></mjx-button>`,
+            'powerpoint.insert.images.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-pictures"
+            ></mjx-button>`,
+            'powerpoint.insert.images.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-screenshot"
+            ></mjx-button>`,
+            'powerpoint.insert.images.photo-album': html`<mjx-split-button
+              label="Photo Album"
+              icon="image-multiple"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-photo-album"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-powerpoint-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'powerpoint.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="large"
+              data-opens="shell-powerpoint-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'powerpoint.insert.camera.cameo': html`<mjx-split-button
+              label="Cameo"
+              icon="camera"
+              size="large"
+              data-opens="shell-powerpoint-insert-camera-cameo"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.links.zoom': html`<mjx-button
+              label="Zoom"
+              size="small"
+              data-opens="shell-powerpoint-insert-links-zoom"
+            ></mjx-button>`,
+            'powerpoint.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="large"
+              data-opens="shell-powerpoint-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="large"
+              data-opens="shell-powerpoint-insert-text-wordart"
+            ></mjx-button>`,
+            'powerpoint.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-powerpoint-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.media-clips.video': html`<mjx-button
+              label="Video"
+              icon="video"
+              size="large"
+              data-opens="shell-powerpoint-insert-media-clips-video"
+            ></mjx-button>`,
+            'powerpoint.insert.media-clips.audio': html`<mjx-button
+              label="Audio"
+              icon="speaker-2"
+              size="large"
+              data-opens="shell-powerpoint-insert-media-clips-audio"
+            ></mjx-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -492,6 +585,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('powerpoint', 'shell')}
       <mjx-dialog id="ppt-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

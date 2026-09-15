@@ -34,9 +34,11 @@
 import { html, nothing, type TemplateResult } from 'lit';
 
 import {
+  commandSurfaceId,
   ribbonGroup,
   strongestPriority,
   type RibbonCommand,
+  type RibbonSurfaceHost,
   type RibbonTabEntry,
 } from '../../dev/ribbons/census.ts';
 import { group, toggle } from '../shell/shell-parts.ts';
@@ -171,6 +173,29 @@ export function censusGroup(
     options,
     ...(declared.commands ?? []).map((command) => renderCommand(command, overrides)),
   );
+}
+
+/**
+ * **The menu a bound command opens**, with the id both hosts' bindings derive from the command id.
+ *
+ * The seam `openDeclaredSurface` reads: a binding carries `data-opens="<commandSurfaceId>"`, and a
+ * press (the whole button, or a split button's arrow) opens the element with that id. The id is
+ * never written by hand on this side — see `commandSurfaceId` — so the only way a binding and its
+ * menu can disagree is a binding that names the wrong command, which `tests/ribbons.test.ts` refuses.
+ *
+ * ⚠ **The first argument is always spelt `host` at a call site**, and `tests/ribbons.test.ts` reads
+ * the literal command id that follows it. A menu built from a computed id would be a menu the gate
+ * cannot see.
+ */
+export function commandMenu(
+  host: RibbonSurfaceHost,
+  commandId: string,
+  label: string,
+  ...entries: TemplateResult[]
+): TemplateResult {
+  return html`<mjx-menu id=${commandSurfaceId(host, commandId)} label=${label} floating>
+    ${entries}
+  </mjx-menu>`;
 }
 
 /**

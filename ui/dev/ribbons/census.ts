@@ -71,15 +71,17 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File and Home.** Unit 0 was the scaffold: the three Home tabs held the commands migrated out of
- * `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1 authored
- * File in all three applications — see the *commands File shows* section below, which is also where
- * the reasoning about the census's control counts lives. Unit 2 authored **Home**, replacing that
- * migrated set with every command Office's Home tab shows and filling in the three groups the
- * shells had never carried: Word's Editor, PowerPoint's Slides, and Excel's Cells and Power
- * Options. Every remaining tab is still a placeholder until its own unit. That is why `commands`
- * is optional rather than required — an empty array would claim a tab had been authored and found
- * to hold nothing.
+ * **File, Home and Insert.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
+ * authored File in all three applications — see the *commands File shows* section below, which is
+ * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
+ * replacing that migrated set with every command Office's Home tab shows and filling in the three
+ * groups the shells had never carried: Word's Editor, PowerPoint's Slides, and Excel's Cells and
+ * Power Options. Unit 3 authored **Insert** — thirty groups across the three applications, and the
+ * first tab where nearly every command opens something, so the first where most of a tab's face is
+ * bound by its hosts rather than drawn generically; see the *commands Insert shows* section. Every
+ * remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
  *
@@ -184,6 +186,29 @@ export interface RibbonTabEntry {
   readonly appearance: TabAppearance;
   readonly source: RibbonTabSource;
   readonly groups: readonly RibbonGroupEntry[];
+}
+
+/**
+ * The two kinds of page that assemble a ribbon and bind its commands: the `Ribbons/*` catalogue and
+ * the `Shell/*` assemblies.
+ */
+export const ribbonSurfaceHostNames = ['ribbons', 'shell'] as const;
+
+/** One of the two. */
+export type RibbonSurfaceHost = (typeof ribbonSurfaceHostNames)[number];
+
+/**
+ * **The element id of the surface a bound command opens**, on one host's page —
+ * `ribbons-word-insert-tables-table`.
+ *
+ * Derived from the command id rather than chosen, because the menu and the binding that opens it are
+ * written in two different files (`stories/ribbons/insert-menus.ts`, and each host's bindings) and a
+ * binding whose `data-opens` names a menu that does not exist is a control that silently does
+ * nothing: `openDeclaredSurface` finds no element and returns. `tests/ribbons.test.ts` reads both
+ * files and requires every `data-opens` to resolve, and to name its own command's menu.
+ */
+export function commandSurfaceId(host: RibbonSurfaceHost, commandId: string): string {
+  return `${host}-${commandId.replaceAll('.', '-')}`;
 }
 
 /** Which file the rows below were transcribed from, and under which filters. */
@@ -623,6 +648,477 @@ const excelHomePowerOptions: readonly RibbonCommand[] = [
   { id: 'excel.home.power-options.power-options', label: 'Power Options' },
 ];
 
+// ── the commands Insert shows ────────────────────────────────────────────────
+//
+// The ribbon programme's **unit 3**: Insert, in all three applications — nine groups in Word, eleven
+// in PowerPoint, ten in Excel — carrying every command Office's Insert tab shows on its face, in
+// Office's own order.
+//
+// ## Nearly every command on this tab opens something, and that decides three things at once
+//
+// Home is a tab of *verbs on a selection*: Bold does one thing to the text you have. Insert is a tab
+// of *nouns you have not chosen yet* — which table, which shape, which header, which chart — so the
+// choice comes after the press, in a gallery, a menu, a dialog or a picker. Of the ninety-odd
+// commands below, **fifty-one** are a dropdown or a split button in Office. That decides:
+//
+// 1. **The bindings.** `RibbonCommand` is a button or a toggle, so each of the fifty-one is declared
+//    here with the label, icon and size Office draws it with, and both hosts bind a real control
+//    over it by id — `<mjx-split-button>` where Office draws two hit regions, `<mjx-button>` where it
+//    draws one — opening an `<mjx-menu>` that `stories/ribbons/insert-menus.ts` writes once for both
+//    hosts. The declaration keeps its icon and size, as Home's Paste does, so `tests/ribbons.test.ts`
+//    still resolves the glyph the binding draws; a label-only declaration would put every one of
+//    those fifty-one glyphs outside the icon gate.
+// 2. **The menus stay shallow.** The census counts Word's Header & Footer at 32 and Excel's Charts
+//    at 25 because it counts every built-in in every gallery. Decision 3 of the approved plan is
+//    unchanged: *name what the tab shows; menus stay shallow*. A menu here carries a handful of real
+//    Office entries — Austin, Banded and Facet from the header gallery; Edit Header and Remove Header
+//    under them — and the long tail is represented by the control that opens it, never transcribed.
+// 3. **No survivor anywhere on the tab.** See the next section.
+//
+// ## No group on this tab keeps a survivor, and each says why
+//
+// A survivor must pass **all four** of `demotionRules`, judged on the shape Office draws. On Insert,
+// rule 1 alone refuses almost everything: a gallery, a menu, a dialog, a picker, and — less obviously
+// — a *drawing mode*. PowerPoint's and Excel's **Text Box** open nothing, and are still not
+// immediate: the press arms a gesture and the text box arrives when the pointer is dragged, so one
+// press does not do one thing. The three commands that do pass rule 1 are refused on other grounds,
+// and each is written beside its group:
+//
+// - **Word's Page Break** passes all four and is not kept, for the reason Clipboard's Cut and Copy
+//   give on Home: it is on the keyboard (Ctrl+Enter) at every width, so a collapsed group spends its
+//   one row of room on nothing a person could not already reach.
+// - **Word's Blank Page** fails rule 2 by the standard stated once in the Home section's header: a
+//   page with a plus on it is the glyph of *New document*, a different command a person reaches for
+//   many times a day. `GUESS:` a judgement about a glyph.
+// - **Excel's Checkbox** passes rules 1 and 2 and is its group's only command, so a survivor there
+//   would leave the collapsed popup empty — the ceiling gate's own refusal, and `wordHomeEditor`'s
+//   argument.
+//
+// ## Three groups are the same group in all three applications, and two of them are written once
+//
+// **Comments** is one command, *Comment*, in all three — same name, same glyph, same size — so it is
+// `insertCommentsCommands(application)`. **Symbols** is Equation and Symbol in all three with the same
+// names and sizes, so it is `insertSymbolsCommands(application)`; what differs is the *shape* Office
+// draws Symbol in (Word's opens a grid of recent symbols, PowerPoint's and Excel's open the Symbol
+// dialog directly), and a shape is a binding, not a declaration. **Links is not shared**, although it
+// looks like a candidate: Word's is Link, Bookmark and Cross-reference, PowerPoint's is Zoom, Link and
+// Action, and Excel's is Link alone.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **Excel's `GroupSlicerInsert` is labelled *Slicers* here and *Filters* in Office.** Office's group
+//    holds Slicer and Timeline, and a timeline is not a slicer; the census's own id is the source of
+//    the label, and renaming a group is exactly what `tests/ribbons.test.ts` exists to stop. The
+//    commands carry Office's names.
+// 2. **PowerPoint's `GroupInsertMediaClips` is labelled *Media Clips* here and *Media* in Office.**
+//    Same reasoning.
+// 3. **PowerPoint's `GroupContent` is one control the census names and does not describe** —
+//    `GroupHomePowerOptions`'s case exactly. Office's PowerPoint Insert tab has no group a person
+//    would call *Content*; its neighbours in the census (`GroupMSForms`, `GroupPowerBI`,
+//    `GroupOfficeExtension`) are all out of scope, which is the best available evidence that this is
+//    a fourth host for external content rather than anything on the classic face. So it is one
+//    command carrying the group's own label and no icon, and a one-line change when somebody can
+//    say what Office puts there.
+// 4. **Office draws groups the census marks out of scope, and they are not drawn here**: Word's
+//    Add-ins (between Illustrations and Media) and Barcode, PowerPoint's Forms, Power BI and Add-ins,
+//    Excel's Add-ins and Tours (3D Map). The census wins.
+// 5. **Three of the tab orders are `GUESS:`, because the census has no order column and Office has
+//    moved these groups between releases.** Word's order is Office's and matches the declaration.
+//    PowerPoint's **Camera** is drawn after Illustrations and **Content** last, and Excel's **Cell
+//    Controls** last — each where the declaration puts it, because no Office build this project can
+//    cite puts it anywhere else.
+//
+// ## Sizes: what Office draws, bounded by what fits
+//
+// Office's Insert tab is mostly large buttons, and a command is `large` here where Office draws it
+// large **and** its label wraps inside `largeControlWidthUnits` — about eighty pixels, two lines. Three
+// labels Office draws large are `small` here for the second reason: **Header & Footer** is three
+// tokens (PowerPoint and Excel), **Recommended PivotTables** carries a thirteen-letter word, and
+// **Recommended Charts** was drawn large and *measured*: in the built catalogue its label needed 58
+// pixels of height in a 39-pixel, two-line box, because *Recommended* alone does not fit the width
+// and broke onto a third line that was clipped. Every other large label on the tab was measured in
+// the same pass and fits. Where
+// Office draws a column of labelled commands beside its large ones — Word's Pages, Links, Header &
+// Footer and most of Text — they are `small`. Excel's eight chart families are `icon`, which is the
+// one place on the tab Office draws glyphs alone, and their accessible names are Office's tooltips.
+//
+// ## The commands that carry no icon, and why that is not an omission
+//
+// Unit 1's rule, unchanged: a wrong icon is worse than a missing one, because a person acts on it.
+// Fluent draws no cover page, no cross-reference, no Quick Parts building block, no drop cap, no
+// OLE object, no Ω, no zoom-to-slide, no pivot, no combo chart and no win/loss mark. So **Cover
+// Page**, **Cross-reference**, **Quick Parts**, **Drop Cap** and **Object** (Word); **Reuse Slides**,
+// **Zoom**, **Object** and **Content** (PowerPoint); **PivotTable**, **Recommended PivotTables**,
+// **Insert Combo Chart**, **PivotChart**, **Win/Loss** and **Object** (Excel); and **Symbol** in all
+// three are `small`, and the label is the command. PivotTable is the one that costs something: it is
+// the headline of Excel's Insert tab, and it is drawn as a labelled small button rather than as a
+// table with arrows somebody would read as *refresh*.
+
+/**
+ * Comments: one command, the same in all three applications — `Comment`, drawn large.
+ *
+ * **No survivor.** New Comment opens a comment card and puts the caret in it — a surface, one press
+ * away from the command — and it is the group's only command, so a survivor would leave the collapsed
+ * popup empty.
+ */
+function insertCommentsCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.insert.comments.comment`, label: 'Comment', icon: 'comment-add', size: 'large' },
+  ];
+}
+
+/**
+ * Symbols: Equation and Symbol, with the same names and sizes in all three applications.
+ *
+ * Equation is a split button everywhere — the face inserts a new equation, the arrow opens the
+ * built-in equations — and it is bound as one by every host. **Symbol** is where the three differ, and
+ * they differ in shape only: Word's opens a grid of recently used symbols, so Word's hosts bind a
+ * dropdown over it; PowerPoint's and Excel's open the Symbol dialog, so their hosts draw the generic
+ * button. It carries no icon in any of them — Fluent's `symbols` is an ampersand and a percent sign,
+ * and Office's is Ω.
+ *
+ * **No survivor**: a split button with a gallery behind it, and a grid or a dialog.
+ */
+function insertSymbolsCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.insert.symbols.equation`, label: 'Equation', icon: 'math-formula', size: 'large' },
+    { id: `${application}.insert.symbols.symbol`, label: 'Symbol' },
+  ];
+}
+
+/**
+ * Word's Pages group: three small labelled commands in a column, which is how Office draws it.
+ *
+ * **No survivor.** Cover Page is a gallery. Page Break passes all four rules and is on the keyboard
+ * (Ctrl+Enter) at every width, which is the reason Home's Clipboard keeps none. Blank Page fails rule
+ * 2: a page with a plus is *New document*'s glyph. See this section's header.
+ */
+const wordInsertPages: readonly RibbonCommand[] = [
+  { id: 'word.insert.pages.cover-page', label: 'Cover Page' },
+  { id: 'word.insert.pages.blank-page', label: 'Blank Page', icon: 'document-one-page-add' },
+  { id: 'word.insert.pages.page-break', label: 'Page Break', icon: 'document-page-break' },
+];
+
+/**
+ * Word's Tables group is one control, and the census's seven are what is behind it: the grid, Insert
+ * Table, Draw Table, Convert Text to Table, Excel Spreadsheet and Quick Tables.
+ *
+ * **No survivor**: the grid is a picker.
+ */
+const wordInsertTables: readonly RibbonCommand[] = [
+  { id: 'word.insert.tables.table', label: 'Table', icon: 'table', size: 'large' },
+];
+
+/**
+ * Word's Illustrations group: four large commands and a column of three small ones.
+ *
+ * **No survivor**: Pictures, Shapes, 3D Models and Screenshot open a menu or a gallery; Icons, SmartArt
+ * and Chart open a dialog.
+ */
+const wordInsertIllustrations: readonly RibbonCommand[] = [
+  { id: 'word.insert.illustrations.pictures', label: 'Pictures', icon: 'image', size: 'large' },
+  { id: 'word.insert.illustrations.shapes', label: 'Shapes', icon: 'shapes', size: 'large' },
+  { id: 'word.insert.illustrations.icons', label: 'Icons', icon: 'icons', size: 'large' },
+  { id: 'word.insert.illustrations.3d-models', label: '3D Models', icon: 'cube', size: 'large' },
+  { id: 'word.insert.illustrations.smartart', label: 'SmartArt', icon: 'diagram' },
+  { id: 'word.insert.illustrations.chart', label: 'Chart', icon: 'data-bar-vertical' },
+  { id: 'word.insert.illustrations.screenshot', label: 'Screenshot', icon: 'screenshot' },
+];
+
+/** Word's Media group: one command, and the census counts one. **No survivor**: a dialog, and the only command. */
+const wordInsertMedia: readonly RibbonCommand[] = [
+  { id: 'word.insert.media.online-videos', label: 'Online Videos', icon: 'video', size: 'large' },
+];
+
+/**
+ * Word's Links group: Link, Bookmark and Cross-reference.
+ *
+ * `GUESS:` **small, in a column.** Word 2016 drew all three large and Microsoft 365 draws Link as the
+ * group's headline at some widths; the column is the conservative shape, because it keeps all three
+ * names at the width Word's Insert tab most often has.
+ *
+ * **No survivor**: Link is a split button with recent items behind its arrow, and Bookmark and
+ * Cross-reference open dialogs.
+ */
+const wordInsertLinks: readonly RibbonCommand[] = [
+  { id: 'word.insert.links.link', label: 'Link', icon: 'link' },
+  { id: 'word.insert.links.bookmark', label: 'Bookmark', icon: 'bookmark' },
+  { id: 'word.insert.links.cross-reference', label: 'Cross-reference' },
+];
+
+/**
+ * Word's Header & Footer group — **32** census controls, three commands on its face.
+ *
+ * Thirty-two is the built-in header gallery, the built-in footer gallery and the page-number
+ * positions, each counted entry by entry. `GUESS:` **small, in a column**, as Microsoft 365 draws
+ * them at a wide window; Word 2013 drew them large.
+ *
+ * **No survivor**: all three are galleries.
+ */
+const wordInsertHeaderFooter: readonly RibbonCommand[] = [
+  { id: 'word.insert.header-footer.header', label: 'Header', icon: 'document-header' },
+  { id: 'word.insert.header-footer.footer', label: 'Footer', icon: 'document-footer' },
+  { id: 'word.insert.header-footer.page-number', label: 'Page Number', icon: 'document-page-number' },
+];
+
+/**
+ * Word's Text group: Text Box large, then two columns of three.
+ *
+ * **WordArt draws `text-effects`**, which is also Home's *Text Effects and Typography*, and that is
+ * the same idea twice rather than a collision: both put an outlined, shadowed, glowing letter on the
+ * page, one on text that exists and one in a new box.
+ *
+ * **No survivor**: Text Box, WordArt and Drop Cap are galleries, Quick Parts is a menu, Signature Line
+ * and Object are split buttons, Date & Time opens a dialog.
+ */
+const wordInsertText: readonly RibbonCommand[] = [
+  { id: 'word.insert.text.text-box', label: 'Text Box', icon: 'textbox', size: 'large' },
+  { id: 'word.insert.text.quick-parts', label: 'Quick Parts' },
+  { id: 'word.insert.text.wordart', label: 'WordArt', icon: 'text-effects' },
+  { id: 'word.insert.text.drop-cap', label: 'Drop Cap' },
+  { id: 'word.insert.text.signature-line', label: 'Signature Line', icon: 'signature' },
+  { id: 'word.insert.text.date-time', label: 'Date & Time', icon: 'calendar-clock' },
+  { id: 'word.insert.text.object', label: 'Object' },
+];
+
+/**
+ * PowerPoint's Slides group on Insert — New Slide again, and Reuse Slides beside it.
+ *
+ * `powerpoint.home.slides.new-slide` and this are **two commands with one name**, as they are in
+ * Office: the same split button on two tabs, which is why their ids differ by tab and a host binds
+ * each where it draws it.
+ *
+ * **No survivor**: New Slide is a split button whose arrow is the layout gallery, and Reuse Slides
+ * opens a pane.
+ */
+const powerpointInsertSlides: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.slides.new-slide', label: 'New Slide', icon: 'slide-add', size: 'large' },
+  { id: 'powerpoint.insert.slides.reuse-slides', label: 'Reuse Slides' },
+];
+
+/** PowerPoint's Tables group: the grid and its three commands behind one button. **No survivor**: a picker. */
+const powerpointInsertTables: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.tables.table', label: 'Table', icon: 'table', size: 'large' },
+];
+
+/**
+ * PowerPoint's Images group — the group Word and Excel fold into Illustrations. All three large.
+ *
+ * **No survivor**: Pictures is a menu, Screenshot a gallery, Photo Album a split button.
+ */
+const powerpointInsertImages: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.images.pictures', label: 'Pictures', icon: 'image', size: 'large' },
+  { id: 'powerpoint.insert.images.screenshot', label: 'Screenshot', icon: 'screenshot', size: 'large' },
+  { id: 'powerpoint.insert.images.photo-album', label: 'Photo Album', icon: 'image-multiple', size: 'large' },
+];
+
+/**
+ * PowerPoint's Illustrations group: five large commands, where Word draws four large and three small —
+ * a deck's Insert tab has the room Word's spends on Pages and Header & Footer.
+ *
+ * **No survivor**: Shapes and 3D Models open a gallery or a menu; Icons, SmartArt and Chart a dialog.
+ */
+const powerpointInsertIllustrations: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.illustrations.shapes', label: 'Shapes', icon: 'shapes', size: 'large' },
+  { id: 'powerpoint.insert.illustrations.icons', label: 'Icons', icon: 'icons', size: 'large' },
+  { id: 'powerpoint.insert.illustrations.3d-models', label: '3D Models', icon: 'cube', size: 'large' },
+  { id: 'powerpoint.insert.illustrations.smartart', label: 'SmartArt', icon: 'diagram', size: 'large' },
+  { id: 'powerpoint.insert.illustrations.chart', label: 'Chart', icon: 'data-bar-vertical', size: 'large' },
+];
+
+/**
+ * PowerPoint's Camera group: Cameo, which puts a live camera feed on a slide.
+ *
+ * `GUESS:` **a split button** — the face inserts the feed on this slide, the arrow offers This Slide
+ * and All Slides. The census counts three, which is that shape.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const powerpointInsertCamera: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.camera.cameo', label: 'Cameo', icon: 'camera', size: 'large' },
+];
+
+/**
+ * PowerPoint's Links group: Zoom, Link and Action.
+ *
+ * **Zoom carries no icon.** It inserts a live thumbnail that jumps to a slide or a section, and
+ * Fluent's `zoom-in` is a magnifier — the *view* zoom on the status bar, a different command a person
+ * reaches for constantly.
+ *
+ * **No survivor**: Zoom is a menu (Summary, Section, Slide), Link a split button, Action a dialog.
+ */
+const powerpointInsertLinks: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.links.zoom', label: 'Zoom' },
+  { id: 'powerpoint.insert.links.link', label: 'Link', icon: 'link', size: 'large' },
+  { id: 'powerpoint.insert.links.action', label: 'Action', icon: 'cursor-click', size: 'large' },
+];
+
+/**
+ * PowerPoint's Text group: three large commands and a column of three small ones, where Office draws
+ * Header & Footer large too — see the section header on why three tokens do not fit.
+ *
+ * **Slide Number draws `number-symbol-square`**, a number sign in a frame, where Word's Page Number
+ * draws a numbered page: one command in two vocabularies.
+ *
+ * **No survivor**: Text Box arms a drawing mode, WordArt is a gallery, and Header & Footer, Date &
+ * Time, Slide Number and Object all open a dialog — the first three the same one.
+ */
+const powerpointInsertText: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.text.text-box', label: 'Text Box', icon: 'textbox', size: 'large' },
+  { id: 'powerpoint.insert.text.header-footer', label: 'Header & Footer', icon: 'document-header-footer' },
+  { id: 'powerpoint.insert.text.wordart', label: 'WordArt', icon: 'text-effects', size: 'large' },
+  { id: 'powerpoint.insert.text.date-time', label: 'Date & Time', icon: 'calendar-clock' },
+  { id: 'powerpoint.insert.text.slide-number', label: 'Slide Number', icon: 'number-symbol-square' },
+  { id: 'powerpoint.insert.text.object', label: 'Object' },
+];
+
+/**
+ * PowerPoint's Media group — `GroupInsertMediaClips`, labelled *Media Clips* by the census. See the
+ * section header.
+ *
+ * **No survivor**: Video and Audio are menus, and Screen Recording opens the recording dock and cannot
+ * be taken back by one press.
+ */
+const powerpointInsertMediaClips: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.media-clips.video', label: 'Video', icon: 'video', size: 'large' },
+  { id: 'powerpoint.insert.media-clips.audio', label: 'Audio', icon: 'speaker-2', size: 'large' },
+  { id: 'powerpoint.insert.media-clips.screen-recording', label: 'Screen Recording', icon: 'record', size: 'large' },
+];
+
+/**
+ * ⚠ **`GroupContent` is one control the census names and does not describe.** See the section header,
+ * and `excelHomePowerOptions`, whose reasoning this is.
+ *
+ * **No survivor**: nothing is known about what it does, and it is the only command.
+ */
+const powerpointInsertContent: readonly RibbonCommand[] = [
+  { id: 'powerpoint.insert.content.content', label: 'Content' },
+];
+
+/**
+ * Excel's Tables group: PivotTable, Recommended PivotTables and Table.
+ *
+ * **Only Table carries an icon.** Fluent draws no pivot table, and the nearest pictures — a table with
+ * circling arrows, a table with a switch — say *refresh* and *swap*. See the section header on what
+ * that costs the headline of Excel's Insert tab.
+ *
+ * **No survivor**: PivotTable is a split button (From Table/Range, From External Data Source, From
+ * Data Model), and Recommended PivotTables and Table open dialogs.
+ */
+const excelInsertTables: readonly RibbonCommand[] = [
+  { id: 'excel.insert.tables.pivottable', label: 'PivotTable' },
+  { id: 'excel.insert.tables.recommended-pivottables', label: 'Recommended PivotTables' },
+  { id: 'excel.insert.tables.table', label: 'Table', icon: 'table', size: 'large' },
+];
+
+/**
+ * Excel's Illustrations group: Word's, without Chart — a workbook has a whole Charts group beside it.
+ *
+ * `GUESS:` **Pictures, Shapes and Icons large and the rest small**, as Excel draws them beside a wide
+ * Charts group; at narrower windows Office folds the whole group into one Illustrations button,
+ * which is this catalogue's collapse ladder rather than a declaration.
+ *
+ * **No survivor**: Pictures, Shapes, 3D Models and Screenshot open menus or galleries; Icons and
+ * SmartArt open dialogs.
+ */
+const excelInsertIllustrations: readonly RibbonCommand[] = [
+  { id: 'excel.insert.illustrations.pictures', label: 'Pictures', icon: 'image', size: 'large' },
+  { id: 'excel.insert.illustrations.shapes', label: 'Shapes', icon: 'shapes', size: 'large' },
+  { id: 'excel.insert.illustrations.icons', label: 'Icons', icon: 'icons', size: 'large' },
+  { id: 'excel.insert.illustrations.3d-models', label: '3D Models', icon: 'cube' },
+  { id: 'excel.insert.illustrations.smartart', label: 'SmartArt', icon: 'diagram' },
+  { id: 'excel.insert.illustrations.screenshot', label: 'Screenshot', icon: 'screenshot' },
+];
+
+/**
+ * Excel's Charts group — Recommended Charts, eight chart families drawn as glyphs, Maps and PivotChart.
+ *
+ * **Recommended Charts is `small`, although Office draws it large**: its label was measured clipped
+ * at `large` in the built catalogue. See the section header.
+ *
+ * The eight are the one place on any Insert tab where Office draws icons alone, so they are `icon`
+ * and each accessible name is Office's tooltip, *Insert Column or Bar Chart* and the rest. They are
+ * in reading order: Office lays them out as a three-row block — Column or Bar, Hierarchy, Waterfall;
+ * Line or Area, Statistic, Combo; Pie or Doughnut, Scatter — and a group's flex row reads that
+ * left to right, top to bottom.
+ *
+ * **Insert Combo Chart carries no icon**, and is therefore the one labelled command in a row of
+ * glyphs — PowerPoint's Text Shadow on Home, again. Fluent draws columns and lines, never both in one
+ * picture.
+ *
+ * **No survivor**: Recommended Charts opens a dialog and the other ten are galleries or a split button.
+ */
+const excelInsertCharts: readonly RibbonCommand[] = [
+  { id: 'excel.insert.charts.recommended-charts', label: 'Recommended Charts', icon: 'chart-multiple' },
+  { id: 'excel.insert.charts.column-bar', label: 'Insert Column or Bar Chart', icon: 'data-bar-vertical', size: 'icon' },
+  { id: 'excel.insert.charts.hierarchy', label: 'Insert Hierarchy Chart', icon: 'data-treemap', size: 'icon' },
+  { id: 'excel.insert.charts.waterfall', label: 'Insert Waterfall, Funnel, Stock, Surface or Radar Chart', icon: 'data-waterfall', size: 'icon' },
+  { id: 'excel.insert.charts.line-area', label: 'Insert Line or Area Chart', icon: 'data-line', size: 'icon' },
+  { id: 'excel.insert.charts.statistic', label: 'Insert Statistic Chart', icon: 'data-histogram', size: 'icon' },
+  { id: 'excel.insert.charts.combo', label: 'Insert Combo Chart' },
+  { id: 'excel.insert.charts.pie-doughnut', label: 'Insert Pie or Doughnut Chart', icon: 'data-pie', size: 'icon' },
+  { id: 'excel.insert.charts.scatter-bubble', label: 'Insert Scatter (X, Y) or Bubble Chart', icon: 'data-scatter', size: 'icon' },
+  { id: 'excel.insert.charts.maps', label: 'Maps', icon: 'map', size: 'large' },
+  { id: 'excel.insert.charts.pivotchart', label: 'PivotChart' },
+];
+
+/**
+ * Excel's Sparklines group: Line, Column, Win/Loss — a chart the size of a cell.
+ *
+ * Line and Column draw the same glyphs as the Line and Column chart families one group to the left,
+ * and that is the same idea twice rather than a collision: a sparkline *is* that chart, drawn in a
+ * cell. Win/Loss has no Fluent drawing.
+ *
+ * **No survivor**: all three open the Create Sparklines dialog, which asks for the data range.
+ */
+const excelInsertSparklines: readonly RibbonCommand[] = [
+  { id: 'excel.insert.sparklines.line', label: 'Line', icon: 'data-line', size: 'large' },
+  { id: 'excel.insert.sparklines.column', label: 'Column', icon: 'data-bar-vertical', size: 'large' },
+  { id: 'excel.insert.sparklines.win-loss', label: 'Win/Loss' },
+];
+
+/**
+ * Excel's Filters group — `GroupSlicerInsert`, labelled *Slicers* by the census. See the section
+ * header. **No survivor**: both open a dialog listing the fields to filter by.
+ */
+const excelInsertSlicers: readonly RibbonCommand[] = [
+  { id: 'excel.insert.slicers.slicer', label: 'Slicer', icon: 'filter', size: 'large' },
+  { id: 'excel.insert.slicers.timeline', label: 'Timeline', icon: 'timeline', size: 'large' },
+];
+
+/**
+ * Excel's Links group: Link, and the census's second control is its recent-items menu.
+ * **No survivor**: a split button, and the only command.
+ */
+const excelInsertLinks: readonly RibbonCommand[] = [
+  { id: 'excel.insert.links.link', label: 'Link', icon: 'link', size: 'large' },
+];
+
+/**
+ * Excel's Text group: Text Box and WordArt large, Header & Footer, Signature Line and Object small.
+ *
+ * **No survivor**: Text Box arms a drawing mode, Header & Footer switches the sheet to Page Layout
+ * view, WordArt is a gallery, Signature Line a split button and Object a dialog.
+ */
+const excelInsertText: readonly RibbonCommand[] = [
+  { id: 'excel.insert.text.text-box', label: 'Text Box', icon: 'textbox', size: 'large' },
+  { id: 'excel.insert.text.header-footer', label: 'Header & Footer', icon: 'document-header-footer' },
+  { id: 'excel.insert.text.wordart', label: 'WordArt', icon: 'text-effects', size: 'large' },
+  { id: 'excel.insert.text.signature-line', label: 'Signature Line', icon: 'signature' },
+  { id: 'excel.insert.text.object', label: 'Object' },
+];
+
+/**
+ * Excel's Cell Controls group: Checkbox, which turns the selected cells into checkboxes.
+ *
+ * **No survivor, although it passes rules 1 and 2**: one press, one undo, no popup, and a glyph that
+ * is exactly the control it makes. It is the group's only command, so a survivor would leave the
+ * collapsed popup empty. See the section header.
+ */
+const excelInsertCellControls: readonly RibbonCommand[] = [
+  { id: 'excel.insert.cell-controls.checkbox', label: 'Checkbox', icon: 'checkbox-checked', size: 'large' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -883,15 +1379,15 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabInsert' },
     groups: [
-      { id: 'GroupInsertPages', label: 'Pages', priority: 'standard', controls: 13, inScope: true },
-      { id: 'GroupInsertTables', label: 'Tables', priority: 'primary', controls: 7, inScope: true },
-      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'primary', controls: 23, inScope: true },
-      { id: 'GroupMedia', label: 'Media', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInsertLinks', label: 'Links', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupHeaderFooter', label: 'Header & Footer', priority: 'standard', controls: 32, inScope: true },
-      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 26, inScope: true },
-      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 7, inScope: true },
+      { id: 'GroupInsertPages', label: 'Pages', priority: 'standard', controls: 13, inScope: true, commands: wordInsertPages },
+      { id: 'GroupInsertTables', label: 'Tables', priority: 'primary', controls: 7, inScope: true, commands: wordInsertTables },
+      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'primary', controls: 23, inScope: true, commands: wordInsertIllustrations },
+      { id: 'GroupMedia', label: 'Media', priority: 'ancillary', controls: 1, inScope: true, commands: wordInsertMedia },
+      { id: 'GroupInsertLinks', label: 'Links', priority: 'standard', controls: 5, inScope: true, commands: wordInsertLinks },
+      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true, commands: insertCommentsCommands('word') },
+      { id: 'GroupHeaderFooter', label: 'Header & Footer', priority: 'standard', controls: 32, inScope: true, commands: wordInsertHeaderFooter },
+      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 26, inScope: true, commands: wordInsertText },
+      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 7, inScope: true, commands: insertSymbolsCommands('word') },
     ],
   },
   {
@@ -1065,17 +1561,17 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabInsert' },
     groups: [
-      { id: 'GroupSlides2', label: 'Slides', priority: 'standard', controls: 7, inScope: true },
-      { id: 'GroupInsertTables', label: 'Tables', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupImages', label: 'Images', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'primary', controls: 11, inScope: true },
-      { id: 'GroupChunkCameoCamera', label: 'Camera', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupInsertLinks', label: 'Links', priority: 'standard', controls: 7, inScope: true },
-      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupInsertMediaClips', label: 'Media Clips', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupContent', label: 'Content', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupSlides2', label: 'Slides', priority: 'standard', controls: 7, inScope: true, commands: powerpointInsertSlides },
+      { id: 'GroupInsertTables', label: 'Tables', priority: 'standard', controls: 4, inScope: true, commands: powerpointInsertTables },
+      { id: 'GroupImages', label: 'Images', priority: 'primary', controls: 10, inScope: true, commands: powerpointInsertImages },
+      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'primary', controls: 11, inScope: true, commands: powerpointInsertIllustrations },
+      { id: 'GroupChunkCameoCamera', label: 'Camera', priority: 'standard', controls: 3, inScope: true, commands: powerpointInsertCamera },
+      { id: 'GroupInsertLinks', label: 'Links', priority: 'standard', controls: 7, inScope: true, commands: powerpointInsertLinks },
+      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true, commands: insertCommentsCommands('powerpoint') },
+      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 9, inScope: true, commands: powerpointInsertText },
+      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 4, inScope: true, commands: insertSymbolsCommands('powerpoint') },
+      { id: 'GroupInsertMediaClips', label: 'Media Clips', priority: 'standard', controls: 9, inScope: true, commands: powerpointInsertMediaClips },
+      { id: 'GroupContent', label: 'Content', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointInsertContent },
     ],
   },
   {
@@ -1338,16 +1834,16 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabInsert' },
     groups: [
-      { id: 'GroupInsertTablesExcel', label: 'Tables', priority: 'primary', controls: 17, inScope: true },
-      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'standard', controls: 28, inScope: true },
-      { id: 'GroupInsertChartsExcel', label: 'Charts', priority: 'primary', controls: 25, inScope: true },
-      { id: 'GroupSparklinesInsert', label: 'Sparklines', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupSlicerInsert', label: 'Slicers', priority: 'ancillary', controls: 2, inScope: true },
-      { id: 'GroupInsertLinks', label: 'Links', priority: 'ancillary', controls: 2, inScope: true },
-      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 10, inScope: true },
-      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupCellControls', label: 'Cell Controls', priority: 'standard', controls: 3, inScope: true },
+      { id: 'GroupInsertTablesExcel', label: 'Tables', priority: 'primary', controls: 17, inScope: true, commands: excelInsertTables },
+      { id: 'GroupInsertIllustrations', label: 'Illustrations', priority: 'standard', controls: 28, inScope: true, commands: excelInsertIllustrations },
+      { id: 'GroupInsertChartsExcel', label: 'Charts', priority: 'primary', controls: 25, inScope: true, commands: excelInsertCharts },
+      { id: 'GroupSparklinesInsert', label: 'Sparklines', priority: 'standard', controls: 3, inScope: true, commands: excelInsertSparklines },
+      { id: 'GroupSlicerInsert', label: 'Slicers', priority: 'ancillary', controls: 2, inScope: true, commands: excelInsertSlicers },
+      { id: 'GroupInsertLinks', label: 'Links', priority: 'ancillary', controls: 2, inScope: true, commands: excelInsertLinks },
+      { id: 'GroupInsertComments', label: 'Comments', priority: 'ancillary', controls: 1, inScope: true, commands: insertCommentsCommands('excel') },
+      { id: 'GroupInsertText', label: 'Text', priority: 'standard', controls: 10, inScope: true, commands: excelInsertText },
+      { id: 'GroupInsertSymbols', label: 'Symbols', priority: 'standard', controls: 4, inScope: true, commands: insertSymbolsCommands('excel') },
+      { id: 'GroupCellControls', label: 'Cell Controls', priority: 'standard', controls: 3, inScope: true, commands: excelInsertCellControls },
     ],
   },
   {

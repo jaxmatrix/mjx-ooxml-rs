@@ -40,6 +40,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
 
 /**
  * **Excel, assembled** — the ribbon, the name box and formula bar, the grid, a task pane, the sheet
@@ -196,6 +197,126 @@ function ribbon(): TemplateResult {
             >
               ${largeGalleryItems().slice(0, 18)}
             </mjx-gallery>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'excel.insert.tables.pivottable': html`<mjx-split-button
+              label="PivotTable"
+              size="small"
+              data-opens="shell-excel-insert-tables-pivottable"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.illustrations.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-excel-insert-illustrations-pictures"
+            ></mjx-button>`,
+            'excel.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-excel-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'excel.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="small"
+              data-opens="shell-excel-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'excel.insert.illustrations.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="small"
+              data-opens="shell-excel-insert-illustrations-screenshot"
+            ></mjx-button>`,
+            'excel.insert.charts.column-bar': html`<mjx-button
+              label="Insert Column or Bar Chart"
+              icon="data-bar-vertical"
+              size="icon"
+              data-opens="shell-excel-insert-charts-column-bar"
+            ></mjx-button>`,
+            'excel.insert.charts.hierarchy': html`<mjx-button
+              label="Insert Hierarchy Chart"
+              icon="data-treemap"
+              size="icon"
+              data-opens="shell-excel-insert-charts-hierarchy"
+            ></mjx-button>`,
+            'excel.insert.charts.waterfall': html`<mjx-button
+              label="Insert Waterfall, Funnel, Stock, Surface or Radar Chart"
+              icon="data-waterfall"
+              size="icon"
+              data-opens="shell-excel-insert-charts-waterfall"
+            ></mjx-button>`,
+            'excel.insert.charts.line-area': html`<mjx-button
+              label="Insert Line or Area Chart"
+              icon="data-line"
+              size="icon"
+              data-opens="shell-excel-insert-charts-line-area"
+            ></mjx-button>`,
+            'excel.insert.charts.statistic': html`<mjx-button
+              label="Insert Statistic Chart"
+              icon="data-histogram"
+              size="icon"
+              data-opens="shell-excel-insert-charts-statistic"
+            ></mjx-button>`,
+            'excel.insert.charts.combo': html`<mjx-button
+              label="Insert Combo Chart"
+              size="small"
+              data-opens="shell-excel-insert-charts-combo"
+            ></mjx-button>`,
+            'excel.insert.charts.pie-doughnut': html`<mjx-button
+              label="Insert Pie or Doughnut Chart"
+              icon="data-pie"
+              size="icon"
+              data-opens="shell-excel-insert-charts-pie-doughnut"
+            ></mjx-button>`,
+            'excel.insert.charts.scatter-bubble': html`<mjx-button
+              label="Insert Scatter (X, Y) or Bubble Chart"
+              icon="data-scatter"
+              size="icon"
+              data-opens="shell-excel-insert-charts-scatter-bubble"
+            ></mjx-button>`,
+            'excel.insert.charts.maps': html`<mjx-button
+              label="Maps"
+              icon="map"
+              size="large"
+              data-opens="shell-excel-insert-charts-maps"
+            ></mjx-button>`,
+            'excel.insert.charts.pivotchart': html`<mjx-split-button
+              label="PivotChart"
+              size="small"
+              data-opens="shell-excel-insert-charts-pivotchart"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="large"
+              data-opens="shell-excel-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="large"
+              data-opens="shell-excel-insert-text-wordart"
+            ></mjx-button>`,
+            'excel.insert.text.signature-line': html`<mjx-split-button
+              label="Signature Line"
+              icon="signature"
+              size="small"
+              data-opens="shell-excel-insert-text-signature-line"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-excel-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -405,6 +526,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

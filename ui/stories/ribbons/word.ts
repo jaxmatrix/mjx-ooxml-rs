@@ -16,9 +16,15 @@
  * Paragraph, Styles, Editing and Editor — carrying every command Office's Home tab shows. The
  * migrated set this file held after unit 0 is gone; what replaced it is roughly four times as
  * many commands, in Office's own order, mostly drawn icon-only because that is how Office draws
- * them. Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority
- * the census declares, holding one honest button. Units 3 onward replace them one tab at a time,
- * and each of those is a small diff against a file that already has the right shape.
+ * them.
+ *
+ * **Insert** is unit 3: all nine in-scope groups, twenty-eight commands, and the first tab where most
+ * of the face opens something — eighteen of those commands are dropdowns or split buttons that a
+ * host binds by id, over the menus `stories/ribbons/insert-menus.ts` writes once for both hosts.
+ *
+ * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
+ * declares, holding one honest button. Units 4 onward replace them one tab at a time, and each of
+ * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
  *
@@ -106,11 +112,45 @@ export function wordHomeTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordInsertTab(): TemplateResult {
-  return placeholderTab(entry('insert'));
+/**
+ * Insert: Pages, Tables, Illustrations, Media, Links, Comments, Header & Footer, Text, Symbols — the
+ * ribbon programme's unit 3, in Office's order.
+ *
+ * **The order is Office's and the census's at once**, which is not true of PowerPoint's or Excel's:
+ * the declaration was already written in Word's order. What Office draws that is not here is the
+ * two groups the census marks out of scope — Add-ins, between Illustrations and Media, and Barcode.
+ *
+ * **Eighteen of the tab's twenty-eight commands are bound by the host**, because Office draws them as a
+ * dropdown or a split button and `RibbonCommand` is a button or a toggle: Cover Page, Table, Pictures,
+ * Shapes, 3D Models, Screenshot, Link, Header, Footer, Page Number, Text Box, Quick Parts, WordArt,
+ * Drop Cap, Signature Line, Object, Equation and Symbol. Each opens a menu from
+ * `stories/ribbons/insert-menus.ts`. A host that binds nothing still gets every command drawn in
+ * place, as a button that opens nothing.
+ *
+ * **No dialog launchers.** Office puts none on Word's Insert tab: every group is a set of things to
+ * insert, and none has a property sheet behind it.
+ *
+ * **No group keeps a survivor** — see `dev/ribbons/census.ts` for each group's reason.
+ */
+export function wordInsertTab(options: TabOptions = {}): TemplateResult {
+  const insert = entry('insert');
+  const controls = options.controls ?? {};
+  return tab(
+    insert.id,
+    insert.label,
+    censusGroup(insert, 'GroupInsertPages', {}, controls),
+    censusGroup(insert, 'GroupInsertTables', {}, controls),
+    censusGroup(insert, 'GroupInsertIllustrations', {}, controls),
+    censusGroup(insert, 'GroupMedia', {}, controls),
+    censusGroup(insert, 'GroupInsertLinks', {}, controls),
+    censusGroup(insert, 'GroupInsertComments', {}, controls),
+    censusGroup(insert, 'GroupHeaderFooter', {}, controls),
+    censusGroup(insert, 'GroupInsertText', {}, controls),
+    censusGroup(insert, 'GroupInsertSymbols', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordDrawTab(): TemplateResult {
   return placeholderTab(entry('draw'));

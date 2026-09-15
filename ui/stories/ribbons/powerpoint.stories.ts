@@ -23,6 +23,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { insertMenus } from './insert-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 
 /**
@@ -39,7 +40,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File and Home** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home and Insert** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -59,8 +60,8 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File and Home are authored; the rest are placeholders carrying the census’s ' +
-          'priorities.',
+          'ribbon. File, Home and Insert are authored; the rest are placeholders carrying the ' +
+          'census’s priorities.',
       },
     },
     mjx: conventions,
@@ -141,6 +142,98 @@ const bindings: ControlOverrides = {
   >
     <mjx-button label="Arrange" icon="layer"></mjx-button>
   </mjx-screentip>`,
+  // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+  // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+  // opens the menu, a split button opens it from its arrow. `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+  'powerpoint.insert.slides.new-slide': html`<mjx-split-button
+    label="New Slide"
+    icon="slide-add"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-slides-new-slide"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.insert.tables.table': html`<mjx-button
+    label="Table"
+    icon="table"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-tables-table"
+  ></mjx-button>`,
+  'powerpoint.insert.images.pictures': html`<mjx-button
+    label="Pictures"
+    icon="image"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-images-pictures"
+  ></mjx-button>`,
+  'powerpoint.insert.images.screenshot': html`<mjx-button
+    label="Screenshot"
+    icon="screenshot"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-images-screenshot"
+  ></mjx-button>`,
+  'powerpoint.insert.images.photo-album': html`<mjx-split-button
+    label="Photo Album"
+    icon="image-multiple"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-images-photo-album"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.insert.illustrations.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-illustrations-shapes"
+  ></mjx-button>`,
+  'powerpoint.insert.illustrations.3d-models': html`<mjx-button
+    label="3D Models"
+    icon="cube"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-illustrations-3d-models"
+  ></mjx-button>`,
+  'powerpoint.insert.camera.cameo': html`<mjx-split-button
+    label="Cameo"
+    icon="camera"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-camera-cameo"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.insert.links.zoom': html`<mjx-button
+    label="Zoom"
+    size="small"
+    data-opens="ribbons-powerpoint-insert-links-zoom"
+  ></mjx-button>`,
+  'powerpoint.insert.links.link': html`<mjx-split-button
+    label="Link"
+    icon="link"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-links-link"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.insert.text.wordart': html`<mjx-button
+    label="WordArt"
+    icon="text-effects"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-text-wordart"
+  ></mjx-button>`,
+  'powerpoint.insert.symbols.equation': html`<mjx-split-button
+    label="Equation"
+    icon="math-formula"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-symbols-equation"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.insert.media-clips.video': html`<mjx-button
+    label="Video"
+    icon="video"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-media-clips-video"
+  ></mjx-button>`,
+  'powerpoint.insert.media-clips.audio': html`<mjx-button
+    label="Audio"
+    icon="speaker-2"
+    size="large"
+    data-opens="ribbons-powerpoint-insert-media-clips-audio"
+  ></mjx-button>`,
 };
 
 /**
@@ -164,6 +257,8 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-separator></mjx-menu-separator>
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
+
+    ${insertMenus('powerpoint', 'ribbons')}
   `;
 }
 
@@ -207,7 +302,29 @@ export const File: Story = { render: () => ribbon('file') };
  */
 export const Home: Story = { render: () => ribbon('home') };
 
-/** Unit 3. */
+/**
+ * **Insert** — eleven groups, the most of any application's Insert tab, and the ribbon programme's
+ * unit 3. See `Ribbons/Word → Insert` for the two rules that shape every Insert tab: a command that
+ * opens something opens a real menu, and no group keeps a survivor because nearly every command
+ * opens a surface. What is PowerPoint's own:
+ *
+ * 1. **A deck splits Word's Illustrations in two.** Pictures, Screenshot and Photo Album are the
+ *    Images group, and Shapes, Icons, 3D Models, SmartArt and Chart are Illustrations — all large,
+ *    where Word draws three of its seven small. Camera (Cameo) and Media (Video, Audio, Screen
+ *    Recording) exist in no other application.
+ * 2. **Fourteen of the twenty-eight commands open a menu.** New Slide's arrow is the layout list, as
+ *    it is on Home; Zoom opens Summary, Section and Slide Zoom. **Text Box does not**: in PowerPoint
+ *    it arms a drawing gesture rather than opening a gallery, so it is the plain button Office draws
+ *    — and the gesture is also why it is not a survivor. **Symbol does not either**, although Word's
+ *    does: PowerPoint's opens the Symbol dialog directly.
+ * 3. **Two group labels are the census's and not Office's.** Office calls the media group *Media*;
+ *    the census's `GroupInsertMediaClips` gives *Media Clips*. And **Content** is one control the
+ *    census names without describing — it carries its own label and no icon, exactly as Excel's Power
+ *    Options does on Home, and `dev/ribbons/census.ts` records what is and is not known.
+ * 4. **Camera's and Content's positions are `GUESS:`** — each is drawn where the declaration puts it.
+ * 5. **Five commands carry no icon**: Reuse Slides, Zoom, Object, Symbol and Content. Zoom is the one
+ *    to look at: Fluent's magnifier is the status bar's view zoom, a different command.
+ */
 export const Insert: Story = { render: () => ribbon('insert') };
 
 /** Unit 4. */

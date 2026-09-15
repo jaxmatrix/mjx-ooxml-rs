@@ -19,6 +19,11 @@
  * Editing — carrying every command Office's Home tab shows. `GroupSlides` arrives with it, having
  * been declared in the census since unit 0 and rendered by nothing.
  *
+ * **Insert** is unit 3: all eleven in-scope groups, the most of any application's Insert tab,
+ * because a deck splits Word's Illustrations into Images and Illustrations and adds Camera and Media.
+ * Fourteen commands are dropdowns or split buttons a host binds by id. Every other tab is a
+ * placeholder until its own unit.
+ *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
 
@@ -88,11 +93,44 @@ export function powerpointHomeTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointInsertTab(): TemplateResult {
-  return placeholderTab(entry('insert'));
+/**
+ * Insert: Slides, Tables, Images, Illustrations, Camera, Links, Comments, Text, Symbols, Media, Content
+ * — the ribbon programme's unit 3.
+ *
+ * `GUESS:` **the order of two groups.** Slides through Illustrations, and Links through Media, are
+ * Office's order. **Camera** is drawn after Illustrations and **Content** last because that is where
+ * the declaration puts them, and no Office build this project can cite puts them anywhere else;
+ * `dev/ribbons/census.ts` records what Content is not known to be. Office's Forms, Power BI and
+ * Add-ins groups are out of scope in the census and are not drawn.
+ *
+ * **Fourteen of the tab's twenty-eight commands are bound by the host**: New Slide, Table, Pictures,
+ * Screenshot, Photo Album, Shapes, 3D Models, Cameo, Zoom, Link, WordArt, Equation, Video and Audio.
+ * Each opens a menu from `stories/ribbons/insert-menus.ts`. Symbol is **not** bound here, although
+ * Word's is: PowerPoint's opens the Symbol dialog directly, so the generic button is the right shape.
+ *
+ * **No dialog launchers**, as in Word, and **no group keeps a survivor**.
+ */
+export function powerpointInsertTab(options: TabOptions = {}): TemplateResult {
+  const insert = entry('insert');
+  const controls = options.controls ?? {};
+  return tab(
+    insert.id,
+    insert.label,
+    censusGroup(insert, 'GroupSlides2', {}, controls),
+    censusGroup(insert, 'GroupInsertTables', {}, controls),
+    censusGroup(insert, 'GroupImages', {}, controls),
+    censusGroup(insert, 'GroupInsertIllustrations', {}, controls),
+    censusGroup(insert, 'GroupChunkCameoCamera', {}, controls),
+    censusGroup(insert, 'GroupInsertLinks', {}, controls),
+    censusGroup(insert, 'GroupInsertComments', {}, controls),
+    censusGroup(insert, 'GroupInsertText', {}, controls),
+    censusGroup(insert, 'GroupInsertSymbols', {}, controls),
+    censusGroup(insert, 'GroupInsertMediaClips', {}, controls),
+    censusGroup(insert, 'GroupContent', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointDrawTab(): TemplateResult {
   return placeholderTab(entry('draw'));

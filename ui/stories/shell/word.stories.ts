@@ -42,6 +42,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
@@ -281,6 +282,117 @@ function ribbon(): TemplateResult {
             >
               ${styleGalleryItems()}
             </mjx-gallery>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'word.insert.pages.cover-page': html`<mjx-button
+              label="Cover Page"
+              size="small"
+              data-opens="shell-word-insert-pages-cover-page"
+            ></mjx-button>`,
+            'word.insert.tables.table': html`<mjx-button
+              label="Table"
+              icon="table"
+              size="large"
+              data-opens="shell-word-insert-tables-table"
+            ></mjx-button>`,
+            'word.insert.illustrations.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-word-insert-illustrations-pictures"
+            ></mjx-button>`,
+            'word.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-word-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'word.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="large"
+              data-opens="shell-word-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'word.insert.illustrations.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="small"
+              data-opens="shell-word-insert-illustrations-screenshot"
+            ></mjx-button>`,
+            'word.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="small"
+              data-opens="shell-word-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.header-footer.header': html`<mjx-button
+              label="Header"
+              icon="document-header"
+              size="small"
+              data-opens="shell-word-insert-header-footer-header"
+            ></mjx-button>`,
+            'word.insert.header-footer.footer': html`<mjx-button
+              label="Footer"
+              icon="document-footer"
+              size="small"
+              data-opens="shell-word-insert-header-footer-footer"
+            ></mjx-button>`,
+            'word.insert.header-footer.page-number': html`<mjx-button
+              label="Page Number"
+              icon="document-page-number"
+              size="small"
+              data-opens="shell-word-insert-header-footer-page-number"
+            ></mjx-button>`,
+            'word.insert.text.text-box': html`<mjx-button
+              label="Text Box"
+              icon="textbox"
+              size="large"
+              data-opens="shell-word-insert-text-text-box"
+            ></mjx-button>`,
+            'word.insert.text.quick-parts': html`<mjx-button
+              label="Quick Parts"
+              size="small"
+              data-opens="shell-word-insert-text-quick-parts"
+            ></mjx-button>`,
+            'word.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="small"
+              data-opens="shell-word-insert-text-wordart"
+            ></mjx-button>`,
+            'word.insert.text.drop-cap': html`<mjx-button
+              label="Drop Cap"
+              size="small"
+              data-opens="shell-word-insert-text-drop-cap"
+            ></mjx-button>`,
+            'word.insert.text.signature-line': html`<mjx-split-button
+              label="Signature Line"
+              icon="signature"
+              size="small"
+              data-opens="shell-word-insert-text-signature-line"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.text.object': html`<mjx-split-button
+              label="Object"
+              size="small"
+              data-opens="shell-word-insert-text-object"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-word-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.symbols.symbol': html`<mjx-button
+              label="Symbol"
+              size="small"
+              data-opens="shell-word-insert-symbols-symbol"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -430,6 +542,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
         <mjx-menu-item label="Set Default Paste"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

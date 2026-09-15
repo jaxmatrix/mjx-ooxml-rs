@@ -23,6 +23,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { insertMenus } from './insert-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
 /**
@@ -36,7 +37,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File and Home** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home and Insert** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -46,8 +47,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
  * command does.
  *
- * **Nothing here dispatches a command.** The paste button's menu opens, the pickers open, the
- * gallery previews — and no document changes, because command dispatch is loop 2.
+ * **Nothing here dispatches a command.** The paste button's menu opens, the Insert tab's menus open,
+ * the pickers open, the gallery previews — and no document changes, because command dispatch is loop 2.
  */
 
 const conventions = storyConventions({
@@ -65,7 +66,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File and Home are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home and Insert are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -147,6 +148,117 @@ const bindings: ControlOverrides = {
   >
     ${styleGalleryItems()}
   </mjx-gallery>`,
+  // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+  // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+  // opens the menu, a split button opens it from its arrow. `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+  'word.insert.pages.cover-page': html`<mjx-button
+    label="Cover Page"
+    size="small"
+    data-opens="ribbons-word-insert-pages-cover-page"
+  ></mjx-button>`,
+  'word.insert.tables.table': html`<mjx-button
+    label="Table"
+    icon="table"
+    size="large"
+    data-opens="ribbons-word-insert-tables-table"
+  ></mjx-button>`,
+  'word.insert.illustrations.pictures': html`<mjx-button
+    label="Pictures"
+    icon="image"
+    size="large"
+    data-opens="ribbons-word-insert-illustrations-pictures"
+  ></mjx-button>`,
+  'word.insert.illustrations.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-word-insert-illustrations-shapes"
+  ></mjx-button>`,
+  'word.insert.illustrations.3d-models': html`<mjx-button
+    label="3D Models"
+    icon="cube"
+    size="large"
+    data-opens="ribbons-word-insert-illustrations-3d-models"
+  ></mjx-button>`,
+  'word.insert.illustrations.screenshot': html`<mjx-button
+    label="Screenshot"
+    icon="screenshot"
+    size="small"
+    data-opens="ribbons-word-insert-illustrations-screenshot"
+  ></mjx-button>`,
+  'word.insert.links.link': html`<mjx-split-button
+    label="Link"
+    icon="link"
+    size="small"
+    data-opens="ribbons-word-insert-links-link"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.insert.header-footer.header': html`<mjx-button
+    label="Header"
+    icon="document-header"
+    size="small"
+    data-opens="ribbons-word-insert-header-footer-header"
+  ></mjx-button>`,
+  'word.insert.header-footer.footer': html`<mjx-button
+    label="Footer"
+    icon="document-footer"
+    size="small"
+    data-opens="ribbons-word-insert-header-footer-footer"
+  ></mjx-button>`,
+  'word.insert.header-footer.page-number': html`<mjx-button
+    label="Page Number"
+    icon="document-page-number"
+    size="small"
+    data-opens="ribbons-word-insert-header-footer-page-number"
+  ></mjx-button>`,
+  'word.insert.text.text-box': html`<mjx-button
+    label="Text Box"
+    icon="textbox"
+    size="large"
+    data-opens="ribbons-word-insert-text-text-box"
+  ></mjx-button>`,
+  'word.insert.text.quick-parts': html`<mjx-button
+    label="Quick Parts"
+    size="small"
+    data-opens="ribbons-word-insert-text-quick-parts"
+  ></mjx-button>`,
+  'word.insert.text.wordart': html`<mjx-button
+    label="WordArt"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-word-insert-text-wordart"
+  ></mjx-button>`,
+  'word.insert.text.drop-cap': html`<mjx-button
+    label="Drop Cap"
+    size="small"
+    data-opens="ribbons-word-insert-text-drop-cap"
+  ></mjx-button>`,
+  'word.insert.text.signature-line': html`<mjx-split-button
+    label="Signature Line"
+    icon="signature"
+    size="small"
+    data-opens="ribbons-word-insert-text-signature-line"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.insert.text.object': html`<mjx-split-button
+    label="Object"
+    size="small"
+    data-opens="ribbons-word-insert-text-object"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.insert.symbols.equation': html`<mjx-split-button
+    label="Equation"
+    icon="math-formula"
+    size="large"
+    data-opens="ribbons-word-insert-symbols-equation"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.insert.symbols.symbol': html`<mjx-button
+    label="Symbol"
+    size="small"
+    data-opens="ribbons-word-insert-symbols-symbol"
+  ></mjx-button>`,
 };
 
 /**
@@ -173,6 +285,8 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-separator></mjx-menu-separator>
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
+
+    ${insertMenus('word', 'ribbons')}
   `;
 }
 
@@ -231,7 +345,33 @@ export const File: Story = { render: () => ribbon('file') };
  */
 export const Home: Story = { render: () => ribbon('home') };
 
-/** Unit 3. */
+/**
+ * **Insert** — the tab of things to put on the page, and the ribbon programme's unit 3. Nine groups:
+ * Pages, Tables, Illustrations, Media, Links, Comments, Header & Footer, Text and Symbols, in
+ * Office's order. What to look at:
+ *
+ * 1. **Eighteen of the twenty-eight commands open something, and each one really does.** Press
+ *    Table, Shapes, Header or Text Box and its menu opens under it; press the arrow on Link,
+ *    Signature Line, Object or Equation and the split button's menu opens. Each menu carries a
+ *    handful of real Office entries — the built-in headers by name, then Edit Header and Remove
+ *    Header — rather than the whole gallery, which is decision 3 of the approved plan. The other ten
+ *    open a dialog or a card in Office (Icons, SmartArt, Chart, Online Videos, Bookmark,
+ *    Cross-reference, Comment, Date & Time) or insert at once (Blank Page, Page Break), and are drawn
+ *    as the plain buttons they are.
+ * 2. **Nothing on this tab survives a collapse.** Drag the container in and every group goes to its
+ *    trigger alone. That is the demotion rules working rather than a gap: nearly every command opens
+ *    a surface, Page Break is on the keyboard, and Blank Page's glyph is New Document's.
+ *    `dev/ribbons/census.ts` gives each group's reason.
+ * 3. **Large where Office draws large, a column where Office draws a column.** Table, Pictures,
+ *    Shapes, Icons, 3D Models, Online Videos, Comment, Text Box and Equation are large; Pages, Links,
+ *    Header & Footer and most of Text are columns of labelled commands. The sizes of Links and Header
+ *    & Footer are marked `GUESS:` beside their groups, because Office has drawn them both ways.
+ * 4. **Six commands carry no icon** — Cover Page, Cross-reference, Quick Parts, Drop Cap, Object and
+ *    Symbol — because Fluent draws nothing honest for them, and a wrong glyph is worse than a label.
+ *
+ * Tables and Illustrations are the tab's primary groups, so they are the last two standing; Media
+ * and Comments give way first.
+ */
 export const Insert: Story = { render: () => ribbon('insert') };
 
 /** Unit 4. */
