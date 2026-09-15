@@ -50,13 +50,17 @@ pub(crate) mod evidence;
 pub(crate) mod rows;
 pub(crate) mod scan;
 
+#[path = "../json.rs"]
+mod json;
+
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 
-use assess::Assessed;
-use rows::{Kind, CAPABILITIES};
+use assess::{asks_whether_drawn, Assessed};
+use evidence::{Double, Evidence};
+use rows::{Allowance, Capability, Kind, ALLOWANCES, CAPABILITIES, STAND_INS};
 
 /// The committed artefact, relative to the workspace root.
 const LEDGER: &str = "docs/client-platform/PARITY_LEDGER.md";
@@ -64,9 +68,24 @@ const LEDGER: &str = "docs/client-platform/PARITY_LEDGER.md";
 /// Assesses every row against an evidence index, in declaration order.
 pub(crate) fn assess_all(evidence: &evidence::Evidence) -> Result<Vec<Assessed>> {
     check_the_rows_are_well_formed()?;
+    let mut failures = Vec::new();
+    if let Err(error) = check_the_double_tables(CAPABILITIES, STAND_INS, ALLOWANCES, evidence) {
+        failures.push(format!("{error:#}"));
+    }
     let mut assessed = Vec::with_capacity(CAPABILITIES.len());
     for capability in CAPABILITIES {
-        assessed.push(assess::assess(capability, evidence)?);
+        match assess::assess(capability, evidence) {
+            Ok(row) => assessed.push(row),
+            Err(error) => failures.push(format!("{error:#}")),
+        }
+    }
+    // Every row that cannot be assessed is named at once, rather than the first one alone.
+    if !failures.is_empty() {
+        bail!(
+            "{} problem(s) stop the ledger being assessed:\n\n{}",
+            failures.len(),
+            failures.join("\n\n")
+        );
     }
     check_every_declared_limitation_is_cited(&assessed, evidence)?;
     Ok(assessed)
@@ -173,22 +192,132 @@ fn check_the_rows_are_well_formed() -> Result<()> {
             _ => {}
         }
     }
-    for (double, ids) in rows::STAND_INS {
+    Ok(())
+}
+
+/// Every double a drawn row's evidence uses is classified for that row exactly once, and every entry
+/// of both tables is live.
+///
+/// A double either stands in for the row (`STAND_INS`), or an allowance names the suite, the double
+/// and the row with a reason. Neither is a silent promotion waiting to happen; both is a contradiction.
+fn check_the_double_tables(
+    rows: &[Capability],
+    stand_ins: &[(Double, &[&str])],
+    allowances: &[Allowance],
+    evidence: &Evidence,
+) -> Result<()> {
+    let mut failures = Vec::new();
+    let row = |id: &str| rows.iter().find(|capability| capability.id == id);
+    for (double, ids) in stand_ins {
         for id in *ids {
-            match CAPABILITIES.iter().find(|capability| capability.id == *id) {
-                None => bail!(
+            match row(id) {
+                None => failures.push(format!(
                     "`STAND_INS` says {} is not evidence for `{id}`, which is not a row",
                     double.name()
-                ),
-                Some(capability) if capability.kind != Kind::Rendered => bail!(
-                    "`STAND_INS` names `{id}`, which is not a rendered row; a double only matters \
-                     where the question is whether something is drawn"
-                ),
+                )),
+                Some(capability) if !asks_whether_drawn(capability, evidence) => {
+                    failures.push(format!(
+                        "`STAND_INS` names `{id}`, which is neither rendered nor named by the \
+                         checklist; a double only matters where the question is whether something \
+                         is drawn"
+                    ))
+                }
                 Some(_) => {}
             }
         }
     }
-    Ok(())
+    for allowance in allowances {
+        let Some(capability) = row(allowance.row) else {
+            failures.push(format!(
+                "an allowance names `{}`, which is not a row",
+                allowance.row
+            ));
+            continue;
+        };
+        if !asks_whether_drawn(capability, evidence) {
+            failures.push(format!(
+                "an allowance names `{}`, which is asked nothing about drawing; delete the entry",
+                allowance.row
+            ));
+        }
+        if !capability
+            .evidence
+            .iter()
+            .any(|citation| scan::split_citation(citation).0 == allowance.suite)
+        {
+            failures.push(format!(
+                "an allowance excuses `{}` for `{}`, which does not cite it; delete the entry",
+                allowance.suite, allowance.row
+            ));
+        }
+        match evidence.suites.get(allowance.suite) {
+            None => failures.push(format!(
+                "an allowance names `{}`, which is not a suite in this workspace",
+                allowance.suite
+            )),
+            Some(suite) if !suite.doubles.contains(&allowance.double) => failures.push(format!(
+                "an allowance excuses `{}` for {}, which it no longer uses; delete the entry",
+                allowance.suite,
+                allowance.double.name()
+            )),
+            Some(_) => {}
+        }
+        if allowance.reason.len() < 40 {
+            failures.push(format!(
+                "the allowance for `{}` on `{}` states too short a reason to check: {:?}",
+                allowance.suite, allowance.row, allowance.reason
+            ));
+        }
+    }
+    for capability in rows
+        .iter()
+        .filter(|capability| asks_whether_drawn(capability, evidence))
+    {
+        let paths: BTreeSet<&str> = capability
+            .evidence
+            .iter()
+            .map(|citation| scan::split_citation(citation).0)
+            .collect();
+        for path in paths {
+            let Some(suite) = evidence.suites.get(path) else {
+                continue;
+            };
+            for double in &suite.doubles {
+                let stands_in = stand_ins
+                    .iter()
+                    .any(|(stand_in, ids)| stand_in == double && ids.contains(&capability.id));
+                let allowed = allowances.iter().any(|allowance| {
+                    allowance.row == capability.id
+                        && allowance.suite == path
+                        && allowance.double == *double
+                });
+                match (stands_in, allowed) {
+                    (false, false) => failures.push(format!(
+                        "`{}` cites `{path}`, which uses {}. Say whether it stands in for this row \
+                         (`STAND_INS`) or, with a reason, that it does not (`ALLOWANCES`)",
+                        capability.id,
+                        double.name()
+                    )),
+                    (true, true) => failures.push(format!(
+                        "`{}` is both stood in for by {} and allowed it through `{path}`; one of \
+                         the two entries is wrong",
+                        capability.id,
+                        double.name()
+                    )),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!(
+            "{} problem(s) with the test-double tables in `xtask/src/ledger/rows.rs`:\n{}",
+            failures.len(),
+            failures.join("\n")
+        )
+    }
 }
 
 /// Every `MJX-LEDGER-LIMITATION:` in the workspace is cited by at least one row.
@@ -253,16 +382,70 @@ mod tests {
     #[test]
     fn every_evidence_path_is_shaped_like_a_suite() {
         for capability in CAPABILITIES {
-            for path in capability.evidence {
+            for citation in capability.evidence {
+                let (path, function) = scan::split_citation(citation);
                 assert!(
                     path.starts_with("crates/")
                         && path.contains("/tests/")
-                        && path.ends_with(".rs"),
-                    "`{}` names `{path}`, which is not a suite path",
+                        && path.ends_with(".rs")
+                        && function.is_none_or(|name| {
+                            !name.is_empty() && name.chars().all(scan::is_identifier)
+                        }),
+                    "`{}` names `{citation}`, which is not a suite path or a suite function",
                     capability.id
                 );
             }
         }
+    }
+
+    // Every double a drawn row's evidence uses is classified for that row, over the real workspace.
+    #[test]
+    fn every_double_a_drawn_row_cites_is_classified_for_that_row() {
+        let evidence =
+            evidence::scan(&crate::codegen::workspace_root()).expect("the workspace scans");
+        check_the_double_tables(CAPABILITIES, STAND_INS, ALLOWANCES, &evidence)
+            .expect("the committed double tables classify every double");
+    }
+
+    // An unclassified double fails the check, and so does a double both stood in for and allowed.
+    #[test]
+    fn an_unclassified_or_contradicted_double_fails_the_check() {
+        let suite = evidence::read_suite(
+            "mjx-paint",
+            "use mjx_paint::NoImages;\n#[test]\nfn t() { assert!(pixels.pixel(0, 0).is_some()); }\n",
+        );
+        let evidence = Evidence::of(&[("crates/mjx-paint/tests/a.rs", suite)], &[]);
+        let rows: &[Capability] = &[Capability {
+            id: "a-row",
+            section: rows::Section::SharedDrawing,
+            capability: "a row",
+            kind: Kind::Rendered,
+            excluded_because: None,
+            evidence: &["crates/mjx-paint/tests/a.rs::t"],
+        }];
+        let unclassified = check_the_double_tables(rows, &[], &[], &evidence)
+            .expect_err("an unclassified double fails");
+        assert!(format!("{unclassified:#}").contains("`a-row` cites"));
+
+        let allowance = Allowance {
+            suite: "crates/mjx-paint/tests/a.rs",
+            double: Double::Images,
+            row: "a-row",
+            reason: "the page this test draws holds no picture, so nothing asks the source",
+        };
+        let stand_in: &[(Double, &[&str])] = &[(Double::Images, &["a-row"])];
+        let contradicted = check_the_double_tables(rows, stand_in, &[allowance], &evidence)
+            .expect_err("a contradiction fails");
+        assert!(format!("{contradicted:#}").contains("one of the two entries is wrong"));
+
+        let allowance = Allowance {
+            suite: "crates/mjx-paint/tests/a.rs",
+            double: Double::Images,
+            row: "a-row",
+            reason: "the page this test draws holds no picture, so nothing asks the source",
+        };
+        check_the_double_tables(rows, &[], &[allowance], &evidence)
+            .expect("an allowance naming the row classifies it");
     }
 
     /// An excluded row consults no suite, so pointing one at evidence would be misleading.

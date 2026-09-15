@@ -2732,7 +2732,7 @@
       },
       "owner": "MJXOFF-301",
       "rc": "RC05",
-      "ledger": "the-box-model-seam"
+      "ledger": "box-model-issued-handles"
     },
     {
       "id": "shared-render-loss-vocabulary",
@@ -3102,7 +3102,7 @@
       },
       "owner": "MJXOFF-338",
       "rc": "RC46",
-      "ledger": "the-fidelity-oracle"
+      "ledger": "oracle-document-specimens"
     },
     {
       "id": "shared-real-document-renders",
@@ -3119,7 +3119,7 @@
       },
       "owner": "MJXOFF-338",
       "rc": "RC46",
-      "ledger": "the-reference-pack"
+      "ledger": "real-documents-reach-pixels"
     },
     {
       "id": "shared-ledger-truth",

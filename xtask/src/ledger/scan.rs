@@ -332,3 +332,235 @@ pub(crate) fn module_files(root: &Path, suite: &str) -> Result<Vec<(String, Stri
     files.sort();
     Ok(files)
 }
+
+/// Display-list and pixel APIs whose use means a function reads what was drawn, with the crates that own each.
+///
+/// An API counts only in a suite that names one of its owners, so a same-named method elsewhere — an
+/// outline's `commands()` — is not mistaken for it. Producing a list or pixels is not here, and
+/// neither is constructing a command: reading them is.
+pub(crate) const DRAWING_APIS: &[(&str, &[&str])] = &[
+    (".commands()", &["mjx_scene"]),
+    ("DisplayList::from_bytes(", &["mjx_scene"]),
+    (".glyph_run(", &["mjx_scene"]),
+    (".record_count(", &["mjx_scene"]),
+    (".section_bytes(", &["mjx_scene"]),
+    (".gradient_stop(", &["mjx_scene"]),
+    (".pixel(", &["mjx_paint", "mjx_render_oracle"]),
+    (".covered()", &["mjx_paint", "mjx_render_oracle"]),
+    (".distinct_colors()", &["mjx_paint"]),
+    (".rgba", &["mjx_paint", "mjx_render_oracle"]),
+    ("compare_painters(", &["mjx_paint"]),
+    ("snapshot::commands(", &["mjx_render_oracle"]),
+    ("compare_against_baseline(", &["mjx_render_oracle"]),
+];
+
+/// Whether `code` uses `token` with no identifier running into either end of it.
+fn uses_token(code: &str, token: &str) -> bool {
+    let starts_word = token.starts_with(is_identifier);
+    let ends_word = token.ends_with(is_identifier);
+    code.match_indices(token).any(|(at, _)| {
+        let before = starts_word && code[..at].chars().next_back().is_some_and(is_identifier);
+        let after = ends_word
+            && code[at + token.len()..]
+                .chars()
+                .next()
+                .is_some_and(is_identifier);
+        !before && !after
+    })
+}
+
+/// Every function defined in normalised code, as `(name, body)`, in source order.
+pub(crate) fn functions(code: &str) -> Vec<(&str, &str)> {
+    let mut found = Vec::new();
+    for (at, _) in code.match_indices("fn ") {
+        if code[..at].chars().next_back().is_some_and(is_identifier) {
+            continue;
+        }
+        let rest = &code[at + 3..];
+        let length = rest.find(|c: char| !is_identifier(c)).unwrap_or(rest.len());
+        if length == 0 {
+            continue;
+        }
+        let signature_start = at + 3 + length;
+        let mut depth = 0_i64;
+        let mut open = None;
+        for (offset, character) in code[signature_start..].char_indices() {
+            match character {
+                '(' | '[' => depth += 1,
+                ')' | ']' => depth -= 1,
+                ';' if depth == 0 => break,
+                '{' if depth == 0 => {
+                    open = Some(signature_start + offset);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let Some(open) = open else { continue };
+        let mut depth = 0_i64;
+        let mut end = code.len();
+        for (offset, character) in code[open..].char_indices() {
+            match character {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = open + offset + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        found.push((&rest[..length], &code[open..end]));
+    }
+    found
+}
+
+/// The names of the `#[test]` functions normalised code declares.
+pub(crate) fn test_functions(code: &str) -> BTreeSet<&str> {
+    let mut names = BTreeSet::new();
+    for (at, marker) in code.match_indices("#[test]") {
+        let mut rest = code[at + marker.len()..].trim_start();
+        while rest.starts_with("#[") {
+            let Some(close) = rest.find(']') else { break };
+            rest = rest[close + 1..].trim_start();
+        }
+        for prefix in ["pub ", "async "] {
+            rest = rest.strip_prefix(prefix).unwrap_or(rest);
+        }
+        if let Some(after) = rest.strip_prefix("fn ") {
+            let length = after
+                .find(|c: char| !is_identifier(c))
+                .unwrap_or(after.len());
+            if length > 0 {
+                names.insert(&after[..length]);
+            }
+        }
+    }
+    names
+}
+
+/// The names a body calls as free or path-qualified functions, never as methods or macros.
+fn calls(body: &str) -> BTreeSet<&str> {
+    let mut names = BTreeSet::new();
+    for (at, _) in body.match_indices('(') {
+        let head = &body[..at];
+        let start = head
+            .char_indices()
+            .rev()
+            .find(|(_, character)| !is_identifier(*character))
+            .map_or(0, |(index, character)| index + character.len_utf8());
+        let name = &head[start..];
+        if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+            continue;
+        }
+        if head[..start].ends_with('.') {
+            continue;
+        }
+        names.insert(name);
+    }
+    names
+}
+
+/// The bodies of the function `name` and of every function defined in `code` it calls, transitively.
+pub(crate) fn reach<'a>(code: &'a str, name: &str) -> Vec<&'a str> {
+    let defined = functions(code);
+    let mut seen = BTreeSet::from([name.to_owned()]);
+    let mut queue = vec![name.to_owned()];
+    let mut bodies = Vec::new();
+    while let Some(next) = queue.pop() {
+        for (_, body) in defined
+            .iter()
+            .filter(|(defined_name, _)| *defined_name == next)
+        {
+            bodies.push(*body);
+            for callee in calls(body) {
+                if defined
+                    .iter()
+                    .any(|(defined_name, _)| *defined_name == callee)
+                    && seen.insert(callee.to_owned())
+                {
+                    queue.push(callee.to_owned());
+                }
+            }
+        }
+    }
+    bodies
+}
+
+/// Whether the function `name`, or a function defined in `code` it calls, reads a display list or pixels.
+pub(crate) fn draws(code: &str, name: &str) -> bool {
+    let apis: Vec<&str> = DRAWING_APIS
+        .iter()
+        .filter(|(_, owners)| owners.iter().any(|owner| contains_identifier(code, owner)))
+        .map(|(api, _)| *api)
+        .collect();
+    !apis.is_empty()
+        && reach(code, name)
+            .iter()
+            .any(|body| apis.iter().any(|api| uses_token(body, api)))
+}
+
+/// The test functions `suite_code` declares that draw, reading calls across the whole `unit_code`.
+pub(crate) fn drawing_tests(suite_code: &str, unit_code: &str) -> BTreeSet<String> {
+    test_functions(suite_code)
+        .into_iter()
+        .filter(|name| draws(unit_code, name))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Assertion-macro invocations in normalised code.
+pub(crate) fn count_assertions(code: &str) -> usize {
+    const MACROS: [&str; 4] = ["assert!(", "assert_eq!(", "assert_ne!(", "assert_matches!("];
+    MACROS
+        .iter()
+        .map(|name| {
+            code.match_indices(name)
+                .filter(|(at, _)| !code[..*at].chars().next_back().is_some_and(is_identifier))
+                .count()
+        })
+        .sum()
+}
+
+/// A citation as its suite path and the test function it names, if it names one.
+pub(crate) fn split_citation(citation: &str) -> (&str, Option<&str>) {
+    match citation.split_once(".rs::") {
+        Some((suite, function)) => (&citation[..suite.len() + 3], Some(function)),
+        None => (citation, None),
+    }
+}
+
+/// The normalised code of a suite and of the helper sources it pulls in, as one string.
+pub(crate) fn unit_code(suite_code: &str, helper_sources: &[String]) -> String {
+    let mut unit = suite_code.to_owned();
+    for helper in helper_sources {
+        unit.push(' ');
+        unit.push_str(&normalise(helper).code);
+    }
+    unit
+}
+
+/// A suite read off the tree: its raw source, its own normalised code, and that of its whole unit.
+pub(crate) struct Unit {
+    /// The suite file as written.
+    pub(crate) source: String,
+    /// The suite file, normalised.
+    pub(crate) code: String,
+    /// The suite and every helper module it pulls in, normalised.
+    pub(crate) unit: String,
+}
+
+/// Reads the suite at `suite`, workspace-relative, with every helper module it pulls in.
+pub(crate) fn read_unit(root: &Path, suite: &str) -> Result<Unit, String> {
+    let source = std::fs::read_to_string(root.join(suite))
+        .map_err(|error| format!("reading {suite}: {error}"))?;
+    let helpers: Vec<String> = module_files(root, suite)?
+        .into_iter()
+        .map(|(_, helper)| helper)
+        .collect();
+    let code = normalise(&source).code;
+    let unit = unit_code(&code, &helpers);
+    Ok(Unit { source, code, unit })
+}

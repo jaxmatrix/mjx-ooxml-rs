@@ -14,17 +14,21 @@
 //! |---|---|
 //! | `out-of-scope` | the row is a §2 exclusion and carries its reason |
 //! | `not-started` | **the default** — no evidence, or no evidence that asserts anything |
-//! | `preserved-not-rendered` | a document capability with evidence, none of it in the layout or rendering tier |
-//! | `partial` | a suite declares a limitation it asserts; or a document capability whose drawing evidence is only layout tier, or only rendering suites whose test doubles stand in for it |
-//! | `implemented` | rendering-tier evidence with no double standing in for the row, and no declared limitation |
+//! | `preserved-not-rendered` | a drawn capability with evidence, none of it past the markup |
+//! | `partial` | a suite declares a limitation it asserts; or a drawn capability no cited function draws, or that every drawing function draws only through a test double |
+//! | `implemented` | a cited test function that draws, with no double standing in for the row, and no declared limitation |
+//!
+//! A **drawn capability** is every rendered row, and any row a `features.json` row names, whatever
+//! its kind: a checklist row is a user-visible feature, so re-kinding its ledger row cannot excuse it
+//! from the question.
 //!
 //! # Why `implemented` cannot be the default, and is not reachable by accident
 //!
 //! The ticket's trap (a): *a generator that defaults an unknown row to `implemented` produces a
 //! document that is confidently false.* The shape of the match below is the answer — `implemented`
 //! is the **last** arm and it is reached only after a row has been shown to have evidence, to have
-//! evidence that asserts something, and to have evidence in a crate that draws. Every earlier
-//! condition is a way of *not* getting there.
+//! evidence that asserts something, and to cite a test function that reads what was drawn. Every
+//! earlier condition is a way of *not* getting there.
 //!
 //! # What a state does not mean
 //!
@@ -36,17 +40,17 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
-use super::evidence::{short_suite, tier_of, Double, Evidence, Split, Tier};
-use super::rows::{Capability, Kind, STAND_INS};
+use super::evidence::{short_citation, Double, Evidence, Split, Tier};
+use super::rows::{Capability, Kind, ALLOWANCES};
 
 /// What a ledger row says about one capability.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) enum State {
-    /// Covered by suites that assert something, in a crate that draws.
+    /// Covered by a cited test function that draws.
     Implemented,
-    /// Covered, and a suite declares a limitation it asserts.
+    /// Covered, and a suite declares a limitation it asserts, or nothing cited proves it drawn.
     Partial,
     /// The markup round-trips; nothing draws it.
     PreservedNotRendered,
@@ -81,14 +85,14 @@ impl State {
     pub(crate) fn meaning(self) -> &'static str {
         match self {
             Self::Implemented => {
-                "suites that emit a display list or pixels cover it, with no test double standing \
-                 in for it, and they assert something. **Not** a claim that the output matches \
-                 Office"
+                "a cited test function reads the display list or pixels it drew, with no test \
+                 double standing in for the row, and the evidence asserts something. **Not** a \
+                 claim that the output matches Office"
             }
             Self::Partial => {
                 "covered, and either a suite declares a limitation it asserts, or nothing proves it \
-                 is drawn — the evidence stops at a fragment tree, or every suite that draws it \
-                 does so through a test double. The reason is quoted"
+                 is drawn — no cited function reads a display list or pixels, or every one that \
+                 does draws through a test double. The reason is quoted"
             }
             Self::PreservedNotRendered => {
                 "the markup round-trips faithfully and nothing lays it out or draws it. A \
@@ -112,81 +116,108 @@ pub(crate) struct Assessed {
     pub(crate) state: State,
     /// The provenance of every expectation the evidence declares.
     pub(crate) split: Split,
-    /// Tests and assertions across the evidence.
+    /// Tests across the evidence.
     pub(crate) tests: usize,
     /// Assertions across the evidence.
     pub(crate) assertions: usize,
     /// The limitations the evidence declares, quoted from the suites that assert them.
     pub(crate) limitations: Vec<(String, String)>,
-    /// Why a document capability with evidence is not drawn, derived from the tiers and doubles.
+    /// Why a drawn capability with evidence is not drawn, derived from the tiers and doubles.
     pub(crate) caps: Vec<String>,
 }
 
-/// The doubles that are not evidence for the row `id`.
-fn doubles_standing_in_for(id: &str) -> BTreeSet<Double> {
-    STAND_INS
-        .iter()
-        .filter(|(_, rows)| rows.contains(&id))
-        .map(|(double, _)| *double)
-        .collect()
+/// Whether a row is asked whether it is drawn: every rendered row, and any row the checklist names.
+pub(crate) fn asks_whether_drawn(capability: &Capability, evidence: &Evidence) -> bool {
+    match capability.kind {
+        Kind::Rendered => true,
+        Kind::Behaviour => !evidence.checklist_rows_naming(capability.id).is_empty(),
+        Kind::Excluded => false,
+    }
 }
 
-/// Derives one row's state from the evidence, or fails if the row names a suite that is not there.
+/// Whether an allowance names this row's use of `double` through the suite at `path`.
+fn allowed(id: &str, path: &str, double: Double) -> bool {
+    ALLOWANCES.iter().any(|allowance| {
+        allowance.row == id && allowance.suite == path && allowance.double == double
+    })
+}
+
+/// Derives one row's state from the evidence, or fails if the row cites evidence that is not there.
 pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Result<Assessed> {
+    let drawn_question = asks_whether_drawn(capability, evidence);
     let mut split = Split::default();
     let mut tests = 0;
     let mut assertions = 0;
     let mut limitations = Vec::new();
     let mut renders = false;
     let mut checks_something = false;
-    let mut laid_out_by: BTreeSet<&str> = BTreeSet::new();
+    let mut short_of_drawn: BTreeSet<&str> = BTreeSet::new();
     let mut drawn_through_doubles: Vec<(&str, Vec<Double>)> = Vec::new();
-    let standing_in = doubles_standing_in_for(capability.id);
+    let mut suites_read: BTreeSet<&str> = BTreeSet::new();
 
-    for path in capability.evidence {
-        // The liveness check. A missing suite is an error, never a lower state — a row that
-        // silently degraded when its suite was deleted would report a fact about the ledger's
-        // rot as though it were a fact about the product.
-        let suite = evidence.suite(path)?;
-        split.add(suite.split);
-        tests += suite.tests;
-        assertions += suite.assertions;
-        checks_something |= suite.checks_something();
-        for limitation in &suite.limitations {
-            limitations.push(((*path).to_owned(), limitation.clone()));
+    for citation in capability.evidence {
+        // The liveness check. A missing suite or function is an error, never a lower state — a row
+        // that silently degraded when its evidence was deleted would report a fact about the
+        // ledger's rot as though it were a fact about the product.
+        let cited = evidence.cite(citation)?;
+        if suites_read.insert(cited.path) {
+            split.add(cited.suite.split);
+            for limitation in &cited.suite.limitations {
+                limitations.push((cited.path.to_owned(), limitation.clone()));
+            }
         }
-        // A suite that asserts nothing is no tier's evidence.
-        if !suite.checks_something() {
+        tests += cited.tests;
+        assertions += cited.assertions;
+        if drawn_question && cited.function.is_none() && !cited.suite.drawing_tests.is_empty() {
+            let functions: Vec<String> = cited
+                .suite
+                .drawing_tests
+                .iter()
+                .map(|name| format!("`{citation}::{name}`"))
+                .collect();
+            bail!(
+                "`{}` is asked whether it is drawn and cites the whole of `{citation}`, which holds \
+                 functions that draw. A whole suite is never rendering evidence: cite the functions \
+                 that draw this capability, from {}, or none of them",
+                capability.id,
+                functions.join(", ")
+            );
+        }
+        // Evidence that asserts nothing is no tier's evidence.
+        if cited.assertions == 0 {
             continue;
         }
-        match tier_of(path, &suite.crate_name) {
+        checks_something = true;
+        match cited.tier() {
             Tier::Rendering => {
-                let doubles: Vec<Double> = standing_in
+                let doubles: Vec<Double> = cited
+                    .suite
+                    .doubles
                     .iter()
                     .copied()
-                    .filter(|double| evidence.uses_double(path, suite, *double))
+                    .filter(|double| !allowed(capability.id, cited.path, *double))
                     .collect();
                 if doubles.is_empty() {
                     renders = true;
                 } else {
-                    drawn_through_doubles.push((path, doubles));
+                    drawn_through_doubles.push((citation, doubles));
                 }
             }
             Tier::Layout => {
-                laid_out_by.insert(suite.crate_name.as_str());
+                short_of_drawn.insert(cited.suite.crate_name.as_str());
             }
             Tier::Model => {}
         }
     }
 
-    let undrawn = capability.kind == Kind::Rendered && !renders;
+    let undrawn = drawn_question && !renders;
     let state = if capability.kind == Kind::Excluded {
         State::OutOfScope
     } else if capability.evidence.is_empty() || !checks_something {
         // **The default, and the only default.** Nothing tests it, or what tests it asserts
         // nothing, which for this purpose is the same thing.
         State::NotStarted
-    } else if undrawn && laid_out_by.is_empty() && drawn_through_doubles.is_empty() {
+    } else if undrawn && short_of_drawn.is_empty() && drawn_through_doubles.is_empty() {
         State::PreservedNotRendered
     } else if undrawn || !limitations.is_empty() {
         State::Partial
@@ -196,15 +227,18 @@ pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Re
 
     let mut caps = Vec::new();
     if state == State::Partial && undrawn {
-        if !laid_out_by.is_empty() {
-            let crates: Vec<String> = laid_out_by.iter().map(|name| format!("`{name}`")).collect();
+        if !short_of_drawn.is_empty() {
+            let crates: Vec<String> = short_of_drawn
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect();
             caps.push(format!(
-                "no rendering-tier suite proves it is drawn: the evidence stops at the fragment \
-                 tier ({})",
+                "no cited test function reads a display list or pixels: the evidence stops short \
+                 of drawn ({})",
                 crates.join(", ")
             ));
         }
-        for (path, doubles) in &drawn_through_doubles {
+        for (citation, doubles) in &drawn_through_doubles {
             let named: Vec<String> = doubles
                 .iter()
                 .map(|double| {
@@ -217,7 +251,7 @@ pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Re
                 .collect();
             caps.push(format!(
                 "`{}` draws it only through {}",
-                short_suite(path),
+                short_citation(citation),
                 named.join("; and ")
             ));
         }
@@ -236,39 +270,29 @@ pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Re
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, BTreeSet};
-
-    use super::super::evidence::{CommandCensus, Evidence, Provenance, Suite};
+    use super::super::evidence::{read_suite, Evidence, Provenance, Suite};
     use super::super::rows::{Capability, Kind, Section};
     use super::*;
 
-    /// A suite as the scanner would have read it.
+    /// A suite as the scanner would have read it, with no test function that draws.
     fn suite(crate_name: &str, assertions: usize, limitations: &[&str]) -> Suite {
-        Suite {
-            crate_name: crate_name.to_owned(),
-            tests: 1,
-            assertions,
-            limitations: limitations.iter().map(|text| (*text).to_owned()).collect(),
-            split: Split::default(),
-            doubles: BTreeSet::new(),
-        }
+        let mut suite = read_suite(crate_name, "#[test]\nfn checks() {}\n");
+        suite.assertions = assertions;
+        suite.limitations = limitations.iter().map(|text| (*text).to_owned()).collect();
+        suite
+    }
+
+    // A suite whose one test function reads the display list's commands.
+    fn drawing_suite(crate_name: &str) -> Suite {
+        read_suite(
+            crate_name,
+            "use mjx_scene::DisplayList;\n#[test]\nfn draws() { assert!(list.commands().count() > 0); }\n",
+        )
     }
 
     /// An evidence index holding exactly the suites named.
     fn index(entries: &[(&str, Suite)]) -> Evidence {
-        Evidence {
-            suites: entries
-                .iter()
-                .map(|(path, suite)| ((*path).to_owned(), suite.clone()))
-                .collect::<BTreeMap<_, _>>(),
-            provenance_not_read: Vec::new(),
-            approvals: Vec::new(),
-            commands: CommandCensus {
-                per_application: vec![("Word".to_owned(), 1)],
-            },
-            declared_elements: 1,
-            crates: BTreeSet::new(),
-        }
+        Evidence::of(entries, &[])
     }
 
     /// A capability with a chosen kind and evidence. `Capability` is `'static` in the real table;
@@ -327,15 +351,30 @@ mod tests {
         );
     }
 
+    // A citation naming a test function its suite does not declare fails, naming the citation.
+    #[test]
+    fn a_row_naming_a_function_that_does_not_exist_fails_the_build() {
+        let evidence = index(&[(
+            "crates/mjx-scene-pptx/tests/a.rs",
+            drawing_suite("mjx-scene-pptx"),
+        )]);
+        let error = assess(
+            capability(Kind::Rendered, &["crates/mjx-scene-pptx/tests/a.rs::gone"]),
+            &evidence,
+        )
+        .expect_err("a missing function is an error");
+        assert!(format!("{error:#}").contains("a.rs::gone"), "{error:#}");
+    }
+
     /// **Deleting a real suite changes the ledger.** The same row, assessed against an index with
     /// the suite and against one without it, gives different answers — which is what "generated"
     /// means and what a hand-written table cannot do.
     #[test]
     fn removing_a_suite_moves_the_row_off_implemented() {
-        let row = capability(Kind::Rendered, &["crates/mjx-scene-pptx/tests/a.rs"]);
+        let row = capability(Kind::Rendered, &["crates/mjx-scene-pptx/tests/a.rs::draws"]);
         let present = index(&[(
             "crates/mjx-scene-pptx/tests/a.rs",
-            suite("mjx-scene-pptx", 4, &[]),
+            drawing_suite("mjx-scene-pptx"),
         )]);
         assert_eq!(
             assess(row, &present).expect("present").state,
@@ -364,14 +403,14 @@ mod tests {
         );
     }
 
-    // A rendering suite beside a box model's suite draws the row, so the box model does not cap it.
+    // A drawing function beside a box model's suite draws the row, so the box model does not cap it.
     #[test]
     fn a_rendering_suite_beside_a_layout_suite_is_implemented() {
         let row = capability(
             Kind::Rendered,
             &[
                 "crates/mjx-layout-pptx/tests/a.rs",
-                "crates/mjx-scene-pptx/tests/b.rs",
+                "crates/mjx-scene-pptx/tests/b.rs::draws",
             ],
         );
         let evidence = index(&[
@@ -381,7 +420,7 @@ mod tests {
             ),
             (
                 "crates/mjx-scene-pptx/tests/b.rs",
-                suite("mjx-scene-pptx", 2, &[]),
+                drawing_suite("mjx-scene-pptx"),
             ),
         ]);
         let assessed = assess(row, &evidence).expect("present");
@@ -389,7 +428,22 @@ mod tests {
         assert!(assessed.caps.is_empty());
     }
 
-    // A behaviour is not capped by the tier, because nothing draws an undo stack.
+    // A whole suite that holds a drawing function is refused on a drawn row, and the refusal names the function to cite.
+    #[test]
+    fn a_whole_suite_that_draws_is_refused_on_a_drawn_row() {
+        let evidence = index(&[(
+            "crates/mjx-scene-pptx/tests/b.rs",
+            drawing_suite("mjx-scene-pptx"),
+        )]);
+        let error = assess(
+            capability(Kind::Rendered, &["crates/mjx-scene-pptx/tests/b.rs"]),
+            &evidence,
+        )
+        .expect_err("a whole drawing suite is refused");
+        assert!(format!("{error:#}").contains("b.rs::draws"), "{error:#}");
+    }
+
+    // A behaviour no checklist row names is not capped by the tier, because nothing draws an undo stack.
     #[test]
     fn a_behaviour_with_layout_tier_evidence_is_not_capped() {
         let row = capability(Kind::Behaviour, &["crates/mjx-view/tests/a.rs"]);
@@ -398,6 +452,22 @@ mod tests {
             assess(row, &evidence).expect("present").state,
             State::Implemented
         );
+    }
+
+    // A behaviour a checklist row names is asked whether it is drawn, so layout evidence alone caps it.
+    #[test]
+    fn a_behaviour_a_checklist_row_names_is_asked_whether_it_is_drawn() {
+        let row = capability(Kind::Behaviour, &["crates/mjx-layout-docx/tests/a.rs"]);
+        let evidence = Evidence::of(
+            &[(
+                "crates/mjx-layout-docx/tests/a.rs",
+                suite("mjx-layout-docx", 3, &[]),
+            )],
+            &[("a-capability", "docx-a-feature")],
+        );
+        let assessed = assess(row, &evidence).expect("present");
+        assert_eq!(assessed.state, State::Partial);
+        assert!(!assessed.caps.is_empty(), "the cap says why");
     }
 
     /// A document capability whose only evidence is in the model tier is `preserved-not-rendered`,

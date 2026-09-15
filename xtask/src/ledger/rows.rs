@@ -47,7 +47,9 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
             "word-pictures",
             "excel-pictures",
             "pptx-reaches-pixels",
-            "excel-reaches-pixels",
+            "real-documents-reach-pixels",
+            "effects",
+            "export-pdf-and-svg",
         ],
     ),
     (
@@ -61,6 +63,10 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
             "colour-resolution-xlsx",
             "colour-resolution-docx",
             "excel-reaches-pixels",
+            "real-documents-reach-pixels",
+            "excel-conditional-formatting",
+            "excel-cell-borders",
+            "excel-cell-formatting",
         ],
     ),
     (
@@ -71,8 +77,86 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
             "shape-adjustments",
             "connectors",
             "pptx-reaches-pixels",
+            "real-documents-reach-pixels",
+            "effects",
+            "export-pdf-and-svg",
         ],
     ),
+];
+
+/// One row's use of a double, through one suite, that stands in for nothing the row is about.
+pub(crate) struct Allowance {
+    /// The suite, workspace-relative.
+    pub(crate) suite: &'static str,
+    /// The double it uses.
+    pub(crate) double: Double,
+    /// The one row the use is excused for.
+    pub(crate) row: &'static str,
+    /// Why the double replaces nothing this row is about.
+    pub(crate) reason: &'static str,
+}
+
+/// Every excused use of a double, as a (suite, double, row) triple with its reason.
+///
+/// An entry excuses one row: the same suite cited by another row is judged afresh. An entry whose
+/// suite no longer uses the double, or whose row no longer cites the suite, fails the generator.
+pub(crate) const ALLOWANCES: &[Allowance] = &[
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+        double: Double::Images,
+        row: "excel-reaches-pixels",
+        reason:
+            "a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places \
+                 drawings and lays none of them out — so the painter never asks `NoImages` for a \
+                 picture, and the stand-in replaces nothing this journey draws",
+    },
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        double: Double::Images,
+        row: "table-model-pptx",
+        reason:
+            "the cited functions draw `tables.pptx` slide 1, which frames one table and one shape \
+                 and holds no picture, so `NoImages` is never asked for one",
+    },
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        double: Double::Geometry,
+        row: "table-model-pptx",
+        reason:
+            "a table's cells and border bands are boxes the box model places, so the grid makes \
+                 no outline request and the test-fed provider draws nothing of it",
+    },
+    Allowance {
+        suite: "crates/mjx-scene/tests/glyph_outlines_tessellate_as_paths.rs",
+        double: Double::Geometry,
+        row: "glyph-outlines",
+        reason:
+            "a glyph outline is a stated path in the display list's geometry table, and a stated \
+                 path is tessellated without consulting the placeholder provider",
+    },
+    Allowance {
+        suite: "crates/mjx-scene/tests/a_line_end_is_carried_and_never_tessellated.rs",
+        double: Double::Geometry,
+        row: "outlines",
+        reason:
+            "the stroked line is a stated path, so the placeholder provider is never consulted \
+                 for the triangles the suite compares",
+    },
+    Allowance {
+        suite: "crates/mjx-scene-pptx/tests/a_custom_dash_draws_as_the_preset_dash.rs",
+        double: Double::Images,
+        row: "outlines",
+        reason: "every line the suite resolves is filled with a solid colour, so the picture \
+                 resolver it passes is never asked for a relationship",
+    },
+    Allowance {
+        suite: "crates/mjx-scene/tests/the_mesh_cache_holds_its_budget.rs",
+        double: Double::Geometry,
+        row: "memory-budgets",
+        reason:
+            "the budget counts the bytes of every mesh it holds, whichever provider produced the \
+                 outline, so a placeholder provider changes no figure the budget asserts",
+    },
 ];
 
 /// Which part of the inventory a row comes from.
@@ -429,7 +513,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "glyph-outlines",
         Section::SharedText,
         "Glyph outlines as paths, tessellated for the vector painters",
-        &["crates/mjx-scene/tests/glyph_outlines_tessellate_as_paths.rs"],
+        &["crates/mjx-scene/tests/glyph_outlines_tessellate_as_paths.rs::a_large_glyph_is_a_path_in_the_geometry_table_and_tessellates_like_any_other"],
     ),
     rendered(
         "font-subsetting",
@@ -600,6 +684,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-dml/tests/line_model.rs",
             "crates/mjx-scene/tests/a_line_end_is_carried_and_never_tessellated.rs",
             "crates/mjx-scene-pptx/tests/a_custom_dash_draws_as_the_preset_dash.rs",
+            "crates/mjx-scene/tests/fragments_alone_drive_the_builder.rs::a_decorated_box_becomes_a_fill_and_a_stroke_over_a_rectangle",
         ],
     ),
     rendered(
@@ -610,6 +695,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-dml/tests/effect_model.rs",
             "crates/mjx-scene-pptx/tests/every_effect_reaches_the_root.rs",
             "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
+            "crates/mjx-paint/tests/two_painters_agree.rs::every_effect_kind_is_drawn_the_same_way_by_both",
         ],
     ),
     rendered(
@@ -662,7 +748,6 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-dml/tests/style_model.rs",
             "crates/mjx-pptx/tests/shape_list_style.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
             "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
         ],
     ),
@@ -677,6 +762,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-layout-pptx/tests/nested_group_transforms_compose.rs",
         ],
     ),
+    // The deck journey's ink test proves placement and asserts no draw order, so no drawing function is cited here.
     rendered(
         "z-order-and-placement",
         Section::SharedDrawing,
@@ -685,7 +771,6 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-pptx/tests/placement.rs",
             "crates/mjx-pptx/tests/transform.rs",
             "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
         ],
     ),
     rendered(
@@ -729,7 +814,6 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "A picture on a slide shows its decoded pixels",
         &[
             "crates/mjx-pptx/tests/images.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
         ],
     ),
     rendered(
@@ -765,6 +849,15 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         Section::SharedPictures,
         "Corrections and colour — brightness, contrast, saturation, recolour, artistic effects",
         &[],
+    ),
+    rendered(
+        "real-documents-reach-pixels",
+        Section::SharedPictures,
+        "Real documents of all three formats reaching pixels with their own pictures, theme and outlines",
+        &[
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::the_ink_lands_where_the_fragments_said_it_would",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::the_ink_lands_where_the_fragments_said_it_would",
+        ],
     ),
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §3.5 · Charts
@@ -914,7 +1007,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-dml/tests/table_model.rs",
             "crates/mjx-pptx/tests/tables.rs",
             "crates/mjx-pptx/tests/table_structure.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::a_deck_of_tables_reaches_pixels_with_its_cells_intact",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::the_ink_lands_where_the_fragments_said_it_would",
         ],
     ),
     rendered(
@@ -992,7 +1086,6 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-dml/tests/theme_model.rs",
             "crates/mjx-pptx/tests/theme.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
             "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
         ],
     ),
@@ -1127,7 +1220,14 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         Section::SharedDocument,
         "Export — PDF with selectable text, and SVG, both from the display list",
         &[
-            "crates/mjx-paint/tests/a_document_is_a_document.rs",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::the_pdfs_text_is_text",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::the_pdf_embeds_a_subset_and_not_the_face",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::the_svg_is_well_formed_and_says_what_the_scene_contained",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::the_svg_draws_text_as_outlines_and_says_when_it_cannot",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::a_document_painter_has_no_pixels_and_says_so",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::the_pdfs_blur_fallback_actually_rasterises",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::both_exporters_count_a_stand_in_shape_and_say_which_it_was",
+            "crates/mjx-paint/tests/a_document_is_a_document.rs::a_dashed_stroke_reaches_both_documents",
             "crates/mjx-render-oracle/tests/the_pdf_tiers_work_on_our_own_exports.rs",
         ],
     ),
@@ -1381,7 +1481,11 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-layout-xlsx/tests/graded_rules_interpolate.rs",
             "crates/mjx-layout-xlsx/tests/precedence_composes_in_excels_order.rs",
             "crates/mjx-layout-xlsx/tests/the_conditional_ledger_is_computed.rs",
-            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs",
+            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs::a_dxf_that_states_only_a_bg_colour_paints_the_cell_that_fired_and_not_its_neighbour",
+            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs::the_same_sheet_without_the_rule_paints_neither_cell",
+            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs::a_colour_scale_blends_its_two_stops_and_the_middle_cell_is_neither_of_them",
+            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs::the_scale_moves_when_the_data_does_and_not_only_when_the_stops_do",
+            "crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs::a_scale_stop_that_names_a_palette_row_is_resolved_here_and_not_in_the_box_model",
         ],
     ),
     rendered(
@@ -1402,7 +1506,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-sml/tests/style_resources.rs",
             "crates/mjx-xlsx/tests/effective_format.rs",
             "crates/mjx-scene-xlsx/tests/a_red_negative_reaches_the_paint_table.rs",
-            "crates/mjx-scene-xlsx/tests/the_alpha_survives.rs",
+            "crates/mjx-scene-xlsx/tests/the_alpha_survives.rs::the_alpha_is_still_there_in_the_encoded_display_list",
             "crates/mjx-scene-xlsx/tests/the_public_surface_is_reachable.rs",
         ],
     ),
@@ -1510,7 +1614,10 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "A worksheet reaching a display list, and then pixels",
         &[
             "crates/mjx-scene-xlsx/tests/a_real_sheet_resolves.rs",
-            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::a_sheet_of_text_reaches_pixels",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::a_sheet_of_fills_and_borders_reaches_pixels",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::the_ink_lands_where_the_fragments_said_it_would",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::a_hairline_border_puts_ink_on_the_page",
         ],
     ),
     behaviour(
@@ -1616,9 +1723,9 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "A deck reaching a display list, and then pixels, through two independent painters",
         &[
             "crates/mjx-scene-pptx/tests/every_effect_reaches_the_root.rs",
-            "crates/mjx-paint/tests/a_page_becomes_pixels.rs",
-            "crates/mjx-paint/tests/two_painters_agree.rs",
-            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::a_deck_of_text_reaches_pixels",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::the_ink_lands_where_the_fragments_said_it_would",
+            "crates/mjx-paint/tests/two_painters_agree.rs::the_two_rasterisers_draw_the_same_page",
         ],
     ),
     behaviour(
@@ -1783,6 +1890,19 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-render-oracle/tests/a_regression_arrives_with_its_picture.rs",
             "crates/mjx-render-oracle/tests/regenerating_a_baseline_is_explicit.rs",
         ],
+    ),
+    rendered(
+        "oracle-document-specimens",
+        Section::ThirdAxis,
+        "A human-approved oracle plate of a real document, for each of the three formats",
+        &[],
+    ),
+    // A contract rather than markup; the checklist names it, so it is still asked whether it is drawn.
+    behaviour(
+        "box-model-issued-handles",
+        Section::ThirdAxis,
+        "Every box model exposing the catalogue of handles it issued, checked for all three formats",
+        &[],
     ),
     behaviour(
         "the-reference-pack",

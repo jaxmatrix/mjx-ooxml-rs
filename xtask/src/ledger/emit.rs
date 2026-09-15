@@ -13,8 +13,9 @@
 use std::fmt::Write as _;
 
 use super::assess::{Assessed, State};
-use super::evidence::{self, short_suite, Double, Evidence, Provenance, Split};
-use super::rows::{Kind, Section};
+use super::evidence::{self, short_citation, short_suite, Double, Evidence, Provenance, Split};
+use super::rows::{self, Kind, Section};
+use super::scan;
 
 /// Renders the whole document.
 pub(crate) fn render(rows: &[Assessed], evidence: &Evidence) -> String {
@@ -43,20 +44,30 @@ fn caps(out: &mut String, rows: &[Assessed]) {
         out,
         "## What counts as drawn\n\
          \n\
-         A document capability is `implemented` only on a suite that emits an encoded display list \
-         or pixels: a suite in {}, or one of the pack's journeys ({}). A suite in {} stops at a \
-         fragment tree, so it proves a capability is laid out and nothing about whether it is \
-         drawn; a rendered row whose only evidence is that tier is `partial`.\n\
+         A drawn capability — every rendered row, and any row a `features.json` row names, whatever \
+         its kind — is `implemented` only on a cited **test function** that reads what was drawn: \
+         its body, or a function in its suite it calls, uses {} in a suite that names the crate the \
+         API belongs to. The crate a suite lives in decides \
+         nothing, and a whole suite is never rendering evidence: a drawn row may not cite a whole \
+         suite that holds a drawing function. A cited function that reads none of these, or a suite \
+         in {}, {}, or one of the pack's journeys ({}), stops short of drawn, so a drawn row whose \
+         evidence ends there is `partial`.\n\
          \n\
-         A rendering suite that draws with a test double is not evidence for the rows the double \
-         stands in for. The scan reads each suite's code for:\n\n",
+         A function that draws through a test double is not evidence for the rows the double stands \
+         in for. The scan reads each suite, and every helper module it pulls in, for:\n\n",
+        listed(
+            &scan::DRAWING_APIS
+                .iter()
+                .map(|(api, _)| *api)
+                .collect::<Vec<_>>()
+        ),
         listed(evidence::RENDERING_TIER),
+        listed(evidence::LAYOUT_TIER),
         evidence::RENDERING_JOURNEYS
             .iter()
             .map(|path| format!("`{}`", short_suite(path)))
             .collect::<Vec<_>>()
             .join(", "),
-        listed(evidence::LAYOUT_TIER),
     );
     for double in Double::ALL {
         let _ = writeln!(
@@ -66,13 +77,19 @@ fn caps(out: &mut String, rows: &[Assessed]) {
             double.stands_in_for()
         );
     }
-    out.push_str("\nThe named exceptions, each with its reason:\n\n| Suite | Double | Why it stands in for nothing cited |\n|---|---|---|\n");
-    for allowance in evidence::ALLOWANCES {
+    out.push_str(
+        "\nEvery double a drawn row's evidence uses is classified for that row, or the generator \
+         fails: it stands in for the row, or an allowance names the suite, the double and the row, \
+         with its reason. An allowance excuses one row and no other.\n\n\
+         | Suite | Double | Row | Why it stands in for nothing this row is about |\n|---|---|---|---|\n",
+    );
+    for allowance in rows::ALLOWANCES {
         let _ = writeln!(
             out,
-            "| `{}` | {} | {} |",
+            "| `{}` | {} | `{}` | {} |",
             short_suite(allowance.suite),
             allowance.double.name(),
+            allowance.row,
             allowance.reason
         );
     }
@@ -280,7 +297,12 @@ fn denominators(out: &mut String, rows: &[Assessed], evidence: &Evidence) {
 fn distinct_evidence(rows: &[Assessed]) -> Vec<&'static str> {
     let mut named: Vec<&'static str> = rows
         .iter()
-        .flat_map(|row| row.capability.evidence.iter().copied())
+        .flat_map(|row| {
+            row.capability
+                .evidence
+                .iter()
+                .map(|citation| scan::split_citation(citation).0)
+        })
         .collect();
     named.sort_unstable();
     named.dedup();
@@ -421,7 +443,7 @@ fn table(out: &mut String, rows: &[Assessed]) {
                 row.capability
                     .evidence
                     .iter()
-                    .map(|path| format!("`{}`", short_suite(path)))
+                    .map(|citation| format!("`{}`", short_citation(citation)))
                     .collect::<Vec<_>>()
                     .join("<br>")
             };

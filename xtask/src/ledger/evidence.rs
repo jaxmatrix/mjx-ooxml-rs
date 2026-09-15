@@ -47,8 +47,11 @@ use super::scan;
 /// a limitation a suite asserts is a fact, and the marker is where the fact says so.
 pub(crate) const LIMITATION_MARKER: &str = "MJX-LEDGER-LIMITATION:";
 
-/// Crates whose suites emit an **encoded `DisplayList` or pixels** — the only evidence that can make a
-/// document capability `implemented`.
+/// Crates whose suites work at or past the display list: the companions, the painter and the oracle.
+///
+/// **A crate never makes evidence drawn.** Only a cited test function that reads a display list or
+/// pixels does, wherever it lives; anything else from these crates — a resolved colour, a paint table,
+/// a whole suite — stops short of drawn and caps a drawn row at `partial`.
 ///
 /// Every `mjx-scene-*` companion must be here, and [`scan`] refuses a workspace where one is not.
 /// `mjx-reference-pack` is not: only its journeys draw a document, and they are named one by one in
@@ -65,7 +68,7 @@ pub(crate) const RENDERING_TIER: &[&str] = &[
     "mjx-render-oracle",
 ];
 
-/// The `mjx-reference-pack` suites that carry a committed document all the way to pixels.
+/// The `mjx-reference-pack` suites that carry a committed document all the way to pixels; a function of theirs that draws nothing stops short of drawn.
 pub(crate) const RENDERING_JOURNEYS: &[&str] = &[
     "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
     "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
@@ -73,8 +76,8 @@ pub(crate) const RENDERING_JOURNEYS: &[&str] = &[
 
 /// Crates whose suites stop at a **`FragmentTree`**, a measured run or an outline.
 ///
-/// Evidence here proves a capability is laid out, and nothing about whether it is drawn: a
-/// `Kind::Rendered` row whose only evidence is this tier caps at `partial`, and the row says so.
+/// Evidence here proves a capability is laid out, and nothing about whether it is drawn: a drawn row
+/// whose only evidence is this tier caps at `partial`, and the row says so.
 /// Every `mjx-layout-*` box model must be here, and [`scan`] refuses a workspace where one is not.
 pub(crate) const LAYOUT_TIER: &[&str] = &[
     "mjx-text",
@@ -87,26 +90,15 @@ pub(crate) const LAYOUT_TIER: &[&str] = &[
     "mjx-view",
 ];
 
-/// Which tier a suite's evidence is.
+/// Which tier one citation's evidence is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Tier {
-    /// It emits an encoded display list or pixels.
+    /// A cited test function reads an encoded display list or pixels.
     Rendering,
-    /// It stops at a fragment tree.
+    /// It stops short of drawn: a fragment tree, an outline, a resolved paint.
     Layout,
     /// It reads or writes markup.
     Model,
-}
-
-/// The tier of the suite at `path`, which lives in `crate_name`.
-pub(crate) fn tier_of(path: &str, crate_name: &str) -> Tier {
-    if RENDERING_TIER.contains(&crate_name) || RENDERING_JOURNEYS.contains(&path) {
-        Tier::Rendering
-    } else if LAYOUT_TIER.contains(&crate_name) {
-        Tier::Layout
-    } else {
-        Tier::Model
-    }
 }
 
 /// A stand-in a suite, or a helper module it pulls in, supplies for something the product should supply itself.
@@ -168,27 +160,14 @@ impl Double {
     }
 }
 
-/// A rendering suite's use of a double that stands in for nothing the rows citing it are about.
-pub(crate) struct Allowance {
-    /// The suite, workspace-relative.
-    pub(crate) suite: &'static str,
-    /// The double it uses.
-    pub(crate) double: Double,
-    /// Why the use is not a stand-in for any row that cites the suite.
-    pub(crate) reason: &'static str,
+/// A citation as the generated document names it: crate and file stem, then the function it names.
+pub(crate) fn short_citation(citation: &str) -> String {
+    let (path, function) = scan::split_citation(citation);
+    match function {
+        Some(function) => format!("{}::{function}", short_suite(path)),
+        None => short_suite(path),
+    }
 }
-
-/// The named exceptions to the double scan, each with its reason.
-///
-/// An entry that names a suite which no longer uses the double fails [`scan`], so the list cannot
-/// outlive the code it excuses.
-pub(crate) const ALLOWANCES: &[Allowance] = &[Allowance {
-    suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
-    double: Double::Images,
-    reason: "a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places \
-             drawings and lays none of them out — so the painter never asks `NoImages` for a \
-             picture, and the stand-in replaces nothing this journey draws",
-}];
 
 /// A suite's workspace path as its crate and file stem, the way the generated document names a suite.
 pub(crate) fn short_suite(path: &str) -> String {
@@ -270,19 +249,14 @@ pub(crate) struct Suite {
     pub(crate) limitations: Vec<String>,
     /// The provenance of the expectations declared *for* this suite, wherever they are declared.
     pub(crate) split: Split,
-    /// The test doubles its code uses.
+    /// The test doubles its code, or a helper module it pulls in, uses.
     pub(crate) doubles: BTreeSet<Double>,
-}
-
-impl Suite {
-    /// Whether it checks anything at all.
-    ///
-    /// A suite that asserts nothing is not evidence, however many `#[test]` functions it declares.
-    /// **This is trap (b) of the ticket** — the suite that is green precisely because the work is
-    /// skipped — caught at the only place a generator that does not run the tests can see it.
-    pub(crate) fn checks_something(&self) -> bool {
-        self.assertions > 0
-    }
+    /// The normalised code of the suite and every helper module it pulls in.
+    pub(crate) code: String,
+    /// The `#[test]` functions the suite declares.
+    pub(crate) test_functions: BTreeSet<String>,
+    /// The test functions that read a display list or pixels, directly or through a local helper.
+    pub(crate) drawing_tests: BTreeSet<String>,
 }
 
 /// One approval record from the fidelity oracle's committed baselines.
@@ -332,6 +306,45 @@ pub(crate) struct Evidence {
     pub(crate) declared_elements: u64,
     /// Every crate directory in the workspace.
     pub(crate) crates: BTreeSet<String>,
+    /// The `features.json` row ids naming each ledger row, by ledger row id.
+    pub(crate) checklist: BTreeMap<String, Vec<String>>,
+}
+
+/// One citation, resolved: the suite, and the test function it names if it names one.
+pub(crate) struct Cited<'a> {
+    /// The suite's workspace path.
+    pub(crate) path: &'a str,
+    /// The suite.
+    pub(crate) suite: &'a Suite,
+    /// The test function it names, if it names one.
+    pub(crate) function: Option<&'a str>,
+    /// Tests the citation covers.
+    pub(crate) tests: usize,
+    /// Assertions the citation makes, through the local functions a cited function calls.
+    pub(crate) assertions: usize,
+}
+
+impl Cited<'_> {
+    /// Whether it names a test function that reads a display list or pixels.
+    pub(crate) fn draws(&self) -> bool {
+        self.function
+            .is_some_and(|function| self.suite.drawing_tests.contains(function))
+    }
+
+    /// Its tier, decided by what it reads rather than by the crate it lives in.
+    pub(crate) fn tier(&self) -> Tier {
+        let crate_name = self.suite.crate_name.as_str();
+        if self.draws() {
+            Tier::Rendering
+        } else if LAYOUT_TIER.contains(&crate_name)
+            || RENDERING_TIER.contains(&crate_name)
+            || RENDERING_JOURNEYS.contains(&self.path)
+        {
+            Tier::Layout
+        } else {
+            Tier::Model
+        }
+    }
 }
 
 impl Evidence {
@@ -353,12 +366,68 @@ impl Evidence {
         })
     }
 
-    /// Whether the suite at `path` uses `double` in a way no [`ALLOWANCES`] entry excuses.
-    pub(crate) fn uses_double(&self, path: &str, suite: &Suite, double: Double) -> bool {
-        suite.doubles.contains(&double)
-            && !ALLOWANCES
+    /// Resolves a citation — a suite path, or a suite path and `::` and a test function it declares.
+    pub(crate) fn cite<'a>(&'a self, citation: &'a str) -> Result<Cited<'a>> {
+        let (path, function) = scan::split_citation(citation);
+        let suite = self.suite(path)?;
+        let Some(function) = function else {
+            return Ok(Cited {
+                path,
+                suite,
+                function: None,
+                tests: suite.tests,
+                assertions: suite.assertions,
+            });
+        };
+        if !suite.test_functions.contains(function) {
+            bail!(
+                "the parity ledger cites `{citation}`, and `{path}` declares no `#[test] fn \
+                 {function}`. A row may not outlive its evidence: fix the citation in \
+                 `xtask/src/ledger/rows.rs`."
+            );
+        }
+        let assertions = scan::reach(&suite.code, function)
+            .iter()
+            .map(|body| scan::count_assertions(body))
+            .sum();
+        Ok(Cited {
+            path,
+            suite,
+            function: Some(function),
+            tests: 1,
+            assertions,
+        })
+    }
+
+    /// The `features.json` rows that name the ledger row `id`.
+    pub(crate) fn checklist_rows_naming(&self, id: &str) -> &[String] {
+        self.checklist.get(id).map_or(&[], Vec::as_slice)
+    }
+
+    /// An index of synthetic suites, and of checklist rows as `(ledger id, checklist id)`.
+    #[cfg(test)]
+    pub(crate) fn of(entries: &[(&str, Suite)], named: &[(&str, &str)]) -> Self {
+        let mut checklist: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (ledger, row) in named {
+            checklist
+                .entry((*ledger).to_owned())
+                .or_default()
+                .push((*row).to_owned());
+        }
+        Self {
+            suites: entries
                 .iter()
-                .any(|allowance| allowance.suite == path && allowance.double == double)
+                .map(|(path, suite)| ((*path).to_owned(), suite.clone()))
+                .collect(),
+            provenance_not_read: Vec::new(),
+            approvals: Vec::new(),
+            commands: CommandCensus {
+                per_application: vec![("Word".to_owned(), 1)],
+            },
+            declared_elements: 1,
+            crates: BTreeSet::new(),
+            checklist,
+        }
     }
 
     /// Every limitation any suite in the workspace declares, as `(suite path, text)`.
@@ -382,12 +451,10 @@ pub(crate) fn scan(root: &Path) -> Result<Evidence> {
     let sources = read_suite_sources(root, &crates)?;
     let mut suites: BTreeMap<String, Suite> = sources
         .iter()
-        .map(|(path, (crate_name, source, helpers))| {
-            (path.clone(), read_unit(crate_name, source, helpers))
-        })
+        .map(|(path, (crate_name, unit))| (path.clone(), read_suite_unit(crate_name, unit)))
         .collect();
     let provenance_not_read = attach_provenance(&sources, &mut suites)?;
-    check_the_journeys_and_allowances(&suites)?;
+    check_the_journeys(&suites)?;
 
     Ok(Evidence {
         suites,
@@ -396,6 +463,7 @@ pub(crate) fn scan(root: &Path) -> Result<Evidence> {
         commands: read_command_census(root)?,
         declared_elements: read_schema_census(root)?,
         crates,
+        checklist: read_checklist(root)?,
     })
 }
 
@@ -435,36 +503,45 @@ fn check_the_tiers(crates: &BTreeSet<String>) -> Result<()> {
     Ok(())
 }
 
-/// Every named journey is a suite, and every allowance names a suite that really uses its double.
-fn check_the_journeys_and_allowances(suites: &BTreeMap<String, Suite>) -> Result<()> {
+/// Every named journey is a suite.
+fn check_the_journeys(suites: &BTreeMap<String, Suite>) -> Result<()> {
     for journey in RENDERING_JOURNEYS {
         if !suites.contains_key(*journey) {
             bail!("`RENDERING_JOURNEYS` names `{journey}`, which is not a suite in this workspace");
         }
     }
-    for allowance in ALLOWANCES {
-        let Some(suite) = suites.get(allowance.suite) else {
-            bail!(
-                "an allowance names `{}`, which is not a suite in this workspace",
-                allowance.suite
-            );
-        };
-        if !suite.doubles.contains(&allowance.double) {
-            bail!(
-                "an allowance excuses `{}` for {}, which it no longer uses; delete the entry",
-                allowance.suite,
-                allowance.double.name()
-            );
-        }
-        if allowance.reason.len() < 40 {
-            bail!(
-                "the allowance for `{}` states too short a reason to check: {:?}",
-                allowance.suite,
-                allowance.reason
-            );
+    Ok(())
+}
+
+/// The `features.json` row ids naming each ledger row.
+fn read_checklist(root: &Path) -> Result<BTreeMap<String, Vec<String>>> {
+    let path = root.join("docs/client-platform/data/features.json");
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let document = super::json::parse(&text)
+        .map_err(|error| anyhow::anyhow!("{}: {error}", path.display()))?;
+    let rows = document
+        .get("features")
+        .and_then(super::json::Value::array)
+        .with_context(|| format!("{} has no `features` array", path.display()))?;
+    let mut checklist: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for row in rows {
+        let field = |key: &str| row.get(key).and_then(super::json::Value::string);
+        if let (Some(id), Some(ledger)) = (field("id"), field("ledger")) {
+            checklist
+                .entry(ledger.to_owned())
+                .or_default()
+                .push(id.to_owned());
         }
     }
-    Ok(())
+    if checklist.is_empty() {
+        bail!(
+            "{} names no ledger row, so no row would be asked whether it is drawn on the \
+             checklist's account",
+            path.display()
+        );
+    }
+    Ok(checklist)
 }
 
 /// Every directory directly under `crates/` that carries a manifest.
@@ -499,8 +576,8 @@ fn crate_directories(root: &Path) -> Result<BTreeSet<String>> {
 /// credit a fixture builder with checking something. They are still read, as part of the suite
 /// that pulls them in, because a double a helper supplies is a double the suite draws through.
 ///
-/// Returns `path -> (crate name, source, helper sources)`, sorted, so the whole tree is read once.
-type SuiteSources = BTreeMap<String, (String, String, Vec<String>)>;
+/// Returns `path -> (crate name, unit)`, sorted, so the whole tree is read once.
+type SuiteSources = BTreeMap<String, (String, scan::Unit)>;
 
 fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSources> {
     let mut sources = SuiteSources::new();
@@ -520,15 +597,9 @@ fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSou
             let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
                 continue;
             };
-            let source = std::fs::read_to_string(&path)
-                .with_context(|| format!("reading {}", path.display()))?;
             let relative = format!("crates/{name}/tests/{stem}.rs");
-            let helpers = scan::module_files(root, &relative)
-                .map_err(anyhow::Error::msg)?
-                .into_iter()
-                .map(|(_, helper)| helper)
-                .collect();
-            sources.insert(relative, (name.clone(), source, helpers));
+            let unit = scan::read_unit(root, &relative).map_err(anyhow::Error::msg)?;
+            sources.insert(relative, (name.clone(), unit));
         }
     }
     Ok(sources)
@@ -543,12 +614,28 @@ fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSou
 /// reader cannot act on is barely better than none — so the sentence is written the way the rest of
 /// the module documentation is, and joined back up here.
 #[cfg(test)]
-fn read_suite(crate_name: &str, source: &str) -> Suite {
+pub(crate) fn read_suite(crate_name: &str, source: &str) -> Suite {
     read_unit(crate_name, source, &[])
 }
 
-/// Counts what one suite declares, reading its doubles out of the suite and its helpers together.
+/// One suite read from its source and its helpers' sources, as the tree scan would read it.
+#[cfg(test)]
 fn read_unit(crate_name: &str, source: &str, helpers: &[String]) -> Suite {
+    let code = scan::normalise(source).code;
+    let unit = scan::unit_code(&code, helpers);
+    read_suite_unit(
+        crate_name,
+        &scan::Unit {
+            source: source.to_owned(),
+            code,
+            unit,
+        },
+    )
+}
+
+/// Counts what one suite declares, reading its doubles out of the suite and its helpers together.
+fn read_suite_unit(crate_name: &str, unit: &scan::Unit) -> Suite {
+    let source = unit.source.as_str();
     let mut limitations: Vec<String> = Vec::new();
     let mut pending: Option<String> = None;
 
@@ -592,18 +679,17 @@ fn read_unit(crate_name: &str, source: &str, helpers: &[String]) -> Suite {
         }
     }
 
-    let code = scan::normalise(source).code;
-    let tests = code.matches("#[test]").count();
-    let assertions = count_assertions(&code);
-    let mut unit = code;
-    for helper in helpers {
-        unit.push(' ');
-        unit.push_str(&scan::normalise(helper).code);
-    }
+    let tests = unit.code.matches("#[test]").count();
+    let assertions = scan::count_assertions(&unit.code);
     let doubles = Double::ALL
         .into_iter()
-        .filter(|double| double.used_by(&unit))
+        .filter(|double| double.used_by(&unit.unit))
         .collect();
+    let test_functions = scan::test_functions(&unit.code)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let drawing_tests = scan::drawing_tests(&unit.code, &unit.unit);
 
     Suite {
         crate_name: crate_name.to_owned(),
@@ -612,30 +698,10 @@ fn read_unit(crate_name: &str, source: &str, helpers: &[String]) -> Suite {
         limitations,
         split: Split::default(),
         doubles,
+        code: unit.unit.clone(),
+        test_functions,
+        drawing_tests,
     }
-}
-
-/// Assertion-macro invocations in normalised code.
-fn count_assertions(code: &str) -> usize {
-    const MACROS: [&str; 4] = ["assert!(", "assert_eq!(", "assert_ne!(", "assert_matches!("];
-    let mut count = 0;
-    for macro_name in MACROS {
-        let mut offset = 0;
-        while let Some(at) = code[offset..].find(macro_name) {
-            let at = offset + at;
-            // `debug_assert!(` ends in `assert!(`, and an identifier character in front of the
-            // match is what tells the two apart.
-            let preceded = code[..at]
-                .chars()
-                .next_back()
-                .is_some_and(|character| character.is_alphanumeric() || character == '_');
-            if !preceded {
-                count += 1;
-            }
-            offset = at + macro_name.len();
-        }
-    }
-    count
 }
 
 /// Attaches every declared provenance row to the suite it is about.
@@ -655,7 +721,8 @@ fn attach_provenance(
     let mut splits: BTreeMap<String, Split> = BTreeMap::new();
     let mut not_read = Vec::new();
 
-    for (path, (crate_name, source, _)) in sources {
+    for (path, (crate_name, unit)) in sources {
+        let source = &unit.source;
         if !source.contains("enum Provenance") {
             continue;
         }
@@ -850,8 +917,8 @@ mod tests {
 
     #[test]
     fn a_debug_assert_is_not_an_assertion() {
-        assert_eq!(count_assertions("debug_assert!(x);"), 0);
-        assert_eq!(count_assertions("assert!(x); assert_ne!(a, b);"), 2);
+        assert_eq!(scan::count_assertions("debug_assert!(x);"), 0);
+        assert_eq!(scan::count_assertions("assert!(x); assert_ne!(a, b);"), 2);
     }
 
     #[test]
@@ -862,7 +929,7 @@ mod tests {
         );
         assert_eq!(suite.limitations, vec!["a resolved alpha is thrown away"]);
         assert_eq!(suite.tests, 1);
-        assert!(suite.checks_something());
+        assert!(suite.assertions > 0);
     }
 
     /// The sentence runs to the end of its paragraph, because a one-line marker would be either
@@ -928,35 +995,21 @@ mod tests {
         assert!(read_provenance_ledger("mjx-layout-xlsx", source).is_none());
     }
 
-    // A journey that draws with `NoImages` has never decoded a picture, so it cannot promote a picture row.
+    // A journey function that draws with `NoImages` has never decoded a picture, so it cannot promote a picture row.
     #[test]
     fn a_rendering_suite_that_draws_with_no_images_is_not_evidence_for_a_picture_row() {
         use super::super::assess::{assess, State};
-        use super::super::rows::{Capability, Kind, Section};
         const PATH: &str = "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs";
-        let source = "use mjx_paint::NoImages;\n#[test]\nfn t() { let images = NoImages; assert!(draw(&images)); }\n";
-        let evidence = Evidence {
-            suites: [(PATH.to_owned(), read_suite("mjx-reference-pack", source))]
-                .into_iter()
-                .collect(),
-            provenance_not_read: Vec::new(),
-            approvals: Vec::new(),
-            commands: CommandCensus {
-                per_application: vec![("PowerPoint".to_owned(), 1)],
-            },
-            declared_elements: 1,
-            crates: BTreeSet::new(),
-        };
-        let row: &'static Capability = Box::leak(Box::new(Capability {
-            id: "picture-insertion",
-            section: Section::SharedPictures,
-            capability: "pictures",
-            kind: Kind::Rendered,
-            excluded_because: None,
-            evidence: &[PATH],
-        }));
-        let assessed = assess(row, &evidence).expect("the suite exists");
-        assert_ne!(assessed.state, State::Implemented);
+        let source = "use mjx_paint::NoImages;\n#[test]\nfn t() { let images = NoImages; assert!(draw(&images).pixel(0, 0).is_some()); }\n";
+        let evidence = index_of(&[(PATH, "mjx-reference-pack", source)]);
+        let assessed = assess(
+            row_citing(
+                "picture-insertion",
+                "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::t",
+            ),
+            &evidence,
+        )
+        .expect("the suite exists");
         assert_eq!(assessed.state, State::Partial);
         assert!(
             assessed.caps.iter().any(|cap| cap.contains("NoImages")),
@@ -965,30 +1018,80 @@ mod tests {
         );
     }
 
-    // A box model is layout tier and a companion is rendering tier, and no crate is both.
+    // A citation's tier is what it reads: a drawing function is rendering wherever it lives, and nothing else is.
     #[test]
-    fn the_tiers_are_disjoint_and_a_box_model_is_not_rendering() {
+    fn a_citations_tier_is_what_it_reads_and_not_its_crate() {
+        let drawing = "use mjx_paint::Pixels;\n#[test]\nfn draws() { assert!(pixels.pixel(0, 0).is_some()); }\n#[test]\nfn resolves() { assert!(colour.is_some()); }\n";
+        let evidence = index_of(&[
+            (
+                "crates/mjx-layout-pptx/tests/a.rs",
+                "mjx-layout-pptx",
+                drawing,
+            ),
+            (
+                "crates/mjx-scene-pptx/tests/b.rs",
+                "mjx-scene-pptx",
+                drawing,
+            ),
+            (
+                "crates/mjx-reference-pack/tests/the_instructions_are_complete.rs",
+                "mjx-reference-pack",
+                drawing,
+            ),
+            (RENDERING_JOURNEYS[0], "mjx-reference-pack", drawing),
+        ]);
+        let tier = |citation: &'static str| evidence.cite(citation).expect("cited").tier();
         assert!(RENDERING_TIER
             .iter()
             .all(|name| !LAYOUT_TIER.contains(name)));
+        assert_eq!(tier("crates/mjx-layout-pptx/tests/a.rs"), Tier::Layout);
+        assert_eq!(tier("crates/mjx-scene-pptx/tests/b.rs"), Tier::Layout);
         assert_eq!(
-            tier_of("crates/mjx-layout-pptx/tests/a.rs", "mjx-layout-pptx"),
+            tier("crates/mjx-scene-pptx/tests/b.rs::resolves"),
             Tier::Layout
         );
         assert_eq!(
-            tier_of("crates/mjx-scene-pptx/tests/a.rs", "mjx-scene-pptx"),
+            tier("crates/mjx-scene-pptx/tests/b.rs::draws"),
             Tier::Rendering
         );
         assert_eq!(
-            tier_of(
-                "crates/mjx-reference-pack/tests/the_instructions_are_complete.rs",
-                "mjx-reference-pack"
-            ),
+            tier("crates/mjx-reference-pack/tests/the_instructions_are_complete.rs::resolves"),
             Tier::Model
         );
         assert_eq!(
-            tier_of(RENDERING_JOURNEYS[0], "mjx-reference-pack"),
+            tier("crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::resolves"),
+            Tier::Layout
+        );
+        assert_eq!(
+            tier("crates/mjx-reference-pack/tests/the_instructions_are_complete.rs::draws"),
             Tier::Rendering
+        );
+    }
+
+    // Drawing is reading a list or pixels, through a local helper too; producing one, or naming one in prose, is not.
+    #[test]
+    fn a_function_draws_when_it_or_a_local_helper_reads_what_was_drawn() {
+        let code = scan::normalise(
+            "use mjx_paint::Pixels;\nuse mjx_scene::{Command, DisplayList};\n\
+             fn ink(pixels: &Pixels) -> usize { pixels.pixel(0, 0).map_or(0, |_| 1) }\n\
+             #[test] fn constructs_a_command() { let mut list = builder(); list.push(Command::FillPath { geometry, paint }); assert!(list.len() > 0); }\n\
+             #[test] fn through_a_helper() { assert_eq!(ink(&render()), 1); }\n\
+             #[test] fn only_produces() { let list = build_scene(&tree); assert!(list.byte_len() > 0); }\n\
+             #[test] fn in_prose() { assert!(true, \"list.commands() and .pixel(\"); }\n\
+             #[test] fn through_a_method() { assert!(report.ink() > 0); }\n",
+        )
+        .code;
+        assert_eq!(
+            scan::drawing_tests(&code, &code),
+            ["through_a_helper".to_owned()].into_iter().collect()
+        );
+        let outline = scan::normalise(
+            "use mjx_text::Outline;\n#[test] fn reads_an_outline() { assert!(outline.commands().first().is_some()); }\n",
+        )
+        .code;
+        assert!(
+            scan::drawing_tests(&outline, &outline).is_empty(),
+            "an outline's `commands()` is not a display list's"
         );
     }
 
@@ -1013,6 +1116,115 @@ mod tests {
         assert_eq!(
             closure.doubles,
             [Double::Images, Double::Geometry].into_iter().collect()
+        );
+    }
+
+    // An index of synthetic suites, each read by the scanner from its source.
+    fn index_of(entries: &[(&str, &str, &str)]) -> Evidence {
+        let suites: Vec<(&str, Suite)> = entries
+            .iter()
+            .map(|(path, crate_name, source)| (*path, read_suite(crate_name, source)))
+            .collect();
+        Evidence::of(&suites, &[])
+    }
+
+    // A rendered row with one citation, leaked so it is `'static` like the committed table.
+    fn row_citing(
+        id: &'static str,
+        citation: &'static str,
+    ) -> &'static super::super::rows::Capability {
+        use super::super::rows::{Capability, Kind, Section};
+        Box::leak(Box::new(Capability {
+            id,
+            section: Section::SharedDrawing,
+            capability: "a capability",
+            kind: Kind::Rendered,
+            excluded_because: None,
+            evidence: Box::leak(vec![citation].into_boxed_slice()),
+        }))
+    }
+
+    // A function in a painter's suite that checks a table and draws nothing is not rendering evidence, however it is cited.
+    #[test]
+    fn a_rendering_crate_function_that_draws_nothing_does_not_implement_a_rendered_row() {
+        use super::super::assess::{assess, State};
+        const PATH: &str = "crates/mjx-paint/tests/the_tables_are_tables.rs";
+        let source = "#[test]\nfn the_masks_are_distinct() { let masks = PATTERN_MASKS; assert_eq!(masks.len(), 54); }\n";
+        let evidence = index_of(&[(PATH, "mjx-paint", source)]);
+        let mut assessed_once = false;
+        for citation in [
+            PATH,
+            "crates/mjx-paint/tests/the_tables_are_tables.rs::the_masks_are_distinct",
+        ] {
+            if let Ok(assessed) = assess(row_citing("outlines", citation), &evidence) {
+                assessed_once = true;
+                assert_ne!(
+                    assessed.state,
+                    State::Implemented,
+                    "`{citation}` promoted a row though nothing in it draws"
+                );
+            }
+        }
+        assert!(assessed_once, "neither citation form was assessed");
+    }
+
+    // A cited function whose body reads the encoded display list's commands is rendering evidence.
+    #[test]
+    fn a_cited_function_that_reads_the_display_list_implements_a_rendered_row() {
+        use super::super::assess::{assess, State};
+        const PATH: &str = "crates/mjx-scene-pptx/tests/a_stroke_is_drawn.rs";
+        let source = "use mjx_scene::Command;\n#[test]\nfn the_stroke_is_a_command() { let list = build(); assert!(list.commands().any(|command| matches!(command, Command::StrokePath { .. }))); }\n";
+        let evidence = index_of(&[(PATH, "mjx-scene-pptx", source)]);
+        let assessed = assess(
+            row_citing(
+                "outlines",
+                "crates/mjx-scene-pptx/tests/a_stroke_is_drawn.rs::the_stroke_is_a_command",
+            ),
+            &evidence,
+        )
+        .expect("a function citation is assessed");
+        assert_eq!(assessed.state, State::Implemented);
+    }
+
+    // An allowance names one row: excusing `NoImages` for the worksheet journey can never promote `excel-pictures`.
+    #[test]
+    fn an_allowance_for_one_row_does_not_excuse_the_double_for_another() {
+        use super::super::assess::{assess, State};
+        const PATH: &str = "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs";
+        let source = "use mjx_paint::NoImages;\n#[test]\nfn the_ink_lands() { let images = NoImages; let pixels = draw(&images); assert!(pixels.pixel(1, 1).is_some()); }\n";
+        let evidence = index_of(&[(PATH, "mjx-reference-pack", source)]);
+        let mut assessed_once = false;
+        for citation in [
+            PATH,
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::the_ink_lands",
+        ] {
+            if let Ok(assessed) = assess(row_citing("excel-pictures", citation), &evidence) {
+                assessed_once = true;
+                assert_ne!(
+                    assessed.state,
+                    State::Implemented,
+                    "`{citation}` promoted `excel-pictures` through an allowance written for another row"
+                );
+                assert!(
+                    assessed.caps.iter().any(|cap| cap.contains("NoImages")),
+                    "the cap names the double: {:?}",
+                    assessed.caps
+                );
+            }
+        }
+        assert!(assessed_once, "neither citation form was assessed");
+        let excused = assess(
+            row_citing(
+                "excel-reaches-pixels",
+                "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::the_ink_lands",
+            ),
+            &evidence,
+        )
+        .expect("assessed");
+        assert_eq!(
+            excused.state,
+            State::Implemented,
+            "the row the allowance names is excused"
         );
     }
 

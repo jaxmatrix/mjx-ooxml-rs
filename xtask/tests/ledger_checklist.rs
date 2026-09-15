@@ -1,7 +1,12 @@
-//! The parity ledger and the feature checklist agree (MJXOFF-297): every checklist row names a ledger row, every rendered ledger row is named back, no rendered row spans two formats, and no Word row reads `implemented` without a rendering-tier suite.
+//! The parity ledger and the feature checklist agree (MJXOFF-297): the two name each other, a rendered row is one format's on both sides, a checklist row's audit state bounds the ledger state it names, and no row the checklist names reads `implemented` without citing a function that draws.
 
 #[path = "../src/json.rs"]
 mod json;
+
+// The ledger's own reading of test source, so "draws" has one definition here and in the assessor.
+#[allow(dead_code)]
+#[path = "../src/ledger/scan.rs"]
+mod scan;
 
 use json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -83,7 +88,7 @@ fn ledger_rows() -> BTreeMap<String, LedgerRow> {
             .split('"')
             .skip(1)
             .step_by(2)
-            .filter(|literal| literal.starts_with("crates/") && literal.ends_with(".rs"))
+            .filter(|literal| literal.starts_with("crates/") && literal.contains(".rs"))
             .map(str::to_owned)
             .collect();
         assert!(
@@ -132,14 +137,14 @@ fn crate_of(path: &str) -> &str {
         .map_or("", |(name, _)| name)
 }
 
-// A suite that emits an encoded display list or pixels from a document: the scene companions, the painter, the oracle, the pack's journeys.
-fn is_rendering_suite(path: &str) -> bool {
-    let name = crate_of(path);
-    name == "mjx-scene"
-        || name.starts_with("mjx-scene-")
-        || name == "mjx-paint"
-        || name == "mjx-render-oracle"
-        || (name == "mjx-reference-pack" && path.ends_with("_reaches_pixels.rs"))
+// A citation naming a test function that reads a display list or pixels, by the assessor's own definition.
+fn cites_a_drawing_function(citation: &str) -> bool {
+    let (suite, function) = scan::split_citation(citation);
+    let Some(function) = function else {
+        return false;
+    };
+    let unit = scan::read_unit(&repository_root(), suite).unwrap_or_else(|error| panic!("{error}"));
+    scan::drawing_tests(&unit.code, &unit.unit).contains(function)
 }
 
 fn format_of_crate(name: &str) -> Option<&'static str> {
@@ -269,9 +274,13 @@ fn no_word_row_reads_implemented_without_a_rendering_tier_suite() {
         if row.kind != "rendered" || states.get(id).map(String::as_str) != Some("implemented") {
             continue;
         }
-        if !row.evidence.iter().any(|path| is_rendering_suite(path)) {
+        if !row
+            .evidence
+            .iter()
+            .any(|citation| cites_a_drawing_function(citation))
+        {
             failures.push(format!(
-                "`{id}` reads `implemented` and cites no rendering-tier suite: {:?}",
+                "`{id}` reads `implemented` and cites no function that draws: {:?}",
                 row.evidence
             ));
         }
@@ -279,6 +288,40 @@ fn no_word_row_reads_implemented_without_a_rendering_tier_suite() {
     assert!(
         failures.is_empty(),
         "{} Word row(s) overstated:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// A ledger row any checklist row names answers the drawn question whatever its kind, so `implemented` needs a function that draws.
+#[test]
+fn no_checklist_named_row_reads_implemented_without_drawing_evidence() {
+    let ledger = ledger_rows();
+    let states = ledger_states();
+    let named: BTreeSet<String> = checklist_rows()
+        .into_iter()
+        .filter_map(|(_, _, target)| target)
+        .collect();
+    let mut failures = Vec::new();
+    for id in &named {
+        let Some(row) = ledger.get(id) else { continue };
+        if states.get(id).map(String::as_str) != Some("implemented") {
+            continue;
+        }
+        if !row
+            .evidence
+            .iter()
+            .any(|citation| cites_a_drawing_function(citation))
+        {
+            failures.push(format!(
+                "`{id}` ({}) reads `implemented`, is named by the checklist, and cites no function that draws: {:?}",
+                row.kind, row.evidence
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} checklist-named row(s) overstated:\n{}",
         failures.len(),
         failures.join("\n")
     );
