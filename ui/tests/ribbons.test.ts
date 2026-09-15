@@ -564,6 +564,143 @@ describe('every override a host binds names a command that exists', () => {
   }
 });
 
+// ── a split button whose face is a state ─────────────────────────────────────
+
+/** One `'<id>': html`<tag …>`` binding, reduced to its tag and its opening tag's attribute text. */
+export interface BoundControl {
+  readonly key: string;
+  readonly tag: string;
+  readonly attributes: string;
+}
+
+/** Every binding in a host's source, with the element it opens with. */
+export function boundControlsIn(source: string): BoundControl[] {
+  return [...source.matchAll(/'([a-z]+(?:\.[a-z0-9-]+){3})'\s*:\s*html`<(mjx-[a-z-]+)([^>]*)>/g)].map(
+    (match) => ({ key: match[1] ?? '', tag: match[2] ?? '', attributes: match[3] ?? '' }),
+  );
+}
+
+/**
+ * **What is wrong with a host's split-button bindings, against the census's `toggle` and `pressed`.**
+ *
+ * A census command that is a state (`toggle: true`) and that a host binds as `<mjx-split-button>` is
+ * Office's *state with a menu*, and it must opt in with `toggle` — otherwise its face fires an action
+ * and never draws pressed, which is the gap Track Changes, Show Comments, Hide Ink and Eraser shipped
+ * with. The converse is refused too, so a split cannot claim a state the census does not declare, and
+ * `pressed="true"` must agree with the census's starting position. Both hosts are held to one table,
+ * so the catalogue and the shell cannot start a command in different positions.
+ */
+export function splitToggleFindings(
+  file: { readonly name: string; readonly source: string },
+  commands: readonly RibbonCommand[],
+): string[] {
+  const byId = new Map(commands.map((command) => [command.id, command]));
+  const findings: string[] = [];
+  for (const bound of boundControlsIn(file.source)) {
+    if (bound.tag !== 'mjx-split-button') continue;
+    const command = byId.get(bound.key);
+    if (command === undefined) continue;
+    const toggles = /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes);
+    const pressed = /(?:^|\s)pressed="true"/.test(bound.attributes);
+    const isState = command.toggle === true;
+    if (isState && !toggles) {
+      findings.push(
+        `${file.name}: ${bound.key} is a toggle in dev/ribbons/census.ts and is bound as a ` +
+          '<mjx-split-button> without `toggle`, so its face fires an action and never draws pressed.',
+      );
+    }
+    if (!isState && toggles) {
+      findings.push(
+        `${file.name}: ${bound.key} is bound as <mjx-split-button toggle>, and the census does not ` +
+          'declare it a toggle. Declare `toggle: true` there, or drop `toggle` here.',
+      );
+    }
+    if (toggles && pressed !== (command.pressed === true)) {
+      findings.push(
+        `${file.name}: ${bound.key} starts ${pressed ? 'pressed' : 'unpressed'} here and ` +
+          `${command.pressed === true ? 'pressed' : 'unpressed'} in the census.`,
+      );
+    }
+  }
+  return findings;
+}
+
+describe('a split button whose face is a state draws pressed, in every host', () => {
+  const commands = everyRibbonCommand();
+
+  it('finds toggling split buttons at all, or it is checking nothing', () => {
+    const toggling = assemblySources
+      .flatMap((file) => boundControlsIn(file.source))
+      .filter((bound) => bound.tag === 'mjx-split-button' && /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes));
+    // Word's Eraser, Track Changes, Show Comments and Hide Ink in two hosts, PowerPoint's Eraser in two.
+    expect(toggling.map((bound) => bound.key).sort()).toEqual(
+      [
+        'powerpoint.draw.write.eraser',
+        'powerpoint.draw.write.eraser',
+        'word.draw.write.eraser',
+        'word.draw.write.eraser',
+        'word.review.comments.show-comments',
+        'word.review.comments.show-comments',
+        'word.review.ink.hide-ink',
+        'word.review.ink.hide-ink',
+        'word.review.tracking.track-changes',
+        'word.review.tracking.track-changes',
+      ].sort(),
+    );
+  });
+
+  for (const file of assemblySources) {
+    it(`${file.name} binds every census toggle it draws as a split with \`toggle\``, () => {
+      expect(splitToggleFindings(file, commands)).toEqual([]);
+    });
+  }
+});
+
+describe('the split toggle rule can reject', () => {
+  const state: RibbonCommand = { id: 'word.review.tracking.track-changes', label: 'Track Changes', toggle: true };
+  const on: RibbonCommand = { id: 'word.review.comments.show-comments', label: 'Show Comments', toggle: true, pressed: true };
+  const verb: RibbonCommand = { id: 'word.home.clipboard.paste', label: 'Paste' };
+  const host = (key: string, attributes: string): { name: string; source: string } => ({
+    name: 'fixture.stories.ts',
+    source: `const bindings = {\n  '${key}': html\`<mjx-split-button\n    ${attributes}\n    label="x"\n    @mjx-menu-request=\${openDeclaredSurface}\n  ></mjx-split-button>\`,\n};\n`,
+  });
+
+  it('reads a binding the way a host writes one', () => {
+    expect(boundControlsIn(host(state.id, 'toggle').source)).toEqual([
+      { key: state.id, tag: 'mjx-split-button', attributes: '\n    toggle\n    label="x"\n    @mjx-menu-request=${openDeclaredSurface}\n  ' },
+    ]);
+  });
+
+  it('accepts a declared state bound with toggle, in its declared position', () => {
+    expect(splitToggleFindings(host(state.id, 'toggle'), [state])).toEqual([]);
+    expect(splitToggleFindings(host(on.id, 'toggle\n    pressed="true"'), [on])).toEqual([]);
+    expect(splitToggleFindings(host(verb.id, 'size="large"'), [verb])).toEqual([]);
+  });
+
+  it('refuses a declared state whose split forgot toggle', () => {
+    const findings = splitToggleFindings(host(state.id, 'size="large"'), [state]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('without `toggle`');
+  });
+
+  it('refuses a split that claims a state the census does not declare', () => {
+    const findings = splitToggleFindings(host(verb.id, 'toggle'), [verb]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('does not declare it a toggle');
+  });
+
+  it('refuses a starting position that disagrees with the census, in either direction', () => {
+    expect(splitToggleFindings(host(on.id, 'toggle'), [on])[0]).toContain('starts unpressed here');
+    expect(splitToggleFindings(host(state.id, 'toggle\n    pressed="true"'), [state])[0]).toContain(
+      'starts pressed here',
+    );
+  });
+
+  it('does not mistake `toggle` inside another attribute for the opt-in', () => {
+    expect(splitToggleFindings(host(state.id, 'data-toggle="x"'), [state])[0]).toContain('without `toggle`');
+  });
+});
+
 // ── the collapse ceiling ─────────────────────────────────────────────────────
 
 /**

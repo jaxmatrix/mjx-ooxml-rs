@@ -393,6 +393,7 @@ function ribbon(): TemplateResult {
               data-opens="shell-powerpoint-draw-pens-thickness"
             ></mjx-button>`,
             'powerpoint.draw.write.eraser': html`<mjx-split-button
+              toggle
               label="Eraser"
               icon="eraser"
               size="large"

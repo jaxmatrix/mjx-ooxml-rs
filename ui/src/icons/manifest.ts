@@ -723,7 +723,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'eraser',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike. **Since unit 4, also Eraser** on the Draw tab's Write group in all three applications: a large toggle, so 24, and `filled` for its pressed state. Two commands with one eraser, and no collision: neither is a survivor, so rule 2's glyph standard never asks which one a bare eraser means.",
+    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike. **Since unit 4, also Eraser** on the Draw tab's Write group in all three applications: a large toggle, so 24, and `filled` for its pressed state — in Word and PowerPoint the face of a `<mjx-split-button toggle>`, in Excel a plain toggle. Two commands with one eraser, and no collision: neither is a survivor, so rule 2's glyph standard never asks which one a bare eraser means.",
   },
   {
     name: 'arrow-down',
@@ -1501,14 +1501,14 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'comment-multiple',
     sizes: [20],
-    variants: ['regular'],
-    why: "Show Comments, the split button on Word's Review tab: many speech bubbles, every comment shown.",
+    variants: ['regular', 'filled'],
+    why: "Show Comments, the split button on Word's Review tab: many speech bubbles, every comment shown. Its face is a toggle (`<mjx-split-button toggle>`) that starts pressed, so the filled drawing too.",
   },
   {
     name: 'document-edit',
     sizes: [20, 24],
-    variants: ['regular'],
-    why: "Track Changes, the large split button on Word's Review tab: a page with a pencil, edits recorded against the page. A split button draws no pressed state, so no filled drawing.",
+    variants: ['regular', 'filled'],
+    why: "Track Changes, the large split button on Word's Review tab: a page with a pencil, edits recorded against the page. Its face turns tracking on and off (`<mjx-split-button toggle>`), so it draws pressed and needs the filled drawing.",
   },
   {
     name: 'panel-left-text',

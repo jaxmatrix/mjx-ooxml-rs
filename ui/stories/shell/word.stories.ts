@@ -430,6 +430,7 @@ function ribbon(): TemplateResult {
               data-opens="shell-word-draw-pens-thickness"
             ></mjx-button>`,
             'word.draw.write.eraser': html`<mjx-split-button
+              toggle
               label="Eraser"
               icon="eraser"
               size="large"
@@ -723,6 +724,8 @@ function ribbon(): TemplateResult {
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
             'word.review.comments.show-comments': html`<mjx-split-button
+              toggle
+              pressed="true"
               label="Show Comments"
               icon="comment-multiple"
               size="small"
@@ -730,6 +733,7 @@ function ribbon(): TemplateResult {
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
             'word.review.tracking.track-changes': html`<mjx-split-button
+              toggle
               label="Track Changes"
               icon="document-edit"
               size="large"
@@ -783,6 +787,7 @@ function ribbon(): TemplateResult {
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
             'word.review.ink.hide-ink': html`<mjx-split-button
+              toggle
               label="Hide Ink"
               size="small"
               data-opens="shell-word-review-ink-hide-ink"

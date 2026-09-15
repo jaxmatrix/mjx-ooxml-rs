@@ -39,12 +39,41 @@
  * U05 owns menus. `aria-expanded` follows this component's `expanded` attribute and never the
  * event, so a host that has not built a menu yet does not announce one that is not there.
  *
+ * ## Toggle mode: a state with a menu
+ *
+ * ```html
+ * <mjx-split-button toggle pressed="true" label="Show Comments" icon="comment-multiple"
+ *                   menu-label="Show Comments options"></mjx-split-button>
+ * ```
+ *
+ * Office draws some split buttons whose face is a **state** rather than an action — Track Changes,
+ * Show Comments, Hide Ink, the Draw tab's Eraser. `toggle` opts one in, and it changes the primary
+ * region alone:
+ *
+ * * **The primary becomes a pressed toggle.** It carries `aria-pressed` — on that half only, because
+ *   the arrow does not hold a state and announcing one on it would be two switches with one name —
+ *   and `data-pressed`, which is what `controlStatesCss` paints from. The paint is the toggle
+ *   button's own rows of the state table (`on`, `onHover`, `mixed`, `mixedHover`), and a pressed
+ *   primary asks for Fluent's `filled` drawing through `pressedIconVariant`, the function
+ *   `<mjx-toggle-button>` calls. Nothing about *pressed* is restated here.
+ * * **Activation moves, then reports**, exactly as `<mjx-toggle-button>` does: the `pressed`
+ *   attribute is written first, then `mjx-change` fires with `detail.pressed`. It does **not** also
+ *   fire `mjx-activate` — a toggle button does not, and a host listening for activation to open a
+ *   surface would otherwise open the menu from the face.
+ * * **The arrow is unchanged**: a menu button, `mjx-menu-request`, `aria-expanded` from the host.
+ *   Arrow Down still asks for the menu from either region and still never moves the state — the same
+ *   argument as the action's, because toggling Track Changes when somebody meant to see *For
+ *   Everyone / Just Mine* is an edit to their document they did not ask for.
+ *
+ * Without `toggle`, a `pressed` attribute is ignored and no `aria-pressed` is written, so every
+ * existing split button renders and announces exactly as before — see `splitButtonPressed`.
+ *
  * `GUESS:` the derived arrow name is *"More <label> options"*, which is the shape Office uses
  * (*"More Paste options"*). It is not checked against Office, and a caller who knows the real name
  * gives it in `menu-label`.
  */
 
-import { defineIcon } from '../icons/icon.ts';
+import { defineIcon, lookupGlyph } from '../icons/icon.ts';
 import {
   applyAvailability,
   controlClassName,
@@ -65,8 +94,12 @@ import {
   derivedMenuLabel,
   isControlSize,
   isForcibleState,
+  nextPressed,
+  pressedIconVariant,
+  splitButtonPressed,
   splitMenuIcon,
   type ControlSize,
+  type PressedValue,
 } from './control-states.ts';
 
 /**
@@ -119,6 +152,8 @@ export class MjxSplitButton extends HTMLElement {
     'force-menu-state',
     'menu-label',
     'expanded',
+    'toggle',
+    'pressed',
   ];
 
   #root: ShadowRoot | undefined;
@@ -160,6 +195,29 @@ export class MjxSplitButton extends HTMLElement {
   get size(): ControlSize {
     const declared = this.getAttribute('size');
     return isControlSize(declared) ? (declared as ControlSize) : defaultControlSize;
+  }
+
+  /** Whether the primary region is a toggle. Off unless the caller opts in — see the module note. */
+  get toggle(): boolean {
+    return this.hasAttribute('toggle');
+  }
+
+  set toggle(value: boolean) {
+    this.toggleAttribute('toggle', value);
+  }
+
+  /**
+   * The primary region's position — `false`, `true` or `mixed` — or `undefined` when this split
+   * button is not a toggle and so holds no position at all.
+   */
+  get pressed(): PressedValue | undefined {
+    return splitButtonPressed(this.toggle, this.getAttribute('pressed'));
+  }
+
+  /** Sets the position. It is only drawn and announced while `toggle` is on. */
+  set pressed(value: PressedValue | undefined) {
+    if (value === undefined) this.removeAttribute('pressed');
+    else this.setAttribute('pressed', value);
   }
 
   /** Whether the host says a menu is open. Never set by this component — see the module note. */
@@ -241,7 +299,15 @@ export class MjxSplitButton extends HTMLElement {
       event.stopPropagation();
       return;
     }
-    emitControlEvent(this, controlEvents.activate, { region: 'primary' });
+    const pressed = this.pressed;
+    if (pressed === undefined) {
+      emitControlEvent(this, controlEvents.activate, { region: 'primary' });
+      return;
+    }
+    // Move, then report — `<mjx-toggle-button>`'s order and its detail, so one listener serves both.
+    const next = nextPressed(pressed);
+    this.setAttribute('pressed', next);
+    emitControlEvent(this, controlEvents.change, { pressed: next });
   };
 
   #onMenuClick = (event: MouseEvent): void => {
@@ -294,13 +360,30 @@ export class MjxSplitButton extends HTMLElement {
     } else {
       iconElement.setAttribute('name', icon);
       iconElement.setAttribute('size', String(spec.iconSize));
-      iconElement.setAttribute('variant', 'regular');
+      iconElement.setAttribute(
+        'variant',
+        pressedIconVariant(
+          this.pressed,
+          lookupGlyph(icon, spec.iconSize, 'filled') !== undefined,
+        ),
+      );
       if (iconElement.parentNode === null) primary.prepend(iconElement);
     }
 
     labelElement.textContent = this.label;
     labelElement.className = spec.labelVisible ? 'label' : 'visually-hidden';
     menuLabelElement.textContent = this.menuLabel;
+
+    // `aria-pressed` and `data-pressed` on the primary alone, written together so they cannot drift,
+    // and removed entirely when this is not a toggle: a plain split must not sound like a switch.
+    const pressed = this.pressed;
+    if (pressed === undefined) {
+      primary.removeAttribute('aria-pressed');
+      delete primary.dataset['pressed'];
+    } else {
+      primary.setAttribute('aria-pressed', pressed);
+      primary.dataset['pressed'] = pressed;
+    }
 
     const forcedPrimary = forcedState(this);
     if (forcedPrimary === undefined) delete primary.dataset['state'];

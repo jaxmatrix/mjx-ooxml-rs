@@ -16,7 +16,10 @@ import {
   effectiveStatePaint,
   forcibleStates,
   nextPressed,
+  pressedFromAttribute,
+  pressedIconVariant,
   pressedValues,
+  splitButtonPressed,
   derivedMenuLabel,
   resolvedStateFingerprint,
   type ControlState,
@@ -231,6 +234,48 @@ describe('the toggle’s three positions', () => {
     // losing its formatting.
     expect(nextPressed('mixed')).toBe('true');
   });
+
+  test('a pressed attribute reads one way, for the toggle button and the toggling split alike', () => {
+    expect(pressedFromAttribute(null)).toBe('false');
+    expect(pressedFromAttribute('')).toBe('true');
+    for (const value of pressedValues) expect(pressedFromAttribute(value)).toBe(value);
+    // Untrusted text: a typo is off, never an exception.
+    expect(pressedFromAttribute('yes')).toBe('false');
+    expect(pressedFromAttribute('TRUE')).toBe('false');
+  });
+
+  test('a pressed control asks for the filled drawing, and only when the subset has one', () => {
+    expect(pressedIconVariant('true', true)).toBe('filled');
+    expect(pressedIconVariant('true', false)).toBe('regular');
+    expect(pressedIconVariant('false', true)).toBe('regular');
+    expect(pressedIconVariant('mixed', true)).toBe('regular');
+    expect(pressedIconVariant(undefined, true)).toBe('regular');
+  });
+});
+
+describe('the split button’s toggle mode', () => {
+  test('is off unless asked for, and then a pressed attribute says nothing at all', () => {
+    // A plain split must not announce aria-pressed="false": every Paste would sound like a switch.
+    expect(splitButtonPressed(false, null)).toBeUndefined();
+    expect(splitButtonPressed(false, 'true')).toBeUndefined();
+    expect(splitButtonPressed(false, '')).toBeUndefined();
+  });
+
+  test('once asked for, holds a definite position, starting off', () => {
+    expect(splitButtonPressed(true, null)).toBe('false');
+    expect(splitButtonPressed(true, '')).toBe('true');
+    expect(splitButtonPressed(true, 'true')).toBe('true');
+    expect(splitButtonPressed(true, 'mixed')).toBe('mixed');
+    expect(splitButtonPressed(true, 'nonsense')).toBe('false');
+  });
+
+  test('moves exactly as a toggle button does, so one listener serves both', () => {
+    for (const value of pressedValues) {
+      const position = splitButtonPressed(true, value);
+      expect(position).toBe(value);
+      if (position !== undefined) expect(nextPressed(position)).toBe(nextPressed(value));
+    }
+  });
 });
 
 describe('the catalogue contract the gates read', () => {
@@ -243,14 +288,18 @@ describe('the catalogue contract the gates read', () => {
         expect(controlStateNames).toContain(state);
       }
     }
-    // Only the toggle claims the four pressed states — a matrix that quietly listed them on a
-    // plain button would be six cells of documentation for four cells of behaviour.
+    // Only the two archetypes that can hold a state claim the four pressed states — the toggle, and
+    // the split button whose primary opts in with `toggle`. A matrix that quietly listed them on a
+    // plain button would be ten cells of documentation for six cells of behaviour.
     for (const state of ['on', 'onHover', 'mixed', 'mixedHover'] as const) {
       const claimants = controlArchetypes.filter((archetype) =>
         (componentStateMatrix[archetype] as readonly ControlState[]).includes(state),
       );
-      expect(claimants).toEqual(['toggleButton']);
+      expect(claimants).toEqual(['toggleButton', 'splitButton']);
     }
+    // …and a toggling split shows every state a toggle button shows, so the two cannot drift into
+    // one of them drawing a position the other has no cell for.
+    expect([...componentStateMatrix.splitButton]).toEqual([...componentStateMatrix.toggleButton]);
   });
 
   test('a split button’s arrow gets a name of its own even when nobody gives it one', () => {

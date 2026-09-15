@@ -41,7 +41,12 @@ import { defineIcon, lookupGlyph } from '../icons/icon.ts';
 import type { IconSize, IconVariant } from '../icons/manifest.ts';
 import { MjxButton, buttonAttributes } from './button.ts';
 import { controlEvents, emitControlEvent } from './control-element.ts';
-import { isPressedValue, nextPressed, type PressedValue } from './control-states.ts';
+import {
+  nextPressed,
+  pressedFromAttribute,
+  pressedIconVariant,
+  type PressedValue,
+} from './control-states.ts';
 
 export class MjxToggleButton extends MjxButton {
   static override readonly observedAttributes: readonly string[] = [
@@ -51,10 +56,8 @@ export class MjxToggleButton extends MjxButton {
 
   /** `false`, `true` or `mixed`. Absent means `false`. */
   get pressed(): PressedValue {
-    const declared = this.getAttribute('pressed');
-    // A bare `pressed` attribute is the HTML idiom for true, and a consumer who writes it means it.
-    if (declared === '') return 'true';
-    return isPressedValue(declared) ? (declared as PressedValue) : 'false';
+    // One reading, shared with `<mjx-split-button toggle>`: a bare attribute is true.
+    return pressedFromAttribute(this.getAttribute('pressed'));
   }
 
   set pressed(value: PressedValue) {
@@ -86,8 +89,7 @@ export class MjxToggleButton extends MjxButton {
   }
 
   protected override iconVariant(name: string, size: IconSize): IconVariant {
-    if (this.pressed !== 'true') return 'regular';
-    return lookupGlyph(name, size, 'filled') === undefined ? 'regular' : 'filled';
+    return pressedIconVariant(this.pressed, lookupGlyph(name, size, 'filled') !== undefined);
   }
 }
 

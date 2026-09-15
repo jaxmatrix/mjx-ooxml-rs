@@ -286,6 +286,7 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-powerpoint-draw-pens-thickness"
   ></mjx-button>`,
   'powerpoint.draw.write.eraser': html`<mjx-split-button
+    toggle
     label="Eraser"
     icon="eraser"
     size="large"
@@ -545,7 +546,8 @@ export const Insert: Story = { render: () => ribbon('insert') };
  * 2. **Every command is declared by the same function as Word's.** The census counts seven controls
  *    in Pens where Word counts six, and the same three commands are drawn. Nothing is padded to the
  *    count.
- * 3. **The same six commands open something**, and Eraser is the same split button.
+ * 3. **The same six commands open something**, and Eraser is the same split button, whose face is a
+ *    toggle that draws pressed.
  */
 export const Draw: Story = { render: () => ribbon('draw') };
 

@@ -2465,15 +2465,19 @@ const excelDataOutline: readonly RibbonCommand[] = [
 // Office nests a submenu (Show Markup's *Balloons* and *Specific People*, Compare's *Show Source
 // Documents*) it is flattened into a labelled section, as every earlier unit flattened one.
 //
-// ⚠ **Three of the brief's expected toggles are split buttons, because Office draws them so, and a
-// split button has no pressed state** (the gap unit 4 recorded on Word's Eraser):
+// **Three of the brief's expected toggles are split buttons, because Office draws them so.** Each is
+// declared `toggle: true` and bound as `<mjx-split-button toggle>`: the face draws pressed and the arrow
+// stays a menu. `tests/ribbons.test.ts` holds every host's binding to that declaration, and the same
+// component change is what lets Word's and PowerPoint's split Eraser draw pressed.
 //
 // - **Track Changes** is a split button, as the brief expected: the face turns tracking on and off, and
-//   the arrow offers For Everyone, Just Mine and Lock Tracking. It cannot draw pressed.
+//   the arrow offers For Everyone, Just Mine and Lock Tracking. It starts unpressed.
 // - **Show Comments** is `GUESS:` a split button in Microsoft 365's modern comments: the face shows the
-//   comments, and the arrow chooses Contextual or List. Word 2016 drew a plain toggle.
+//   comments, and the arrow chooses Contextual or List. Word 2016 drew a plain toggle. `GUESS:` it
+//   starts pressed, because a document opened for review shows its comments.
 // - **Show Ink is not a name Office's Review tab uses.** Microsoft 365's Ink group is **Hide Ink**, a
-//   split button (`GUESS:` the shape) whose arrow holds Hide Ink and Delete All Ink in Document. Word
+//   split button (`GUESS:` the shape) whose arrow holds Hide Ink and Delete All Ink in Document, and
+//   whose face starts unpressed, since ink is shown until somebody hides it. Word
 //   2016's Ink group held Start Inking instead, which is the Draw tab's job now.
 //
 // ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
@@ -2576,7 +2580,8 @@ const wordReviewLanguage: readonly RibbonCommand[] = [
  * (Ctrl+Alt+M). **Delete draws `comment-dismiss`** and is a large split button (Delete, Delete All
  * Comments Shown, Delete All Comments in Document). **Previous Comment and Next Comment draw
  * `comment-arrow-left` and `comment-arrow-right`**, labelled, as Office draws them. **Show Comments
- * draws `comment-multiple`** and is `GUESS:` a split button; see this section's header.
+ * draws `comment-multiple`** and is `GUESS:` a split button whose face is a toggle, starting pressed; see
+ * this section's header.
  *
  * **Survivors: Previous Comment and Next Comment.** See this section's header.
  */
@@ -2585,20 +2590,21 @@ const wordReviewComments: readonly RibbonCommand[] = [
   { id: 'word.review.comments.delete', label: 'Delete', icon: 'comment-dismiss', size: 'large' },
   { id: 'word.review.comments.previous-comment', label: 'Previous Comment', icon: 'comment-arrow-left', essential: true },
   { id: 'word.review.comments.next-comment', label: 'Next Comment', icon: 'comment-arrow-right', essential: true },
-  { id: 'word.review.comments.show-comments', label: 'Show Comments', icon: 'comment-multiple' },
+  { id: 'word.review.comments.show-comments', label: 'Show Comments', icon: 'comment-multiple', toggle: true, pressed: true },
 ];
 
 /**
  * Word's Ink group: Hide Ink. See this section's header on why it is not *Show Ink*.
  *
  * `GUESS:` **a split button**: the face hides every ink stroke in the document and shows them again, and
- * the arrow holds Hide Ink and Delete All Ink in Document. It carries no icon, so it is `small` where
+ * the arrow holds Hide Ink and Delete All Ink in Document. The face is a toggle, starting unpressed. It
+ * carries no icon, so it is `small` where
  * Office draws it large.
  *
  * **No survivor**: a split button, no glyph, and the only command.
  */
 const wordReviewInk: readonly RibbonCommand[] = [
-  { id: 'word.review.ink.hide-ink', label: 'Hide Ink' },
+  { id: 'word.review.ink.hide-ink', label: 'Hide Ink', toggle: true },
 ];
 
 /**
@@ -2606,7 +2612,8 @@ const wordReviewInk: readonly RibbonCommand[] = [
  * Markup and Reviewing Pane in a column.
  *
  * **Track Changes draws `document-edit`**, a page with a pencil, and is a split button (Ctrl+Shift+E):
- * the face turns tracking on and off, and the arrow offers For Everyone, checked, Just Mine and Lock
+ * the face is a toggle that turns tracking on and off, starting unpressed, and the arrow offers For
+ * Everyone, checked, Just Mine and Lock
  * Tracking. **Display for Review is a dropdown field** of Simple Markup, All Markup, No Markup and
  * Original, starting on Simple Markup. `GUESS:` that start, which is a new document's in Word 2013 and
  * later. **Show Markup is a dropdown** of every kind of markup, its balloon placement and its reviewers.
@@ -2617,7 +2624,7 @@ const wordReviewInk: readonly RibbonCommand[] = [
  * **No survivor**: three split buttons or menus and a field.
  */
 const wordReviewTracking: readonly RibbonCommand[] = [
-  { id: 'word.review.tracking.track-changes', label: 'Track Changes', icon: 'document-edit', size: 'large' },
+  { id: 'word.review.tracking.track-changes', label: 'Track Changes', icon: 'document-edit', size: 'large', toggle: true },
   { id: 'word.review.tracking.display-for-review', label: 'Display for Review' },
   { id: 'word.review.tracking.show-markup', label: 'Show Markup' },
   { id: 'word.review.tracking.reviewing-pane', label: 'Reviewing Pane', icon: 'panel-left-text' },

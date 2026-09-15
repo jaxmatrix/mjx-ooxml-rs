@@ -255,8 +255,17 @@ constant on both sides.
 <mjx-button label="Paste" icon="folder-open" size="large"></mjx-button>
 <mjx-toggle-button label="Bold" icon="text-bold" size="icon" pressed="mixed"></mjx-toggle-button>
 <mjx-split-button label="Undo" icon="arrow-undo" menu-label="Undo history"></mjx-split-button>
+<mjx-split-button toggle pressed="true" label="Show Comments" icon="comment-multiple"></mjx-split-button>
 <mjx-dialog-launcher label="Font settings"></mjx-dialog-launcher>
 ```
+
+**A split button can hold a state.** `toggle` turns its primary region into a pressed toggle, for
+Office's *state with a menu* (Track Changes, Show Comments, Hide Ink, Eraser). The primary carries
+`aria-pressed` and `data-pressed` and is painted by the toggle button's rows of the state table, with the
+`filled` icon when the subset has one; activating it writes `pressed` and then emits `mjx-change` with
+`detail.pressed`, as `<mjx-toggle-button>` does, and no `mjx-activate`. The arrow stays a menu button,
+and Arrow Down never moves the state. Without `toggle`, `pressed` is ignored and nothing is announced.
+`Controls/Split Button → The Toggle Mode` shows it in isolation.
 
 ### One state table, read by the stylesheet and by both gates
 
@@ -547,6 +556,8 @@ Accessibility, Language, Comments, Tracking, Changes, Compare, Protect, Ink.
   Changes, Reviewing Pane, Accept, Reject, Block Authors and Hide Ink are split buttons.
 - **A field**: Display for Review is `<mjx-dropdown>` over `ribbon-parts.ts`'s `displayForReviewModes`.
 - **A toggle**: Restrict Editing, pressed while its pane is open.
+- **A split button whose face is a toggle** (`<mjx-split-button toggle>`): Track Changes (starts
+  unpressed), Show Comments (starts pressed) and Hide Ink. The face draws pressed; the arrow opens the menu.
 
 **Every menu carries Office's whole list**, not a sample, since the user rejected a sampled Transitions
 gallery. Submenus (Show Markup's *Balloons* and *Specific People*, Compare's *Show Source Documents*) are
@@ -557,8 +568,8 @@ honest glyph, because Fluent's page-with-an-arrow means upload and download.
 
 ⚠ **What is not Office's shape, or is `GUESS:`.**
 
-- **Track Changes, Show Comments and Hide Ink cannot draw pressed.** Office draws each as a state with a
-  menu, and `<mjx-split-button>` has no pressed state: unit 4's Eraser gap, now on three more commands.
+- **Show Comments starts pressed** and Track Changes and Hide Ink start unpressed: a new document's
+  defaults, not a build this project can cite.
 - **Ink is drawn last**, where Microsoft 365 draws it; the census declares it fifth.
 - **Office's face says *Previous* and *Next* twice.** The labels here are Office's tooltips (Previous
   Comment, Next Change and the rest), because a label is also the accessible name.

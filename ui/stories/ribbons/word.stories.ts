@@ -295,6 +295,7 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-word-draw-pens-thickness"
   ></mjx-button>`,
   'word.draw.write.eraser': html`<mjx-split-button
+    toggle
     label="Eraser"
     icon="eraser"
     size="large"
@@ -588,6 +589,8 @@ const bindings: ControlOverrides = {
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
   'word.review.comments.show-comments': html`<mjx-split-button
+    toggle
+    pressed="true"
     label="Show Comments"
     icon="comment-multiple"
     size="small"
@@ -595,6 +598,7 @@ const bindings: ControlOverrides = {
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
   'word.review.tracking.track-changes': html`<mjx-split-button
+    toggle
     label="Track Changes"
     icon="document-edit"
     size="large"
@@ -648,6 +652,7 @@ const bindings: ControlOverrides = {
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
   'word.review.ink.hide-ink': html`<mjx-split-button
+    toggle
     label="Hide Ink"
     size="small"
     data-opens="ribbons-word-review-ink-hide-ink"
@@ -793,7 +798,8 @@ export const Insert: Story = { render: () => ribbon('insert') };
  *    toggle button knows no siblings. That is a gap in the component, not a claim that Office works
  *    this way.
  * 4. **Six commands open something.** Press Add Pen, Pens, Colour, Thickness or Touch/Mouse Mode and
- *    its menu opens; press Eraser's arrow and the eraser sizes open. The other commands are the plain
+ *    its menu opens; press Eraser's arrow and the eraser sizes open. Eraser's face is a toggle, so pressing
+ *    it draws pressed without opening anything. The other commands are the plain
  *    toggles and buttons Office draws.
  * 5. **Three commands carry no icon**: Add Pen, Touch/Mouse Mode and Drawing Canvas. Fluent draws no
  *    pen with a plus, no mouse-and-touch switch and no canvas, and a wrong glyph is worse than a label.
@@ -905,9 +911,10 @@ export const Mailings: Story = { render: () => ribbon('mailings') };
  *    *Balloons* (Show Only Comments and Formatting in Balloons checked) and *Specific People* (All
  *    Reviewers). Accept and Reject: five entries each. Compare: Compare, Combine, then *Show Source
  *    Documents* (Show Both checked). Display for Review is a dropdown on Simple Markup, over its four modes.
- * 3. ⚠ **Track Changes, Show Comments and Hide Ink are split buttons, and cannot draw pressed.** Office
- *    draws each as a state with a menu, and `<mjx-split-button>` has no pressed state (unit 4's Eraser
- *    gap). **Restrict Editing is the tab's only toggle**: press it and it draws pressed. `GUESS:` Show
+ * 3. **Track Changes, Show Comments and Hide Ink are split buttons whose face is a toggle**, as Office
+ *    draws a state with a menu. Show Comments starts pressed; Track Changes and Hide Ink start unpressed.
+ *    Press a face and it draws pressed or releases; press its arrow and the menu opens and the state does
+ *    not move. **Restrict Editing is the plain toggle**: press it and it draws pressed. `GUESS:` Show
  *    Comments' Contextual/List arrow and Hide Ink's shape; the brief's *Show Ink* is Office's *Hide Ink*.
  * 4. **Previous Comment and Next Comment are the tab's only survivors.** Drag narrow until Comments
  *    collapses: the two comment arrows stay beside its trigger. Previous Change and Next Change carry no
