@@ -48,7 +48,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining and Print Preview** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining, Print Preview and Background Removal** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -78,7 +78,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining and Print Preview are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining, Print Preview and Background Removal are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -1074,5 +1074,26 @@ export const Outlining: Story = { render: () => ribbon('outlining') };
  */
 export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 
-/** A view tab: Office shows it only while a picture's background is being removed. */
+/**
+ * **Background Removal**: the two pencils that correct Office's guess at a picture's background, and the two
+ * ways out. A view tab Office shows only while a background is being removed. Authored after Print Preview,
+ * one tab of one application, and the third view tab authored. Two groups: Refine and Close. What to look
+ * at, least certain first:
+ *
+ * 1. ⚠ **The pencils hold at most one, and start with neither.** Press Mark Areas to Keep: it fills. Press
+ *    Mark Areas to Remove: it fills and Keep releases. Press Remove again: it releases, and neither is
+ *    pressed. `GUESS:` the release on a second press and the empty start; the Draw tab's tools, by contrast,
+ *    keep one pressed.
+ * 2. ⚠ **Refine has two commands, not three.** Delete Mark, which Office 2010 to 2016 drew, is absent because
+ *    Microsoft 365 no longer draws it. `GUESS:`.
+ * 3. ⚠ **Four circles**: a plus and a minus for the pencils, a cross and a tick for Discard All Changes and
+ *    Keep Changes. Judge whether the plus and the tick read as different kinds of command. `GUESS:` every
+ *    glyph.
+ * 4. **All four are large, and the long labels wrap.** *Mark Areas to Remove* and *Discard All Changes* should
+ *    wrap to two lines without an ellipsis.
+ * 5. **No survivors.** Drag narrow until both groups collapse: each popup trigger stands alone and opens its
+ *    commands in order. The pencils' set still holds one at most when pressed inside the popup.
+ * 6. **Not in `Shell/Word`**: switch to the shell and the strip has no Background Removal tab. No menus, no
+ *    dialog launchers.
+ */
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };

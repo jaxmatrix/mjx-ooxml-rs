@@ -276,6 +276,11 @@ export interface ToggleOptions {
   readonly size?: ControlSize;
   /** The exclusive set it belongs to, written as `exclusive`. See `src/controls/exclusive-set.ts`. */
   readonly exclusive?: string | undefined;
+  /**
+   * The set may hold none, written as the boolean `exclusive-allows-none`: pressing the member that holds
+   * releases it. Meaningless without `exclusive`. See `src/controls/exclusive-set.ts`.
+   */
+  readonly exclusiveAllowsNone?: boolean;
 }
 
 /** A ribbon toggle. */
@@ -290,6 +295,7 @@ export function toggle(
     icon=${icon ?? nothing}
     size=${options.size ?? 'icon'}
     exclusive=${options.exclusive ?? nothing}
+    ?exclusive-allows-none=${options.exclusiveAllowsNone === true}
     ?pressed=${options.pressed === true}
   ></mjx-toggle-button>`;
 }

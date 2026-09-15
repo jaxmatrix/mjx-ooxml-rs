@@ -1,10 +1,11 @@
 /**
- * **Exclusive sets**: toggles of which exactly one holds.
+ * **Exclusive sets**: toggles of which one holds at a time — exactly one, or at most one where the set says so.
  *
  * ```html
  * <mjx-toggle-button exclusive="word.view.document-views" label="Print Layout" pressed></mjx-toggle-button>
  * <mjx-toggle-button exclusive="word.view.document-views" label="Web Layout"></mjx-toggle-button>
  * <mjx-split-button toggle exclusive="word.draw.write.tools" label="Eraser"></mjx-split-button>
+ * <mjx-toggle-button exclusive="word.background-removal.refine" exclusive-allows-none label="Mark Areas to Keep"></mjx-toggle-button>
  * ```
  *
  * Office holds exactly one of some sets of toggles: Word's five document views, its two page movements,
@@ -21,7 +22,9 @@
  *    that member holds `true` or `mixed`.
  * 2. **Activating the pressed member keeps it pressed.** Nothing about it moves and it reports nothing,
  *    so one member always stays pressed. A person cannot empty a set, as in Office, where pressing the
- *    view Word is already in keeps that view.
+ *    view Word is already in keeps that view. **Unless the activated member carries
+ *    `exclusive-allows-none`**: then the press releases it, as an ordinary toggle's does, and the set is
+ *    left holding nothing. See *A set that may hold none* below.
  * 3. **Attributes move first, then every member that moved reports.** Each released member emits
  *    `mjx-change` with `detail.pressed` `false`, and then the activated member emits its own. That is
  *    the toggle's *move, then report* order, applied to the whole set: no listener can read a set in
@@ -33,6 +36,35 @@
  * The census declares the set on each command (`RibbonCommand.exclusive`), `renderCommand` carries it
  * onto the generic toggle, and a host binding (Eraser's split button) writes it by hand. A gate there
  * holds the two spellings together and requires each set to start with exactly one member pressed.
+ *
+ * ## A set that may hold none
+ *
+ * **Office's Background Removal tab holds at most one of Mark Areas to Keep and Mark Areas to Remove**, and
+ * that is a different set from Word's views. Each arms a pencil. Pressing one while the other is armed
+ * swaps the pencil, and pressing the armed one again puts the pencil down and gives back the ordinary
+ * pointer, which is also where the tab starts. **The pointer is not a command on the tab**, where the Draw
+ * tab's is (Select Objects), so a set of exactly one would leave a person no press that takes them back to
+ * it. `GUESS:` the release on a second press, from Office's other arm-a-gesture commands (Format Painter,
+ * Draw Table), which put the gesture down the same way.
+ *
+ * So a member may carry **`exclusive-allows-none`**, a boolean attribute. Rules 1, 3 and 4 are unchanged.
+ * Rule 2 reads the attribute on the **activated** member: present, and the member that holds is released by
+ * its own press, moving and reporting as any toggle does; absent, and rule 2 holds as written. Every member
+ * of one set carries it or none does, and a set that carries it starts with **at most** one member pressed;
+ * `tests/ribbons.test.ts` holds both. It changes nothing a member's component does, because
+ * `planToggleActivation` reads it from the element it is handed, so a toggle button and a split button's
+ * toggle face take part alike.
+ *
+ * Rejected:
+ *
+ * - **Two independent toggles.** Pressing Mark Areas to Remove with Mark Areas to Keep armed would draw
+ *   both pressed, which is the defect this module exists to remove.
+ * - **A set of exactly one with Mark Areas to Keep pressed at the start.** Office arms no pencil on entry,
+ *   and a press could never put the pencil down again.
+ * - **A third, invisible member standing for the pointer.** A command the ribbon does not draw is a
+ *   member nobody can press, and the census would declare a command Office does not have.
+ * - **Declaring it once on the set rather than on every member.** There is no element for the set; see the
+ *   wrapper alternative below. Each member already carries the set's name the same way.
  *
  * ## ARIA: still toggle buttons
  *
@@ -88,6 +120,12 @@ export const exclusiveAttribute = 'exclusive';
  */
 export const exclusiveScopeSelector = 'mjx-ribbon-tab, mjx-ribbon';
 
+/**
+ * The boolean attribute that lets a set hold none: the member that holds is released by its own press. See
+ * *A set that may hold none* in the module note.
+ */
+export const exclusiveAllowsNoneAttribute = 'exclusive-allows-none';
+
 /** What an `exclusive` attribute names: a set, or nothing when it is absent or blank. */
 export function exclusiveSetFromAttribute(declared: string | null): string | undefined {
   const trimmed = declared?.trim() ?? '';
@@ -103,6 +141,14 @@ export interface ExclusiveMember {
 /** The set a member declares, or `undefined`. */
 export function exclusiveSetOf(member: ExclusiveMember): string | undefined {
   return exclusiveSetFromAttribute(member.getAttribute(exclusiveAttribute));
+}
+
+/**
+ * Whether a member's set may hold none, read from its `exclusive-allows-none` attribute. Presence is the
+ * answer, as for any boolean attribute, so `exclusive-allows-none="false"` still allows none.
+ */
+export function exclusiveAllowsNone(member: ExclusiveMember): boolean {
+  return member.getAttribute(exclusiveAllowsNoneAttribute) !== null;
 }
 
 /**
@@ -135,6 +181,10 @@ export interface ToggleActivation<Member> {
  * member ends pressed, and it moves only if it was not already. Every other candidate that declares the
  * same set and holds `true` or `mixed` is released. `releases` is computed even when the activated member
  * was already pressed, so a set a host has left with two members pressed is repaired by the next press.
+ *
+ * **Inside a set that allows none**, the one difference: an activated member already at `true` ends at
+ * `false` and moves. Others that hold are still released, so the repair still happens and the set ends
+ * empty. A member at `mixed` still goes to `true`, as `nextPressed` takes it.
  */
 export function planToggleActivation<Member extends ExclusiveMember>(
   activated: Member,
@@ -143,12 +193,14 @@ export function planToggleActivation<Member extends ExclusiveMember>(
 ): ToggleActivation<Member> {
   const set = exclusiveSetOf(activated);
   if (set === undefined) return { next: nextPressed(current), moves: true, releases: [] };
+  const releasesItself = current === 'true' && exclusiveAllowsNone(activated);
   const releases: Member[] = [];
   for (const candidate of candidates) {
     if (candidate === activated || exclusiveSetOf(candidate) !== set) continue;
     const pressed = memberPressed(candidate);
     if (pressed === 'true' || pressed === 'mixed') releases.push(candidate);
   }
+  if (releasesItself) return { next: 'false', moves: true, releases };
   return { next: 'true', moves: current !== 'true', releases };
 }
 

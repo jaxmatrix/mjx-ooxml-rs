@@ -53,17 +53,21 @@
  * document as it will print. Margins, Orientation and Size open Layout's own lists through
  * `stories/ribbons/print-preview-menus.ts`, and `Ribbons/Word` alone binds and renders them.
  *
- * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Later units replace them one tab at a time, and each of
- * those is a small diff against a file that already has the right shape.
+ * **Background Removal** followed Print Preview, the third view tab authored: two groups and four commands,
+ * the two marking pencils and the two ways out. It binds nothing and opens no menu; its census lists are
+ * functions of the application, so PowerPoint's and Excel's units reuse them.
+ *
+ * **No Word tab is a placeholder any more.** Each was `placeholderTab` until its unit — one group carrying the
+ * tab's name, at the priority the census declares, holding one honest button — and each unit replaced one
+ * with a small diff against a file that already had the right shape.
  *
  * ## The three view tabs
  *
  * Outlining, Print Preview and Background Removal are `appearance: 'view'` — Office shows them only
  * inside the view they name — so `wordTabs()` leaves them out unless asked. The catalogue still
- * gives each one a story, because a tab nobody can look at cannot be audited. **Outlining and Print
- * Preview are authored**, and a host that binds a view tab's commands is therefore `Ribbons/Word` alone;
- * Background Removal is a placeholder.
+ * gives each one a story, because a tab nobody can look at cannot be audited. **All three are
+ * authored**, and a host that binds a view tab's commands is therefore `Ribbons/Word` alone. Background
+ * Removal binds nothing.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -74,7 +78,6 @@ import { ribbonTab, wordRibbonTabs } from '../../dev/ribbons/census.ts';
 import { stubTab } from '../shell/shell-parts.ts';
 import {
   censusGroup,
-  placeholderTab,
   tab,
   tabsFor,
   type TabOptions,
@@ -449,10 +452,26 @@ export function wordPrintPreviewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordBackgroundRemovalTab(): TemplateResult {
-  return placeholderTab(entry('background-removal'));
+/**
+ * Background Removal: Refine, Close — the third view tab authored, in **Office's** order, which is also the
+ * census's.
+ *
+ * ⚠ **A view tab: Office shows it only while a picture's background is being removed**, so `wordTabs()` leaves
+ * it out unless `includeViewTabs` is asked for. `dev/ribbons/census.ts` records every disagreement, Delete
+ * Mark's absence and the pencils' set among them.
+ *
+ * **Nothing is bound by the host**: the two pencils are generic toggles in one exclusive set that may hold
+ * none, and the two Close commands are generic buttons. **No menus, no dialog launchers, no survivors.**
+ */
+export function wordBackgroundRemovalTab(options: TabOptions = {}): TemplateResult {
+  const backgroundRemoval = entry('background-removal');
+  const controls = options.controls ?? {};
+  return tab(
+    backgroundRemoval.id,
+    backgroundRemoval.label,
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalMode', {}, controls),
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalClose', {}, controls),
+  );
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

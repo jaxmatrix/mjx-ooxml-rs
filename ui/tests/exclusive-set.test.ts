@@ -7,6 +7,8 @@ import {
 } from '../src/controls/control-states.ts';
 import {
   activateToggle,
+  exclusiveAllowsNone,
+  exclusiveAllowsNoneAttribute,
   exclusiveAttribute,
   exclusiveScopeOf,
   exclusiveScopeSelector,
@@ -130,6 +132,19 @@ function drawTools(): { scope: FakeScope; log: Recorded[]; members: DrawToolMemb
     ruler: new FakeMember('ruler', 'toggle', scope, log, { pressed: 'true' }),
   };
   return { scope, log, members };
+}
+
+/** Background Removal's two pencils, a set that may hold none, starting with neither; Ruler beside them. */
+function pencils(): { log: Recorded[]; keep: FakeMember; remove: FakeMember; ruler: FakeMember } {
+  const scope = new FakeScope();
+  const log: Recorded[] = [];
+  const set = { exclusive: 'word.background-removal.refine', [exclusiveAllowsNoneAttribute]: '' };
+  return {
+    log,
+    keep: new FakeMember('keep', 'toggle', scope, log, set),
+    remove: new FakeMember('remove', 'toggle', scope, log, set),
+    ruler: new FakeMember('ruler', 'toggle', scope, log, { pressed: 'true' }),
+  };
 }
 
 const positionsOf = (members: DrawToolMembers): Record<string, PressedValue | undefined> =>
@@ -322,5 +337,57 @@ describe('the coordinator: pressing a member of a set', () => {
     expect(members.select.pressed).toBe('true');
     expect(log.map(({ source, detail }) => ({ source, detail }))).toEqual([{ source: 'ruler', detail: { pressed: 'false' } }]);
     expect(scope.queries).toEqual([]);
+  });
+});
+
+// ── a set that may hold none ─────────────────────────────────────────────────
+
+describe('a set that may hold none', () => {
+  it('is declared by the presence of exclusive-allows-none, whatever its value', () => {
+    const { keep, ruler } = pencils();
+    expect(exclusiveAllowsNoneAttribute).toBe('exclusive-allows-none');
+    expect(exclusiveAllowsNone(keep)).toBe(true);
+    expect(exclusiveAllowsNone(ruler)).toBe(false);
+    keep.setAttribute(exclusiveAllowsNoneAttribute, 'false');
+    expect(exclusiveAllowsNone(keep)).toBe(true);
+  });
+
+  it('plans a press of the member that holds as a release, still releasing any other that holds', () => {
+    const { keep, remove, ruler } = pencils();
+    const candidates = [keep, remove, ruler];
+    expect(planToggleActivation(keep, 'true', candidates)).toEqual({ next: 'false', moves: true, releases: [] });
+    remove.setAttribute('pressed', 'true');
+    const repaired = planToggleActivation(keep, 'true', candidates);
+    expect(repaired.next).toBe('false');
+    expect(repaired.releases.map((member) => member.name)).toEqual(['remove']);
+    expect(planToggleActivation(keep, 'mixed', candidates)).toEqual({ next: 'true', moves: true, releases: [remove] });
+  });
+
+  it('presses one, swaps to the other, and empties on a second press, reporting each move once', () => {
+    const { keep, remove, ruler, log } = pencils();
+    keep.press();
+    expect([keep.pressed, remove.pressed]).toEqual(['true', 'false']);
+    remove.press();
+    expect([keep.pressed, remove.pressed]).toEqual(['false', 'true']);
+    log.length = 0;
+    remove.press();
+    expect([keep.pressed, remove.pressed, ruler.pressed]).toEqual(['false', 'false', 'true']);
+    expect(log.map(({ source, detail }) => ({ source, detail }))).toEqual([{ source: 'remove', detail: { pressed: 'false' } }]);
+    expect(log[0]?.positions['remove'], 'it reported before it moved').toBe('false');
+  });
+
+  it('never holds two, however the set is pressed', () => {
+    const { keep, remove } = pencils();
+    for (const member of [keep, keep, remove, keep, remove, remove, keep]) {
+      member.press();
+      expect([keep, remove].filter((pencil) => pencil.pressed === 'true').length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('leaves a set without the attribute keeping its holder, as before', () => {
+    const { members, log } = drawTools();
+    members.select.press();
+    expect(members.select.pressed).toBe('true');
+    expect(log).toEqual([]);
   });
 });

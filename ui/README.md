@@ -269,19 +269,25 @@ and Arrow Down never moves the state. Without `toggle`, `pressed` is ignored and
 
 ### One of a set
 
-Some toggles hold one at a time in Office: Word's five views, its two page movements, and the Draw tab's
-ink tools. `exclusive="<set>"` makes a toggle, or a split button's toggle face, one of such a set:
+Some toggles hold one at a time in Office: Word's five views, its two page movements, the Draw tab's ink
+tools, and Background Removal's two marking pencils. `exclusive="<set>"` makes a toggle, or a split button's
+toggle face, one of such a set:
 
 ```html
 <mjx-toggle-button exclusive="word.view.document-views" label="Print Layout" pressed></mjx-toggle-button>
 <mjx-toggle-button exclusive="word.view.document-views" label="Web Layout"></mjx-toggle-button>
 <mjx-split-button toggle exclusive="word.draw.write.tools" label="Eraser"></mjx-split-button>
+<mjx-toggle-button exclusive="word.background-removal.refine" exclusive-allows-none label="Mark Areas to Keep"></mjx-toggle-button>
 ```
 
 - **Pressing a member releases every other member that holds**, looked up in its nearest `<mjx-ribbon-tab>`,
   else its `<mjx-ribbon>`, else its root node. So three ribbons on one docs page stay independent, and a
   collapsed group's survivor and its popup are one set.
 - **Pressing the member that holds keeps it**, and reports nothing, so one member always holds.
+- **Unless the set may hold none**: with `exclusive-allows-none` on every member, pressing the member that
+  holds releases it, and the set may start empty. Background Removal's pencils are the one such set, because
+  its *no tool* is the ordinary pointer, which is not a command on the tab; the Draw tab's is Select Objects.
+  `GUESS:` that Office releases a pencil on a second press.
 - **Attributes move first, then each member that moved emits `mjx-change`**: the released ones with
   `pressed: 'false'`, then the pressed one.
 - **They stay toggle buttons**, with `aria-pressed`, not radios. A radio group is one tab stop, and a
@@ -289,7 +295,7 @@ ink tools. `exclusive="<set>"` makes a toggle, or a split button's toggle face, 
 
 The census declares the set (`RibbonCommand.exclusive`), `renderCommand` writes it onto the generic toggle,
 and a host binding writes it by hand. `tests/ribbons.test.ts` holds each set to exactly one member pressed
-and each binding to the census. `src/controls/exclusive-set.ts` records the alternatives rejected.
+(at most one where it may hold none, declared by every member alike) and each binding to the census. `src/controls/exclusive-set.ts` records the alternatives rejected.
 
 ### One state table, read by the stylesheet and by both gates
 
@@ -927,6 +933,36 @@ together read as *minimise*. Close Print Preview leaves the view.
   *upload*.
 - **Carrying no glyph**: Size (Fluent draws no page size, Layout's reason), Two Pages (every two-page picture is
   already Read Mode, Arrange All, Columns or Handout Master), and the two checkboxes.
+
+### Word's Background Removal
+
+**One tab of one application, and the third view tab authored**, after Word's Print Preview. Two groups and
+four commands, in Office's order, which is also the census's: Refine and Close. Office shows the tab only while
+a picture's background is being removed, so it renders in `Ribbons/Word` alone, and it binds nothing.
+
+- **Written once, as functions of the application**: `backgroundRemovalRefineCommands` and
+  `backgroundRemovalCloseCommands` in `dev/ribbons/census.ts`. PowerPoint's and Excel's census rows are the
+  same two groups with the same counts, so their units add `commands:` to two rows and a tab function.
+- **Two large toggles in one exclusive set that may hold none**: Mark Areas to Keep and Mark Areas to Remove,
+  neither pressed. This unit added `exclusive-allows-none`; see *One of a set*.
+- **Two large buttons**: Discard All Changes and Keep Changes.
+- No menu, no gallery, no split button, no field, no checkbox, no dialog launcher.
+
+**No survivors.** Both pencils arm a gesture, which fails rule 1 as on Draw. Discard All Changes is
+irreversible, and Keep Changes leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Refine counts 3 and draws 2.** Delete Mark, which Office 2010 to 2016 drew for their straight marks, is
+  left out because Microsoft 365 draws free-form strokes and no Delete Mark. Nothing is padded. `GUESS:`.
+- **The pencils start with neither pressed and release on a second press.** `GUESS:` both, from Office's
+  other arm-a-gesture commands.
+- **Close's order is the brief's**, Discard All Changes then Keep Changes. `GUESS:` that it is Office's.
+- **Four circles.** Mark Areas to Keep and Remove draw `add-circle` and `subtract-circle`, the plus and minus
+  of Office's pencils, since Fluent draws no pencil with either. Discard All Changes and Keep Changes draw
+  `dismiss-circle` and `checkmark-circle`. The pairs share an outline, which is the weakest visual choice on
+  the tab. Every glyph is `GUESS:`.
+- **Every command carries a glyph.**
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

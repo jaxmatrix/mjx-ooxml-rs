@@ -32,7 +32,8 @@
  *
  * `exclusive="<set>"` makes this toggle one of a set of which exactly one holds — Word's document
  * views, the Draw tab's ink tools. Pressing it releases the other members in its ribbon tab, and
- * pressing it while it holds keeps it. It stays a toggle button to assistive technology. The mechanism,
+ * pressing it while it holds keeps it. With `exclusive-allows-none` as well, pressing it while it holds
+ * releases it, so the set holds at most one — the Background Removal tab's two marking pencils. It stays a toggle button to assistive technology. The mechanism,
  * and the designs it was chosen over, are in `exclusive-set.ts`.
  *
  * ## The icon changes drawing, not colour

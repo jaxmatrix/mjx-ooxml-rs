@@ -747,11 +747,27 @@ export function exclusiveSetsIn(
  * member must be a toggle, because a button has no position to release, and every member must live in one
  * tab of one application, because the coordinator looks the set up in the pressed member's tab and a
  * member elsewhere would never be released. A set of one is a toggle that cannot be released at all.
+ *
+ * **A set that declares `exclusiveAllowsNone` starts with at most one pressed instead**, because a press can
+ * empty it, and every member declares it or none does: the coordinator reads it from the member pressed, so
+ * a set that disagreed would keep or release its holder by which one somebody pressed. `exclusiveAllowsNone`
+ * on a command in no set declares nothing, and is refused.
  */
 export function exclusiveSetFindings(
   census: Readonly<Partial<Record<RibbonApplication, readonly RibbonTabEntry[]>>>,
 ): string[] {
   const findings: string[] = [];
+  for (const tabs of Object.values(census)) {
+    for (const tab of tabs) {
+      for (const group of tab.groups) {
+        for (const command of group.commands ?? []) {
+          if (command.exclusiveAllowsNone === true && command.exclusive === undefined) {
+            findings.push(`${command.id} declares exclusiveAllowsNone and is in no set, so it declares nothing.`);
+          }
+        }
+      }
+    }
+  }
   for (const [set, members] of exclusiveSetsIn(census)) {
     const places = new Set(members.map((member) => `${member.application} ${member.tab}`));
     if (places.size > 1) {
@@ -768,8 +784,22 @@ export function exclusiveSetFindings(
         findings.push(`${command.id} is in ${set} and is not a toggle, so it holds no position to release.`);
       }
     }
+    const allowingNone = members.filter((member) => member.command.exclusiveAllowsNone === true).length;
+    if (allowingNone !== 0 && allowingNone !== members.length) {
+      findings.push(
+        `${set} has ${String(allowingNone)} of ${String(members.length)} members declaring exclusiveAllowsNone. ` +
+          'Every member declares it or none does, or a press keeps or releases by which member was pressed.',
+      );
+    }
     const pressed = members.filter((member) => member.command.pressed === true).map((member) => member.command.id);
-    if (pressed.length !== 1) {
+    if (allowingNone === members.length) {
+      if (pressed.length > 1) {
+        findings.push(
+          `${set} starts with ${String(pressed.length)} members pressed (${pressed.join(', ')}). ` +
+            'A set that may hold none still holds at most one.',
+        );
+      }
+    } else if (pressed.length !== 1) {
       findings.push(
         `${set} starts with ${String(pressed.length)} members pressed (${pressed.join(', ') || 'none'}). ` +
           'Office holds exactly one, so exactly one must start pressed.',
@@ -779,7 +809,7 @@ export function exclusiveSetFindings(
   return findings;
 }
 
-describe('every exclusive set starts with exactly one member pressed', () => {
+describe('every exclusive set starts with exactly one member pressed, or at most one where it may hold none', () => {
   const sets = exclusiveSetsIn(ribbonCensus);
 
   it('finds the sets Office holds one of, or it is checking nothing', () => {
@@ -795,7 +825,16 @@ describe('every exclusive set starts with exactly one member pressed', () => {
       'powerpoint.view.colour-greyscale': ['Colour', 'Greyscale', 'Black and White'],
       'powerpoint.view.view-direction': ['Left-to-Right', 'Right-to-Left'],
       'excel.view.workbook-views': ['Normal', 'Page Break Preview', 'Page Layout'],
+      'word.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
     });
+  });
+
+  it('lets exactly the sets with no member standing for no tool hold none', () => {
+    expect(
+      [...sets]
+        .filter(([, members]) => members.every((member) => member.command.exclusiveAllowsNone === true))
+        .map(([set]) => set),
+    ).toEqual(['word.background-removal.refine']);
   });
 
   it('starts each on the member a new document or a fresh tab is in', () => {
@@ -815,6 +854,7 @@ describe('every exclusive set starts with exactly one member pressed', () => {
       'powerpoint.view.colour-greyscale': ['Colour'],
       'powerpoint.view.view-direction': ['Left-to-Right'],
       'excel.view.workbook-views': ['Normal'],
+      'word.background-removal.refine': [],
     });
   });
 
@@ -871,6 +911,33 @@ describe('the exclusive set rule can reject', () => {
       expect.stringContaining('has one member'),
     ]);
   });
+
+  it('accepts a set that may hold none starting with none or one pressed, and refuses two', () => {
+    const none = { exclusiveAllowsNone: true } as const;
+    expect(exclusiveSetFindings({ word: [tabOf('view', [member('a', none), member('b', none)])] })).toEqual([]);
+    expect(
+      exclusiveSetFindings({ word: [tabOf('view', [member('a', { ...none, pressed: true }), member('b', none)])] }),
+    ).toEqual([]);
+    expect(
+      exclusiveSetFindings({
+        word: [tabOf('view', [member('a', { ...none, pressed: true }), member('b', { ...none, pressed: true })])],
+      }),
+    ).toEqual([expect.stringContaining('still holds at most one')]);
+  });
+
+  it('refuses a set whose members disagree on holding none', () => {
+    const findings = exclusiveSetFindings({
+      word: [tabOf('view', [member('a', { pressed: true, exclusiveAllowsNone: true }), member('b')])],
+    });
+    expect(findings).toEqual([expect.stringContaining('1 of 2 members declaring exclusiveAllowsNone')]);
+  });
+
+  it('refuses exclusiveAllowsNone on a command in no set', () => {
+    const findings = exclusiveSetFindings({
+      word: [tabOf('view', [member('a', { pressed: true }), member('b'), { id: 'word.fixture.group.c', label: 'c', toggle: true, exclusiveAllowsNone: true }])],
+    });
+    expect(findings).toEqual([expect.stringContaining('word.fixture.group.c declares exclusiveAllowsNone and is in no set')]);
+  });
 });
 
 /**
@@ -892,6 +959,15 @@ export function exclusiveBindingFindings(
     const command = byId.get(bound.key);
     if (command === undefined) continue;
     const declared = /(?:^|\s)exclusive="([^"]*)"/.exec(bound.attributes)?.[1];
+    const allowsNone = /(?:^|\s)exclusive-allows-none(?:[\s=]|$)/.test(bound.attributes);
+    if (allowsNone !== (command.exclusiveAllowsNone === true)) {
+      findings.push(
+        allowsNone
+          ? `${file.name}: ${bound.key} is bound with exclusive-allows-none, and the census does not declare it.`
+          : `${file.name}: ${bound.key} declares exclusiveAllowsNone in the census and its binding carries no ` +
+              '`exclusive-allows-none`, so pressing it while it holds keeps it.',
+      );
+    }
     if (command.exclusive === undefined) {
       if (declared !== undefined) {
         findings.push(
@@ -975,6 +1051,29 @@ describe('the exclusive binding rule can reject', () => {
     expect(
       exclusiveBindingFindings(host(loose.id, 'mjx-split-button', 'toggle\n    exclusive="word.review.ink"'), [loose]),
     ).toEqual([expect.stringContaining('declares it in no set')]);
+  });
+
+  it('holds exclusive-allows-none on a binding to the census, in both directions', () => {
+    const pencil: RibbonCommand = {
+      id: 'word.background-removal.refine.mark-areas-to-keep',
+      label: 'Mark Areas to Keep',
+      toggle: true,
+      exclusive: 'word.background-removal.refine',
+      exclusiveAllowsNone: true,
+    };
+    const withSet = 'exclusive="word.background-removal.refine"';
+    expect(
+      exclusiveBindingFindings(host(pencil.id, 'mjx-toggle-button', `${withSet}\n    exclusive-allows-none`), [pencil]),
+    ).toEqual([]);
+    expect(exclusiveBindingFindings(host(pencil.id, 'mjx-toggle-button', withSet), [pencil])).toEqual([
+      expect.stringContaining('carries no `exclusive-allows-none`'),
+    ]);
+    expect(
+      exclusiveBindingFindings(
+        host(eraser.id, 'mjx-split-button', 'toggle\n    exclusive="word.draw.write.tools"\n    exclusive-allows-none'),
+        [eraser],
+      ),
+    ).toEqual([expect.stringContaining('the census does not declare it')]);
   });
 
   it('refuses a member bound as something with no position', () => {

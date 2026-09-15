@@ -2026,6 +2026,36 @@ export const iconRequests: readonly IconRequest[] = [
     variants: ['regular'],
     why: "Previous Page, small, in Word's Print Preview Preview group, and a survivor, beside Next Page. `GUESS:` that it reads as a page rather than *upload*.",
   },
+  // ── Background Removal (Word's, and written for all three) ─────────────────
+  //
+  // Word's Background Removal tab, the third view tab authored. All four commands are large, so **20 and 24**,
+  // and the two pencils are toggles, so **`filled` as well** for the pressed state. PowerPoint's and Excel's
+  // units reuse these rows. The reasoning for every glyph is the *commands Background Removal shows* section of
+  // `dev/ribbons/census.ts`.
+  {
+    name: 'add-circle',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Mark Areas to Keep, a large toggle in Background Removal's Refine group: Office's pencil with a plus, keeping the plus because Fluent draws no pencil with one. Not `add-square`, which is Expand and Show Detail. `GUESS:`.",
+  },
+  {
+    name: 'subtract-circle',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Mark Areas to Remove, a large toggle beside Mark Areas to Keep: Office's pencil with a minus, keeping the minus. Not `subtract-square`, which is Collapse and Hide Detail. `GUESS:`.",
+  },
+  {
+    name: 'dismiss-circle',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Discard All Changes, large, in Background Removal's Close group: a cross, every mark thrown away. Not `dismiss-square`, which leaves a view with nothing discarded, nor `arrow-undo`, one step. `GUESS:`.",
+  },
+  {
+    name: 'checkmark-circle',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Keep Changes, large, beside Discard All Changes: a tick, the background removed. Not `document-checkmark`, which is Review's Accept. `GUESS:`.",
+  },
 ];
 
 /**

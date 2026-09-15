@@ -96,7 +96,9 @@
  * *commands Slide Show shows* section. **PowerPoint's Recording** followed Slide Show, one tab of one application
  * again; see the *commands Recording shows* section. **Word's Outlining** followed Recording, the first view tab
  * authored; see the *commands Outlining shows* section. **Word's Print Preview** followed Outlining, the second
- * view tab authored and the first with menus; see the *commands Print Preview shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * view tab authored and the first with menus; see the *commands Print Preview shows* section. **Word's Background
+ * Removal** followed Print Preview, the third view tab authored, its two groups written once as functions of the
+ * application; see the *commands Background Removal shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -162,8 +164,20 @@ export interface RibbonCommand {
    * Every member is a `toggle`, every member lives in one tab (the set is looked up in its tab), and
    * **exactly one member starts `pressed`**. `tests/ribbons.test.ts` holds all three and the host
    * bindings. The mechanism is `src/controls/exclusive-set.ts`.
+   *
+   * **A set may instead hold at most one**: see `exclusiveAllowsNone`.
    */
   readonly exclusive?: string;
+  /**
+   * **The exclusive set may hold none.** Pressing the member that holds releases it, so the set is empty,
+   * and the set may start with no member pressed. Written as the boolean `exclusive-allows-none`.
+   *
+   * For a set with no member standing for *no tool*: Background Removal's two marking pencils, where the
+   * ordinary pointer is not a command on the tab (the Draw tab's is Select Objects). Every member of the
+   * set declares it or none does, it means nothing without `exclusive`, and a set that declares it starts
+   * with **at most one** member pressed. `tests/ribbons.test.ts` holds all three.
+   */
+  readonly exclusiveAllowsNone?: boolean;
   /**
    * **This command survives its group's collapse** — declared, never inferred, for a toggle and a
    * button alike. It must pass every one of `demotionRules`, and it says nothing about *position*:
@@ -4505,6 +4519,137 @@ const wordPrintPreviewPreview: readonly RibbonCommand[] = [
   { id: 'word.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
 ];
 
+// ── the commands Background Removal shows ────────────────────────────────────
+//
+// The ribbon programme's unit after Print Preview: **Word's Background Removal tab**, both in-scope groups
+// and four commands, one tab of one application, and the third `appearance: 'view'` tab authored. Office
+// shows it only while a picture's background is being removed: the picture is drawn with what will go
+// shaded, and the tab holds the two pencils that correct the guess and the two ways out.
+//
+// ## Written once, as functions of the application
+//
+// **PowerPoint's and Excel's census rows are the same two groups, with the same counts (3 and 2)**, and
+// Office draws the same four commands in all three. So both groups are `backgroundRemovalRefineCommands` and
+// `backgroundRemovalCloseCommands`, keyed by application exactly as Draw's eight shared groups are. **Only
+// Word's entry calls them in this unit**; PowerPoint's and Excel's units each add `commands:` to two rows and
+// author their tab module, and are otherwise this code. No host binds anything on this tab, so those units
+// write no binding either.
+//
+// ## The shapes
+//
+// **Two large toggles in one exclusive set that may hold none**: Mark Areas to Keep and Mark Areas to Remove,
+// `<app>.background-removal.refine`, neither pressed. **Two large buttons**: Discard All Changes and Keep
+// Changes. **No menu, no gallery, no split button, no field, no checkbox, no dialog launcher.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Refine counts 3 and draws 2: Delete Mark is not drawn.** Office 2010, 2013 and 2016 drew a third
+//    large button, Delete Mark, which removed one of the straight marks those versions drew. Microsoft 365
+//    (and Office 2019) replaced the marks with free-form pencil strokes and dropped Delete Mark from the
+//    tab: a stroke is taken back with Undo. The census's count still carries it. This catalogue draws the
+//    Microsoft 365 tab it draws everywhere else, so Delete Mark is **left out rather than drawn**, and
+//    nothing is padded in its place. `GUESS:` that Microsoft 365 no longer draws it, from memory of the
+//    tab rather than a build this project can cite.
+// 2. **The two pencils are one exclusive set that may hold none**, a variant of the mechanism this unit
+//    added (`exclusiveAllowsNone`, `exclusive-allows-none`). Office holds at most one pencil: arming Mark
+//    Areas to Remove puts Mark Areas to Keep down, and pressing the armed pencil again gives back the
+//    ordinary pointer. **The tab starts with neither pressed**, because Office arms no pencil on entry.
+//    The set of *exactly* one that Word's views and the Draw tools use could not say either of those
+//    things: the Draw tab's *no tool* is Select Objects, a command on the tab, and this tab has no such
+//    command. `GUESS:` the release on a second press, from Office's other arm-a-gesture commands (Format
+//    Painter, Draw Table), and that neither starts pressed. `src/controls/exclusive-set.ts` records the
+//    three designs rejected.
+// 3. **Close is drawn Discard All Changes, then Keep Changes**, the brief's order. `GUESS:` that it is
+//    Office's, which also puts the command that keeps the work nearest the picture's edge of the ribbon.
+// 4. **The group is labelled *Refine*, and its census id is `GroupBackgroundRemovalMode`.** Office writes
+//    *Refine*; the id is the census's own, used as written.
+// 5. **Office's two Close commands both leave the view and take the tab with them**, as Close Outline View
+//    and Close Print Preview do; nothing here dispatches, because command dispatch is loop 2.
+//
+// ## No survivors, on the whole tab
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Refine: none.** Both pencils arm a gesture, and Draw's standard applies word for word: arming a
+//   gesture is not one press doing one thing, so both fail rule 1. Unlike Draw's Write, the set has no
+//   Select Objects to keep instead.
+// - **Close: none.** Discard All Changes throws every mark away and leaves the view: not reversible by one
+//   undo, rule 1. Keep Changes leaves the view and takes the tab with it, Close Outline View's reason.
+//
+// ## Sizes, and every glyph
+//
+// **All four are `large`**, as Office draws them. Every glyph below is `GUESS:`, judged from Fluent's drawings
+// rather than from a build this project can cite:
+//
+// - **Mark Areas to Keep draws `add-circle` and Mark Areas to Remove `subtract-circle`.** Office draws a
+//   pencil with a plus and a pencil with a minus; Fluent draws no pencil with either (`pen-add` and
+//   `pen-subtract` do not exist), so the glyph keeps the half that tells the two apart. Both are toggles, so
+//   both carry `filled` for the pressed state. Not `add-square` and `subtract-square`, which are already
+//   Expand and Collapse, and Show Detail and Hide Detail.
+// - **Discard All Changes draws `dismiss-circle` and Keep Changes `checkmark-circle`**: a verdict each, the
+//   pair Office draws as a picture with a cross and a picture with a tick. Not `document-dismiss` and
+//   `document-checkmark`, which are Review's Reject and Accept on a page; not `dismiss-square`, which is
+//   Close Outline View and Close Print Preview leaving a view with nothing discarded; not `arrow-undo`, which
+//   is Undo, one step rather than every mark.
+//
+// ⚠ **Four circles in a row.** The two pairs share an outline and differ by their mark, which is the weakest
+// visual choice on the tab: a plus beside a tick may be read as the same kind of command.
+
+/**
+ * `GroupBackgroundRemovalMode`, labelled **Refine**: Mark Areas to Keep and Mark Areas to Remove, large, in
+ * every application. See disagreements 1 and 2.
+ *
+ * **One exclusive set that may hold none**, `<app>.background-removal.refine`, neither pressed: each arms a
+ * pencil that marks what the picture keeps or loses, pressing one puts the other down, and pressing the
+ * armed one again puts it down.
+ *
+ * **No survivor**: both arm a gesture.
+ */
+function backgroundRemovalRefineCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  const refine = `${application}.background-removal.refine`;
+  return [
+    {
+      id: `${application}.background-removal.refine.mark-areas-to-keep`,
+      label: 'Mark Areas to Keep',
+      icon: 'add-circle',
+      size: 'large',
+      toggle: true,
+      exclusive: refine,
+      exclusiveAllowsNone: true,
+    },
+    {
+      id: `${application}.background-removal.refine.mark-areas-to-remove`,
+      label: 'Mark Areas to Remove',
+      icon: 'subtract-circle',
+      size: 'large',
+      toggle: true,
+      exclusive: refine,
+      exclusiveAllowsNone: true,
+    },
+  ];
+}
+
+/**
+ * `GroupBackgroundRemovalClose`, labelled **Close**: Discard All Changes and Keep Changes, large, in every
+ * application. See disagreements 3 and 5.
+ *
+ * **Discard All Changes** leaves the picture as it was before the tab opened; **Keep Changes** removes the
+ * shaded background. Both leave the view.
+ *
+ * **No survivor**: one is irreversible, and both leave the view.
+ */
+function backgroundRemovalCloseCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    {
+      id: `${application}.background-removal.close.discard-all-changes`,
+      label: 'Discard All Changes',
+      icon: 'dismiss-circle',
+      size: 'large',
+    },
+    { id: `${application}.background-removal.close.keep-changes`, label: 'Keep Changes', icon: 'checkmark-circle', size: 'large' },
+  ];
+}
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -4905,8 +5050,8 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabBackgroundRemoval' },
     groups: [
-      { id: 'GroupBackgroundRemovalMode', label: 'Refine', priority: 'primary', controls: 3, inScope: true },
-      { id: 'GroupBackgroundRemovalClose', label: 'Close', priority: 'secondary', controls: 2, inScope: true },
+      { id: 'GroupBackgroundRemovalMode', label: 'Refine', priority: 'primary', controls: 3, inScope: true, commands: backgroundRemovalRefineCommands('word') },
+      { id: 'GroupBackgroundRemovalClose', label: 'Close', priority: 'secondary', controls: 2, inScope: true, commands: backgroundRemovalCloseCommands('word') },
     ],
   },
 ];

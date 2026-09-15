@@ -21,6 +21,8 @@ export { MjxToggleButton, defineToggleButton } from './toggle-button.ts';
 export { MjxSplitButton, defineSplitButton, splitButtonCss, splitButtonSheet } from './split-button.ts';
 export {
   activateToggle,
+  exclusiveAllowsNone,
+  exclusiveAllowsNoneAttribute,
   exclusiveAttribute,
   exclusiveScopeOf,
   exclusiveScopeSelector,

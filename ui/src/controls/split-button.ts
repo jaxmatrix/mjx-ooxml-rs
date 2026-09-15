@@ -70,8 +70,9 @@
  *
  * **A toggling split can be one of an exclusive set**, as the Draw tab's Eraser is one of the ink tools:
  * `exclusive="<set>"` releases the set's other members when the face is pressed, and keeps the face
- * pressed when it is pressed again. Only the face takes part; the arrow still only asks for a menu. A
- * split without `toggle` holds no position, so it is never a member. See `exclusive-set.ts`.
+ * pressed when it is pressed again — or releases it, when the face also carries `exclusive-allows-none`.
+ * Only the face takes part; the arrow still only asks for a menu. A split without `toggle` holds no
+ * position, so it is never a member. See `exclusive-set.ts`.
  *
  * `GUESS:` the derived arrow name is *"More <label> options"*, which is the shape Office uses
  * (*"More Paste options"*). It is not checked against Office, and a caller who knows the real name
