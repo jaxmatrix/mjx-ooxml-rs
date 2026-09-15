@@ -41,8 +41,12 @@
  * twenty-three commands, the tab where a document is read by somebody else — its proofing, its comments,
  * its tracked changes and the protection around them. Every menu on it carries Office's whole list.
  *
+ * **View** followed the three Review tabs, one tab of one application again: seven groups and twenty-five
+ * commands, the tab that changes how a document is looked at and never the document — the views, the
+ * zoom and the windows. Almost all of it is toggles; Switch Windows is its one menu.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 9 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Later units replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -347,11 +351,39 @@ export function wordReviewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordViewTab(): TemplateResult {
-  return placeholderTab(entry('view'));
+/**
+ * View: Document Views, Modes, Page Movement, Show, Zoom, Window, Night Mode — authored after the three
+ * Review tabs, one tab of one application, in **Office's** order.
+ *
+ * ⚠ **Page Movement is third here and sixth in the census's declaration.** Microsoft 365 draws it after
+ * the group it labels Immersive (the census's Modes), and the group order is this module's decision, so
+ * Office's wins; `dev/ribbons/census.ts` records the disagreement, and the three group labels that are not
+ * Microsoft 365's. What Office draws that is not here is **Macros** and **SharePoint**, which the census
+ * marks out of scope.
+ *
+ * **Four of the tab's twenty-five commands are bound by the host**: Ruler, Gridlines and Navigation Pane
+ * are checkboxes, and Switch Windows is a dropdown over `stories/ribbons/view-menus.ts`. Everything else is
+ * the generic toggle or button.
+ *
+ * **No dialog launchers**, as in Office. **Three survivors**, 100%, One Page and Page Width, in Zoom.
+ */
+export function wordViewTab(options: TabOptions = {}): TemplateResult {
+  const view = entry('view');
+  const controls = options.controls ?? {};
+  return tab(
+    view.id,
+    view.label,
+    censusGroup(view, 'GroupDocumentViews', {}, controls),
+    censusGroup(view, 'GroupModes', {}, controls),
+    censusGroup(view, 'GroupPageMovement', {}, controls),
+    censusGroup(view, 'GroupViewShowHide', {}, controls),
+    censusGroup(view, 'GroupZoom', {}, controls),
+    censusGroup(view, 'GroupWindow', {}, controls),
+    censusGroup(view, 'GroupNightMode', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordOutliningTab(): TemplateResult {
   return placeholderTab(entry('outlining'));

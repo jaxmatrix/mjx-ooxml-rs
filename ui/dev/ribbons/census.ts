@@ -89,7 +89,8 @@
  * Mailings, PowerPoint's Animations and Excel's Data**; see the *commands Mailings, Animations and Data show*
  * section. Unit 8 authored **Word's Review** alone, the first unit narrowed to one tab of one application;
  * see the *commands Review shows* section. **PowerPoint's Review** and **Excel's Review** followed, one tab of
- * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. **Word's View**
+ * followed, one tab of one application again; see the *commands View shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -3106,6 +3107,231 @@ const excelReviewDebug: readonly RibbonCommand[] = [
   { id: 'excel.review.debug.debug', label: 'Debug' },
 ];
 
+// ── the commands View shows ──────────────────────────────────────────────────
+//
+// The ribbon programme's unit after the three Review tabs: **Word's View tab**, all seven in-scope groups,
+// under the one-tab-one-application rule. PowerPoint's and Excel's View tabs are still placeholders, and
+// nothing below is written as a function of the application. Zoom and Window carry the same census ids in
+// all three, and whether any of them is one declaration is their own units' question.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// Almost nothing on this tab opens anything, and that is the tab's character: it changes how the document
+// is *looked at*, never the document. **Toggles**: the five views, Focus, the two page movements, View Side
+// by Side, Synchronous Scrolling and Switch Modes. **Checkboxes a host binds**: Ruler, Gridlines and
+// Navigation Pane, which Office draws as three ticks. **One dropdown**, Switch Windows, over a menu written
+// once in `stories/ribbons/view-menus.ts`. **Buttons**: Immersive Reader, Zoom (a dialog), 100%, One Page,
+// Multiple Pages, Page Width, New Window, Arrange All, Split and Reset Window Position. **No field, no
+// gallery, no dialog launcher**: Office puts none on Word's View tab.
+//
+// ⚠ **The views are mutually exclusive in Office, and the toggles here do not release each other.** Word
+// is always in exactly one of Read Mode, Print Layout, Web Layout, Outline and Draft, and pressing the view
+// it is already in keeps it. `<mjx-toggle-button>` has no notion of a sibling, so pressing Web Layout
+// leaves Print Layout pressed, and pressing Print Layout releases it. That is the Draw tab's gap on the
+// tools, now on two more groups (Document Views, and Page Movement's Vertical and Side to Side). No
+// binding can fix it; it is the component's.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **The declaration puts Page Movement sixth; Microsoft 365 draws it third**, after Immersive. Office's
+//    View tab reads Views, Immersive, Page Movement, Show, Zoom, Window, Macros, SharePoint. The group
+//    order is the tab module's decision, so `wordViewTab` draws Document Views, Modes, Page Movement, Show,
+//    Zoom, Window, Night Mode. **Night Mode stays last** because nothing this project can cite says where
+//    Office puts it. `GUESS:` both positions.
+// 2. **The census's group labels are not Microsoft 365's**, and the census's are drawn, because a label is
+//    not an argument `censusGroup` accepts. **Document Views** is Word 2010's label; Microsoft 365 says
+//    **Views**. **Modes** (`GroupModes`) is the group Microsoft 365 labels **Immersive**. **Night Mode**
+//    (`GroupNightMode`) is the group Microsoft 365 labels **Dark Mode**. `GUESS:` the last two readings.
+// 3. **There is no separate Immersive group in the census.** `GroupModes` counts three controls, and
+//    Microsoft 365's Immersive group draws two, Focus and Immersive Reader, so both are declared here.
+//    `GUESS:` that `GroupModes` is that group. Word 2016's Learning Tools button, which Immersive Reader
+//    replaced, is not drawn beside it: a command is drawn once.
+// 4. **Office draws groups the census marks out of scope, and they are not drawn here**: **Macros** (four
+//    controls, the automation runtime this project excludes) and **SharePoint** (`GroupSharePointProperties`,
+//    one control). The census wins.
+// 5. **Office shows Switch Modes only while Office's theme is Black**, and draws the group nowhere
+//    otherwise. The census declares the group in scope, so it is drawn always. `GUESS:` the command's name
+//    and its shape as a toggle.
+// 6. **Split is a plain button.** Office relabels it *Remove Split* while the window is split rather than
+//    drawing it pressed, as Excel's Protect Sheet becomes Unprotect Sheet. **Synchronous Scrolling and
+//    Reset Window Position** are greyed in Office until View Side by Side is on; both are drawn available,
+//    because `disabled` is loop 2's.
+// 7. **The census's counts are larger than the faces**, and nothing is padded: Show is 4 and draws three;
+//    Zoom is 6 and draws five; Window is 8 and draws seven; Modes is 3 and draws two.
+//
+// ## Survivors: 100%, One Page and Page Width, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Zoom's 100%, One Page and Page Width survive.** Each sets the zoom to one value in one press, and
+//   the zoom before it is one press away: the Mailings record-navigator standard, because a zoom changes
+//   no document. Each glyph is its own: `ratio-one-to-one` is *1:1*, actual size; `document-fit` is a page
+//   inside fit corners; `auto-fit-width` is a width between two stops. That is three, the ceiling, and Zoom
+//   and Multiple Pages stay in the popup. `GUESS:` rule 2 on all three glyphs.
+// - **Multiple Pages passes rule 1 and fails rule 2**: it carries no glyph. Fluent's
+//   `document-one-page-multiple` is a stack of pages, which reads as *several documents* or *copies*,
+//   where the command lays pages side by side.
+// - **The views and Focus are modes, not presses.** Read Mode and Focus take over the whole window and hide
+//   the ribbon, Outline opens the Outlining tab, and a survivor row of views would show two pressed at once
+//   because the toggles do not release each other. **Page Movement** is two commands with no glyph, and a
+//   survivor of each would leave its collapsed popup empty.
+// - **Show's three are checkboxes a host binds**, which the gate refuses as survivors, and none has a glyph.
+// - **Window**: New Window opens a window, Arrange All and Split rearrange every window (Split then arms a
+//   bar the pointer places), View Side by Side asks which document when more than two are open, and Switch
+//   Windows is a menu. Synchronous Scrolling passes rule 1 and has no glyph. **Night Mode** and **Immersive
+//   Reader** (a tab of its own) fail on their own grounds; each group states its reason below.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// Unit 6's rule: `large` where Office draws it large **and** there is an honest glyph **and** the label
+// wraps inside `largeControlWidthUnits`. **Read Mode, Print Layout, Web Layout, Focus, Immersive Reader,
+// 100%, New Window, Split, Switch Windows and Switch Modes** are large.
+//
+// A wrong icon is worse than none, and this tab is where Fluent's gaps show most:
+//
+// - **Outline**: `text-bullet-list-tree` is exactly Word's outline picture, and it is already **Multilevel
+//   List** on Home's Paragraph group, so an outline view drawn with it is a list command a person reaches
+//   for. **Draft** would be lines of text, which is every alignment glyph.
+// - **Vertical and Side to Side**: Fluent's vertical scroll marks are a phone and a dual screen, and its open
+//   book is Read Mode beside them. No page with an arrow down, no pages turning sideways.
+// - **Ruler, Gridlines and Navigation Pane** are checkboxes, which draw no glyph.
+// - **Zoom**: the plain magnifier is `search`, Find, and `zoom-in` is *Zoom In*, which the dialog is not.
+//   **Multiple Pages**: see its survivor reason above.
+// - **Arrange All**: `layout-row-two` is one window divided, which is Split's meaning rather than two windows
+//   stacked, and it would sit beside Split's `split-horizontal`.
+// - **Synchronous Scrolling**: `arrow-sync` is AutoSave's. **Reset Window Position**: `arrow-reset` is
+//   PowerPoint's Reset.
+//
+// So those twelve are `small`, and the label is the command.
+
+/**
+ * Word's Document Views group: Read Mode, Print Layout and Web Layout large, then Outline and Draft in a
+ * column.
+ *
+ * **Five toggles, Print Layout pressed**, because Print Layout is a new document's view; see this
+ * section's header on why they do not release each other. **Read Mode draws `book-open`**, an open book,
+ * Office's own picture for the reading view. **Print Layout draws `document-one-page`**, a printed page.
+ * **Web Layout draws `globe`**, Excel's From Web glyph on another application's tab, because Office's own
+ * is a page with a globe on it. `GUESS:` all three glyphs. **Outline and Draft** carry no icon; see this
+ * section's header.
+ *
+ * **No survivor**: five modes, one of which hides the ribbon and one of which opens a tab.
+ */
+const wordViewDocumentViews: readonly RibbonCommand[] = [
+  { id: 'word.view.document-views.read-mode', label: 'Read Mode', icon: 'book-open', size: 'large', toggle: true },
+  { id: 'word.view.document-views.print-layout', label: 'Print Layout', icon: 'document-one-page', size: 'large', toggle: true, pressed: true },
+  { id: 'word.view.document-views.web-layout', label: 'Web Layout', icon: 'globe', size: 'large', toggle: true },
+  { id: 'word.view.document-views.outline', label: 'Outline', toggle: true },
+  { id: 'word.view.document-views.draft', label: 'Draft', toggle: true },
+];
+
+/**
+ * Word's `GroupModes`, Microsoft 365's **Immersive**: Focus and Immersive Reader, both large. See
+ * disagreements 2 and 3 in this section's header.
+ *
+ * **Focus is a toggle drawing `full-screen-maximize`**, four corners pushed outward: Focus fills the screen
+ * with the page and hides everything else, and Esc or a second press leaves it. `GUESS:` the glyph, and
+ * that Office draws it pressed. **Immersive Reader draws `immersive-reader`**, Fluent's own mark for the
+ * product, and opens the Immersive Reader tab. It is a plain button: the tab's Close Immersive Reader is
+ * how it ends.
+ *
+ * **No survivor**: a mode that hides the ribbon, and a command that opens a tab.
+ */
+const wordViewModes: readonly RibbonCommand[] = [
+  { id: 'word.view.modes.focus', label: 'Focus', icon: 'full-screen-maximize', size: 'large', toggle: true },
+  { id: 'word.view.modes.immersive-reader', label: 'Immersive Reader', icon: 'immersive-reader', size: 'large' },
+];
+
+/**
+ * Word's Page Movement group: Vertical and Side to Side.
+ *
+ * **Two toggles, Vertical pressed**, because a new document scrolls vertically: one holds at a time in
+ * Office, and here they do not release each other. Neither carries an icon, so both are `small` where
+ * Office draws them large; see this section's header.
+ *
+ * **No survivor**: no glyph, and a survivor of each would leave the popup empty.
+ */
+const wordViewPageMovement: readonly RibbonCommand[] = [
+  { id: 'word.view.page-movement.vertical', label: 'Vertical', toggle: true, pressed: true },
+  { id: 'word.view.page-movement.side-to-side', label: 'Side to Side', toggle: true },
+];
+
+/**
+ * Word's `GroupViewShowHide`, labelled **Show**: Ruler, Gridlines and Navigation Pane.
+ *
+ * **Three toggles, drawn as checkboxes**, as Excel's Sheet Options are: Office draws three ticks, and each
+ * host binds an `<mjx-checkbox>`. **Navigation Pane starts ticked**, because the assembled shell draws the
+ * pane open beside the page. Ruler and Gridlines start unticked, as in a new document since Word 2013.
+ * `GUESS:` Navigation Pane's start, which follows the shell rather than a new document.
+ *
+ * **No survivor, although all three pass rule 1**: none carries a glyph, and each is a checkbox a host
+ * binds.
+ */
+const wordViewShow: readonly RibbonCommand[] = [
+  { id: 'word.view.show.ruler', label: 'Ruler', toggle: true },
+  { id: 'word.view.show.gridlines', label: 'Gridlines', toggle: true },
+  { id: 'word.view.show.navigation-pane', label: 'Navigation Pane', toggle: true, pressed: true },
+];
+
+/**
+ * Word's Zoom group: Zoom, 100% large, then One Page, Multiple Pages and Page Width in a column.
+ *
+ * **Zoom** opens the Zoom dialog and carries no icon, so it is `small` where Office draws it large. **100%
+ * draws `ratio-one-to-one`**, *1:1*, and sets the zoom to actual size. **One Page draws `document-fit`**, a
+ * page inside four fit corners, and fits one whole page in the window. **Multiple Pages** fits as many
+ * pages as the window holds side by side, and carries no icon. **Page Width draws `auto-fit-width`**, a
+ * width between two stops, and fits the page's width to the window. `GUESS:` the three glyphs.
+ *
+ * **Survivors: 100%, One Page and Page Width.** See this section's header.
+ */
+const wordViewZoom: readonly RibbonCommand[] = [
+  { id: 'word.view.zoom.zoom', label: 'Zoom' },
+  { id: 'word.view.zoom.one-hundred-percent', label: '100%', icon: 'ratio-one-to-one', size: 'large', essential: true },
+  { id: 'word.view.zoom.one-page', label: 'One Page', icon: 'document-fit', essential: true },
+  { id: 'word.view.zoom.multiple-pages', label: 'Multiple Pages' },
+  { id: 'word.view.zoom.page-width', label: 'Page Width', icon: 'auto-fit-width', essential: true },
+];
+
+/**
+ * Word's Window group: New Window, Arrange All and Split, then View Side by Side, Synchronous Scrolling and
+ * Reset Window Position in a column, then Switch Windows large.
+ *
+ * **New Window draws `window-new`**, a window with an arrow leaving it, and opens a second window on the
+ * same document. **Arrange All** tiles every open Word window, and carries no icon. **Split draws
+ * `split-horizontal`**, a window cut across, and is a plain button; see disagreement 6. **View Side by Side
+ * is a toggle drawing `column-double-compare`**, two panes set beside each other to be compared, which is
+ * what it does to two documents. Fluent draws it at 20 alone, and the command is small. **Synchronous
+ * Scrolling is a toggle** with no icon; Office presses it as soon as View Side by Side is on, and it starts
+ * unpressed here because View Side by Side does. **Reset Window Position** shares the screen equally again,
+ * and carries no icon. **Switch Windows is a large dropdown drawing `window-multiple`**, windows overlapping,
+ * and lists every open window. `GUESS:` Split's and Switch Windows' glyphs, and the sizes.
+ *
+ * **No survivor**: see this section's header.
+ */
+const wordViewWindow: readonly RibbonCommand[] = [
+  { id: 'word.view.window.new-window', label: 'New Window', icon: 'window-new', size: 'large' },
+  { id: 'word.view.window.arrange-all', label: 'Arrange All' },
+  { id: 'word.view.window.split', label: 'Split', icon: 'split-horizontal', size: 'large' },
+  { id: 'word.view.window.view-side-by-side', label: 'View Side by Side', icon: 'column-double-compare', toggle: true },
+  { id: 'word.view.window.synchronous-scrolling', label: 'Synchronous Scrolling', toggle: true },
+  { id: 'word.view.window.reset-window-position', label: 'Reset Window Position' },
+  { id: 'word.view.window.switch-windows', label: 'Switch Windows', icon: 'window-multiple', size: 'large' },
+];
+
+/**
+ * Word's `GroupNightMode`, Microsoft 365's **Dark Mode**: Switch Modes. See disagreements 2 and 5 in this
+ * section's header.
+ *
+ * **A large toggle drawing `dark-theme`**, a circle half dark: Office draws it pressed while the page is
+ * drawn light inside a dark Office, and the press turns the page dark again. It starts unpressed.
+ * `GUESS:` the whole group.
+ *
+ * **No survivor**: the only command.
+ */
+const wordViewNightMode: readonly RibbonCommand[] = [
+  { id: 'word.view.night-mode.switch-modes', label: 'Switch Modes', icon: 'dark-theme', size: 'large', toggle: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -3468,13 +3694,13 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabView' },
     groups: [
-      { id: 'GroupDocumentViews', label: 'Document Views', priority: 'primary', controls: 5, inScope: true },
-      { id: 'GroupModes', label: 'Modes', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupPageMovement', label: 'Page Movement', priority: 'ancillary', controls: 2, inScope: true },
-      { id: 'GroupNightMode', label: 'Night Mode', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupDocumentViews', label: 'Document Views', priority: 'primary', controls: 5, inScope: true, commands: wordViewDocumentViews },
+      { id: 'GroupModes', label: 'Modes', priority: 'standard', controls: 3, inScope: true, commands: wordViewModes },
+      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 4, inScope: true, commands: wordViewShow },
+      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 6, inScope: true, commands: wordViewZoom },
+      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 8, inScope: true, commands: wordViewWindow },
+      { id: 'GroupPageMovement', label: 'Page Movement', priority: 'ancillary', controls: 2, inScope: true, commands: wordViewPageMovement },
+      { id: 'GroupNightMode', label: 'Night Mode', priority: 'ancillary', controls: 1, inScope: true, commands: wordViewNightMode },
     ],
   },
   {

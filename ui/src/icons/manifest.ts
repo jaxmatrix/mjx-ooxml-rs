@@ -1343,9 +1343,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'globe',
-    sizes: [20],
-    variants: ['regular'],
-    why: "From Web, on Excel's Data tab: the web, as everywhere in Office.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "From Web, on Excel's Data tab: the web, as everywhere in Office. **Since Word's View unit, also Web Layout**, a large toggle on Word's View tab, so 24 and the filled drawing: Office's own Web Layout glyph is a page with a globe on it. `GUESS:`.",
   },
   {
     name: 'document-text',
@@ -1567,6 +1567,84 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Protect Sheet, large, in Excel's Review Protect group: a grid with a padlock, one sheet locked. Not `document-lock`, which is the whole workbook beside it. Office relabels the command Unprotect Sheet rather than drawing it pressed, so regular alone. `GUESS:`.",
+  },
+  // ── View (Word's View) ────────────────────────────────────────────────────
+  //
+  // Word's View tab, one application under the one-tab-one-application rule. **20 for a small command,
+  // 20 and 24 for a large one, and `filled` for every toggle**, which draws filled while it holds. `globe`
+  // above gained a command rather than a row here. Every command the tab draws without an icon is listed,
+  // with its reason, in the *commands View shows* section of `dev/ribbons/census.ts`.
+  {
+    name: 'book-open',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Read Mode, the large toggle on Word's View tab: an open book, Office's own picture for the reading view. `GUESS:`.",
+  },
+  {
+    name: 'document-one-page',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Print Layout, the large toggle on Word's View tab, pressed in a new document: one printed page. `GUESS:`.",
+  },
+  {
+    name: 'full-screen-maximize',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Focus, the large toggle in Word's View Modes group: four corners pushed outward, the page filling the screen. `GUESS:`.",
+  },
+  {
+    name: 'immersive-reader',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Immersive Reader, the large button in Word's View Modes group: Fluent's own mark for the product.",
+  },
+  {
+    name: 'ratio-one-to-one',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "100%, the large button in Word's View Zoom group, and a survivor: *1:1*, actual size. Not `zoom-in`, which is a different command. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'document-fit',
+    sizes: [20],
+    variants: ['regular'],
+    why: "One Page, in Word's View Zoom group, and a survivor: a page inside four fit corners, one whole page fitted to the window. `GUESS:`.",
+  },
+  {
+    name: 'auto-fit-width',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Page Width, in Word's View Zoom group, and a survivor: a width between two stops, the page's width fitted to the window. `GUESS:`.",
+  },
+  {
+    name: 'window-new',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "New Window, the large button in Word's View Window group: a window with an arrow leaving it, a second window on the same document.",
+  },
+  {
+    name: 'split-horizontal',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Split, the large button in Word's View Window group: a window cut across, where Word puts the split bar. A plain button, because Office relabels it Remove Split rather than drawing it pressed, so regular alone. `GUESS:`.",
+  },
+  {
+    name: 'column-double-compare',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "View Side by Side, the small toggle in Word's View Window group: two panes set beside each other to be compared. Fluent draws it at 20 alone, which is the size the command is. `GUESS:`.",
+  },
+  {
+    name: 'window-multiple',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Switch Windows, the large dropdown in Word's View Window group: windows overlapping, one of which to bring forward. `GUESS:`.",
+  },
+  {
+    name: 'dark-theme',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`.",
   },
 ];
 

@@ -32,6 +32,7 @@ import { insertMenus } from './insert-menus.ts';
 import { mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
+import { viewMenus } from './view-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
 /**
@@ -45,7 +46,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References, Mailings and Review** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review and View** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -56,7 +57,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
- * Layout, References, Mailings and Review tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
+ * Layout, References, Mailings, Review and View tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -75,7 +76,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References, Mailings and Review are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review and View are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -658,6 +659,18 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-word-review-ink-hide-ink"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // View (Word alone). Show's three are checkboxes, Navigation Pane ticked as the census declares.
+  // Switch Windows opens its menu from `stories/ribbons/view-menus.ts`, and `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`.
+  'word.view.show.ruler': html`<mjx-checkbox id="ribbons-word-view-ruler" label="Ruler"></mjx-checkbox>`,
+  'word.view.show.gridlines': html`<mjx-checkbox id="ribbons-word-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+  'word.view.show.navigation-pane': html`<mjx-checkbox id="ribbons-word-view-navigation-pane" label="Navigation Pane" checked="true"></mjx-checkbox>`,
+  'word.view.window.switch-windows': html`<mjx-button
+    label="Switch Windows"
+    icon="window-multiple"
+    size="large"
+    data-opens="ribbons-word-view-window-switch-windows"
+  ></mjx-button>`,
 };
 
 /**
@@ -688,6 +701,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
+    ${viewMenus('word', 'ribbons')}
   `;
 }
 
@@ -925,7 +939,33 @@ export const Mailings: Story = { render: () => ribbon('mailings') };
  */
 export const Review: Story = { render: () => ribbon('review') };
 
-/** Unit 9. */
+/**
+ * **View**: how the document is looked at, never the document itself. Authored after the three Review tabs,
+ * one tab of one application. Seven groups: Document Views, Modes, Page Movement, Show, Zoom, Window and
+ * Night Mode. What to look at, least certain first:
+ *
+ * 1. ⚠ **The three zoom survivors.** Drag narrow until Zoom collapses: 100% (large, *1:1*), One Page (a page
+ *    in fit corners) and Page Width (a width between two stops) stay beside the trigger, and Zoom and
+ *    Multiple Pages open from it. `GUESS:` that each glyph reads with no label, and 100% keeps its large size
+ *    in the survivor row.
+ * 2. ⚠ **The views do not release each other.** Print Layout starts pressed. Press Web Layout and both draw
+ *    pressed, where Office holds one view at a time; press Print Layout and it releases. The same is true of
+ *    Vertical (pressed) and Side to Side. That is `<mjx-toggle-button>`'s gap, the Draw tab's.
+ * 3. ⚠ **Group labels and order.** Document Views, Modes and Night Mode are the census's labels, where
+ *    Microsoft 365 says Views, Immersive and Dark Mode. Page Movement is third, where Microsoft 365 draws
+ *    it; the census declares it sixth. Night Mode is last, `GUESS:`. Macros and SharePoint are out of scope.
+ * 4. **Glyphs to judge**: Read Mode's open book, Print Layout's page and Web Layout's globe (all large
+ *    toggles, filled while pressed), Focus's four corners, Immersive Reader's own mark, New Window, Split's
+ *    window cut across, View Side by Side's two panes and Switch Modes' half-dark circle. All but Immersive
+ *    Reader and New Window are `GUESS:`.
+ * 5. **Switch Windows is the tab's only menu**: one window, *1 Method notes*, checked. `GUESS:` the name,
+ *    which is the catalogue's own document rather than a real file. Split is a plain button, because Office
+ *    relabels it Remove Split.
+ * 6. **Show is three checkboxes**: Ruler and Gridlines unticked, Navigation Pane ticked. Tick one and it
+ *    ticks.
+ * 7. **Labels, not glyphs**: Outline, Draft, Vertical, Side to Side, Zoom, Multiple Pages, Arrange All,
+ *    Synchronous Scrolling and Reset Window Position carry no icon and are small. No dialog launchers.
+ */
 export const View: Story = { render: () => ribbon('view') };
 
 /** Unit 10, and a tab Office shows only in Outline view — see `dev/ribbons/census.ts`. */

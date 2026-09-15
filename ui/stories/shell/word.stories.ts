@@ -48,6 +48,7 @@ import { insertMenus } from '../ribbons/insert-menus.ts';
 import { mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import { viewMenus } from '../ribbons/view-menus.ts';
 import {
   citationStyles,
   copyCounts,
@@ -793,6 +794,18 @@ function ribbon(): TemplateResult {
               data-opens="shell-word-review-ink-hide-ink"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // View (Word alone). Show's three are checkboxes, Navigation Pane ticked because this
+            // shell draws the pane open. Switch Windows opens its menu from
+            // `stories/ribbons/view-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'word.view.show.ruler': html`<mjx-checkbox id="word-view-ruler" label="Ruler"></mjx-checkbox>`,
+            'word.view.show.gridlines': html`<mjx-checkbox id="word-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+            'word.view.show.navigation-pane': html`<mjx-checkbox id="word-view-navigation-pane" label="Navigation Pane" checked="true"></mjx-checkbox>`,
+            'word.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-word-view-window-switch-windows"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -945,6 +958,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
       ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
       ${mailingsAnimationsDataMenus('word', 'shell')} ${reviewMenus('word', 'shell')}
+      ${viewMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

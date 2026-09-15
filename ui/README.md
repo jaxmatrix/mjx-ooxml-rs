@@ -638,6 +638,40 @@ Translate is the only face that matches, and one shared button is not worth a fu
 - **Show/Hide Comment, Show All Comments, Allow Edit Ranges, Unshare Workbook, Share Workbook, Protect and
   Share Workbook, Hide Ink and Debug carry no icon.**
 
+### Word's View
+
+**One tab of one application**, after the three Review tabs; PowerPoint's and Excel's View tabs are still
+placeholders. Seven groups and twenty-five commands, drawn in Office's order: Document Views, Modes, Page
+Movement, Show, Zoom, Window, Night Mode. The tab changes how a document is looked at and never the
+document, so almost nothing on it opens anything.
+
+- **Toggles**: the five views (Print Layout pressed), Focus, Vertical (pressed) and Side to Side, View Side by
+  Side, Synchronous Scrolling and Switch Modes.
+- **Checkboxes a host binds**: Ruler, Gridlines and Navigation Pane (ticked, because the shell draws the pane).
+- **One dropdown**: Switch Windows, over `stories/ribbons/view-menus.ts`, which lists every open window.
+- **No field, no gallery, no dialog launcher.**
+
+**Survivors**: 100%, One Page and Page Width, in Zoom. Each sets the zoom in one press and changes no
+document, which is the Mailings record-navigator standard.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The views, and Vertical and Side to Side, do not release each other.** Office holds exactly one of each
+  set; `<mjx-toggle-button>` knows no siblings, which is the Draw tab's gap on two more groups.
+- **Page Movement is drawn third**, where Microsoft 365 draws it; the census declares it sixth. Night Mode is
+  last because nothing says where Office puts it. Macros and SharePoint are out of scope.
+- **Three group labels are the census's, not Microsoft 365's**: Document Views is Office's *Views*, Modes is
+  *Immersive*, and Night Mode is *Dark Mode*, whose Switch Modes Office shows only under the Black theme.
+- **Split is a plain button**, because Office relabels it Remove Split. Office greys Synchronous Scrolling
+  and Reset Window Position until View Side by Side is on; both are drawn available.
+- **Switch Windows lists one window, *Method notes***, the catalogue's own document, not a real file name.
+- **Read Mode's book, Print Layout's page, Web Layout's globe, Focus's corners, the three zoom glyphs, Split,
+  View Side by Side, Switch Windows and Switch Modes** are judged from Fluent's drawings, not from a build
+  this project can cite.
+- **Outline, Draft, Vertical, Side to Side, Ruler, Gridlines, Navigation Pane, Zoom, Multiple Pages, Arrange
+  All, Synchronous Scrolling and Reset Window Position carry no icon.** Outline's natural glyph is already
+  Multilevel List's.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.
