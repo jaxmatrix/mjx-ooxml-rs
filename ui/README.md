@@ -964,6 +964,19 @@ irreversible, and Keep Changes leaves the view.
   the tab. Every glyph is `GUESS:`.
 - **Every command carries a glyph.**
 
+### PowerPoint's Background Removal
+
+**One tab of one application, and PowerPoint's first view tab authored**, after Word's Background Removal. It is
+Word's tab under PowerPoint's ids: the census row calls `backgroundRemovalRefineCommands('powerpoint')` and
+`backgroundRemovalCloseCommands('powerpoint')`, and `powerpointBackgroundRemovalTab` renders the two groups. It
+renders in `Ribbons/PowerPoint` alone and binds nothing. No glyph, binding or menu was added.
+
+- **Its pencils are their own set**, `powerpoint.background-removal.refine`, and may hold none, as Word's do.
+  `tests/ribbons.test.ts` lists both sets.
+- **No PowerPoint-specific disagreement.** The census's PowerPoint row is Word's to the field (group ids,
+  labels, priorities, counts 3 and 2), and Office draws the same four commands. Everything under *Word's
+  Background Removal* above, `GUESS:` items included, applies unchanged and is not restated.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

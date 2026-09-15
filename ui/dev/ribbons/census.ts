@@ -98,7 +98,8 @@
  * authored; see the *commands Outlining shows* section. **Word's Print Preview** followed Outlining, the second
  * view tab authored and the first with menus; see the *commands Print Preview shows* section. **Word's Background
  * Removal** followed Print Preview, the third view tab authored, its two groups written once as functions of the
- * application; see the *commands Background Removal shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * application; see the *commands Background Removal shows* section. **PowerPoint's Background Removal**
+ * followed, calling those two functions, in that section's *PowerPoint's Background Removal* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4530,10 +4531,10 @@ const wordPrintPreviewPreview: readonly RibbonCommand[] = [
 //
 // **PowerPoint's and Excel's census rows are the same two groups, with the same counts (3 and 2)**, and
 // Office draws the same four commands in all three. So both groups are `backgroundRemovalRefineCommands` and
-// `backgroundRemovalCloseCommands`, keyed by application exactly as Draw's eight shared groups are. **Only
-// Word's entry calls them in this unit**; PowerPoint's and Excel's units each add `commands:` to two rows and
-// author their tab module, and are otherwise this code. No host binds anything on this tab, so those units
-// write no binding either.
+// `backgroundRemovalCloseCommands`, keyed by application exactly as Draw's eight shared groups are. **Word's
+// entry called them first**; PowerPoint's now does too (see *PowerPoint's Background Removal* below), and
+// Excel's unit adds `commands:` to its two rows and authors its tab module, and is otherwise this code. No host
+// binds anything on this tab, so those units write no binding either.
 //
 // ## The shapes
 //
@@ -4594,6 +4595,18 @@ const wordPrintPreviewPreview: readonly RibbonCommand[] = [
 //
 // ⚠ **Four circles in a row.** The two pairs share an outline and differ by their mark, which is the weakest
 // visual choice on the tab: a plus beside a tick may be read as the same kind of command.
+//
+// ## PowerPoint's Background Removal
+//
+// The unit after Word's, one tab of one application. **PowerPoint's entry calls the same two functions with
+// `'powerpoint'`**, so its ids are `powerpoint.background-removal.*` and its pencils are their own set,
+// `powerpoint.background-removal.refine`, looked up in PowerPoint's tab and never Word's. Nothing was written
+// for it beyond the two `commands:` and its tab module; no glyph, no binding, no menu.
+//
+// **No PowerPoint-specific disagreement.** The census's PowerPoint row is Word's row to the field: the same two
+// group ids, labels, priorities (`primary`, `secondary`) and counts (3, 2), and Microsoft 365's PowerPoint draws
+// the same four commands in the same two groups. Disagreements 1 to 5 above apply to it word for word, Delete
+// Mark's absence and the pencils' empty start among them, and are not restated.
 
 /**
  * `GroupBackgroundRemovalMode`, labelled **Refine**: Mark Areas to Keep and Mark Areas to Remove, large, in
@@ -5311,8 +5324,8 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabBackgroundRemoval' },
     groups: [
-      { id: 'GroupBackgroundRemovalMode', label: 'Refine', priority: 'primary', controls: 3, inScope: true },
-      { id: 'GroupBackgroundRemovalClose', label: 'Close', priority: 'secondary', controls: 2, inScope: true },
+      { id: 'GroupBackgroundRemovalMode', label: 'Refine', priority: 'primary', controls: 3, inScope: true, commands: backgroundRemovalRefineCommands('powerpoint') },
+      { id: 'GroupBackgroundRemovalClose', label: 'Close', priority: 'secondary', controls: 2, inScope: true, commands: backgroundRemovalCloseCommands('powerpoint') },
     ],
   },
 ];

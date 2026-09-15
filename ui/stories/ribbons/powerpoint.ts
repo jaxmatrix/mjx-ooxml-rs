@@ -47,6 +47,9 @@
  * from two generations of Office's recorder that the census declares on one tab. Eight commands open menus, four
  * of them Insert's, and nothing survives a collapse.
  *
+ * **Background Removal** followed Word's, the first PowerPoint view tab authored: Word's two groups and four
+ * commands under PowerPoint's ids, from the census's shared functions. It binds nothing and opens no menu.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -391,6 +394,31 @@ export function powerpointRecordingTab(options: TabOptions = {}): TemplateResult
   );
 }
 
+/**
+ * Background Removal: Refine, Close — the first PowerPoint view tab authored, in **Office's** order, which is
+ * also the census's.
+ *
+ * **Word's tab with PowerPoint's ids**: the census row calls `backgroundRemovalRefineCommands('powerpoint')` and
+ * `backgroundRemovalCloseCommands('powerpoint')`, so the shape and every disagreement are `wordBackgroundRemovalTab`'s,
+ * recorded once in `dev/ribbons/census.ts`. PowerPoint adds none.
+ *
+ * ⚠ **A view tab: Office shows it only while a picture's background is being removed**, so `powerpointTabs()`
+ * leaves it out unless `includeViewTabs` is asked for.
+ *
+ * **Nothing is bound by the host**: two generic toggles in one exclusive set that may hold none, and two generic
+ * buttons. **No menus, no dialog launchers, no survivors.**
+ */
+export function powerpointBackgroundRemovalTab(options: TabOptions = {}): TemplateResult {
+  const backgroundRemoval = entry('background-removal');
+  const controls = options.controls ?? {};
+  return tab(
+    backgroundRemoval.id,
+    backgroundRemoval.label,
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalMode', {}, controls),
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalClose', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideMasterTab(): TemplateResult {
@@ -419,10 +447,6 @@ export function powerpointGreyscaleTab(): TemplateResult {
 
 export function powerpointPrintPreviewTab(): TemplateResult {
   return placeholderTab(entry('print-preview'));
-}
-
-export function powerpointBackgroundRemovalTab(): TemplateResult {
-  return placeholderTab(entry('background-removal'));
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

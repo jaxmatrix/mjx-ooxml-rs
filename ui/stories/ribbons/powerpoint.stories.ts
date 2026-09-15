@@ -71,7 +71,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review and View** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View and Background Removal** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -91,7 +91,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review and View are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View and Background Removal are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -925,5 +925,27 @@ export const Greyscale: Story = { render: () => ribbon('greyscale') };
 /** Unit 10, and a view tab. */
 export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 
-/** A view tab: Office shows it only while a picture's background is being removed. */
+/**
+ * **Background Removal**: the two pencils that correct Office's guess at a picture's background, and the two
+ * ways out. A view tab Office shows only while a picture's background is being removed. Authored after Word's,
+ * one tab of one application, from the same census functions under PowerPoint's ids. Two groups: Refine and
+ * Close. What to look at, least certain first:
+ *
+ * 1. ⚠ **The pencils hold at most one, and start with neither.** Press Mark Areas to Keep: it fills. Press
+ *    Mark Areas to Remove: it fills and Keep releases. Press Remove again: it releases, and neither is
+ *    pressed. `GUESS:` the release on a second press and the empty start; View's three sets, by contrast,
+ *    keep one pressed.
+ * 2. **The set is PowerPoint's own.** Inspect a pencil: its `exclusive` attribute is
+ *    `powerpoint.background-removal.refine`, not Word's.
+ * 3. ⚠ **Refine has two commands, not three.** Delete Mark, which Office 2010 to 2016 drew, is absent because
+ *    Microsoft 365 no longer draws it. `GUESS:`.
+ * 4. ⚠ **Four circles**: a plus and a minus for the pencils, a cross and a tick for Discard All Changes and
+ *    Keep Changes. `GUESS:` every glyph, as on Word's.
+ * 5. **All four are large, and the long labels wrap.** *Mark Areas to Remove* and *Discard All Changes* should
+ *    wrap to two lines without an ellipsis.
+ * 6. **No survivors.** Drag narrow until both groups collapse: each popup trigger stands alone and opens its
+ *    commands in order. The pencils' set still holds one at most when pressed inside the popup.
+ * 7. **Not in `Shell/PowerPoint`**: the shell's strip has no Background Removal tab. No menus, no dialog
+ *    launchers.
+ */
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
