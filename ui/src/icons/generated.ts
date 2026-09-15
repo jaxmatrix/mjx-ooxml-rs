@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 570 glyphs, 213527 bytes of path data, subset from the
+ * 571 glyphs, 213698 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -2299,10 +2299,14 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 24 24',
     paths: ['M14.03 2.78c1.47-.4 2.98.48 3.37 1.94l2.72 10.14a2.75 2.75 0 0 1-1.94 3.37l-6.28 1.69a2.75 2.75 0 0 1-3.37-1.95L5.8 7.83a2.75 2.75 0 0 1 1.95-3.37zM5.8 11.66l1.76 6.57q.29 1.02 1 1.71l-.44-.02a2.75 2.75 0 0 1-2.6-2.9zm8.62-7.43L8.14 5.9c-.66.18-1.06.86-.88 1.53l2.72 10.14c.18.67.86 1.06 1.53.89l6.28-1.69c.66-.17 1.06-.86.88-1.53L15.95 5.11a1.25 1.25 0 0 0-1.53-.88m-9.54 5.95-.36 6.8q-.05 1.06.43 1.94l-.42-.16a2.75 2.75 0 0 1-1.58-3.56zm4.86-3.15a1 1 0 1 1 .52 1.94 1 1 0 0 1-.52-1.94'],
   },
+  'mjx-fluent:layout-row-two-split-top-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M3 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zm3-2a2 2 0 0 0-2 2v3.5h5.5V4zm4.5 5.5H16V6a2 2 0 0 0-2-2h-3.5zm5.5 1H4V14c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2z'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 570;
+export const subsetGlyphCount = 571;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -2311,7 +2315,7 @@ export const subsetGlyphCount = 570;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 213527;
+export const subsetPathBytes = 213698;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

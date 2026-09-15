@@ -73,7 +73,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview and Slide Master** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master and Slide Master Home** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -93,7 +93,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview and Slide Master are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master and Slide Master Home are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -104,6 +104,67 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
+
+/**
+ * **Home's host controls, written once for the two tabs PowerPoint calls Home**: the ordinary Home and Slide Master
+ * Home, whose Clipboard, Font and Drawing groups are the same census functions under two tab ids.
+ *
+ * Each binding below is still keyed by its literal command id, so `tests/ribbons.test.ts` reads every key as before;
+ * what is shared is the markup. A control that carries a DOM `id` takes it as an argument, so the two tabs, which
+ * this story renders at once, never put one id on the page twice. Both Paste split buttons open the one paste menu
+ * `ribbon()` renders. Home passes the ids it always had, so its rendered output is unchanged.
+ */
+const homeBinding = {
+  paste: (): TemplateResult => html`<mjx-split-button
+    label="Paste"
+    icon="clipboard-paste"
+    size="large"
+    menu-label="Paste options"
+    data-opens="ribbons-ppt-paste"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  fontName: (id: string): TemplateResult => html`<mjx-font-picker
+    id=${id}
+    style=${ribbonFieldStyle}
+    label="Font"
+    value="Aptos"
+    .fonts=${machineFonts}
+  ></mjx-font-picker>`,
+  fontSize: (id: string): TemplateResult => html`<mjx-dropdown
+    id=${id}
+    label="Font size"
+    value="18"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${['12', '14', '18', '24', '32', '44'].map(
+      (size) => html`<mjx-option value=${size} label=${size}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  fontColour: (id: string): TemplateResult => html`<mjx-color-picker
+    id=${id}
+    style=${ribbonColourFieldStyle}
+    label="Font colour"
+    show-automatic
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  shapeStyles: (id: string): TemplateResult => html`<mjx-gallery
+    id=${id}
+    label="Shape styles"
+    value="office-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${largeGalleryItems().slice(0, 24)}
+  </mjx-gallery>`,
+  arrange: (): TemplateResult => html`<mjx-screentip
+    heading="Arrange"
+    description="Change how the selected shapes overlap one another, and how they line up."
+    shortcut="Alt + J D A"
+  >
+    <mjx-button label="Arrange" icon="layer"></mjx-button>
+  </mjx-screentip>`,
+} as const;
 
 /** The catalogue's own bindings. See `Ribbons/Word` on why these are not the shell's. */
 const bindings: ControlOverrides = {
@@ -126,55 +187,12 @@ const bindings: ControlOverrides = {
   >
     ${copyCounts.map((count) => html`<mjx-option value=${count} label=${count}></mjx-option>`)}
   </mjx-combo-box>`,
-  'powerpoint.home.clipboard.paste': html`<mjx-split-button
-    label="Paste"
-    icon="clipboard-paste"
-    size="large"
-    menu-label="Paste options"
-    data-opens="ribbons-ppt-paste"
-    @mjx-menu-request=${openDeclaredSurface}
-  ></mjx-split-button>`,
-  'powerpoint.home.font.name': html`<mjx-font-picker
-    id="ribbons-ppt-font"
-    style=${ribbonFieldStyle}
-    label="Font"
-    value="Aptos"
-    .fonts=${machineFonts}
-  ></mjx-font-picker>`,
-  'powerpoint.home.font.size': html`<mjx-dropdown
-    id="ribbons-ppt-size"
-    label="Font size"
-    value="18"
-    style=${ribbonNarrowFieldStyle}
-  >
-    ${['12', '14', '18', '24', '32', '44'].map(
-      (size) => html`<mjx-option value=${size} label=${size}></mjx-option>`,
-    )}
-  </mjx-dropdown>`,
-  'powerpoint.home.font.colour': html`<mjx-color-picker
-    id="ribbons-ppt-colour"
-    style=${ribbonColourFieldStyle}
-    label="Font colour"
-    show-automatic
-    .themePalette=${documentThemePalette}
-    .standardColors=${standardColors}
-    .recentColors=${recentColors}
-  ></mjx-color-picker>`,
-  'powerpoint.home.drawing.styles': html`<mjx-gallery
-    id="ribbons-ppt-shape-styles"
-    label="Shape styles"
-    value="office-1"
-    style=${ribbonGalleryStyle}
-  >
-    ${largeGalleryItems().slice(0, 24)}
-  </mjx-gallery>`,
-  'powerpoint.home.drawing.arrange': html`<mjx-screentip
-    heading="Arrange"
-    description="Change how the selected shapes overlap one another, and how they line up."
-    shortcut="Alt + J D A"
-  >
-    <mjx-button label="Arrange" icon="layer"></mjx-button>
-  </mjx-screentip>`,
+  'powerpoint.home.clipboard.paste': homeBinding.paste(),
+  'powerpoint.home.font.name': homeBinding.fontName('ribbons-ppt-font'),
+  'powerpoint.home.font.size': homeBinding.fontSize('ribbons-ppt-size'),
+  'powerpoint.home.font.colour': homeBinding.fontColour('ribbons-ppt-colour'),
+  'powerpoint.home.drawing.styles': homeBinding.shapeStyles('ribbons-ppt-shape-styles'),
+  'powerpoint.home.drawing.arrange': homeBinding.arrange(),
   // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
   // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
   // opens the menu, a split button opens it from its arrow. `data-opens` is
@@ -680,6 +698,26 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-slide-master-size-slide-size"
   ></mjx-button>`,
+  // Slide Master Home (a view tab). Home's six bindings through `homeBinding`, with this tab's own DOM ids, and
+  // Master Slides' two dropdowns over `stories/ribbons/slide-master-menus.ts`. `Shell/PowerPoint` binds none of them.
+  'powerpoint.slide-master-home.clipboard.paste': homeBinding.paste(),
+  'powerpoint.slide-master-home.master-slides.layout': html`<mjx-button
+    label="Layout"
+    icon="layout-row-two-split-top"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-home-master-slides-layout"
+  ></mjx-button>`,
+  'powerpoint.slide-master-home.master-slides.section': html`<mjx-button
+    label="Section"
+    icon="slide-multiple"
+    size="small"
+    data-opens="ribbons-powerpoint-slide-master-home-master-slides-section"
+  ></mjx-button>`,
+  'powerpoint.slide-master-home.font.name': homeBinding.fontName('ribbons-ppt-slide-master-home-font'),
+  'powerpoint.slide-master-home.font.size': homeBinding.fontSize('ribbons-ppt-slide-master-home-size'),
+  'powerpoint.slide-master-home.font.colour': homeBinding.fontColour('ribbons-ppt-slide-master-home-colour'),
+  'powerpoint.slide-master-home.drawing.styles': homeBinding.shapeStyles('ribbons-ppt-slide-master-home-shape-styles'),
+  'powerpoint.slide-master-home.drawing.arrange': homeBinding.arrange(),
 };
 
 /**
@@ -1023,7 +1061,34 @@ export const View: Story = { render: () => ribbon('view') };
  */
 export const SlideMaster: Story = { render: () => ribbon('slide-master') };
 
-/** Unit 10, and the *second* tab called Home — see this file's header. */
+/**
+ * **Slide Master Home**: the *second* tab called Home (see this file's header), the one Slide Master view shows beside
+ * Slide Master. A view tab. Authored after Slide Master, one tab of one application, and PowerPoint's fourth view tab.
+ * Six groups: Clipboard, Master Slides, Font, Paragraph, Drawing and Editing. What to look at, least certain first:
+ *
+ * 1. ⚠ **Master Slides is the one group of its own**, second, where Home has Slides: Insert Slide Master and Insert
+ *    Layout large, then Layout, Reset and Section small in a column. The census counts 9; five are drawn. `GUESS:`
+ *    that reading of the count.
+ * 2. ⚠ **Layout's glyph is new**: a frame split into a title row and two panes, not Home's Layout glyph, because
+ *    Insert Layout beside it already wears that one. Compare the two: they should not read as one command twice.
+ *    `GUESS:` the glyph.
+ * 3. ⚠ **Layout and Section open menus here**, where Home's Layout and Section are plain buttons. Press Layout: an
+ *    *Office Theme* section with eleven layouts, Title Slide to Vertical Title and Text, none ticked. Press Section:
+ *    Add Section, Rename Section, Remove Section, Remove All Sections, a separator, Collapse All and Expand All.
+ *    Office greys Section and Reset in master view; here they are available. `GUESS:` every entry and the greying.
+ * 4. **Clipboard, Font, Paragraph, Drawing and Editing are Home's.** Switch between this story and `Home`: the five
+ *    groups should match command for command, glyph for glyph, pressed state for pressed state (Bold and Align Left
+ *    pressed), with the same four dialog launchers. Inspect a command: its id carries `slide-master-home`.
+ * 5. **Home's six bindings are here, as their own controls.** Paste is a split button whose arrow opens the paste
+ *    menu; the font picker, size, colour picker and Shape styles gallery work; Arrange shows its screentip. Change the
+ *    font size here, then open `Home`: Home's field has not changed. Shapes stays a plain button, as on Home.
+ * 6. **Survivors are Home's.** Drag narrow: Font keeps Bold, Italic and Underline beside its trigger, Paragraph
+ *    keeps Align Left, Centre and Align Right, and Master Slides, Clipboard, Drawing and Editing keep nothing.
+ * 7. **Glyphs to judge in Master Slides**: Slide Master's slide with a title and a plus, and its layout, then the new
+ *    layout frame, Home's reset loop and Home's stacked slides.
+ * 8. **Not in `Shell/PowerPoint`**: the shell's strip has one Home tab, the ordinary one, and no Layout or Section
+ *    menu of this tab is on that page.
+ */
 export const SlideMasterHome: Story = { render: () => ribbon('slide-master-home') };
 
 /** Unit 10, and a view tab. */

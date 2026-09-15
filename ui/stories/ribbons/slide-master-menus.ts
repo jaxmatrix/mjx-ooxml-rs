@@ -1,6 +1,6 @@
 /**
- * **The menus the master view tabs open**: PowerPoint's Slide Master today, and Handout Master and Notes Master
- * when their units land, written once for the host that draws them.
+ * **The menus the master view tabs open**: PowerPoint's Slide Master and the Home tab beside it today, and Handout
+ * Master and Notes Master when their units land, written once for the host that draws them.
  *
  * The pattern is `stories/ribbons/print-preview-menus.ts`'s, for its reasons. A binding lives in its host. The
  * menu it opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host
@@ -27,6 +27,13 @@
  * PowerPoint's Variants footer draw the same lists; see that file.
  *
  * **Insert Placeholder's list is Slide Master's own**, because no other tab opens it.
+ *
+ * ## PowerPoint's Slide Master Home
+ *
+ * The Home tab Slide Master view shows opens two menus of its own, both from its Master Slides group: **Layout**, the
+ * Office Theme's eleven layouts, and **Section**, Office's six section commands. Neither list is written anywhere
+ * else: Insert's New Slide lists seven layouts rather than eleven, and Home draws its Layout and Section as buttons.
+ * Every other binding on that tab is Home's and opens Home's paste menu, which the host renders already.
  *
  * ## Who renders these
  *
@@ -112,10 +119,62 @@ function slideMasterMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── PowerPoint's Slide Master Home ───────────────────────────────────────────
+
+/**
+ * Layout's list: **the Office Theme's eleven layouts**, in the order Office's Layout gallery draws them, under the
+ * theme's name. No entry is ticked: in master view the selection is a master or a layout rather than a slide, so
+ * there is no current layout to tick. `GUESS:` the order, and the unticked list.
+ */
+function officeThemeLayoutEntries(): TemplateResult {
+  return html`<mjx-menu-section label="Office Theme">
+    ${[
+      'Title Slide',
+      'Title and Content',
+      'Section Header',
+      'Two Content',
+      'Comparison',
+      'Title Only',
+      'Blank',
+      'Content with Caption',
+      'Picture with Caption',
+      'Title and Vertical Text',
+      'Vertical Title and Text',
+    ].map((label) => html`<mjx-menu-item label=${label}></mjx-menu-item>`)}
+  </mjx-menu-section>`;
+}
+
+/**
+ * Section's list: **Office's six section commands**, the four that change the deck's sections and, after a
+ * separator, the two that fold the thumbnail pane. `GUESS:` that the separator is Office's.
+ */
+function sectionEntries(): TemplateResult[] {
+  return [
+    html`<mjx-menu-item label="Add Section"></mjx-menu-item>`,
+    html`<mjx-menu-item label="Rename Section"></mjx-menu-item>`,
+    html`<mjx-menu-item label="Remove Section"></mjx-menu-item>`,
+    html`<mjx-menu-item label="Remove All Sections"></mjx-menu-item>`,
+    html`<mjx-menu-separator></mjx-menu-separator>`,
+    html`<mjx-menu-item label="Collapse All"></mjx-menu-item>`,
+    html`<mjx-menu-item label="Expand All"></mjx-menu-item>`,
+  ];
+}
+
+/** Two menus, both from Master Slides. Insert Slide Master, Insert Layout and Reset open nothing. */
+function slideMasterHomeMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.slide-master-home.master-slides.layout', 'Layout', officeThemeLayoutEntries())}
+    ${commandMenu(host, 'powerpoint.slide-master-home.master-slides.section', 'Section', ...sectionEntries())}
+  `;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
-/** Every master view's menus, as each unit authors them. Handout Master and Notes Master add theirs here. */
-const menusByTab: readonly ((host: RibbonSurfaceHost) => TemplateResult)[] = [slideMasterMenus];
+/**
+ * Every master view's menus, as each unit authors them. Handout Master and Notes Master add theirs here; Slide Master
+ * Home is not a master view of its own, and shares this file because it is shown inside Slide Master view.
+ */
+const menusByTab: readonly ((host: RibbonSurfaceHost) => TemplateResult)[] = [slideMasterMenus, slideMasterHomeMenus];
 
 /**
  * Every menu one application's master view tabs open, with ids for one host's page. Only PowerPoint has master

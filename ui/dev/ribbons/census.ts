@@ -105,7 +105,9 @@
  * Print Preview* part, and **Excel's Print Preview** followed that, Excel's second view tab authored, in its
  * *Excel's Print Preview* part. **PowerPoint's Slide Master** followed, PowerPoint's third view tab authored, its
  * Edit Theme, Background and Close groups written once as functions of the master view; see the *commands the
- * master views show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * master views show* section. **PowerPoint's Slide Master Home** followed, PowerPoint's fourth view tab authored,
+ * its Clipboard, Font, Paragraph, Drawing and Editing groups written once as functions of the Home tab they share;
+ * see that section's *PowerPoint's Slide Master Home* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -463,12 +465,30 @@ const wordHomeEditor: readonly RibbonCommand[] = [
   { id: 'word.home.editor.editor', label: 'Editor', icon: 'text-proofing-tools' },
 ];
 
-const powerpointHomeClipboard: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large' },
-  { id: 'powerpoint.home.clipboard.cut', label: 'Cut', icon: 'cut' },
-  { id: 'powerpoint.home.clipboard.copy', label: 'Copy', icon: 'copy' },
-  { id: 'powerpoint.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
-];
+/**
+ * **The two tabs PowerPoint calls Home**: the ordinary `TabHome`, and `TabSlideMasterHome`, the Home tab Slide
+ * Master view shows.
+ *
+ * They share five of their six groups row for row, with the same ids and the same counts (Clipboard 10, Font 18,
+ * Paragraph 27, Drawing 63, Editing 8), and Office draws the same commands in all five. So those five are
+ * functions of this tab, exactly as `fileOpenCommands` is a function of the application: **written once**, and
+ * every command id carries the tab, so the two tabs' ids stay distinct and a host binds each by its own. Home's
+ * second group is Slides and Slide Master Home's is Master Slides; each is its own tab's constant. See the
+ * *commands the master views show* section's *PowerPoint's Slide Master Home* part.
+ */
+type PowerpointHomeTab = 'home' | 'slide-master-home';
+
+/**
+ * PowerPoint's Clipboard group, on either Home tab. **No survivor**, for the reason this section's header gives.
+ */
+function powerpointHomeClipboardCommands(tab: PowerpointHomeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.clipboard.paste`, label: 'Paste', icon: 'clipboard-paste', size: 'large' },
+    { id: `powerpoint.${tab}.clipboard.cut`, label: 'Cut', icon: 'cut' },
+    { id: `powerpoint.${tab}.clipboard.copy`, label: 'Copy', icon: 'copy' },
+    { id: `powerpoint.${tab}.clipboard.format-painter`, label: 'Format Painter', icon: 'paint-brush' },
+  ];
+}
 
 /**
  * PowerPoint's Slides group — declared since unit 0, rendered by nothing until now.
@@ -503,21 +523,23 @@ const powerpointHomeSlides: readonly RibbonCommand[] = [
  * not. **Underline survives here and not in Word or Excel**: PowerPoint's is a plain toggle, where
  * theirs are split buttons with a menu behind them.
  */
-const powerpointHomeFont: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.font.name', label: 'Font' },
-  { id: 'powerpoint.home.font.size', label: 'Font size' },
-  { id: 'powerpoint.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
-  { id: 'powerpoint.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
-  { id: 'powerpoint.home.font.clear-formatting', label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
-  { id: 'powerpoint.home.font.bold', label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, pressed: true, essential: true },
-  { id: 'powerpoint.home.font.italic', label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
-  { id: 'powerpoint.home.font.underline', label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true, essential: true },
-  { id: 'powerpoint.home.font.text-shadow', label: 'Text Shadow', size: 'small', toggle: true },
-  { id: 'powerpoint.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon', toggle: true },
-  { id: 'powerpoint.home.font.character-spacing', label: 'Character Spacing', icon: 'font-space-tracking-out', size: 'icon' },
-  { id: 'powerpoint.home.font.change-case', label: 'Change Case', icon: 'text-change-case', size: 'icon' },
-  { id: 'powerpoint.home.font.colour', label: 'Font colour' },
-];
+function powerpointHomeFontCommands(tab: PowerpointHomeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.font.name`, label: 'Font' },
+    { id: `powerpoint.${tab}.font.size`, label: 'Font size' },
+    { id: `powerpoint.${tab}.font.grow`, label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
+    { id: `powerpoint.${tab}.font.shrink`, label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
+    { id: `powerpoint.${tab}.font.clear-formatting`, label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
+    { id: `powerpoint.${tab}.font.bold`, label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, pressed: true, essential: true },
+    { id: `powerpoint.${tab}.font.italic`, label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
+    { id: `powerpoint.${tab}.font.underline`, label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true, essential: true },
+    { id: `powerpoint.${tab}.font.text-shadow`, label: 'Text Shadow', size: 'small', toggle: true },
+    { id: `powerpoint.${tab}.font.strikethrough`, label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon', toggle: true },
+    { id: `powerpoint.${tab}.font.character-spacing`, label: 'Character Spacing', icon: 'font-space-tracking-out', size: 'icon' },
+    { id: `powerpoint.${tab}.font.change-case`, label: 'Change Case', icon: 'text-change-case', size: 'icon' },
+    { id: `powerpoint.${tab}.font.colour`, label: 'Font colour' },
+  ];
+}
 
 /**
  * PowerPoint's Paragraph group. The list *levels* rather than Word's indents — in a deck an indent
@@ -527,21 +549,23 @@ const powerpointHomeFont: readonly RibbonCommand[] = [
  * placeholder's text, Align Text is vertical alignment *inside* the placeholder, and Convert to
  * SmartArt turns a bullet list into a diagram.
  */
-const powerpointHomeParagraph: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.paragraph.bullets', label: 'Bullets', icon: 'text-bullet-list-ltr', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.numbering', label: 'Numbering', icon: 'text-number-list-ltr', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.decrease-list-level', label: 'Decrease List Level', icon: 'text-indent-decrease', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.increase-list-level', label: 'Increase List Level', icon: 'text-indent-increase', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.line-spacing', label: 'Line Spacing', icon: 'text-line-spacing', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', size: 'icon', toggle: true, pressed: true, essential: true },
-  { id: 'powerpoint.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, essential: true },
-  { id: 'powerpoint.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
-  { id: 'powerpoint.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon', toggle: true },
-  { id: 'powerpoint.home.paragraph.columns', label: 'Columns', icon: 'text-column-two', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right' },
-  { id: 'powerpoint.home.paragraph.align-text', label: 'Align Text', icon: 'align-center-vertical' },
-  { id: 'powerpoint.home.paragraph.smart-art', label: 'Convert to SmartArt', icon: 'diagram' },
-];
+function powerpointHomeParagraphCommands(tab: PowerpointHomeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.paragraph.bullets`, label: 'Bullets', icon: 'text-bullet-list-ltr', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.numbering`, label: 'Numbering', icon: 'text-number-list-ltr', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.decrease-list-level`, label: 'Decrease List Level', icon: 'text-indent-decrease', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.increase-list-level`, label: 'Increase List Level', icon: 'text-indent-increase', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.line-spacing`, label: 'Line Spacing', icon: 'text-line-spacing', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.align-left`, label: 'Align left', icon: 'text-align-left', size: 'icon', toggle: true, pressed: true, essential: true },
+    { id: `powerpoint.${tab}.paragraph.centre`, label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, essential: true },
+    { id: `powerpoint.${tab}.paragraph.align-right`, label: 'Align right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
+    { id: `powerpoint.${tab}.paragraph.justify`, label: 'Justify', icon: 'text-align-justify', size: 'icon', toggle: true },
+    { id: `powerpoint.${tab}.paragraph.columns`, label: 'Columns', icon: 'text-column-two', size: 'icon' },
+    { id: `powerpoint.${tab}.paragraph.text-direction`, label: 'Text Direction', icon: 'text-direction-rotate-90-right' },
+    { id: `powerpoint.${tab}.paragraph.align-text`, label: 'Align Text', icon: 'align-center-vertical' },
+    { id: `powerpoint.${tab}.paragraph.smart-art`, label: 'Convert to SmartArt', icon: 'diagram' },
+  ];
+}
 
 /**
  * PowerPoint's Drawing group — the census's largest Home group at 63 controls, and six commands on
@@ -557,21 +581,25 @@ const powerpointHomeParagraph: readonly RibbonCommand[] = [
  * hosts bind a `<mjx-gallery>` over it and the gallery's own label is what a reader sees; renaming
  * the census entry would change nothing visible and would make the two disagree.
  */
-const powerpointHomeDrawing: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.drawing.shapes', label: 'Shapes', icon: 'shapes' },
-  { id: 'powerpoint.home.drawing.arrange', label: 'Arrange', icon: 'layer' },
-  { id: 'powerpoint.home.drawing.styles', label: 'Shape styles' },
-  { id: 'powerpoint.home.drawing.fill', label: 'Shape Fill', icon: 'color-fill' },
-  { id: 'powerpoint.home.drawing.outline', label: 'Shape Outline', icon: 'color-line' },
-  { id: 'powerpoint.home.drawing.effects', label: 'Shape Effects', icon: 'square-shadow' },
-];
+function powerpointHomeDrawingCommands(tab: PowerpointHomeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.drawing.shapes`, label: 'Shapes', icon: 'shapes' },
+    { id: `powerpoint.${tab}.drawing.arrange`, label: 'Arrange', icon: 'layer' },
+    { id: `powerpoint.${tab}.drawing.styles`, label: 'Shape styles' },
+    { id: `powerpoint.${tab}.drawing.fill`, label: 'Shape Fill', icon: 'color-fill' },
+    { id: `powerpoint.${tab}.drawing.outline`, label: 'Shape Outline', icon: 'color-line' },
+    { id: `powerpoint.${tab}.drawing.effects`, label: 'Shape Effects', icon: 'square-shadow' },
+  ];
+}
 
 /** No survivor: PowerPoint's Find opens a dialog, Replace is a split button and Select a menu. */
-const powerpointHomeEditing: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.editing.find', label: 'Find', icon: 'search' },
-  { id: 'powerpoint.home.editing.replace', label: 'Replace', icon: 'arrow-swap' },
-  { id: 'powerpoint.home.editing.select', label: 'Select', icon: 'select-all-on' },
-];
+function powerpointHomeEditingCommands(tab: PowerpointHomeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.editing.find`, label: 'Find', icon: 'search' },
+    { id: `powerpoint.${tab}.editing.replace`, label: 'Replace', icon: 'arrow-swap' },
+    { id: `powerpoint.${tab}.editing.select`, label: 'Select', icon: 'select-all-on' },
+  ];
+}
 
 const excelHomeClipboard: readonly RibbonCommand[] = [
   { id: 'excel.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large' },
@@ -5109,6 +5137,86 @@ const powerpointSlideMasterSize: readonly RibbonCommand[] = [
   { id: 'powerpoint.slide-master.size.slide-size', label: 'Slide Size', icon: 'slide-size', size: 'large' },
 ];
 
+// ## PowerPoint's Slide Master Home
+//
+// The unit after Slide Master, one tab of one application: **PowerPoint's `TabSlideMasterHome`**, the Home tab
+// Slide Master view shows beside Slide Master, all six in-scope groups, and PowerPoint's fourth view tab authored.
+// Office labels it *Home*, and the ordinary Home tab is never on screen with it; this catalogue renders both, which
+// is the one place the two labels collide.
+//
+// ## Five groups written once, with Home
+//
+// **Clipboard, Font, Paragraph, Drawing and Editing are Home's rows, with Home's ids and Home's counts** (10, 18,
+// 27, 63 and 8), so they are `powerpointHomeClipboardCommands`, `powerpointHomeFontCommands`,
+// `powerpointHomeParagraphCommands`, `powerpointHomeDrawingCommands` and `powerpointHomeEditingCommands`, functions
+// of the Home tab in the *commands Home shows* section. Home calls them with `'home'` and draws exactly what it drew
+// before; this tab calls them with `'slide-master-home'`, so every id is `powerpoint.slide-master-home.<group>.<command>`
+// and a host binds each tab's controls separately. **Every shape, size, glyph, toggle and survivor in those five
+// groups is Home's**, and so is every reason: Bold, Italic and Underline survive in Font, Align Left, Centre and
+// Align Right in Paragraph, and Clipboard, Drawing and Editing keep none. Only **Master Slides** is this tab's own.
+//
+// ## Master Slides, Office's master-view counterpart to Home's Slides
+//
+// Where Home's second group adds, lays out and sections slides, this one adds **masters and layouts**: Insert Slide
+// Master and Insert Layout, large, then Layout, Reset and Section in a column. **Insert Slide Master and Insert
+// Layout are Slide Master's own commands**, drawn with Slide Master's glyphs and sizes under this tab's ids; Reset
+// is Home's. **Layout and Section are dropdowns a host binds**, over the menus in
+// `stories/ribbons/slide-master-menus.ts`: Layout lists the Office Theme's eleven layouts, and Section lists Office's
+// six section commands.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Master Slides counts 9 and draws 5.** `GUESS:` the reading that the census counts the five commands and four
+//    of Section's entries, the four that change the deck's sections (Add, Rename, Remove, Remove All), leaving out
+//    Collapse All and Expand All, which only fold the thumbnail pane. The menus draw Office's whole lists, and no
+//    reading of what is drawn reaches 9 exactly. Nothing is padded.
+// 2. **Layout draws `layout-row-two-split-top`, not Home's `slide-layout`.** Insert Layout already draws
+//    `slide-layout`, as it does on Slide Master, in the same group; two commands in one group wearing one glyph is
+//    the defect unit 2 removed from Arrange. Insert Layout's entry is identical to Slide Master's and keeps its glyph;
+//    Layout's is not identical to Home's (Home draws a button, this a dropdown) and takes a new one, a frame divided
+//    into a title row and two panes. `GUESS:`.
+// 3. **Layout and Section are dropdowns here and generic buttons on Home.** Home's Slides group records Office's
+//    Layout as a gallery and Section as a menu, and draws both as buttons; Home is unchanged by this unit, so the two
+//    tabs draw one command two ways. The dropdown is the shape the brief and Office give.
+// 4. **Layout's list is not Insert's New Slide list.** New Slide lists seven Office Theme layouts; Office's Layout
+//    gallery lists all eleven, Title and Vertical Text and Vertical Title and Text included, so the two are not the
+//    same list and neither is reused. `GUESS:` the eleven and their order, from memory of Microsoft 365, and that no
+//    entry is ticked while a master, rather than a layout, is selected.
+// 5. **Office greys Section, and Reset, in master view** (`GUESS:`), because a master has no sections and Reset acts
+//    on a slide. Both are drawn available, because `disabled` is loop 2's.
+// 6. **Every other count agrees with Home's**, row for row.
+// 7. **The dialog launchers are Home's four** (Clipboard settings, Font settings, Paragraph settings, Shape
+//    settings), and Master Slides has none, as Slides has none. `GUESS:` that master view keeps all four.
+//
+// ## Survivors: Home's, and none in Master Slides
+//
+// Font keeps Bold, Italic and Underline, and Paragraph Align Left, Centre and Align Right, exactly as on Home.
+// **Master Slides keeps none**: Layout and Section open menus, Insert Slide Master's and Insert Layout's glyphs read
+// as New Slide and Layout without a label, and Reset's loop fails rule 2, as on Home.
+//
+// ## Sizes, and every glyph
+//
+// Master Slides follows Home's Slides: the two insert commands large, the rest small in a column. Every glyph but
+// Layout's is one the subset already draws for the same command: `slide-text-title-add` and `slide-layout` (Slide
+// Master's Insert Slide Master and Insert Layout), `arrow-reset` and `slide-multiple` (Home's Reset and Section).
+// **Layout draws `layout-row-two-split-top`, new** (disagreement 2). No command in Master Slides lacks a glyph.
+
+/**
+ * PowerPoint's `GroupMasterSlides` on Slide Master Home, labelled **Master Slides**: Insert Slide Master and Insert
+ * Layout large, then Layout, Reset and Section in a column. See disagreements 1 to 5.
+ *
+ * **Layout and Section are dropdowns** a host binds; the rest are buttons.
+ *
+ * **No survivor**: two menus, two glyphs that read as other commands, and Reset's loop.
+ */
+const powerpointSlideMasterHomeMasterSlides: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-master-home.master-slides.insert-slide-master', label: 'Insert Slide Master', icon: 'slide-text-title-add', size: 'large' },
+  { id: 'powerpoint.slide-master-home.master-slides.insert-layout', label: 'Insert Layout', icon: 'slide-layout', size: 'large' },
+  { id: 'powerpoint.slide-master-home.master-slides.layout', label: 'Layout', icon: 'layout-row-two-split-top' },
+  { id: 'powerpoint.slide-master-home.master-slides.reset', label: 'Reset', icon: 'arrow-reset' },
+  { id: 'powerpoint.slide-master-home.master-slides.section', label: 'Section', icon: 'slide-multiple' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -5537,12 +5645,12 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabHome' },
     groups: [
-      { id: 'GroupClipboard', label: 'Clipboard', priority: 'secondary', controls: 10, inScope: true, commands: powerpointHomeClipboard },
+      { id: 'GroupClipboard', label: 'Clipboard', priority: 'secondary', controls: 10, inScope: true, commands: powerpointHomeClipboardCommands('home') },
       { id: 'GroupSlides', label: 'Slides', priority: 'standard', controls: 16, inScope: true, commands: powerpointHomeSlides },
-      { id: 'GroupFont', label: 'Font', priority: 'primary', controls: 18, inScope: true, commands: powerpointHomeFont },
-      { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 27, inScope: true, commands: powerpointHomeParagraph },
-      { id: 'GroupDrawing', label: 'Drawing', priority: 'standard', controls: 63, inScope: true, commands: powerpointHomeDrawing },
-      { id: 'GroupEditing', label: 'Editing', priority: 'ancillary', controls: 8, inScope: true, commands: powerpointHomeEditing },
+      { id: 'GroupFont', label: 'Font', priority: 'primary', controls: 18, inScope: true, commands: powerpointHomeFontCommands('home') },
+      { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 27, inScope: true, commands: powerpointHomeParagraphCommands('home') },
+      { id: 'GroupDrawing', label: 'Drawing', priority: 'standard', controls: 63, inScope: true, commands: powerpointHomeDrawingCommands('home') },
+      { id: 'GroupEditing', label: 'Editing', priority: 'ancillary', controls: 8, inScope: true, commands: powerpointHomeEditingCommands('home') },
     ],
   },
   {
@@ -5698,12 +5806,12 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabSlideMasterHome' },
     groups: [
-      { id: 'GroupClipboard', label: 'Clipboard', priority: 'secondary', controls: 10, inScope: true },
-      { id: 'GroupMasterSlides', label: 'Master Slides', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupFont', label: 'Font', priority: 'primary', controls: 18, inScope: true },
-      { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 27, inScope: true },
-      { id: 'GroupDrawing', label: 'Drawing', priority: 'standard', controls: 63, inScope: true },
-      { id: 'GroupEditing', label: 'Editing', priority: 'ancillary', controls: 8, inScope: true },
+      { id: 'GroupClipboard', label: 'Clipboard', priority: 'secondary', controls: 10, inScope: true, commands: powerpointHomeClipboardCommands('slide-master-home') },
+      { id: 'GroupMasterSlides', label: 'Master Slides', priority: 'standard', controls: 9, inScope: true, commands: powerpointSlideMasterHomeMasterSlides },
+      { id: 'GroupFont', label: 'Font', priority: 'primary', controls: 18, inScope: true, commands: powerpointHomeFontCommands('slide-master-home') },
+      { id: 'GroupParagraph', label: 'Paragraph', priority: 'primary', controls: 27, inScope: true, commands: powerpointHomeParagraphCommands('slide-master-home') },
+      { id: 'GroupDrawing', label: 'Drawing', priority: 'standard', controls: 63, inScope: true, commands: powerpointHomeDrawingCommands('slide-master-home') },
+      { id: 'GroupEditing', label: 'Editing', priority: 'ancillary', controls: 8, inScope: true, commands: powerpointHomeEditingCommands('slide-master-home') },
     ],
   },
   {

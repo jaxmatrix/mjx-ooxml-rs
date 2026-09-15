@@ -1126,6 +1126,54 @@ Design, Excel's Page Layout and PowerPoint's Design tab draw the same lists.** `
   now also at 24), `delete`, `color`, `text-font`, `square-shadow`, `color-background`, `slide-size`,
   `dismiss-square`. Title, Footers and Hide Background Graphics are checkboxes and carry none.
 
+### PowerPoint's Slide Master Home
+
+**One tab of one application, and PowerPoint's fourth view tab authored**, after Slide Master. Six groups and
+forty-four commands, in Office's order, which is also the census's: Clipboard, Master Slides, Font, Paragraph,
+Drawing, Editing. It is `TabSlideMasterHome`, the Home tab Slide Master view shows beside Slide Master. Office labels
+it *Home*; the ordinary Home is never on screen with it, and `Ribbons/PowerPoint` is the one place the two collide.
+
+**Five groups are Home's, written once.** Clipboard, Font, Paragraph, Drawing and Editing carry Home's ids and
+Home's counts, so the census declares them as `powerpointHomeClipboardCommands`, `powerpointHomeFontCommands`,
+`powerpointHomeParagraphCommands`, `powerpointHomeDrawingCommands` and `powerpointHomeEditingCommands`, functions of
+the Home tab, as `fileOpenCommands` is a function of the application. Home calls them with `'home'` and draws what it
+drew before; this tab calls them with `'slide-master-home'`, so every id is distinct. **Home's host markup is shared
+the same way**: `homeBinding` in `stories/ribbons/powerpoint.stories.ts` writes Paste, Font, Font size, Font colour,
+Shape styles and Arrange once. Both tabs' bindings are still keyed by literal ids, and each tab passes its own DOM
+ids. Home passes the ids it always had.
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does: the eight bindings and the two menus
+`masterViewMenus('powerpoint', 'ribbons')` renders are in that story file and `stories/ribbons/slide-master-menus.ts`,
+and `Shell/PowerPoint` draws neither.
+
+**Master Slides** is Office's master-view counterpart to Home's Slides:
+
+- **Buttons**: Insert Slide Master and Insert Layout, large, Slide Master's commands with Slide Master's glyphs;
+  Reset, small, Home's.
+- **Two dropdowns a host binds**: Layout, over the Office Theme's eleven layouts, and Section, over Add Section,
+  Rename Section, Remove Section, Remove All Sections, Collapse All and Expand All.
+
+**Survivors are Home's**: Bold, Italic and Underline in Font; Align Left, Centre and Align Right in Paragraph.
+**Master Slides keeps none**: Layout and Section open menus, the two insert glyphs read as New Slide and Layout
+without a label, and Reset's loop fails rule 2, as on Home.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Master Slides counts 9 and draws 5.** `GUESS:` the census counts the five commands and Section's four entries
+  that change sections, and not Collapse All and Expand All. The other five groups' counts agree with Home's.
+- **Layout draws `layout-row-two-split-top`, new**, not Home's `slide-layout`, because Insert Layout wears
+  `slide-layout` in the same group. `GUESS:` the glyph.
+- **Layout and Section are dropdowns here and buttons on Home.** Home is unchanged by this unit.
+- **Layout lists eleven layouts; Insert's New Slide lists seven**, so neither list is reused. `GUESS:` the eleven,
+  their order, and that none is ticked.
+- **Office greys Section and Reset in master view.** `GUESS:`. Both are drawn available, because `disabled` is
+  loop 2's.
+- **The brief names Shapes as a host control; Home binds no Shapes**, so this tab binds Home's six and Shapes stays
+  the generic button.
+- **Home's four dialog launchers are kept.** `GUESS:` that master view keeps them.
+- **One glyph is new**, `layout-row-two-split-top`. Reused: `slide-text-title-add`, `slide-layout`, `arrow-reset`,
+  `slide-multiple`, and every Home glyph in the five shared groups.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

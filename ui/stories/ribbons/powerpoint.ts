@@ -59,6 +59,10 @@
  * commands, the master and its layouts. Edit Theme, Background and Close are declared once for every master view,
  * and every menu is from `stories/ribbons/slide-master-menus.ts`, over Design's own lists.
  *
+ * **Slide Master Home** followed Slide Master, PowerPoint's fourth view tab authored: six groups and forty-four
+ * commands, the Home tab Slide Master view shows. Clipboard, Font, Paragraph, Drawing and Editing are Home's, from the
+ * census's shared functions under this tab's ids, and Master Slides is its own.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -488,11 +492,39 @@ export function powerpointSlideMasterTab(options: TabOptions = {}): TemplateResu
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointSlideMasterHomeTab(): TemplateResult {
-  return placeholderTab(entry('slide-master-home'));
+/**
+ * Slide Master Home: Clipboard, Master Slides, Font, Paragraph, Drawing, Editing — PowerPoint's fourth view tab
+ * authored, in **Office's** order, which is also the census's.
+ *
+ * ⚠ **The second tab labelled Home.** Office shows it only in Slide Master view, beside Slide Master, so
+ * `powerpointTabs()` leaves it out unless `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks, which is
+ * why its bindings are written there and nowhere else.
+ *
+ * **Five groups are Home's.** The census row calls Home's five shared functions with `'slide-master-home'`, so the
+ * commands, their shapes and their survivors are `powerpointHomeTab`'s, and so are the four dialog launchers,
+ * named as Home names them. **Master Slides is this tab's own**: Insert Slide Master and Insert Layout, then Layout,
+ * Reset and Section. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Eight commands are bound by the host**: Home's six (Paste, Font, Font size, Font colour, Shape styles and
+ * Arrange), through the same helpers Home's bindings use, and Layout and Section as dropdowns over
+ * `stories/ribbons/slide-master-menus.ts`. **Survivors**: Home's six, and none in Master Slides.
+ */
+export function powerpointSlideMasterHomeTab(options: TabOptions = {}): TemplateResult {
+  const slideMasterHome = entry('slide-master-home');
+  const controls = options.controls ?? {};
+  return tab(
+    slideMasterHome.id,
+    slideMasterHome.label,
+    censusGroup(slideMasterHome, 'GroupClipboard', { launcher: 'Clipboard settings' }, controls),
+    censusGroup(slideMasterHome, 'GroupMasterSlides', {}, controls),
+    censusGroup(slideMasterHome, 'GroupFont', { launcher: 'Font settings' }, controls),
+    censusGroup(slideMasterHome, 'GroupParagraph', { launcher: 'Paragraph settings' }, controls),
+    censusGroup(slideMasterHome, 'GroupDrawing', { launcher: 'Shape settings' }, controls),
+    censusGroup(slideMasterHome, 'GroupEditing', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointHandoutMasterTab(): TemplateResult {
   return placeholderTab(entry('handout-master'));

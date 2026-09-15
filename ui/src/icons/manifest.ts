@@ -170,7 +170,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'slide-layout',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "PowerPoint's layout command. **Since PowerPoint's Slide Master unit, also Insert Layout**, large, in Edit Master: a slide with a layout inside it, the layout the command adds. Hence 24 as well as 20. Fluent draws no layout with a plus. `GUESS:`.",
+    why: "PowerPoint's layout command. **Since PowerPoint's Slide Master unit, also Insert Layout**, large, in Edit Master: a slide with a layout inside it, the layout the command adds. Hence 24 as well as 20. Fluent draws no layout with a plus. `GUESS:`. **Since PowerPoint's Slide Master Home unit, also Insert Layout there**, large, in Master Slides: the same command. Layout beside it draws `layout-row-two-split-top` instead, so the one group does not carry one glyph twice.",
   },
   {
     name: 'comment',
@@ -367,7 +367,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'slide-multiple',
     sizes: [20],
     variants: ['regular'],
-    why: "Publish Slides — PowerPoint's own Share command, which uploads individual slides to a library rather than the deck as a file. Slides in the plural is the distinction the glyph carries.",
+    why: "Publish Slides — PowerPoint's own Share command, which uploads individual slides to a library rather than the deck as a file. Slides in the plural is the distinction the glyph carries. **Since PowerPoint's Slide Master Home unit, also Section there**, small, in Master Slides: Home's command, now a dropdown.",
   },
   {
     name: 'document-pdf',
@@ -618,7 +618,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-reset',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "**Since PowerPoint's Recording unit, also Reset to Cameo**, the large dropdown in Recording's Edit group, the same verb, so 24 as well (`GUESS:`). Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once.",
+    why: "**Since PowerPoint's Recording unit, also Reset to Cameo**, the large dropdown in Recording's Edit group, the same verb, so 24 as well (`GUESS:`). Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once. **Since PowerPoint's Slide Master Home unit, also Reset there**, small, in Master Slides: Home's command.",
   },
   {
     name: 'font-space-tracking-out',
@@ -2069,7 +2069,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'slide-text-title-add',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Insert Slide Master, large, in Slide Master's Edit Master group: a slide with a title bar and a plus, the slide that carries the title placeholder, added. Not `slide-add`, which is New Slide. `GUESS:`.",
+    why: "Insert Slide Master, large, in Slide Master's Edit Master group: a slide with a title bar and a plus, the slide that carries the title placeholder, added. Not `slide-add`, which is New Slide. `GUESS:`. **Since PowerPoint's Slide Master Home unit, also Insert Slide Master there**, large, in Master Slides: the same command under that tab's id.",
   },
   {
     name: 'rename',
@@ -2100,6 +2100,17 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Themes, large, in Slide Master's Edit Theme group: a fanned swatch book, colours, fonts and effects chosen as one set. Not `color`, Colours beside it, nor `design-ideas`, Designer. Word's and Excel's Themes carry none. `GUESS:`.",
+  },
+  // ── Slide Master Home (PowerPoint's) ──────────────────────────────────────
+  //
+  // One new glyph. Clipboard, Font, Paragraph, Drawing and Editing are Home's commands and draw Home's rows unchanged;
+  // Master Slides reuses `slide-text-title-add`, `slide-layout`, `arrow-reset` and `slide-multiple`, each of which
+  // says so. `dev/ribbons/census.ts` gives the reasoning.
+  {
+    name: 'layout-row-two-split-top',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Layout, the small dropdown in Slide Master Home's Master Slides group, which applies one of the master's layouts: a frame divided into a title row and two panes, the arrangement of placeholders a layout is. Not `slide-layout`, which Insert Layout draws in the same group. `GUESS:`.",
   },
 ];
 
