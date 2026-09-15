@@ -272,8 +272,9 @@ export function wordDesignTab(options: TabOptions = {}): TemplateResult {
  * Paragraph opens the Paragraph dialog, the one Home's launcher opens. Arrange has none.
  *
  * **Paragraph is four measure fields**, Indent Left and Right in centimetres and Spacing Before and
- * After in points, bound by each host as `<mjx-measure-input>`. **Arrange is declared once for Word and
- * Excel** (`arrangeCommands` in `dev/ribbons/census.ts`); Word's leads with Position and Wrap Text.
+ * After in points, bound by each host as `<mjx-measure-input>`. **Arrange is declared once for Word, Excel
+ * and PowerPoint's Table Layout** (`arrangeCommands` in `dev/ribbons/census.ts`); Word's leads with Position and
+ * Wrap Text.
  *
  * **Eighteen of the tab's nineteen commands are bound by the host**: the seven Page Setup dropdowns,
  * the four fields, and seven of Arrange's eight, Bring Forward and Send Backward as split buttons.

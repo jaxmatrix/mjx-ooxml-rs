@@ -1162,6 +1162,8 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       ],
       'powerpoint.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
       'powerpoint.table-design.draw-borders.tools': ['Draw Table', 'Eraser'],
+      'powerpoint.table-layout.alignment.horizontal': ['Align Left', 'Align Centre', 'Align Right'],
+      'powerpoint.table-layout.alignment.vertical': ['Align Top', 'Centre Vertically', 'Align Bottom'],
       'excel.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
     });
   });
@@ -1204,6 +1206,8 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'word.table-layout.alignment.cell-alignment': ['Align Top Left'],
       'powerpoint.background-removal.refine': [],
       'powerpoint.table-design.draw-borders.tools': [],
+      'powerpoint.table-layout.alignment.horizontal': ['Align Left'],
+      'powerpoint.table-layout.alignment.vertical': ['Align Top'],
       'excel.background-removal.refine': [],
     });
   });

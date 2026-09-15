@@ -370,6 +370,9 @@ function printAreaEntries(): TemplateResult[] {
 }
 
 // ── Arrange: Word's Layout and Excel's Page Layout ──────────────────────────
+//
+// Bring Forward's, Send Backward's and Align's lists also serve PowerPoint's Table Layout, whose menus are rendered by
+// `stories/ribbons/table-tools-menus.ts` under that tab's own ids. Each takes the application.
 
 /** Position, in Word: in line, three of Office's nine wrapped positions, and the dialog. */
 function positionEntries(): TemplateResult[] {
@@ -403,8 +406,12 @@ function wrapTextEntries(): TemplateResult[] {
   ];
 }
 
-/** Bring Forward's arrow. Word adds the layer a picture can have that a sheet's shapes cannot: text. */
-function bringForwardEntries(application: 'word' | 'excel'): TemplateResult[] {
+/**
+ * Bring Forward's arrow. Word adds the layer a picture can have that a sheet's shapes cannot: text. PowerPoint's is
+ * Excel's, a slide having no text layer either. Exported for PowerPoint's Table Layout, whose menus are written in
+ * `stories/ribbons/table-tools-menus.ts`.
+ */
+export function bringForwardEntries(application: RibbonApplication): TemplateResult[] {
   return [
     item('Bring Forward'),
     item('Bring to Front'),
@@ -412,8 +419,8 @@ function bringForwardEntries(application: 'word' | 'excel'): TemplateResult[] {
   ];
 }
 
-/** Send Backward's arrow, mirroring Bring Forward's. */
-function sendBackwardEntries(application: 'word' | 'excel'): TemplateResult[] {
+/** Send Backward's arrow, mirroring Bring Forward's. Exported for the same reason. */
+export function sendBackwardEntries(application: RibbonApplication): TemplateResult[] {
   return [
     item('Send Backward'),
     item('Send to Back'),
@@ -425,13 +432,17 @@ function sendBackwardEntries(application: 'word' | 'excel'): TemplateResult[] {
  * Align: the six alignments and the two distributions, then what each application aligns against.
  *
  * Word aligns to the page or the margin; Excel snaps to the grid or to other shapes. Both offer the
- * gridlines.
+ * gridlines. **PowerPoint aligns to the slide or to the other selected objects**, and keeps its gridlines on View's
+ * Grid Settings rather than here. With one object selected, as a table always is, Office ticks Align to Slide.
+ * `GUESS:` PowerPoint's two entries and that tick. Exported for PowerPoint's Table Layout.
  */
-function alignEntries(application: 'word' | 'excel'): TemplateResult[] {
-  const against =
-    application === 'word'
-      ? [choice('Align to Page'), choice('Align to Margin', true), separator(), option('Use Alignment Guides', true), option('View Gridlines')]
-      : [option('Snap to Grid'), option('Snap to Shape'), option('View Gridlines', true)];
+export function alignEntries(application: RibbonApplication): TemplateResult[] {
+  const againstByApplication: Readonly<Record<RibbonApplication, TemplateResult[]>> = {
+    word: [choice('Align to Page'), choice('Align to Margin', true), separator(), option('Use Alignment Guides', true), option('View Gridlines')],
+    excel: [option('Snap to Grid'), option('Snap to Shape'), option('View Gridlines', true)],
+    powerpoint: [choice('Align to Slide', true), choice('Align Selected Objects')],
+  };
+  const against = againstByApplication[application];
   return [
     section(
       'Align',

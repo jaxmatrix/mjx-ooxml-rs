@@ -106,7 +106,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'text-align-left',
     sizes: [20],
     variants: ['regular', 'filled'],
-    why: 'Paragraph alignment. One of a radio group, whose chosen member is drawn filled.',
+    why: "Paragraph alignment. One of a radio group, whose chosen member is drawn filled. **Since PowerPoint's Table Layout unit, also Align Left, Align Centre and Align Right** (with `text-align-center` and `text-align-right`) in its Alignment group, icon-only toggles in one exclusive set and survivors: the same act on a cell's text. `GUESS:`.",
   },
   {
     name: 'text-align-center',
@@ -636,7 +636,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'text-direction-rotate-90-right',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Text Direction on PowerPoint's Paragraph group and Orientation on Excel's Alignment group — the same command in two vocabularies, and Fluent's rotated glyph is what both applications draw. **Since Word's Table Layout unit, also Text Direction** in Alignment, large, which turns the selected cells' text a quarter further with each press: the same command, so the same glyph, and 24 too. `GUESS:`.",
+    why: "Text Direction on PowerPoint's Paragraph group and Orientation on Excel's Alignment group — the same command in two vocabularies, and Fluent's rotated glyph is what both applications draw. **Since Word's Table Layout unit, also Text Direction** in Alignment, large, which turns the selected cells' text a quarter further with each press: the same command, so the same glyph, and 24 too. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Text Direction**, a large dropdown over Horizontal, Rotate all text 90°, Rotate all text 270° and Stacked. `GUESS:`.",
   },
   {
     name: 'align-center-vertical',
@@ -648,7 +648,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'align-top',
     sizes: [20],
     variants: ['regular', 'filled'],
-    why: "Top Align, on Excel's Alignment group — the first of the three vertical alignments Excel puts above the three horizontal ones. Both variants: all three are toggles, which unit 2 could not draw because the group's essential slots were spent on Left, Centre and Right.",
+    why: "Top Align, on Excel's Alignment group — the first of the three vertical alignments Excel puts above the three horizontal ones. Both variants: all three are toggles, which unit 2 could not draw because the group's essential slots were spent on Left, Centre and Right. **Since PowerPoint's Table Layout unit, also Align Top, Centre Vertically and Align Bottom** (with `align-center-vertical` and `align-bottom`), icon-only toggles in one exclusive set in its Alignment group, Align Top pressed: the same act on a table cell. `GUESS:`.",
   },
   {
     name: 'align-bottom',
@@ -682,9 +682,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'table-cells-merge',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Merge & Centre, on Excel's Alignment group — replacing a bare `table`. Two cells becoming one is the command's whole content, and it is what separates it from every other table glyph in this subset. **Since Word's Table Layout unit, also Merge Cells** in the Merge group, small and a survivor: the same act in Word, and rule 2's standard refuses only a glyph that is a *different* command's. `GUESS:`.",
+    why: "Merge & Centre, on Excel's Alignment group — replacing a bare `table`. Two cells becoming one is the command's whole content, and it is what separates it from every other table glyph in this subset. **Since Word's Table Layout unit, also Merge Cells** in the Merge group, small and a survivor: the same act in Word, and rule 2's standard refuses only a glyph that is a *different* command's. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Merge Cells**, large and a survivor, beside Split Cells: the same act on a slide, so 24 too. `GUESS:` large.",
   },
   {
     name: 'text-percent',
@@ -720,7 +720,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-dismiss',
     sizes: [20, 24],
     variants: ['regular'],
-    why: 'Delete, beside it, and refused the same two specific alternatives for the same reason. A table with a dismiss mark is as broad as the command is. **Since Word\'s Table Layout unit, also Delete** in Rows & Columns, a large dropdown whose menu deletes cells, columns, rows or the table: as broad as Excel\'s, so the same glyph, and 24 too. `GUESS:`.',
+    why: 'Delete, beside it, and refused the same two specific alternatives for the same reason. A table with a dismiss mark is as broad as the command is. **Since Word\'s Table Layout unit, also Delete** in Rows & Columns, a large dropdown whose menu deletes cells, columns, rows or the table: as broad as Excel\'s, so the same glyph, and 24 too. `GUESS:`. **Since PowerPoint\'s Table Layout unit, also its Delete**, the same large dropdown, over columns, rows or the table. `GUESS:`.',
   },
   {
     name: 'table-settings',
@@ -1088,7 +1088,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'position-forward',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Bring Forward, the split button on Arrange in Word (small) and Excel (large): the hatched shape moving in front of the plain one.",
+    why: "Bring Forward, the split button on Arrange in Word (small) and Excel (large): the hatched shape moving in front of the plain one. **Since PowerPoint's Table Layout unit, also its Arrange Bring Forward**, small, through the census's shared `arrangeCommands`; with it Send Backward's `position-backward` and Align's `align-left`. `GUESS:`.",
   },
   {
     name: 'position-backward',
@@ -2137,15 +2137,15 @@ export const iconRequests: readonly IconRequest[] = [
   // `dev/ribbons/census.ts` gives the reasoning.
   {
     name: 'table-cursor',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Select, small, in Word's Table Layout Table group, which opens Select Cell, Column, Row and Table: a table with a pointer, Office's own picture. Not `select-all-on`, Home's Select. `GUESS:`.",
+    why: "Select, small, in Word's Table Layout Table group, which opens Select Cell, Column, Row and Table: a table with a pointer, Office's own picture. Not `select-all-on`, Home's Select. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Select**, large, which opens Select Table, Column and Row: the same command, so 24 too. `GUESS:`.",
   },
   {
     name: 'border-inside',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "View Gridlines, the small toggle in Word's Table Layout Table group, pressed: a dashed box with its inside lines, the lines that show where a borderless table's cells are. Filled while pressed. Unlabelled it reads as Inside Borders, which is why it is no survivor. `GUESS:`.",
+    why: "View Gridlines, the small toggle in Word's Table Layout Table group, pressed: a dashed box with its inside lines, the lines that show where a borderless table's cells are. Filled while pressed. Unlabelled it reads as Inside Borders, which is why it is no survivor. `GUESS:`. **Since PowerPoint's Table Layout unit, also its View Gridlines**, a large toggle, pressed: the same command and the same reason for no survivor, so 24 in both variants. `GUESS:`.",
   },
   {
     name: 'table-edit',
@@ -2157,7 +2157,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-stack-above',
     sizes: [24],
     variants: ['regular'],
-    why: "Insert Above, the large button in Word's Table Layout Rows & Columns group, and a survivor: a table with a new line above it. `GUESS:`.",
+    why: "Insert Above, the large button in Word's Table Layout Rows & Columns group, and a survivor: a table with a new line above it. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Insert Above**, large and a survivor, and with it **Insert Below, Left and Right draw the three rows below** on that tab too, at the same sizes. `GUESS:`.",
   },
   {
     name: 'table-stack-below',
@@ -2179,9 +2179,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'table-cells-split',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Split Cells, small, in Word's Table Layout Merge group, which opens Split Cells: one cell divided, the reverse of `table-cells-merge` beside it. `GUESS:`.",
+    why: "Split Cells, small, in Word's Table Layout Merge group, which opens Split Cells: one cell divided, the reverse of `table-cells-merge` beside it. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Split Cells**, large beside a large Merge Cells, which opens a dialog asking for rows and columns: the same command, so 24 too. `GUESS:` large.",
   },
   {
     name: 'table-split',
@@ -2199,7 +2199,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'align-space-evenly-vertical',
     sizes: [20],
     variants: ['regular'],
-    why: "Distribute Rows, small, in Word's Table Layout Cell Size group, and a survivor: three equal bars stacked, rows given one height. `GUESS:`.",
+    why: "Distribute Rows, small, in Word's Table Layout Cell Size group, and a survivor: three equal bars stacked, rows given one height. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Distribute Rows**, with `align-space-evenly-horizontal` for Distribute Columns, both small survivors in Cell Size. `GUESS:`.",
   },
   {
     name: 'align-space-evenly-horizontal',
@@ -2265,7 +2265,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'padding-left',
     sizes: [24],
     variants: ['regular'],
-    why: "Cell Margins, the large button in Word's Table Layout Alignment group, which opens Table Options: an edge, a dashed inner guide and the space between them, the room between a cell's border and its text. Not `document-margins`, which is a page's. The weakest glyph on the tab. `GUESS:`.",
+    why: "Cell Margins, the large button in Word's Table Layout Alignment group, which opens Table Options: an edge, a dashed inner guide and the space between them, the room between a cell's border and its text. Not `document-margins`, which is a page's. The weakest glyph on the tab. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Cell Margins**, a large dropdown over Normal, None, Narrow, Wide and Custom Margins…, and the weakest glyph on that tab too. `GUESS:`.",
   },
   {
     name: 'table-arrow-repeat-all',

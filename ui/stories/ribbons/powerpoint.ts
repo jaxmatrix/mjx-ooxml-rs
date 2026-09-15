@@ -87,8 +87,13 @@
  * table wears, the WordArt its text wears and the pen Draw Table draws with. Its gallery, fields and menus are in
  * `stories/ribbons/table-tools-menus.ts`, over Word's table art, and its WordArt Styles group's in
  * `stories/ribbons/wordart-styles-menus.ts`, written for Shape Format and Chart Format. **`Ribbons/PowerPoint` alone
- * binds it**, because `Shell/PowerPoint` draws Picture Tools. **The other five are placeholders**, each until its own
- * unit.
+ * binds it**, because `Shell/PowerPoint` draws Picture Tools.
+ *
+ * **Table Layout is authored**, the second: seven groups and twenty-eight commands, the table's rows, columns and
+ * cells, their sizes and alignment, the table's size and its place among the slide's objects. Its Select and Delete
+ * menus are Word's shared lists, its Text Direction and Cell Margins menus are in the same file, and its Arrange group
+ * is the census's `arrangeCommands` for a table. `Ribbons/PowerPoint` alone binds it. **The other four are
+ * placeholders**, each until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -742,12 +747,48 @@ export function powerpointTableDesignTab(options: TabOptions = {}): TemplateResu
 }
 
 /**
- * Which function builds which contextual tab. **Table Design is authored; every other entry is `placeholderTab`
- * today** — see Word's.
+ * Table Layout: Table, Rows & Columns, Merge, Cell Size, Alignment, Table Size, Arrange — PowerPoint's second
+ * contextual tab authored, in **Office's** order, which is also the census's. It sits under the *Table Tools* band
+ * beside Table Design, and its label is Office's *Layout*.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a table on a slide is selected.** `Ribbons/PowerPoint` alone binds
+ * it, for Table Design's reason: `Shell/PowerPoint` draws Picture Tools. `dev/ribbons/census.ts` records every
+ * disagreement.
+ *
+ * **Twelve of the tab's twenty-eight commands are bound by a host**: Select, Delete, Text Direction and Cell Margins,
+ * dropdowns that open their menus from `stories/ribbons/table-tools-menus.ts`; Bring Forward and Send Backward, split
+ * buttons, and Align, a dropdown, over `stories/ribbons/design-layout-menus.ts`' Arrange lists; the two Height and
+ * Width pairs, measure fields; Lock Aspect Ratio, a checkbox. Every other command is the generic toggle or button:
+ * two exclusive sets of exactly one (the three horizontal and the three vertical alignments), View Gridlines and
+ * Selection Pane, and seven buttons.
+ *
+ * **Arrange is the census's shared `arrangeCommands`**, for a table: no Group or Rotate.
+ *
+ * **No dialog launcher** (`GUESS:`). **Nine survivors in four groups**, each group's reason in the census.
+ */
+export function powerpointTableLayoutTab(options: TabOptions = {}): TemplateResult {
+  const tableLayout = entry('table-layout');
+  const controls = options.controls ?? {};
+  return tab(
+    tableLayout.id,
+    tableLayout.label,
+    censusGroup(tableLayout, 'GroupTable', {}, controls),
+    censusGroup(tableLayout, 'GroupTableRowsAndColumns', {}, controls),
+    censusGroup(tableLayout, 'GroupMerge', {}, controls),
+    censusGroup(tableLayout, 'GroupTableCellSize', {}, controls),
+    censusGroup(tableLayout, 'GroupAlignment', {}, controls),
+    censusGroup(tableLayout, 'GroupTableSize', {}, controls),
+    censusGroup(tableLayout, 'GroupArrange', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design and Table Layout are authored; every other entry is
+ * `placeholderTab` today** — see Word's.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': powerpointTableDesignTab,
-  'table-layout': () => placeholderTab(entry('table-layout')),
+  'table-layout': powerpointTableLayoutTab,
   'picture-format': () => placeholderTab(entry('picture-format')),
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),

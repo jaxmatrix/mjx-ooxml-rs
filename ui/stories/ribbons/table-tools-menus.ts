@@ -1,7 +1,6 @@
 /**
- * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's Table Design and
- * Table Layout and PowerPoint's Table Design today, and Excel's Table Design and PowerPoint's Table Layout when their
- * units land.
+ * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's and PowerPoint's
+ * Table Design and Table Layout today, and Excel's Table Design when its unit lands.
  *
  * The pattern is `stories/ribbons/slide-master-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -43,7 +42,12 @@
  *   below as its own**: `powerpointPenStyles`, `powerpointBorderEntries`, its 74 styles and its Effects menu.
  * - **`tableSelectEntries` and `tableDeleteEntries` are shared by the two Table Layout tabs**, and take the
  *   application: Word's lists start with a cell (Select Cell, Delete Cells…) and PowerPoint's cannot select or delete
- *   one cell. **AutoFit's list is Word's**: PowerPoint's Table Layout has no AutoFit. Excel has no Table Layout.
+ *   one cell. **PowerPoint's Table Layout now calls both.** **AutoFit's list is Word's**: PowerPoint's Table Layout
+ *   has no AutoFit. **Text Direction's and Cell Margins' lists are PowerPoint's**: Word's Text Direction is a plain
+ *   button and its Cell Margins opens a dialog. Excel has no Table Layout.
+ * - **PowerPoint's Arrange menus are not written here**: Bring Forward's, Send Backward's and Align's entries are
+ *   `stories/ribbons/design-layout-menus.ts`' Arrange lists, which take the application. The menus themselves are
+ *   rendered here, because their ids are Table Layout's.
  *
  * ## The pictures are the document's colours, not the chrome's
  *
@@ -71,6 +75,7 @@ import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 
 import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
 import type { ThemeColorPalette, ThemeColorSlot } from '../../src/pickers/picker-model.ts';
+import { alignEntries, bringForwardEntries, sendBackwardEntries } from './design-layout-menus.ts';
 import { hexColour } from './palette-art.ts';
 import { commandMenu } from './ribbon-parts.ts';
 import {
@@ -455,8 +460,8 @@ export type TableLayoutApplication = Extract<RibbonApplication, 'word' | 'powerp
  * Table, Select Column and Select Row.
  *
  * Nothing is checked: a selection is where the insertion point is, not a state the table keeps. No entry carries a
- * glyph, as none of Table Design's menus does. `GUESS:` PowerPoint's list and its order, which its own unit should
- * check before calling this.
+ * glyph, as none of Table Design's menus does. **PowerPoint's Table Layout calls it**, and the census's count for its
+ * Table group (5: Select, three entries, View Gridlines) is met by a three-entry list. `GUESS:` PowerPoint's order.
  */
 export function tableSelectEntries(application: TableLayoutApplication): TemplateResult[] {
   return application === 'word'
@@ -469,7 +474,8 @@ export function tableSelectEntries(application: TableLayoutApplication): Templat
  * Cells dialog to choose how the others shift, then Delete Columns, Delete Rows and Delete Table. PowerPoint's table
  * cannot lose one cell, so its list is Delete Columns, Delete Rows and Delete Table.
  *
- * `GUESS:` PowerPoint's list and its order, which its own unit should check before calling this.
+ * **PowerPoint's Table Layout calls it**, and the census's count for its Rows & Columns group (8: Delete, three
+ * entries, four inserts) is met by a three-entry list. `GUESS:` PowerPoint's order.
  */
 export function tableDeleteEntries(application: TableLayoutApplication): TemplateResult[] {
   const shared = [item('Delete Columns'), item('Delete Rows'), item('Delete Table')];
@@ -659,6 +665,73 @@ export function powerpointTableStyleGalleryFooter(): TemplateResult[] {
   return [html`<mjx-button slot="footer" label="Clear Table" size="small"></mjx-button>`];
 }
 
+// ── PowerPoint's Table Layout: Text Direction, Cell Margins and the four measures ──
+
+/** One entry of a set whose current member is checked, with an optional second line. */
+function choice(label: string, checked = false, description?: string): TemplateResult {
+  return html`<mjx-menu-item
+    kind="radio"
+    label=${label}
+    description=${description ?? nothing}
+    ?checked=${checked}
+  ></mjx-menu-item>`;
+}
+
+/**
+ * **Text Direction's list, PowerPoint's**: Horizontal, Rotate all text 90°, Rotate all text 270° and Stacked, one of
+ * which the selected cells are in, then More Options…, which opens the Format Shape pane's text box options in
+ * Office and nothing here. **Horizontal is checked**: an inserted table's cells write no `vert`. Each direction is its
+ * `ST_TextVerticalType` token's meaning (`horz`, `vert`, `vert270`, `wordArtVert`).
+ *
+ * `GUESS:` the four names, the order, the start and the options entry's name.
+ */
+export function powerpointTextDirectionEntries(): TemplateResult[] {
+  return [
+    choice('Horizontal', true),
+    choice('Rotate all text 90°'),
+    choice('Rotate all text 270°'),
+    choice('Stacked'),
+    separator(),
+    item('More Options…'),
+  ];
+}
+
+/**
+ * **Cell Margins' list, PowerPoint's**: Normal, None, Narrow and Wide, each with its four margins as its second line,
+ * then Custom Margins…, which opens the Cell Text Layout dialog in Office and nothing here. **Normal is checked**: an
+ * inserted table's cells write no `marL`, `marR`, `marT` or `marB`, and PowerPoint's defaults are 0.25 cm left and
+ * right and 0.13 cm top and bottom (91440 and 45720 EMU).
+ *
+ * Office draws the four presets as pictures with their measures beside them; the measures are the description here.
+ * `GUESS:` the four presets' measures, the order, and that the list ticks the current preset.
+ */
+export function powerpointCellMarginEntries(): TemplateResult[] {
+  return [
+    choice('Normal', true, 'Top: 0.13 cm, Bottom: 0.13 cm, Left: 0.25 cm, Right: 0.25 cm'),
+    choice('None', false, 'Top: 0 cm, Bottom: 0 cm, Left: 0 cm, Right: 0 cm'),
+    choice('Narrow', false, 'Top: 0.13 cm, Bottom: 0.13 cm, Left: 0.13 cm, Right: 0.13 cm'),
+    choice('Wide', false, 'Top: 0.38 cm, Bottom: 0.38 cm, Left: 0.38 cm, Right: 0.38 cm'),
+    separator(),
+    item('Custom Margins…'),
+  ];
+}
+
+/**
+ * **The four measures a PowerPoint host starts Table Layout's fields on**, in centimetres: a five-column, two-row
+ * table inserted into the Office theme's widescreen content placeholder, 29.21 cm wide, each row 1.02 cm high (an
+ * 18 pt line and the default top and bottom margins). The cell pair shows the selected cell, the table pair the whole
+ * table. Written once, so the two pairs cannot disagree about the table they describe.
+ *
+ * `GUESS:` every number, and the 0.01 cm step.
+ */
+export const powerpointTableLayoutMeasures = {
+  cellHeight: '1.02',
+  cellWidth: '5.84',
+  tableHeight: '2.04',
+  tableWidth: '29.21',
+  step: '0.01',
+} as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -676,15 +749,24 @@ function wordTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * PowerPoint's three menus, all on Table Design: Borders and Effects in Table Styles, and Text Effects in WordArt
- * Styles, whose entries are `stories/ribbons/wordart-styles-menus.ts`'s. Every other Table Design command is a field, a
- * picker, a gallery, a box or a toggle.
+ * PowerPoint's ten menus. **Table Design's three**: Borders and Effects in Table Styles, and Text Effects in WordArt
+ * Styles, whose entries are `stories/ribbons/wordart-styles-menus.ts`'s. **Table Layout's seven**: Select and Delete,
+ * the lists shared with Word; Text Direction and Cell Margins, PowerPoint's own; and Arrange's Bring Forward, Send
+ * Backward and Align, whose entries are `stories/ribbons/design-layout-menus.ts`' Arrange lists. Every other Table Tools
+ * command is a field, a picker, a gallery, a box, a toggle or a plain button.
  */
 function powerpointTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
     ${commandMenu(host, 'powerpoint.table-design.table-styles.borders', 'Borders', ...powerpointBorderEntries())}
     ${commandMenu(host, 'powerpoint.table-design.table-styles.effects', 'Effects', ...powerpointTableEffectsEntries())}
     ${commandMenu(host, 'powerpoint.table-design.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'powerpoint.table-layout.table.select', 'Select', ...tableSelectEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.table-layout.rows-and-columns.delete', 'Delete', ...tableDeleteEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.table-layout.alignment.text-direction', 'Text Direction', ...powerpointTextDirectionEntries())}
+    ${commandMenu(host, 'powerpoint.table-layout.alignment.cell-margins', 'Cell Margins', ...powerpointCellMarginEntries())}
+    ${commandMenu(host, 'powerpoint.table-layout.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.table-layout.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.table-layout.arrange.align', 'Align', ...alignEntries('powerpoint'))}
   `;
 }
 

@@ -123,9 +123,11 @@
  * file for PowerPoint's Table Layout to reuse; see the *commands Table Layout shows* section. **PowerPoint's Table
  * Design** followed, the third, reusing that file's gallery art and line weights and adding PowerPoint's own lists
  * there; its WordArt Styles group is written once as a function of the application and tab, for Shape Format and
- * Chart Format to call; see the *commands Table Design shows* section's *PowerPoint's Table Design* part. `commands`
- * stays optional rather than required, because an empty array would claim a tab had been authored and found to hold
- * nothing.
+ * Chart Format to call; see the *commands Table Design shows* section's *PowerPoint's Table Design* part.
+ * **PowerPoint's Table Layout** followed, the fourth, calling Word's Select and Delete lists for PowerPoint and
+ * `arrangeCommands` for a table, which it generalised to take the application, the tab and the object; see the
+ * *commands Table Layout shows* section's *PowerPoint's Table Layout* part. `commands` stays optional rather than
+ * required, because an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## The contextual tab sets
  *
@@ -172,7 +174,7 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Three contextual tabs carry commands: Word's Table Design and Table Layout, and PowerPoint's Table Design.** Each
+ * **Four contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -1610,6 +1612,8 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
 //
 // **Arrange** is one function of the application, `arrangeCommands`. Excel's Arrange is Word's
 // without Position and Wrap Text, and the six they share carry the same names and glyphs in both.
+// (Since PowerPoint's Table Layout it also takes the tab and the object, and a table's Arrange has no
+// Group or Rotate; see that unit's part of the *commands Table Layout shows* section.)
 // What differs is **size**: Excel draws Bring Forward and Send Backward large at the head of its
 // group, and Word draws them small beside a large Wrap Text. PowerPoint's Home Arrange (`layer`) is
 // **not** shared: it is one button standing for the whole menu, on a different tab, and Office names
@@ -1648,13 +1652,18 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
 // and the seven fields are drawn without one.
 
 /**
- * Arrange, in Word's Layout and Excel's Page Layout: one function, because the shared six carry the same
- * names and glyphs in both.
+ * Arrange, in Word's Layout, Excel's Page Layout and PowerPoint's Table Layout: one function of the application, the
+ * tab and the object arranged, because the shared commands carry the same names and glyphs everywhere. The Picture,
+ * Shape and Chart Format units are expected to call it too.
  *
  * - **Word** leads with Position and Wrap Text, large, and draws the six small beside them.
  * - **Excel** has no Position or Wrap Text (a cell does not wrap around a picture), and draws Bring
  *   Forward and Send Backward large at the head. `GUESS:` Selection Pane small in Excel, where Office
  *   draws it large, because it has no glyph.
+ * - **PowerPoint** has no Position or Wrap Text either (a slide has no running text to wrap), and draws the layer
+ *   commands small, as Word does. `GUESS:` small.
+ * - **A table** (`object: 'table'`, PowerPoint's Table Layout) has **no Group or Rotate**: PowerPoint neither groups a
+ *   table with other objects nor rotates one, so Office's Arrange on that tab ends at Align.
  *
  * Bring Forward and Send Backward are **split buttons** in Office (the face moves one layer, the arrow
  * offers Bring to Front and, in Word, Bring in Front of Text), and every host binds one. Position, Wrap
@@ -1668,14 +1677,24 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
  *
  * **No survivor**: Selection Pane opens a pane and carries no glyph, and the other seven open a menu.
  */
-function arrangeCommands(application: 'word' | 'excel'): readonly RibbonCommand[] {
-  const tab = application === 'word' ? 'layout' : 'page-layout';
-  const layer: ControlSize = application === 'word' ? 'small' : 'large';
+function arrangeCommands(
+  application: RibbonApplication,
+  tab: string,
+  object: 'drawing' | 'table' = 'drawing',
+): readonly RibbonCommand[] {
+  const layer: ControlSize = application === 'excel' ? 'large' : 'small';
   const wordOnly: readonly RibbonCommand[] =
     application === 'word'
       ? [
-          { id: 'word.layout.arrange.position', label: 'Position' },
-          { id: 'word.layout.arrange.wrap-text', label: 'Wrap Text', icon: 'text-position-square', size: 'large' },
+          { id: `word.${tab}.arrange.position`, label: 'Position' },
+          { id: `word.${tab}.arrange.wrap-text`, label: 'Wrap Text', icon: 'text-position-square', size: 'large' },
+        ]
+      : [];
+  const drawingOnly: readonly RibbonCommand[] =
+    object === 'drawing'
+      ? [
+          { id: `${application}.${tab}.arrange.group`, label: 'Group', icon: 'group' },
+          { id: `${application}.${tab}.arrange.rotate`, label: 'Rotate', icon: 'rotate-right' },
         ]
       : [];
   return [
@@ -1684,8 +1703,7 @@ function arrangeCommands(application: 'word' | 'excel'): readonly RibbonCommand[
     { id: `${application}.${tab}.arrange.send-backward`, label: 'Send Backward', icon: 'position-backward', size: layer },
     { id: `${application}.${tab}.arrange.selection-pane`, label: 'Selection Pane', toggle: true },
     { id: `${application}.${tab}.arrange.align`, label: 'Align', icon: 'align-left' },
-    { id: `${application}.${tab}.arrange.group`, label: 'Group', icon: 'group' },
-    { id: `${application}.${tab}.arrange.rotate`, label: 'Rotate', icon: 'rotate-right' },
+    ...drawingOnly,
   ];
 }
 
@@ -6042,7 +6060,7 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     groups: [
       { id: 'GroupPageLayoutSetup', label: 'Page Setup', priority: 'primary', controls: 23, inScope: true, commands: wordLayoutPageSetup },
       { id: 'GroupParagraphLayout', label: 'Paragraph', priority: 'standard', controls: 7, inScope: true, commands: wordLayoutParagraph },
-      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 65, inScope: true, commands: arrangeCommands('word') },
+      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 65, inScope: true, commands: arrangeCommands('word', 'layout') },
     ],
   },
   {
@@ -6487,7 +6505,7 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
       { id: 'GroupPageSetup', label: 'Page Setup', priority: 'primary', controls: 16, inScope: true, commands: excelPageLayoutPageSetup },
       { id: 'GroupPageLayoutScaleToFit', label: 'Scale to Fit', priority: 'standard', controls: 6, inScope: true, commands: excelPageLayoutScaleToFit },
       { id: 'GroupPageLayoutSheetOptions', label: 'Sheet Options', priority: 'standard', controls: 8, inScope: true, commands: excelPageLayoutSheetOptions },
-      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 47, inScope: true, commands: arrangeCommands('excel') },
+      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 47, inScope: true, commands: arrangeCommands('excel', 'page-layout') },
     ],
   },
   {
@@ -7163,6 +7181,231 @@ const wordTableLayoutData: readonly RibbonCommand[] = [
   { id: 'word.table-layout.data.formula', label: 'Formula', icon: 'math-formula' },
 ];
 
+// ## PowerPoint's Table Layout
+//
+// The unit after PowerPoint's Table Design, one tab of one application: **PowerPoint's `TabTableToolsLayout`, in
+// `TabSetTableTools`**, all seven in-scope groups and twenty-eight commands, and **the fourth contextual tab
+// authored**. Office shows it beside Table Design while a table on a slide is selected: which rows, columns and cells
+// the table has, how big its cells and the table are, where text sits in a cell, and where the table sits among the
+// slide's other objects. A slide table is a shape on a canvas rather than a run of text, which is why it has Table
+// Size and Arrange where Word's has Draw and Data.
+//
+// ## Office's seven groups, read onto the census's seven
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupTable` (5) | Table | Select, View Gridlines |
+// | `GroupTableRowsAndColumns` (8) | Rows & Columns | Delete, Insert Above, Insert Below, Insert Left, Insert Right |
+// | `GroupMerge` (2) | Merge | Merge Cells, Split Cells |
+// | `GroupTableCellSize` (4) | Cell Size | Height, Width, Distribute Rows, Distribute Columns |
+// | `GroupAlignment` (12) | Alignment | Align Left, Align Centre, Align Right; Align Top, Centre Vertically, Align Bottom; Text Direction, Cell Margins |
+// | `GroupTableSize` (3) | Table Size | Height, Width, Lock Aspect Ratio |
+// | `GroupArrange` (46) | Arrange | Bring Forward, Send Backward, Selection Pane, Align |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and every group's identity is plain from its
+// id and label. `GroupMerge` and `GroupAlignment` are PowerPoint's own ids for what Word calls `GroupTableMerge` and
+// `GroupTableAlignment`; `GroupArrange` is the id Word's Layout and Excel's Page Layout use.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Seven dropdowns** a host binds: Select, Delete, Text Direction, Cell Margins and Align, and **two split buttons**,
+// Bring Forward and Send Backward. **Four fields**, the two Height and Width pairs, measure inputs in centimetres.
+// **One checkbox**, Lock Aspect Ratio. **Eight toggles**: the six alignments in **two exclusive sets of exactly one**,
+// and View Gridlines and Selection Pane on their own. **Seven plain buttons**: the four inserts, Merge Cells, Split
+// Cells and the two Distribute commands. **No gallery, no colour picker, no dialog launcher.**
+//
+// **Reused, not rewritten**: Select's and Delete's lists are Word's Table Layout's `tableSelectEntries` and
+// `tableDeleteEntries`, called for PowerPoint. **Arrange is `arrangeCommands`**, which this unit generalised from Word
+// and Excel to take the application, the tab and the object, so Picture, Shape and Chart Format can call it; for a
+// table it drops Group and Rotate. Its Bring Forward, Send Backward and Align menus reuse
+// `stories/ribbons/design-layout-menus.ts`' Arrange lists, which now take PowerPoint too. Text Direction's and Cell
+// Margins' lists are PowerPoint's own, in `stories/ribbons/table-tools-menus.ts`.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The counts.** Five of the seven are met by a reading, and each is `GUESS:`. **Table counts 5**: Select, its
+//    three entries and View Gridlines. **Rows & Columns counts 8**: Delete, its three entries and the four inserts.
+//    **Merge counts 2**, **Cell Size 4** and **Table Size 3**, what is drawn. Those five readings are the census's
+//    evidence for the two shared lists, which Word's unit wrote as `GUESS:` for PowerPoint: three entries each, no
+//    cell. **Alignment counts 12 and draws 8.** `GUESS:` the eight and Cell Margins' four presets make 12; Text
+//    Direction's four directions would make 12 too, so which list the census counts is not known. **Arrange counts 46
+//    and draws 4.** `GUESS:` no reading this unit found reaches 46: the census appears to count the whole Arrange
+//    menu of a drawing (Group, Rotate and every alignment and order entry), which a table does not carry. Nothing is
+//    padded anywhere.
+// 2. **Horizontal and vertical alignment are two exclusive sets of exactly one**,
+//    `powerpoint.table-layout.alignment.horizontal` and `powerpoint.table-layout.alignment.vertical`. Office presses
+//    one of each for the selected cells: pressing Align Centre releases Align Left and leaves Align Top pressed.
+//    **Align Left and Align Top start pressed**: an inserted table's paragraphs write no `algn` and its cells no
+//    `anchor`, whose defaults are left and top. `GUESS:` both starts.
+// 3. **The six are declared across Office's two rows**, the horizontal three and then the vertical three. Office draws
+//    them as two rows of three, icons only, beside a large Text Direction and Cell Margins. `GUESS:` that the order
+//    reads as Office's grid at every presentation; the ribbon stacks small commands into columns.
+// 4. **The census's spelling wins**: *Align Centre* and *Centre Vertically*, where Office writes *Center*.
+// 5. **Text Direction is a dropdown**, PowerPoint's shape, where Word's is a plain button: Horizontal, Rotate all text
+//    90°, Rotate all text 270° and Stacked, Horizontal checked, then More Options…. `GUESS:` the list and its names.
+// 6. **Cell Margins is a dropdown**, where Word's opens a dialog: Normal (checked), None, Narrow and Wide, each with its
+//    four measures as a second line, then Custom Margins…. `GUESS:` the measures and that the current preset is ticked.
+// 7. **The two Height and Width pairs start on 1.02 cm by 5.84 cm and 2.04 cm by 29.21 cm**: a five-by-two table in the
+//    widescreen Office theme's content placeholder. The cell pair and the table pair describe one table and are one
+//    state in Office; nothing dispatches, so changing one does not move the other. `GUESS:` every number and the 0.01
+//    cm step. **Lock Aspect Ratio starts unticked**, `GUESS:`.
+// 8. **View Gridlines starts pressed**, as on Word's Table Layout. `GUESS:` that PowerPoint shows a borderless table's
+//    gridlines by default.
+// 9. **Arrange has no Group and no Rotate**, which the census's `arrangeCommands` draws for a drawing: PowerPoint neither
+//    groups nor rotates a table. **Bring Forward and Send Backward are split buttons** whose arrows add Bring to Front
+//    and Send to Back, and **Align** lists the six alignments, the two distributions, then Align to Slide (ticked, as
+//    for one selected object) and Align Selected Objects. `GUESS:` PowerPoint's Align entries and the tick.
+// 10. **Split Cells, More Options… and Custom Margins… open dialogs in Office**, and Selection Pane opens a pane. They
+//    open nothing here: no dialog is wired on the Table Tools tabs.
+// 11. **Sizes where PowerPoint differs from Word**: Select and View Gridlines are large (Word's are small), and so are
+//    Merge Cells and Split Cells, the only two commands in their group. `GUESS:` all four. **No group has a dialog
+//    launcher**, `GUESS:`.
+//
+// ## Survivors, judged group by group
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Table: none.** Select opens a menu, rule 1. **View Gridlines passes rule 1 and fails rule 2**, as on Word's: its
+//   dashed box crossed by lines reads as Inside Borders. `GUESS:`.
+// - **Rows & Columns: Insert Above, Insert Below and Insert Right**, Word's three, for Word's reason: each inserts in one
+//   press and one undo takes it back, each glyph is its own, and **Insert Left is the ceiling's cost**. Delete opens a
+//   menu. `GUESS:` which three.
+// - **Merge: Merge Cells.** One press, one undo, and the glyph is Merge & Centre's, the same act in another
+//   application, which rule 2 does not refuse. Split Cells opens a dialog.
+// - **Cell Size: Distribute Rows and Distribute Columns.** One press, one undo, three equal bars no other command
+//   draws. Height and Width are fields.
+// - **Alignment: Align Left, Align Centre and Align Right**, the horizontal set. Each is one press and one undo, and
+//   each glyph is Home's paragraph alignment, which is the same act on the cell's text. **The vertical three pass and
+//   give way to the ceiling**: a cell's text is aligned across far more often than up and down, as Home's Paragraph
+//   keeps its horizontal alignments. `GUESS:` which three. Text Direction and Cell Margins open menus.
+// - **Table Size: none.** Two fields and a checkbox, which the gate refuses as bound.
+// - **Arrange: none.** Two split buttons and a menu, rule 1, and Selection Pane opens a pane and carries no glyph.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Select and View Gridlines large; Delete and Insert Above large, then Insert
+// Below, Left and Right small; Merge Cells and Split Cells large; Height and Width, then the two Distribute commands
+// small; the six alignments icon-only, then Text Direction and Cell Margins large; Height, Width and Lock Aspect
+// Ratio in a column; Bring Forward, Send Backward, Selection Pane and Align small. **Twenty-two of the twenty-eight
+// commands carry a glyph**, every one reused and every one `GUESS:`:
+//
+// - **Select draws `table-cursor`** and **View Gridlines `border-inside`**, Word's Table Layout's, now at 24 too.
+// - **Delete draws `table-dismiss`** and **Insert Above, Below, Left and Right `table-stack-above`, `-below`, `-left`
+//   and `-right`**, Word's Table Layout's, at the same sizes.
+// - **Merge Cells draws `table-cells-merge`** and **Split Cells `table-cells-split`**, Word's, now at 24 too.
+// - **Distribute Rows draws `align-space-evenly-vertical`** and **Distribute Columns `align-space-evenly-horizontal`**,
+//   Word's.
+// - **Align Left, Align Centre and Align Right draw `text-align-left`, `text-align-center` and `text-align-right`**,
+//   Home's paragraph alignment, filled while pressed.
+// - **Align Top, Centre Vertically and Align Bottom draw `align-top`, `align-center-vertical` and `align-bottom`**,
+//   Excel's Home vertical alignment; `align-center-vertical` is also PowerPoint's Home Align Text, the same act.
+//   Filled while pressed.
+// - **Text Direction draws `text-direction-rotate-90-right`** and **Cell Margins `padding-left`**, Word's Table
+//   Layout's, large. **Cell Margins' `padding-left` is still the weakest glyph on the tab.**
+// - **Bring Forward, Send Backward and Align draw `position-forward`, `position-backward` and `align-left`**,
+//   `arrangeCommands`' own.
+//
+// **Six commands carry no glyph, and say why**: the four Height and Width fields and the Lock Aspect Ratio checkbox,
+// and **Selection Pane**, for `arrangeCommands`' reason: Fluent draws no selection pane, and `panel-right` is any pane.
+
+/**
+ * PowerPoint's `GroupTable` on Table Layout, labelled **Table**: Select and View Gridlines, large. See disagreements 1,
+ * 8 and 11.
+ *
+ * **Select is a large dropdown** a host binds. **View Gridlines is the generic toggle**, pressed.
+ *
+ * **No survivor**: a menu, and a glyph that reads as Inside Borders.
+ */
+const powerpointTableLayoutTable: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.table.select', label: 'Select', icon: 'table-cursor', size: 'large' },
+  { id: 'powerpoint.table-layout.table.view-gridlines', label: 'View Gridlines', icon: 'border-inside', size: 'large', toggle: true, pressed: true },
+];
+
+/**
+ * PowerPoint's `GroupTableRowsAndColumns`, labelled **Rows & Columns**: Delete and Insert Above large, then Insert
+ * Below, Insert Left and Insert Right small in a column. See disagreement 1.
+ *
+ * **Delete is a large dropdown** a host binds, over Word's shared list called for PowerPoint. The four inserts are
+ * plain buttons.
+ *
+ * **Three survivors**: Insert Above, Insert Below and Insert Right. Insert Left is the ceiling's cost.
+ */
+const powerpointTableLayoutRowsAndColumns: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.rows-and-columns.delete', label: 'Delete', icon: 'table-dismiss', size: 'large' },
+  { id: 'powerpoint.table-layout.rows-and-columns.insert-above', label: 'Insert Above', icon: 'table-stack-above', size: 'large', essential: true },
+  { id: 'powerpoint.table-layout.rows-and-columns.insert-below', label: 'Insert Below', icon: 'table-stack-below', essential: true },
+  { id: 'powerpoint.table-layout.rows-and-columns.insert-left', label: 'Insert Left', icon: 'table-stack-left' },
+  { id: 'powerpoint.table-layout.rows-and-columns.insert-right', label: 'Insert Right', icon: 'table-stack-right', essential: true },
+];
+
+/**
+ * PowerPoint's `GroupMerge`, labelled **Merge**: Merge Cells and Split Cells, large. See disagreements 10 and 11.
+ *
+ * **Two plain buttons.** Split Cells' dialog is not wired.
+ *
+ * **One survivor**: Merge Cells. Split Cells opens a dialog.
+ */
+const powerpointTableLayoutMerge: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.merge.merge-cells', label: 'Merge Cells', icon: 'table-cells-merge', size: 'large', essential: true },
+  { id: 'powerpoint.table-layout.merge.split-cells', label: 'Split Cells', icon: 'table-cells-split', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupTableCellSize`, labelled **Cell Size**: Height and Width, then Distribute Rows and Distribute
+ * Columns small. See disagreement 7.
+ *
+ * **Height and Width are measure fields** a host binds. The two Distribute commands are plain buttons.
+ *
+ * **Two survivors**: Distribute Rows and Distribute Columns.
+ */
+const powerpointTableLayoutCellSize: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.cell-size.height', label: 'Height' },
+  { id: 'powerpoint.table-layout.cell-size.width', label: 'Width' },
+  { id: 'powerpoint.table-layout.cell-size.distribute-rows', label: 'Distribute Rows', icon: 'align-space-evenly-vertical', essential: true },
+  { id: 'powerpoint.table-layout.cell-size.distribute-columns', label: 'Distribute Columns', icon: 'align-space-evenly-horizontal', essential: true },
+];
+
+/** The set the three horizontal alignments share. It holds exactly one. See disagreement 2. */
+const powerpointTableLayoutHorizontal = 'powerpoint.table-layout.alignment.horizontal';
+
+/** The set the three vertical alignments share. It holds exactly one. See disagreement 2. */
+const powerpointTableLayoutVertical = 'powerpoint.table-layout.alignment.vertical';
+
+/**
+ * PowerPoint's `GroupAlignment`, labelled **Alignment**: the six alignments icon-only, horizontal then vertical, then
+ * Text Direction and Cell Margins large. See disagreements 1 to 6.
+ *
+ * **Two exclusive sets of exactly one**, the six generic toggles, Align Left and Align Top pressed. **Text Direction
+ * and Cell Margins are large dropdowns** a host binds.
+ *
+ * **Three survivors**: Align Left, Align Centre and Align Right.
+ */
+const powerpointTableLayoutAlignment: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.alignment.align-left', label: 'Align Left', icon: 'text-align-left', size: 'icon', toggle: true, pressed: true, exclusive: powerpointTableLayoutHorizontal, essential: true },
+  { id: 'powerpoint.table-layout.alignment.align-centre', label: 'Align Centre', icon: 'text-align-center', size: 'icon', toggle: true, exclusive: powerpointTableLayoutHorizontal, essential: true },
+  { id: 'powerpoint.table-layout.alignment.align-right', label: 'Align Right', icon: 'text-align-right', size: 'icon', toggle: true, exclusive: powerpointTableLayoutHorizontal, essential: true },
+  { id: 'powerpoint.table-layout.alignment.align-top', label: 'Align Top', icon: 'align-top', size: 'icon', toggle: true, pressed: true, exclusive: powerpointTableLayoutVertical },
+  { id: 'powerpoint.table-layout.alignment.centre-vertically', label: 'Centre Vertically', icon: 'align-center-vertical', size: 'icon', toggle: true, exclusive: powerpointTableLayoutVertical },
+  { id: 'powerpoint.table-layout.alignment.align-bottom', label: 'Align Bottom', icon: 'align-bottom', size: 'icon', toggle: true, exclusive: powerpointTableLayoutVertical },
+  { id: 'powerpoint.table-layout.alignment.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right', size: 'large' },
+  { id: 'powerpoint.table-layout.alignment.cell-margins', label: 'Cell Margins', icon: 'padding-left', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupTableSize`, labelled **Table Size**: Height, Width and Lock Aspect Ratio in a column. See
+ * disagreement 7.
+ *
+ * **Height and Width are measure fields** and **Lock Aspect Ratio a toggle drawn as a checkbox**, all three bound by a
+ * host; Lock Aspect Ratio starts unticked.
+ *
+ * **No survivor**: two fields and a checkbox.
+ */
+const powerpointTableLayoutTableSize: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-layout.table-size.height', label: 'Height' },
+  { id: 'powerpoint.table-layout.table-size.width', label: 'Width' },
+  { id: 'powerpoint.table-layout.table-size.lock-aspect-ratio', label: 'Lock Aspect Ratio', toggle: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -7326,13 +7569,13 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsLayout' },
         groups: [
-          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 5, inScope: true },
-          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 8, inScope: true },
-          { id: 'GroupMerge', label: 'Merge', priority: 'secondary', controls: 2, inScope: true },
-          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 4, inScope: true },
-          { id: 'GroupAlignment', label: 'Alignment', priority: 'primary', controls: 12, inScope: true },
-          { id: 'GroupTableSize', label: 'Table Size', priority: 'standard', controls: 3, inScope: true },
-          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true },
+          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 5, inScope: true, commands: powerpointTableLayoutTable },
+          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 8, inScope: true, commands: powerpointTableLayoutRowsAndColumns },
+          { id: 'GroupMerge', label: 'Merge', priority: 'secondary', controls: 2, inScope: true, commands: powerpointTableLayoutMerge },
+          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 4, inScope: true, commands: powerpointTableLayoutCellSize },
+          { id: 'GroupAlignment', label: 'Alignment', priority: 'primary', controls: 12, inScope: true, commands: powerpointTableLayoutAlignment },
+          { id: 'GroupTableSize', label: 'Table Size', priority: 'standard', controls: 3, inScope: true, commands: powerpointTableLayoutTableSize },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true, commands: arrangeCommands('powerpoint', 'table-layout', 'table') },
         ],
       },
     ],

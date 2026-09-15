@@ -498,7 +498,7 @@ Layout. Almost every command opens something, and each host binds one of three s
   and Excel's Sheet Options are `<mjx-checkbox>`.
 
 `dev/ribbons/census.ts` records two design decisions. **Arrange is declared once for Word and Excel**,
-by `arrangeCommands`. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
+by `arrangeCommands`, which PowerPoint's Table Layout now calls too (for a table: no Group or Rotate). **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
 at the foot of PowerPoint's Variants gallery. No command on the four tabs survives a collapse.
 
 ⚠ **Two shapes are `GUESS:`.**
@@ -1348,7 +1348,7 @@ is drawn:
 ### The contextual tab sets (the four common sets)
 
 **Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
-Layout the second, and PowerPoint's Table Design the third.** A contextual tab
+Layout the second, PowerPoint's Table Design the third, and PowerPoint's Table Layout the fourth.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1384,8 +1384,9 @@ placeholder priority and the id checks now sweep contextual tabs too.
 `<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
 `sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
 was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
-Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, and **PowerPoint's Table Design
-the third**, see *PowerPoint's Table Design*.
+Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, **PowerPoint's Table Design
+the third**, see *PowerPoint's Table Design*, and **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
+Layout*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1623,6 +1624,80 @@ a menu; three lists and two gestures.
 - **Glyphs**, all reused and all `GUESS:`: `border-all` (Borders), `square-shadow` (Effects), `text-effects` (Text
   Effects), `table-edit` (Draw Table) and `eraser` (Eraser). No glyph is new, so the subset is unchanged. The
   checkboxes, both galleries, the four colour pickers and both fields carry none.
+
+### PowerPoint's Table Layout
+
+**One tab of one application, and the fourth contextual tab authored**, PowerPoint's second. Seven groups and
+twenty-eight commands, in Office's order, which is also the census's: Table, Rows & Columns, Merge, Cell Size,
+Alignment, Table Size, Arrange. It is `TabTableToolsLayout` in `TabSetTableTools`, beside Table Design under the
+*Table Tools* band while a table on a slide is selected. A slide table is a shape on a canvas, so it has Table Size and
+Arrange where Word's has Draw and Data.
+
+**The census's groups, read.** `GroupTable` (5) Table, `GroupTableRowsAndColumns` (8) Rows & Columns, `GroupMerge` (2)
+Merge, `GroupTableCellSize` (4) Cell Size, `GroupAlignment` (12) Alignment, `GroupTableSize` (3) Table Size,
+`GroupArrange` (46) Arrange. The ids, labels and priorities are the contextual unit's, unchanged.
+
+**It renders in `Ribbons/PowerPoint` alone**, for Table Design's reason: `Shell/PowerPoint` draws Picture Tools.
+`Ribbons/PowerPoint` binds twelve commands, and `tableToolsMenus('powerpoint', 'ribbons')` now renders seven more
+menus.
+
+- **Table**: Select (a large dropdown: Select Table, Column, Row) and View Gridlines (a large toggle, pressed).
+- **Rows & Columns**: Delete (a large dropdown: Delete Columns, Rows, Table), Insert Above large, then Insert Below,
+  Insert Left and Insert Right.
+- **Merge**: Merge Cells and Split Cells, large.
+- **Cell Size**: Height and Width (measure fields, 1.02 cm and 5.84 cm), Distribute Rows and Distribute Columns.
+- **Alignment**: Align Left, Align Centre and Align Right in **one exclusive set of exactly one**,
+  `powerpoint.table-layout.alignment.horizontal`, Align Left pressed; Align Top, Centre Vertically and Align Bottom in
+  another, `powerpoint.table-layout.alignment.vertical`, Align Top pressed; all six icon-only. Then **Text Direction**
+  (a large dropdown: Horizontal, Rotate all text 90°, Rotate all text 270°, Stacked, More Options…) and **Cell
+  Margins** (a large dropdown: Normal, None, Narrow, Wide, each with its measures as a second line, and Custom
+  Margins…).
+- **Table Size**: Height and Width (measure fields, 2.04 cm and 29.21 cm) and Lock Aspect Ratio (a checkbox).
+- **Arrange**: Bring Forward and Send Backward (small split buttons), Selection Pane (a toggle) and Align (a dropdown:
+  six alignments, two distributions, Align to Slide ticked and Align Selected Objects).
+
+**Reused, and generalised.** `tableSelectEntries('powerpoint')` and `tableDeleteEntries('powerpoint')`, written by
+Word's Table Layout for this unit, are called as they stand; the census's counts for Table (5) and Rows & Columns (8)
+are met by their three-entry lists. **`arrangeCommands` in `dev/ribbons/census.ts` now takes the application, the tab
+and the object** (`arrangeCommands('powerpoint', 'table-layout', 'table')`), so Picture, Shape and Chart Format can
+call it: Word and Excel pass their tab and are unchanged, PowerPoint draws the layer commands small, and a table has no
+Group or Rotate. `bringForwardEntries`, `sendBackwardEntries` and `alignEntries` in
+`stories/ribbons/design-layout-menus.ts` are exported and take PowerPoint, whose Align aligns to the slide or to the
+selected objects. Text Direction's and Cell Margins' lists and the four starting measures
+(`powerpointTableLayoutMeasures`) are new in `stories/ribbons/table-tools-menus.ts`. The two exclusive sets are added
+to `tests/ribbons.test.ts`' named lists and starting states.
+
+**Nine survivors in four groups**, each passing all four demotion rules on the shape Office draws:
+
+- **Rows & Columns**: Insert Above, Insert Below and Insert Right, Word's three. Insert Left is the ceiling's cost.
+- **Merge**: Merge Cells. Split Cells opens a dialog.
+- **Cell Size**: Distribute Rows and Distribute Columns.
+- **Alignment**: Align Left, Align Centre and Align Right. The vertical three pass and give way to the ceiling.
+- **Table, Table Size and Arrange keep none.** Select opens a menu and View Gridlines' glyph reads as Inside Borders;
+  two fields and a checkbox; two split buttons, a menu and a pane.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The counts.** Table, Rows & Columns, Merge, Cell Size and Table Size are met by a reading. **Alignment counts 12 and
+  draws 8**: Cell Margins' four presets make 12, and so would Text Direction's four directions. **Arrange counts 46 and
+  draws 4**, and no reading reaches it. Nothing is padded.
+- **Both sets' starts** (Align Left, Align Top), and that the six, declared horizontal then vertical, read as Office's
+  two rows of three.
+- **Every entry name and measure** in Text Direction, Cell Margins and PowerPoint's Align; that Cell Margins ticks its
+  current preset; **the four starting measures** and the 0.01 cm step; View Gridlines pressed; Lock Aspect Ratio
+  unticked.
+- **Sizes**: Select, View Gridlines, Merge Cells and Split Cells large, where Word's are small; Arrange small. **No
+  group has a dialog launcher.**
+- **Which survivors**: which three inserts, and the horizontal rather than the vertical alignments.
+- **The census's spelling wins**: *Align Centre* and *Centre Vertically*, where Office writes *Center*.
+- **The cell and table measures are one state in Office**; nothing dispatches, so they do not follow each other.
+- **Split Cells, More Options… and Custom Margins… open dialogs in Office**, and Selection Pane a pane; they open
+  nothing here.
+- **Glyphs**, all reused and all `GUESS:`. `table-cursor`, `border-inside`, `table-cells-merge` and `table-cells-split`
+  gain a 24px drawing, so the subset grows by five files. Alignment reuses Home's `text-align-left`, `-center` and
+  `-right` and Excel's `align-top`, `align-center-vertical` and `align-bottom`. **Cell Margins' `padding-left` is still
+  the weakest.** The four fields, the checkbox and Selection Pane carry none; Selection Pane because Fluent draws no
+  selection pane.
 
 ### The entries beneath a colour picker's palette
 

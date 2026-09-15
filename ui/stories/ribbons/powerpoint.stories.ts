@@ -60,6 +60,7 @@ import { masterViewMenus } from './slide-master-menus.ts';
 import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
 import {
   powerpointPenStyles,
+  powerpointTableLayoutMeasures,
   powerpointTableStyleGalleryFooter,
   powerpointTableStyleGalleryItems,
   tableLineWeights,
@@ -82,10 +83,10 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs.** **Table Design is authored**, PowerPoint's first. **The other five are
- * placeholders** at the census's own priorities: Layout, Picture Format, Shape Format, Chart Design and Format. Every
- * story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone, which is
- * why Table Design's bindings and menus are written here and nowhere else.
+ * **Six more stories are the contextual tabs.** **Table Design and Layout are authored**, PowerPoint's first two.
+ * **The other four are placeholders** at the census's own priorities: Picture Format, Shape Format, Chart Design and
+ * Format. Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools
+ * alone, which is why Table Design's and Layout's bindings and menus are written here and nowhere else.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
  * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
@@ -108,7 +109,7 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. Of the contextual tabs of the four common sets, Table Design is authored; Layout, Picture ' +
+          'Greyscale. Of the contextual tabs of the four common sets, Table Design and Layout are authored; Picture ' +
           'Format, Shape Format, Chart Design and Format are placeholders carrying the census’s own priorities.',
       },
     },
@@ -1005,6 +1006,96 @@ const bindings: ControlOverrides = {
   >
     ${colourPickerEntries('Pen Colour', outlineEntries({ moreColours: 'More Colours…', eyedropper: true }))}
   </mjx-color-picker>`,
+  // Table Layout (a contextual tab, in Table Tools). `Shell/PowerPoint` draws Picture Tools, so these twelve bindings
+  // and their menus are written here alone, for Table Design's reason. Select, Delete, Text Direction and Cell Margins
+  // open `stories/ribbons/table-tools-menus.ts`' menus; Bring Forward and Send Backward (split buttons) and Align open
+  // Arrange's lists under this tab's ids. The two Height and Width pairs are measures in centimetres, started from
+  // `powerpointTableLayoutMeasures`; Lock Aspect Ratio is a checkbox. Both alignment sets, View Gridlines, Selection
+  // Pane and the plain buttons are the generic toggles and buttons, and are not bound.
+  'powerpoint.table-layout.table.select': html`<mjx-button
+    label="Select"
+    icon="table-cursor"
+    size="large"
+    data-opens="ribbons-powerpoint-table-layout-table-select"
+  ></mjx-button>`,
+  'powerpoint.table-layout.rows-and-columns.delete': html`<mjx-button
+    label="Delete"
+    icon="table-dismiss"
+    size="large"
+    data-opens="ribbons-powerpoint-table-layout-rows-and-columns-delete"
+  ></mjx-button>`,
+  'powerpoint.table-layout.cell-size.height': html`<mjx-measure-input
+    id="ribbons-powerpoint-table-layout-cell-height"
+    label="Height"
+    value=${powerpointTableLayoutMeasures.cellHeight}
+    unit="cm"
+    step=${powerpointTableLayoutMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.table-layout.cell-size.width': html`<mjx-measure-input
+    id="ribbons-powerpoint-table-layout-cell-width"
+    label="Width"
+    value=${powerpointTableLayoutMeasures.cellWidth}
+    unit="cm"
+    step=${powerpointTableLayoutMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.table-layout.alignment.text-direction': html`<mjx-button
+    label="Text Direction"
+    icon="text-direction-rotate-90-right"
+    size="large"
+    data-opens="ribbons-powerpoint-table-layout-alignment-text-direction"
+  ></mjx-button>`,
+  'powerpoint.table-layout.alignment.cell-margins': html`<mjx-button
+    label="Cell Margins"
+    icon="padding-left"
+    size="large"
+    data-opens="ribbons-powerpoint-table-layout-alignment-cell-margins"
+  ></mjx-button>`,
+  'powerpoint.table-layout.table-size.height': html`<mjx-measure-input
+    id="ribbons-powerpoint-table-layout-table-height"
+    label="Height"
+    value=${powerpointTableLayoutMeasures.tableHeight}
+    unit="cm"
+    step=${powerpointTableLayoutMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.table-layout.table-size.width': html`<mjx-measure-input
+    id="ribbons-powerpoint-table-layout-table-width"
+    label="Width"
+    value=${powerpointTableLayoutMeasures.tableWidth}
+    unit="cm"
+    step=${powerpointTableLayoutMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.table-layout.table-size.lock-aspect-ratio': html`<mjx-checkbox
+    id="ribbons-powerpoint-table-layout-lock-aspect-ratio"
+    label="Lock Aspect Ratio"
+  ></mjx-checkbox>`,
+  'powerpoint.table-layout.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-powerpoint-table-layout-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.table-layout.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-powerpoint-table-layout-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.table-layout.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-powerpoint-table-layout-arrange-align"
+  ></mjx-button>`,
 };
 
 /**
@@ -1595,9 +1686,56 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 
 /**
- * **Layout** — Table Tools' second tab, a placeholder. Seven groups: Table, Rows & Columns, Merge, Cell Size,
- * Alignment, Table Size and Arrange. PowerPoint's has no Draw or Data group and does have Table Size and Arrange,
- * because a slide table is a shape on a canvas rather than a run of text.
+ * **Layout**: a slide table's rows, columns and cells, their sizes and alignment, the table's size, and where it sits
+ * among the slide's objects. Table Tools' second tab, and PowerPoint's second contextual tab authored; Office shows it
+ * only while a table is selected. Seven groups: Table, Rows & Columns, Merge, Cell Size, Alignment, Table Size and
+ * Arrange. PowerPoint's has no Draw or Data group and does have Table Size and Arrange, because a slide table is a
+ * shape on a canvas rather than a run of text. See `Ribbons/Word → Table Layout` for Word's, whose Select and Delete
+ * lists this tab shares. What to look at, least certain first:
+ *
+ * 1. ⚠ **Cell Margins' glyph**, `padding-left`, Word's and still the weakest on the tab. Open Cell Margins: Normal
+ *    (ticked), None, Narrow and Wide, each with its four measures as a second line, then Custom Margins…. `GUESS:`
+ *    every measure.
+ * 2. ⚠ **Two alignment sets, each holding one.** Align Left and Align Top start pressed. Press Align Centre: it fills,
+ *    Align Left releases, and Align Top stays pressed. Press Align Bottom: Align Top releases and Align Centre stays.
+ *    Press a pressed one: nothing changes. The six are declared horizontal then vertical; **check they read as Office's
+ *    two rows of three** (Left, Centre, Right over Top, Centre Vertically, Bottom). `GUESS:` the starts and the grid.
+ * 3. ⚠ **Arrange has four commands, not six.** Bring Forward, Send Backward, Selection Pane and Align: no Group and no
+ *    Rotate, because PowerPoint neither groups nor rotates a table. Bring Forward's and Send Backward's faces do
+ *    nothing; their arrows open Bring Forward and Bring to Front, and Send Backward and Send to Back. Align opens Align
+ *    Left, Centre, Right, Top, Middle and Bottom, Distribute Horizontally and Vertically, then **Align to Slide
+ *    ticked** and Align Selected Objects. Selection Pane is a toggle with no glyph. `GUESS:` PowerPoint's Align list.
+ * 4. **Nine survivors, in four groups.** Drag narrow until each group collapses:
+ *    - Rows & Columns keeps Insert Above, Insert Below and Insert Right, with Delete and Insert Left in its popup.
+ *    - Merge keeps Merge Cells, with Split Cells in the popup.
+ *    - Cell Size keeps Distribute Rows and Distribute Columns, with Height and Width in the popup.
+ *    - Alignment keeps Align Left, Align Centre and Align Right, with the vertical three, Text Direction and Cell
+ *      Margins in the popup.
+ *    - Table, Table Size and Arrange keep nothing.
+ *
+ *    `GUESS:` which three inserts and which three alignments.
+ * 5. **The collapse order is the census's.** Table and Merge are `secondary` and give way first, then Cell Size, Table
+ *    Size and Arrange (`standard`), and Rows & Columns and Alignment (`primary`) last.
+ * 6. **Four dropdowns of Table Tools' own.** Select opens Select Table, Select Column and Select Row. Delete opens
+ *    Delete Columns, Delete Rows and Delete Table. Neither lists a cell: PowerPoint cannot select or delete one. Text
+ *    Direction opens Horizontal (ticked), Rotate all text 90°, Rotate all text 270° and Stacked, then More Options….
+ * 7. **Four measure fields and a checkbox.** Cell Size's Height and Width start on 1.02 cm and 5.84 cm; Table Size's on
+ *    2.04 cm and 29.21 cm, stepping by 0.01. The two pairs do not follow each other, because nothing dispatches. Lock
+ *    Aspect Ratio starts unticked. `GUESS:` every number.
+ * 8. **Large where Word's are small**: Select and View Gridlines, and Merge Cells and Split Cells. View Gridlines
+ *    starts pressed. `GUESS:` the sizes and the start.
+ * 9. **No dialog launcher on any group.** `GUESS:`.
+ * 10. **The census's spelling**: *Align Centre* and *Centre Vertically*, where Office writes *Center*. Hover an
+ *     alignment to read its name.
+ * 11. **Glyphs to judge**, all reused and all `GUESS:`: Select's table with a pointer and View Gridlines' dashed box,
+ *     now large; Delete's cross and the four inserts; Merge Cells and Split Cells, now large; the two Distribute
+ *     commands' bars; Home's three paragraph alignments and Excel's three vertical alignments, filled when pressed;
+ *     Text Direction's turned *A*; Bring Forward's and Send Backward's stacked shapes; Align's shapes against an edge.
+ *     The four fields, the checkbox and Selection Pane carry none.
+ * 12. **Split Cells, More Options…, Custom Margins… and Selection Pane** open a dialog or a pane in Office and nothing
+ *     here.
+ * 13. **Not in `Shell/PowerPoint`**: its strip draws Picture Tools, so there is no Table Layout tab and none of its
+ *     menus is on that page.
  */
 export const TableLayout: Story = { render: () => ribbon('table-layout') };
 
