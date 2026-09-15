@@ -748,9 +748,12 @@ const LEDGER: &[Row] = &[
         suite: "columns_balance_at_a_continuous_break",
         subject: "`w:cols@sep` is reported and NOT drawn",
         provenance: Provenance::EngineDerived,
-        because: "a rule is a paint and this crate never paints; `w:pBdr/w:between` and a `bar` tab \
-                  stop already carry the same decision, and `mjx-scene-docx` (MJXOFF-255) is what \
-                  draws all three. Until it exists a reader sees no separator at all",
+        because: "a separator belongs to the page's column group, not to a paragraph box a \
+                  decoration handle could hang on, so the page report carries the flag and no \
+                  fragment is placed — the reported-not-placed decision `w:pBdr/w:between` and a \
+                  `bar` tab stop also carry. Making it paintable is the page catalogue's \
+                  (MJXOFF-304) and drawing it is `mjx-scene-docx`'s (MJXOFF-255); until both land a \
+                  reader sees no separator at all",
     },
     Row {
         suite: "a_footnote_moves_the_body",

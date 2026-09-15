@@ -17,6 +17,10 @@
 //! shortest height at which everything still fits, which is exact. The assertion here is that the
 //! two columns come out **within one line of each other**, which is the strongest statement that is
 //! true of whole lines.
+//!
+//! MJX-LEDGER-LIMITATION: `w:cols@sep` is reported on the page report and NOT drawn — no fragment
+//! is placed for a column separator and it changes no geometry, so a two-column page with a
+//! separator looks exactly like one without.
 
 mod support;
 

@@ -25,6 +25,9 @@
 //! Which is the trap the ticket names: a fixture without a tracked change cannot tell any of this
 //! apart. [`a_document_without_revisions_is_the_same_in_every_view`] asserts that too, so a reader
 //! knows the difference above came from the revisions rather than from the view.
+//!
+//! MJX-LEDGER-LIMITATION: a change bar is only a flag on the composed paragraph, reported in the two
+//! marking views — nothing places a bar in the margin or draws one.
 
 mod support;
 

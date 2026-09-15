@@ -93,10 +93,13 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Limitation | Asserted by |
 |---|---|---|
+| `paragraph-borders-and-rules` | `w:pBdr/w:between` is carried on the paragraph's decoration and placed nowhere — it changes no stroke rectangle, so no rule is drawn between two paragraphs that share the border | `mjx-layout-docx: no_rule_rounds_to_nothing` |
 | `effects` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `chart-axes-and-scales` | chart text is *measured* and not shaped, so every rectangle a label or a title occupies is a few percent off and the furniture around it moves with the error | `mjx-layout-chart: the_furniture_is_drawn` |
 | `chart-furniture` | chart text is *measured* and not shaped, so every rectangle a label or a title occupies is a few percent off and the furniture around it moves with the error | `mjx-layout-chart: the_furniture_is_drawn` |
 | `math-typesetting` | `mjx-text` parses no OpenType `MATH` table, so a stretchy delimiter is *scaled* rather than assembled from glyph variants and its stroke weight grows with its height | `mjx-layout-docx: an_equation_is_typeset` |
+| `word-columns` | `w:cols@sep` is reported on the page report and NOT drawn — no fragment is placed for a column separator and it changes no geometry, so a two-column page with a separator looks exactly like one without | `mjx-layout-docx: columns_balance_at_a_continuous_break` |
+| `word-track-changes` | a change bar is only a flag on the composed paragraph, reported in the two marking views — nothing places a bar in the margin or draws one | `mjx-layout-docx: a_deletion_changes_the_page` |
 | `excel-conditional-formatting` | a conditional-formatting rule whose condition is a formula — an `expression` rule, a `cellIs` with a reference operand, a `cfvo` of `type="formula"` — is reported unevaluated and painted as nothing, because evaluating it needs a calculation engine | `mjx-layout-xlsx: the_conditional_ledger_is_computed` |
 | `excel-cell-borders` | a cell border reaches the display list as a filled band, so a dashed or dotted edge draws solid at the right weight and colour; the style survives in the catalogue and nothing consumes it | `mjx-scene-xlsx: the_dash_is_lost_at_the_band` |
 
@@ -225,7 +228,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `paragraph-alignment` | Alignment and justification, including the positions a justified line resolves to | `partial` | `mjx-layout-docx: a_justified_line_has_positions` | 11 | 31 | 2 / 3 / 2 |
 | `paragraph-spacing-and-indents` | Indentation, spacing before and after, line spacing, and five kinds of tab stop | `partial` | `mjx-layout-docx: spacing_tabs_and_indents`<br>`mjx-docx: paragraph_properties` | 16 | 108 | 7 / 1 / 6 |
 | `bullets-and-numbering` | Bullets and multilevel numbered lists, with restart and continuation | `partial` | `mjx-layout-docx: a_list_composes_its_marker`<br>`mjx-layout-pptx: bullets_and_indent_levels`<br>`mjx-docx: numbering` | 36 | 79 | 5 / 1 / 6 |
-| `paragraph-borders-and-rules` | Paragraph borders and shading, at every weight the format allows | `partial` | `mjx-layout-docx: no_rule_rounds_to_nothing` | 7 | 20 | 2 / 1 / 1 |
+| `paragraph-borders-and-rules` | Paragraph borders and shading, at every weight the format allows | `partial` | `mjx-layout-docx: no_rule_rounds_to_nothing` | 8 | 22 | 2 / 1 / 1 |
 | `pagination-controls` | Widow and orphan control, keep-with-next, keep-lines-together, page-break-before | `partial` | `mjx-layout-docx: each_constraint_moves_a_paragraph` | 8 | 16 | 1 / 0 / 4 |
 | `paragraph-hierarchy` | Paragraph and list level hierarchy in a shape's text body | `preserved-not-rendered` | `mjx-pptx: paragraph_hierarchy` | 15 | 30 | — |
 

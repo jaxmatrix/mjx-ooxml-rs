@@ -10,7 +10,11 @@
 //! tab that is nothing but a rule — so it is the same arithmetic on a second format, and this is the
 //! suite that holds it.
 //!
-//! Every case below fails on the obvious implementation (`width / 2`).
+//! Every `half_of` and inset case below fails on the obvious implementation (`width / 2`).
+//!
+//! MJX-LEDGER-LIMITATION: `w:pBdr/w:between` is carried on the paragraph's decoration and placed
+//! nowhere — it changes no stroke rectangle, so no rule is drawn between two paragraphs that share
+//! the border.
 
 use mjx_layout::LayoutRect;
 use mjx_layout_docx::{border_width, half_of, stroke_rect, ParagraphDecoration, Rule, HAIRLINE};
@@ -95,6 +99,30 @@ fn a_paragraph_with_no_rules_is_not_inset() {
         Emu::from_inches(1.0),
     );
     assert_eq!(stroke_rect(rect, &ParagraphDecoration::default()), rect);
+}
+
+// A `between` rule is kept on the decoration and moves no stroke rectangle, which is the stated limitation.
+#[test]
+fn a_between_rule_is_carried_and_places_nothing() {
+    let rect = LayoutRect::from_edges(
+        Emu::ZERO,
+        Emu::ZERO,
+        Emu::from_inches(1.0),
+        Emu::from_inches(1.0),
+    );
+    let decoration = ParagraphDecoration {
+        between: Some(hairline_rule(Emu::from_points(1.0))),
+        ..ParagraphDecoration::default()
+    };
+    assert!(
+        !decoration.is_empty(),
+        "a between rule is still a decoration"
+    );
+    assert_eq!(
+        stroke_rect(rect, &decoration),
+        rect,
+        "a between rule insets nothing, because nothing places it"
+    );
 }
 
 /// A decoration that paints nothing gets no handle at all, and two paragraphs that paint the same

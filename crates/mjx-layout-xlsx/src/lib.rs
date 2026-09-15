@@ -93,7 +93,7 @@
 //!
 //! # What is deliberately not here
 //!
-//! * **Charts** — MJXOFF-179 (R23). A chart on a sheet is a drawing, and drawings are R18.
+//! * **Charts** — MJXOFF-178 (R23). A chart on a sheet is a drawing, and drawings are R18.
 //! * **The inside of a drawing.** MJXOFF-173 places every anchored object — all three modes,
 //!   against this crate's own row heights and column widths — and lays out **none** of them. A
 //!   drawing's content is DrawingML and laying that out is `mjx-layout-pptx`'s subject; that crate
