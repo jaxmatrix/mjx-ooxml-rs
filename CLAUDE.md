@@ -676,6 +676,7 @@ cargo run -p xtask -- ledger         # regenerate docs/client-platform/PARITY_LE
                                      #   what was CHECKED, not of what is true.
 cargo run -p xtask -- guide-examples  # copy each guide example's region into the blocks the guide commits
 cargo run -p xtask -- guide-examples --check   # write nothing; report whether those blocks are current
+cargo test -p xtask --test feature_checklist   # the renderer feature checklist (MJXOFF-296): every row owned or out of scope, every stage owner named, every audit id placed
 python bindings/mjx-python/tools/stub_docs.py           # restate the committed .pyi's docstrings from the module
 python bindings/mjx-python/tools/stub_docs.py --check   # write nothing; report whether they are current
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push

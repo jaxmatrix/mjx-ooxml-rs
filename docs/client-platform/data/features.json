@@ -1,0 +1,2485 @@
+{
+  "about": "The renderer-completion feature checklist (MJXOFF-296). One row per user-visible feature per format, four stage owners each, an owning ticket or an out-of-scope decision. Checked by xtask/tests/feature_checklist.rs.",
+  "stages": {"model": "the crate and reader API that reads the feature out of the file", "layout": "the box model that places it", "scene": "the companion that resolves its handles into display-list paint", "paint": "the painter"},
+  "stage_owner_spellings": {"crate": "a workspace crate under crates/", "none": "no crate exists yet; created_by names the ticket that creates it", "not-applicable": "the stage has no part in this feature; why says so"},
+  "audit_state": {"gap": "the 2026-09-15 audits found this missing or wrong", "working": "the audits found the stages present; render-tier proof on the corporate fixture belongs to the acceptance ticket", "out-of-scope": "excluded by the cited decision"},
+  "features": [
+    {
+      "id": "pptx-slide-reaches-pixels",
+      "format": "pptx",
+      "feature": "A slide reaches a display list from library code, with its declared geometry carried in the catalogue",
+      "audit": ["P01"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::shape_geometry, shape_adjustments"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue, ShapeOutlineRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideGeometry, SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-318",
+      "rc": "RC24",
+      "ledger": "pptx-reaches-pixels"
+    },
+    {
+      "id": "pptx-line-breaks",
+      "format": "pptx",
+      "feature": "A soft line break inside a paragraph starts a new line",
+      "audit": ["P02"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "ordered paragraph content reader (a:r, a:br, a:fld) — not public yet"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideDeck, TextBody, PlacedLine"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-310",
+      "rc": "RC15",
+      "ledger": "text-in-a-shape"
+    },
+    {
+      "id": "pptx-fields",
+      "format": "pptx",
+      "feature": "Slide number, date and footer fields show their text",
+      "audit": ["P03"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::paragraph_field_type, paragraph_field_text"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideDeck, TextBody"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-310",
+      "rc": "RC15",
+      "ledger": null
+    },
+    {
+      "id": "pptx-run-colour",
+      "format": "pptx",
+      "feature": "Text draws in its own run colour instead of black",
+      "audit": ["P04"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue run decoration table"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources text_decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-311",
+      "rc": "RC16",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "pptx-shape-style-font-colour",
+      "format": "pptx",
+      "feature": "Text in an autoshape takes its colour from the shape style's font reference",
+      "audit": ["P05"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties (p:style fontRef tier)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue run decoration table"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources text_decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-311",
+      "rc": "RC16",
+      "ledger": "shape-styles"
+    },
+    {
+      "id": "pptx-hyperlink-colour",
+      "format": "pptx",
+      "feature": "Hyperlinked text draws in the theme hyperlink colour",
+      "audit": ["P06"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::run_hyperlink, effective_run_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue run decoration table"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources text_decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-311",
+      "rc": "RC16",
+      "ledger": "hyperlinks"
+    },
+    {
+      "id": "pptx-bullet-colour",
+      "format": "pptx",
+      "feature": "A bullet draws in its declared bullet colour",
+      "audit": ["P10"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_paragraph_properties (buClr)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "Marker, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources text_decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-311",
+      "rc": "RC16",
+      "ledger": "bullets-and-numbering"
+    },
+    {
+      "id": "pptx-underline-strike-highlight",
+      "format": "pptx",
+      "feature": "Underline, strikethrough and highlight are drawn",
+      "audit": ["P07"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "RunStyle, GlyphRunFragment decorations"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-308",
+      "rc": "RC13",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "pptx-baseline-caps-spacing-kerning",
+      "format": "pptx",
+      "feature": "Superscript, subscript, all caps, small caps, character spacing and kerning are honoured",
+      "audit": ["P08"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "RunStyle, TextEngine"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": "text-measurement"
+    },
+    {
+      "id": "pptx-script-font-slots",
+      "format": "pptx",
+      "feature": "East Asian, complex-script and symbol runs use their own font slot",
+      "audit": ["P09"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties (ea/cs/sym)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "RunStyle, TextEngine"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": "font-resolution"
+    },
+    {
+      "id": "pptx-picture-bullets",
+      "format": "pptx",
+      "feature": "A picture bullet draws its picture",
+      "audit": ["P11"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "picture_bullet reader (buBlip)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "Marker, ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-323",
+      "rc": "RC30",
+      "ledger": "bullets-and-numbering"
+    },
+    {
+      "id": "pptx-non-latin-autonumber",
+      "format": "pptx",
+      "feature": "Non-Latin automatic numbering schemes show their own numerals",
+      "audit": ["P12"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_paragraph_properties (buAutoNum)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "AutoNumberCounters, Marker"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-323",
+      "rc": "RC30",
+      "ledger": "bullets-and-numbering"
+    },
+    {
+      "id": "pptx-slide-background",
+      "format": "pptx",
+      "feature": "A slide, layout or master background is painted",
+      "audit": ["P13"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "effective background ladder slide → layout → master (bg, bgPr, bgRef) — not written yet"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel root decoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-312",
+      "rc": "RC17",
+      "ledger": "pptx-master-and-layout"
+    },
+    {
+      "id": "pptx-master-and-layout-shapes",
+      "format": "pptx",
+      "feature": "Layout and master shapes draw beneath the slide, per showMasterSp",
+      "audit": ["P14"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::slide_layout, layout_master, shapes"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideDeck"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-312",
+      "rc": "RC17",
+      "ledger": "pptx-master-and-layout"
+    },
+    {
+      "id": "pptx-hidden-shapes-and-slides",
+      "format": "pptx",
+      "feature": "Hidden shapes and hidden slides are not drawn",
+      "audit": ["P15"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "nonvisual properties (hidden flag)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideDeck"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-312",
+      "rc": "RC17",
+      "ledger": "pptx-slide-layout"
+    },
+    {
+      "id": "pptx-colour-opacity",
+      "format": "pptx",
+      "feature": "Fills, lines, shadows and transformed colours keep their opacity",
+      "audit": ["P16", "P17"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "resolve_fill, resolve_line, resolve_effects"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "fill_style, stroke_style, effect_styles"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-243",
+      "rc": "RC04",
+      "ledger": "fills"
+    },
+    {
+      "id": "pptx-placeholder-geometry",
+      "format": "pptx",
+      "feature": "A placeholder inherits its geometry from its layout and master",
+      "audit": ["P18"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::shape_geometry, shape_for_placeholder"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeOutlineRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideGeometry"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-318",
+      "rc": "RC24",
+      "ledger": "preset-geometry"
+    },
+    {
+      "id": "pptx-custom-geometry",
+      "format": "pptx",
+      "feature": "Freeform (custom geometry) shapes draw their outline",
+      "audit": ["P19"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "custom geometry specification"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeOutlineRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideGeometry over mjx-geometry ShapeOutline"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-318",
+      "rc": "RC24",
+      "ledger": "custom-geometry"
+    },
+    {
+      "id": "pptx-picture-shape-properties",
+      "format": "pptx",
+      "feature": "A picture draws with its geometry mask, outline and effects",
+      "audit": ["P20"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::shape_outline, shape_effects, shape_geometry"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PictureContent"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image, SlideGeometry"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-307",
+      "rc": "RC12",
+      "ledger": "picture-insertion"
+    },
+    {
+      "id": "pptx-picture-crop-and-adjustments",
+      "format": "pptx",
+      "feature": "A picture is cropped, tiled and recoloured as declared",
+      "audit": ["P21"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "blip fill (srcRect, tile, alphaModFix, lum, grayscl, duotone, clrChange)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PictureContent, ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-307",
+      "rc": "RC12",
+      "ledger": "picture-cropping"
+    },
+    {
+      "id": "pptx-picture-pixels",
+      "format": "pptx",
+      "feature": "A picture shows its decoded pixels",
+      "audit": ["P22"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::picture_image_bytes"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-306",
+      "rc": "RC11",
+      "ledger": "picture-insertion"
+    },
+    {
+      "id": "pptx-picture-fill-on-shape",
+      "format": "pptx",
+      "feature": "A shape with a picture fill draws the picture even when no p:pic uses it",
+      "audit": ["P23"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_shape_fill"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-307",
+      "rc": "RC12",
+      "ledger": "fills"
+    },
+    {
+      "id": "pptx-svg-pictures",
+      "format": "pptx",
+      "feature": "An SVG picture draws (or its PNG fallback does)",
+      "audit": ["P24"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "svgBlip reader — not written yet"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-336",
+      "rc": "RC44",
+      "ledger": "picture-insertion"
+    },
+    {
+      "id": "pptx-gradient-kinds",
+      "format": "pptx",
+      "feature": "Path, radial and rectangular gradients draw as themselves, with tile and rotation",
+      "audit": ["P25"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "gradient fill (path, tileRect, rotWithShape, lin scaled)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "fill_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-328",
+      "rc": "RC35",
+      "ledger": "fills"
+    },
+    {
+      "id": "pptx-group-fill",
+      "format": "pptx",
+      "feature": "A group fill paints through the enclosing group",
+      "audit": ["P26"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_shape_fill (grpFill)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "fill_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-328",
+      "rc": "RC35",
+      "ledger": "fills"
+    },
+    {
+      "id": "pptx-charts",
+      "format": "pptx",
+      "feature": "A chart on a slide draws its bars, lines, slices, axes and gridlines",
+      "audit": ["P27"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::chart_part_bytes"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartGeometry, ChartPaint, ChartOutline via SlideBoxModel"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-302",
+      "rc": "RC06",
+      "ledger": "chart-in-three-formats"
+    },
+    {
+      "id": "pptx-chart-label-text",
+      "format": "pptx",
+      "feature": "Chart titles, labels and ticks are shaped text",
+      "audit": ["P28"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-chart", "api": "ChartSpace"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartText, TextMetrics (NominalMetrics today)"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-320",
+      "rc": "RC26",
+      "ledger": "chart-furniture"
+    },
+    {
+      "id": "pptx-smartart",
+      "format": "pptx",
+      "feature": "SmartArt draws its cached drawing",
+      "audit": ["P29"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::diagram_part_bytes (no typed dsp:drawing reader)"},
+        "layout": {"crate": "none", "api": "DrawingML shape, text-body and group layout below the box models", "created_by": "MJXOFF-259"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-321",
+      "rc": "RC28",
+      "ledger": "diagram-layout"
+    },
+    {
+      "id": "pptx-ole-snapshot",
+      "format": "pptx",
+      "feature": "An embedded object draws its snapshot picture",
+      "audit": ["P30"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::ole_snapshot_image_bytes"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ImageRequest"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "pptx-ole-and-activex"
+    },
+    {
+      "id": "pptx-table-rendering",
+      "format": "pptx",
+      "feature": "Tables draw dashed and diagonal borders, the table background, and cell text with inheritance and colour",
+      "audit": ["P31"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_cell_border, effective_cell_fill, effective_cell_run_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "TableContent, PlacedTable"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-328",
+      "rc": "RC35",
+      "ledger": "table-borders"
+    },
+    {
+      "id": "pptx-justify-distribute",
+      "format": "pptx",
+      "feature": "Justified and distributed paragraphs spread their lines",
+      "audit": ["P32"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_paragraph_properties (algn)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedBody, PlacedLine"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": "paragraph-alignment"
+    },
+    {
+      "id": "pptx-tab-alignment",
+      "format": "pptx",
+      "feature": "Tab stops align text and take part in line breaking",
+      "audit": ["P33"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_paragraph_properties (tabLst)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "TabStops, TextEngine"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": null
+    },
+    {
+      "id": "pptx-autofit",
+      "format": "pptx",
+      "feature": "Shrink-on-overflow and resize-shape autofit match the file",
+      "audit": ["P34"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_body_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "AutofitPolicy, AutofitOutcome"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": "pptx-autofit"
+    },
+    {
+      "id": "pptx-text-rotation",
+      "format": "pptx",
+      "feature": "Text never mirrors with a flipped shape, and body rotation and upright are applied",
+      "audit": ["P35"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_body_properties, effective_shape_transform"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedBody"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-330",
+      "rc": "RC37",
+      "ledger": "text-in-a-shape"
+    },
+    {
+      "id": "pptx-east-asian-vertical-text",
+      "format": "pptx",
+      "feature": "East Asian vertical, Mongolian vertical and stacked WordArt text run vertically",
+      "audit": ["P36"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_body_properties (vert)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "VerticalLayout"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-332",
+      "rc": "RC39",
+      "ledger": "east-asian-typography"
+    },
+    {
+      "id": "pptx-wordart-warp",
+      "format": "pptx",
+      "feature": "WordArt text follows its warp",
+      "audit": ["P37"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::body_properties (prstTxWarp)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedBody"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideGeometry over mjx-geometry text warp paths"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "wordart"
+    },
+    {
+      "id": "pptx-three-dimensional",
+      "format": "pptx",
+      "feature": "3-D rotation, extrusion and bevel are drawn",
+      "audit": ["P38"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "shape3d (scene3d, sp3d)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "effect_styles"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "three-dimensional-shapes"
+    },
+    {
+      "id": "pptx-preset-shadow",
+      "format": "pptx",
+      "feature": "Preset shadows draw from the preset table, not a plain outer shadow",
+      "audit": ["P39"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "effect (prstShdw)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "effect_styles"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-328",
+      "rc": "RC35",
+      "ledger": "effects"
+    },
+    {
+      "id": "pptx-text-effects",
+      "format": "pptx",
+      "feature": "Text outline, gradient text fill and text effects are drawn",
+      "audit": ["P40"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_run_properties (ln, gradFill, effectLst)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue run decoration table"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources text_decoration, lowered by mjx-scene build_scene"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-328",
+      "rc": "RC35",
+      "ledger": "text-effects"
+    },
+    {
+      "id": "pptx-embedded-fonts",
+      "format": "pptx",
+      "feature": "A deck's embedded fonts are used",
+      "audit": ["P41"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "embeddedFontLst reader — not written yet"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "TextEngine over mjx-text EmbeddedFont"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-319",
+      "rc": "RC25",
+      "ledger": "font-resolution"
+    },
+    {
+      "id": "pptx-ink",
+      "format": "pptx",
+      "feature": "Ink drawn on a slide is shown",
+      "audit": ["P42"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::ink_part_bytes"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideDeck"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "excluded-ink"
+    },
+    {
+      "id": "pptx-notes-page",
+      "format": "pptx",
+      "feature": "A notes page draws its slide image and notes-master shapes",
+      "audit": ["P43"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::notes_text"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel (NOTES surface)"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "pptx-notes"
+    },
+    {
+      "id": "pptx-render-losses",
+      "format": "pptx",
+      "feature": "A slide render reports every piece of content it could not draw",
+      "audit": ["P44"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources, SlideGeometry"},
+        "paint": {"crate": "mjx-paint", "api": "DrawReport"}
+      },
+      "owner": "MJXOFF-299",
+      "rc": "RC02",
+      "ledger": "pptx-reaches-pixels"
+    },
+    {
+      "id": "pptx-custom-dash",
+      "format": "pptx",
+      "feature": "A custom dash pattern draws as declared",
+      "audit": ["P45"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "line (custDash)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "stroke_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-309",
+      "rc": "RC14",
+      "ledger": "outlines"
+    },
+    {
+      "id": "pptx-arrowheads",
+      "format": "pptx",
+      "feature": "Connector and line arrowheads are drawn",
+      "audit": ["C06"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "line (headEnd, tailEnd)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "ShapeDecoration"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "stroke_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame over mjx-scene tessellation (line ends)"}
+      },
+      "owner": "MJXOFF-309",
+      "rc": "RC14",
+      "ledger": "connectors"
+    },
+    {
+      "id": "pptx-colour-map-override",
+      "format": "pptx",
+      "feature": "A slide's colour map override is honoured",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::color_map"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "pptx-group-transforms",
+      "format": "pptx",
+      "feature": "Grouped shapes are positioned, scaled and rotated through their group",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_shape_transform"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "grouping-and-transforms"
+    },
+    {
+      "id": "pptx-line-caps-joins-compound",
+      "format": "pptx",
+      "feature": "Line caps, joins and compound lines are drawn",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "line"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "stroke_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "outlines"
+    },
+    {
+      "id": "pptx-vertical-text",
+      "format": "pptx",
+      "feature": "Text rotated 90 and 270 degrees",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_body_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "VerticalLayout"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "text-in-a-shape"
+    },
+    {
+      "id": "pptx-text-columns",
+      "format": "pptx",
+      "feature": "Text bodies with several columns, including right-to-left columns",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_body_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedColumn"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "text-in-a-shape"
+    },
+    {
+      "id": "pptx-table-merged-cells",
+      "format": "pptx",
+      "feature": "Merged table cells span their region",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::cell_span"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedTable, PlacedCell"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "table-merging"
+    },
+    {
+      "id": "pptx-paragraph-direction",
+      "format": "pptx",
+      "feature": "Right-to-left paragraphs",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation::effective_paragraph_properties"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "PlacedBody"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "bidirectional-text"
+    },
+    {
+      "id": "pptx-animations",
+      "format": "pptx",
+      "feature": "Entrance, emphasis, exit and motion-path animations play",
+      "audit": [],
+      "audit_state": "out-of-scope",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation (p:timing is not modelled)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "out_of_scope": {"decision": "D24.4", "reason": "Slideshow animations and transitions are out of the renderer-completion programme; they belong to epic MJXOFF-348. A static render is unaffected."},
+      "ledger": "pptx-animation-and-timing"
+    },
+    {
+      "id": "pptx-transitions",
+      "format": "pptx",
+      "feature": "Slide transitions play between slides",
+      "audit": [],
+      "audit_state": "out-of-scope",
+      "stages": {
+        "model": {"crate": "mjx-pptx", "api": "Presentation (p:transition is preserved only)"},
+        "layout": {"crate": "mjx-layout-pptx", "api": "SlideBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "SlideResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "out_of_scope": {"decision": "D24.4", "reason": "Slideshow animations and transitions are out of the renderer-completion programme; they belong to epic MJXOFF-348. A static render is unaffected."},
+      "ledger": "pptx-transitions"
+    },
+    {
+      "id": "xlsx-sheet-reaches-pixels",
+      "format": "xlsx",
+      "feature": "A worksheet reaches a display list from production code, not only from test harnesses",
+      "audit": ["X01"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::worksheet, SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources (constructor is test-only today)"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-333",
+      "rc": "RC40",
+      "ledger": "excel-reaches-pixels"
+    },
+    {
+      "id": "xlsx-theme-colours",
+      "format": "xlsx",
+      "feature": "Theme colours resolve without the caller adding the theme",
+      "audit": ["X02"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::theme_colors"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetPalette::from_stylesheet, with_theme"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-305",
+      "rc": "RC10",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "xlsx-system-colours",
+      "format": "xlsx",
+      "feature": "System colours resolve to the platform's values instead of guessed black and white",
+      "audit": ["X27"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetPalette, SystemRole"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-305",
+      "rc": "RC10",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "xlsx-gridlines",
+      "format": "xlsx",
+      "feature": "Gridlines are drawn, honour showGridLines and grid colour, and hide under filled cells",
+      "audit": ["X03"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::window_views"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel (furniture layer)"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-324",
+      "rc": "RC31",
+      "ledger": "excel-gridlines"
+    },
+    {
+      "id": "xlsx-charts",
+      "format": "xlsx",
+      "feature": "A chart on a worksheet draws its interior",
+      "audit": ["X04"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::chart_part_bytes"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartGeometry, ChartPaint, ChartOutline via SheetBoxModel"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-302",
+      "rc": "RC06",
+      "ledger": "chart-in-three-formats"
+    },
+    {
+      "id": "xlsx-table-styles",
+      "format": "xlsx",
+      "feature": "Worksheet tables and pivot tables draw their table style's banding, header and total rows",
+      "audit": ["X05"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-sml", "api": "styles table_styles (built-in names only; no preset definitions)"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel (table-style layer)"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-315",
+      "rc": "RC21",
+      "ledger": "excel-tables-and-filters"
+    },
+    {
+      "id": "xlsx-pictures",
+      "format": "xlsx",
+      "feature": "Pictures on a worksheet draw cropped and transformed, and the sheet background picture tiles",
+      "audit": ["X06"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::sheet_drawing, sheet_background_image"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "place_drawings, PlacedDrawing"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-306",
+      "rc": "RC11",
+      "ledger": "excel-drawings"
+    },
+    {
+      "id": "xlsx-shapes-and-text-boxes",
+      "format": "xlsx",
+      "feature": "Shapes, text boxes, connectors and groups on a worksheet draw their interior",
+      "audit": ["X07"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "spreadsheet_drawing"},
+        "layout": {"crate": "none", "api": "DrawingML shape, text-body and group layout below the box models", "created_by": "MJXOFF-259"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetGeometry"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-321",
+      "rc": "RC28",
+      "ledger": "excel-drawings"
+    },
+    {
+      "id": "xlsx-rich-text-runs",
+      "format": "xlsx",
+      "feature": "Rich-text runs in a cell keep their own font, size, weight, slant and colour",
+      "audit": ["X08"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-sml", "api": "strings view (rich runs)"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CellRunStyle, PlacedText"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources text_decoration"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-313",
+      "rc": "RC18",
+      "ledger": "excel-cell-formatting"
+    },
+    {
+      "id": "xlsx-font-decorations",
+      "format": "xlsx",
+      "feature": "Underline (including double accounting), strikethrough, superscript and subscript are drawn",
+      "audit": ["X09"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-sml", "api": "FontProperties"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CellRunStyle, GlyphRunFragment decorations"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-308",
+      "rc": "RC13",
+      "ledger": "excel-cell-formatting"
+    },
+    {
+      "id": "xlsx-width-dependent-number-formats",
+      "format": "xlsx",
+      "feature": "Accounting fill, ##### for overwide numbers and General's adaptive digits match column width",
+      "audit": ["X10"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CompiledFormat, FormattedValue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-326",
+      "rc": "RC33",
+      "ledger": "excel-number-format-engine"
+    },
+    {
+      "id": "xlsx-localised-dates",
+      "format": "xlsx",
+      "feature": "Localised month and weekday names and non-Gregorian calendars format dates",
+      "audit": ["X26"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CompiledFormat"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-326",
+      "rc": "RC33",
+      "ledger": "excel-number-format-engine"
+    },
+    {
+      "id": "xlsx-data-bars-and-icon-sets",
+      "format": "xlsx",
+      "feature": "Modern data bars, icon sets and differential number formats draw as Excel shows them",
+      "audit": ["X11"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::conditional_rules_for, conditional_cell_format"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "ConditionalEngine, DataBarGeometry, IconChoice"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-258",
+      "rc": "RC43",
+      "ledger": "excel-conditional-formatting"
+    },
+    {
+      "id": "xlsx-expression-conditional-formats",
+      "format": "xlsx",
+      "feature": "Formula-driven conditional formatting rules are evaluated",
+      "audit": ["X11"],
+      "audit_state": "out-of-scope",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::conditional_rules_for"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "UnevaluatedRule"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "out_of_scope": {"decision": "D21.7", "reason": "Evaluating an expression rule needs the calculation engine, which PLAN.md excludes; the rule stays reported as unevaluated."},
+      "ledger": "excel-conditional-formatting"
+    },
+    {
+      "id": "xlsx-diagonal-and-dashed-borders",
+      "format": "xlsx",
+      "feature": "Diagonal borders are drawn and dashed or dotted borders draw their dash",
+      "audit": ["X12"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::effective_cell_format"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "BorderBand, CellBorders"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": "excel-cell-borders"
+    },
+    {
+      "id": "xlsx-pattern-fills",
+      "format": "xlsx",
+      "feature": "Pattern fills draw their own hatch, darkTrellis distinct from lightTrellis",
+      "audit": ["X13"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::effective_cell_format"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CellFill"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "fill_style, pattern_preset"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": "excel-cell-formatting"
+    },
+    {
+      "id": "xlsx-sheet-view-flags",
+      "format": "xlsx",
+      "feature": "Right-to-left sheets mirror, showZeros hides zeros and zoomScale sets the initial zoom",
+      "audit": ["X14"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::window_views"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "GridGeometry"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": null
+    },
+    {
+      "id": "xlsx-alignment",
+      "format": "xlsx",
+      "feature": "Justify and distributed alignment, rotation pivot and right-to-left reading order",
+      "audit": ["X15"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::effective_cell_format"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "CellStyle, Overflow"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": "excel-cell-formatting"
+    },
+    {
+      "id": "xlsx-frozen-pane-drawings",
+      "format": "xlsx",
+      "feature": "A drawing anchored in a frozen pane stays pinned with it",
+      "audit": ["X21"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::sheet_anchor_bounds"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "PaneSplit, AnchorMode"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": "excel-panes"
+    },
+    {
+      "id": "xlsx-row-height-recompute",
+      "format": "xlsx",
+      "feature": "Wrapped text is not clipped in files that omit row heights",
+      "audit": ["X22"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "RowGeometry, AutoFit"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-327",
+      "rc": "RC34",
+      "ledger": "excel-grid-layout"
+    },
+    {
+      "id": "xlsx-comment-indicators",
+      "format": "xlsx",
+      "feature": "Cells with notes or threaded comments show their indicator",
+      "audit": ["X16"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::sheet_comments"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel (furniture layer)"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-324",
+      "rc": "RC31",
+      "ledger": "comments"
+    },
+    {
+      "id": "xlsx-outline-headers-divider",
+      "format": "xlsx",
+      "feature": "Outline symbols, row and column headers and the frozen-pane divider are drawn",
+      "audit": ["X20"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::window_views"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "GridGeometry, PaneSplit"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-324",
+      "rc": "RC31",
+      "ledger": "excel-panes"
+    },
+    {
+      "id": "xlsx-chartsheets",
+      "format": "xlsx",
+      "feature": "A chartsheet renders as one chart filling its page",
+      "audit": ["X17"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::chart_part_bytes"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetGrid (NotAWorksheet today)"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-329",
+      "rc": "RC36",
+      "ledger": null
+    },
+    {
+      "id": "xlsx-printed-pages",
+      "format": "xlsx",
+      "feature": "A printed worksheet page carries header and footer text and printed gridlines and headings",
+      "audit": ["X18"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::print_area, print_titles"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "paginate, PrintPage"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-329",
+      "rc": "RC36",
+      "ledger": "excel-print-layout"
+    },
+    {
+      "id": "xlsx-sparklines",
+      "format": "xlsx",
+      "feature": "Sparklines draw in their cells",
+      "audit": ["X19"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-sml", "api": "extension list (x14 sparklines — not modelled)"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "SheetBoxModel, PageCatalogue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-258",
+      "rc": "RC43",
+      "ledger": "excel-sparklines"
+    },
+    {
+      "id": "xlsx-legacy-drawings",
+      "format": "xlsx",
+      "feature": "Legacy form controls, comment shapes, OLE previews, SmartArt, slicers and timelines draw",
+      "audit": ["X23"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::vml_drawing_markup"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "place_drawings"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-336",
+      "rc": "RC44",
+      "ledger": "vml-legacy"
+    },
+    {
+      "id": "xlsx-render-losses",
+      "format": "xlsx",
+      "feature": "A worksheet render reports every piece of content it could not draw",
+      "audit": ["X24"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "PageCatalogue"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources, SheetGeometry"},
+        "paint": {"crate": "mjx-paint", "api": "DrawReport"}
+      },
+      "owner": "MJXOFF-299",
+      "rc": "RC02",
+      "ledger": "excel-reaches-pixels"
+    },
+    {
+      "id": "xlsx-merged-regions",
+      "format": "xlsx",
+      "feature": "Merged cells draw as one region",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "Workbook::merged_ranges"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "MergeIndex, MergedRegion"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "excel-merged-regions"
+    },
+    {
+      "id": "xlsx-text-overflow",
+      "format": "xlsx",
+      "feature": "Text overflows into empty neighbours and clips at filled ones",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-xlsx", "api": "SheetFormatting"},
+        "layout": {"crate": "mjx-layout-xlsx", "api": "Overflow"},
+        "scene": {"crate": "mjx-scene-xlsx", "api": "SheetResources"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "excel-text-overflow"
+    },
+    {
+      "id": "docx-page-catalogue",
+      "format": "docx",
+      "feature": "Word's box model keeps its page catalogue so every paintable fragment resolves",
+      "audit": ["W01"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "DocumentFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentBoxModel, DecorationCatalogue (dropped in build today)"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-304",
+      "rc": "RC08",
+      "ledger": "word-reaches-pixels"
+    },
+    {
+      "id": "docx-first-page-reaches-pixels",
+      "format": "docx",
+      "feature": "A Word page reaches pixels through its scene companion",
+      "audit": ["W02"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document, DocumentFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentBoxModel"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-255",
+      "rc": "RC09",
+      "ledger": "word-reaches-pixels"
+    },
+    {
+      "id": "docx-run-paint",
+      "format": "docx",
+      "feature": "Runs draw in their own colour, highlight and shading",
+      "audit": ["W03"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle, run paint table keyed by glyph run"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-304",
+      "rc": "RC08",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "docx-theme-tint-shade",
+      "format": "docx",
+      "feature": "Theme colours carry their tint and shade to the renderer",
+      "audit": ["W04"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties (EffectiveColor)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-243",
+      "rc": "RC04",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "docx-automatic-colour",
+      "format": "docx",
+      "feature": "Automatic text colour resolves as Word shows it",
+      "audit": ["W05"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties (EffectiveColor)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-255",
+      "rc": "RC09",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "docx-table-visual-properties",
+      "format": "docx",
+      "feature": "Table cell shading, borders and table-style conditional formatting are read once per table",
+      "audit": ["W06", "W07"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "CellFormatting, TableFormatting (style id only today)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "TableLayout"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-314",
+      "rc": "RC20",
+      "ledger": "table-styles"
+    },
+    {
+      "id": "docx-table-painting",
+      "format": "docx",
+      "feature": "Table cells draw their fills and border bands with conflict resolution, and merged rows span",
+      "audit": ["W08"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "CellFormatting, TableFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "TableLayout, CellLayout"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-314",
+      "rc": "RC20",
+      "ledger": "table-borders"
+    },
+    {
+      "id": "docx-header-footer-blocks",
+      "format": "docx",
+      "feature": "Headers, footers and notes lay out as blocks, so a header table stays a table",
+      "audit": ["W09"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::header_footer_stream, blocks"},
+        "layout": {"crate": "mjx-layout-docx", "api": "lay_out_stream, StreamLayout"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-316",
+      "rc": "RC22",
+      "ledger": "word-headers-and-footers"
+    },
+    {
+      "id": "docx-header-floats",
+      "format": "docx",
+      "feature": "Logos and watermarks floating in headers, footers and notes are placed",
+      "audit": ["W10"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::header_footer_stream, DrawingFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "place_float, PlacedFloat"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-316",
+      "rc": "RC22",
+      "ledger": "word-headers-and-footers"
+    },
+    {
+      "id": "docx-furniture-paragraph-decoration",
+      "format": "docx",
+      "feature": "Header, footer and note paragraphs draw their shading and borders",
+      "audit": ["W11"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "DocumentFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "ParagraphDecoration"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-304",
+      "rc": "RC08",
+      "ledger": "paragraph-borders-and-rules"
+    },
+    {
+      "id": "docx-paragraph-borders",
+      "format": "docx",
+      "feature": "Paragraph borders sit at the indents plus spacing, group between borders, and bar tabs draw",
+      "audit": ["W12"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_paragraph_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "ParagraphDecoration, Rule, ParagraphLayout"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-304",
+      "rc": "RC08",
+      "ledger": "paragraph-borders-and-rules"
+    },
+    {
+      "id": "docx-compound-borders",
+      "format": "docx",
+      "feature": "Double, thick-thin and other compound border styles draw as declared",
+      "audit": ["W13"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_paragraph_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "Rule, stroke_rect"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame over the one border model"}
+      },
+      "owner": "MJXOFF-309",
+      "rc": "RC14",
+      "ledger": "paragraph-borders-and-rules"
+    },
+    {
+      "id": "docx-pictures",
+      "format": "docx",
+      "feature": "Inline and floating pictures draw, cropped",
+      "audit": ["W14", "W15"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "DrawingFormatting (no blip relationship id or crop today)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "InlineObject, PlacedFloat"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-306",
+      "rc": "RC11",
+      "ledger": "word-floating-objects"
+    },
+    {
+      "id": "docx-float-z-order",
+      "format": "docx",
+      "feature": "Behind-text floats paint beneath the body and in-front floats above it, ordered by relative height",
+      "audit": ["W16"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "DrawingFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "Anchorage, PlacedFloat"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-317",
+      "rc": "RC23",
+      "ledger": "word-floating-objects"
+    },
+    {
+      "id": "docx-inline-and-cell-charts",
+      "format": "docx",
+      "feature": "Inline charts and charts in table cells and headers get their interior",
+      "audit": ["W17"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::chart_part_bytes"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartGeometry via DocumentBoxModel"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-317",
+      "rc": "RC23",
+      "ledger": "chart-in-three-formats"
+    },
+    {
+      "id": "docx-chart-paint",
+      "format": "docx",
+      "feature": "A Word chart's handles resolve to paint and outlines",
+      "audit": ["W18"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::chart_part_bytes"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartPaint, ChartOutline"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-302",
+      "rc": "RC06",
+      "ledger": "chart-in-three-formats"
+    },
+    {
+      "id": "docx-text-boxes-and-groups",
+      "format": "docx",
+      "feature": "Word drawing shapes, text boxes, groups and canvases draw with their text",
+      "audit": ["W19"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "wordprocessing_drawing (txbxContent)"},
+        "layout": {"crate": "none", "api": "DrawingML shape, text-body and group layout below the box models", "created_by": "MJXOFF-259"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-321",
+      "rc": "RC28",
+      "ledger": "word-floating-objects"
+    },
+    {
+      "id": "docx-vml-and-watermarks",
+      "format": "docx",
+      "feature": "VML shapes, text boxes, horizontal rules and watermarks draw",
+      "audit": ["W20"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::header_footer_vml_drawings"},
+        "layout": {"crate": "mjx-layout-docx", "api": "InlineObject"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-331",
+      "rc": "RC38",
+      "ledger": "vml-legacy"
+    },
+    {
+      "id": "docx-lost-run-content",
+      "format": "docx",
+      "feature": "Symbol characters, positional tabs, ruby and page-number elements contribute their text",
+      "audit": ["W21"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "residency run reader (drops sym, ptab, ruby, pgNum today)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "Piece, PieceKind"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
+      "ledger": null
+    },
+    {
+      "id": "docx-note-marks-and-separators",
+      "format": "docx",
+      "feature": "Notes carry their reference number, and the separator rules draw",
+      "audit": ["W22"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::footnotes, endnotes"},
+        "layout": {"crate": "mjx-layout-docx", "api": "NoteArea, PlacedNote"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
+      "ledger": "word-footnotes-and-endnotes"
+    },
+    {
+      "id": "docx-vertical-alignment-and-position",
+      "format": "docx",
+      "feature": "Superscript, subscript and raised or lowered text are offset",
+      "audit": ["W23"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties (vertAlign, position)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle, GlyphRunFragment decorations"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-308",
+      "rc": "RC13",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "docx-caps-and-small-caps",
+      "format": "docx",
+      "feature": "All caps and small caps are applied",
+      "audit": ["W24"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle, TextEngine"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "docx-spacing-scale-kerning",
+      "format": "docx",
+      "feature": "Character spacing, horizontal scale and kerning change line width",
+      "audit": ["W25"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle, TextEngine"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
+      "ledger": "text-measurement"
+    },
+    {
+      "id": "docx-script-font-slots",
+      "format": "docx",
+      "feature": "Font slot follows script and hint, and complex-script size and style apply",
+      "audit": ["W26"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-322",
+      "rc": "RC29",
+      "ledger": "font-resolution"
+    },
+    {
+      "id": "docx-kashida-and-distribute",
+      "format": "docx",
+      "feature": "Kashida and numeric-tab justification",
+      "audit": ["W27"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_paragraph_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "justify, Alignment"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-332",
+      "rc": "RC39",
+      "ledger": "paragraph-alignment"
+    },
+    {
+      "id": "docx-east-asian-layout",
+      "format": "docx",
+      "feature": "Line-break rules, document grid, East Asian layout and fit-text are honoured",
+      "audit": ["W28"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_paragraph_properties, SectionFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "FlowContext"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-332",
+      "rc": "RC39",
+      "ledger": "east-asian-typography"
+    },
+    {
+      "id": "docx-hyphenation",
+      "format": "docx",
+      "feature": "Automatic hyphenation breaks words",
+      "audit": ["W29"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::document_settings"},
+        "layout": {"crate": "mjx-layout-docx", "api": "cut, CutPolicy over mjx-text hyphenation (no patterns shipped)"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-332",
+      "rc": "RC39",
+      "ledger": "hyphenation-and-segmentation"
+    },
+    {
+      "id": "docx-frames-and-drop-caps",
+      "format": "docx",
+      "feature": "Text frames and drop caps are placed",
+      "audit": ["W30"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_paragraph_properties (framePr)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentBoxModel"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-331",
+      "rc": "RC38",
+      "ledger": "word-drop-caps-and-frames"
+    },
+    {
+      "id": "docx-numbering-formats",
+      "format": "docx",
+      "feature": "Every numbering format shows its own numerals",
+      "audit": ["W31"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::abstract_numberings"},
+        "layout": {"crate": "mjx-layout-docx", "api": "format_number, ListNumbering"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-323",
+      "rc": "RC30",
+      "ledger": "bullets-and-numbering"
+    },
+    {
+      "id": "docx-symbol-and-picture-bullets",
+      "format": "docx",
+      "feature": "Symbol-font and picture bullets draw the right glyph or picture, aligned",
+      "audit": ["W32"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::abstract_numberings"},
+        "layout": {"crate": "mjx-layout-docx", "api": "Marker"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-323",
+      "rc": "RC30",
+      "ledger": "bullets-and-numbering"
+    },
+    {
+      "id": "docx-page-borders",
+      "format": "docx",
+      "feature": "Page borders are drawn",
+      "audit": ["W33"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "SectionFormatting (page borders not carried today)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "SectionGeometry"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-316",
+      "rc": "RC22",
+      "ledger": "word-sections"
+    },
+    {
+      "id": "docx-page-background",
+      "format": "docx",
+      "feature": "The page background is painted at the page rectangle",
+      "audit": ["W34"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::background"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentBoxModel page root"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-316",
+      "rc": "RC22",
+      "ledger": "word-sections"
+    },
+    {
+      "id": "docx-gutter-valign-direction",
+      "format": "docx",
+      "feature": "Right-to-left gutter, vertically justified pages and section text direction",
+      "audit": ["W35"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "SectionFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "SectionGeometry"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-316",
+      "rc": "RC22",
+      "ledger": "word-sections"
+    },
+    {
+      "id": "docx-column-separators",
+      "format": "docx",
+      "feature": "Lines between columns are drawn",
+      "audit": ["W36"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "SectionFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "PageReport column separator"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-304",
+      "rc": "RC08",
+      "ledger": "word-columns"
+    },
+    {
+      "id": "docx-review-markup",
+      "format": "docx",
+      "feature": "Insertions, deletions, moves, change bars and comment ranges are painted",
+      "audit": ["W37"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::comments"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RevisionView, PieceRevision"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-325",
+      "rc": "RC32",
+      "ledger": "word-track-changes"
+    },
+    {
+      "id": "docx-equations",
+      "format": "docx",
+      "feature": "Equations draw their rules, colour and math-font glyphs",
+      "audit": ["W38"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::equations"},
+        "layout": {"crate": "mjx-layout-docx", "api": "lay_out_math, MathBox"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-334",
+      "rc": "RC41",
+      "ledger": "math-typesetting"
+    },
+    {
+      "id": "docx-form-fields-and-content-controls",
+      "format": "docx",
+      "feature": "Legacy form fields and content controls show their visuals",
+      "audit": ["W39"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::form_field"},
+        "layout": {"crate": "mjx-layout-docx", "api": "InlineObject"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-331",
+      "rc": "RC38",
+      "ledger": "word-content-controls"
+    },
+    {
+      "id": "docx-field-results",
+      "format": "docx",
+      "feature": "Fields show their computed or cached result, and the ledger states which kinds are computed",
+      "audit": ["W40"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::fields, cached_result_text"},
+        "layout": {"crate": "mjx-layout-docx", "api": "evaluate_field, FieldKind"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-297",
+      "rc": "RC01",
+      "ledger": "word-fields"
+    },
+    {
+      "id": "docx-text-effects",
+      "format": "docx",
+      "feature": "Word 2010 text effects and legacy emboss, imprint, outline and shadow",
+      "audit": ["W41"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "text-effects"
+    },
+    {
+      "id": "docx-smartart-and-ole",
+      "format": "docx",
+      "feature": "SmartArt fallback drawings and embedded-object previews draw",
+      "audit": ["W42"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::drawings"},
+        "layout": {"crate": "mjx-layout-docx", "api": "InlineObject"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-337",
+      "rc": "RC45",
+      "ledger": "diagram-parts"
+    },
+    {
+      "id": "docx-incremental-reflow",
+      "format": "docx",
+      "feature": "An open document reflows incrementally in a viewer",
+      "audit": ["W44"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document, DocumentFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentFlow, Checkpoint"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-333",
+      "rc": "RC40",
+      "ledger": "word-resumable-layout"
+    },
+    {
+      "id": "docx-hidden-text",
+      "format": "docx",
+      "feature": "Hidden text can be shown as a non-printing mark",
+      "audit": ["W45"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "Document::effective_run_properties (vanish)"},
+        "layout": {"crate": "mjx-layout-docx", "api": "RunStyle"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-324",
+      "rc": "RC31",
+      "ledger": null
+    },
+    {
+      "id": "docx-flow-and-pagination",
+      "format": "docx",
+      "feature": "Paragraphs flow and paginate with widow, orphan and keep controls",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "DocumentFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "assemble, fill_column, widow_control"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "word-flow-and-pagination"
+    },
+    {
+      "id": "docx-table-splitting",
+      "format": "docx",
+      "feature": "Tables split across pages with repeated header rows",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "TableFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "TableLayout, Slice"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "table-splitting"
+    },
+    {
+      "id": "docx-line-numbers",
+      "format": "docx",
+      "feature": "Line numbers are placed in the margin",
+      "audit": [],
+      "audit_state": "working",
+      "stages": {
+        "model": {"crate": "mjx-docx", "api": "SectionFormatting"},
+        "layout": {"crate": "mjx-layout-docx", "api": "DocumentBoxModel"},
+        "scene": {"crate": "none", "api": "Word's ResourceResolver and GeometryProvider (mjx-scene-docx)", "created_by": "MJXOFF-255"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "word-line-numbers"
+    },
+    {
+      "id": "shared-headless-painters",
+      "format": "shared",
+      "feature": "The software, PDF and SVG painters build without the GPU stack",
+      "audit": ["C01"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "painters consume a display list; no document model is involved"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "painters consume a display list; no layout is involved"},
+        "scene": {"crate": "mjx-scene", "api": "DisplayList"},
+        "paint": {"crate": "mjx-paint", "api": "SoftwarePainter, PdfPainter, SvgPainter (wgpu linked unconditionally)"}
+      },
+      "owner": "MJXOFF-303",
+      "rc": "RC07",
+      "ledger": "export-pdf-and-svg"
+    },
+    {
+      "id": "shared-svg-selectable-text",
+      "format": "shared",
+      "feature": "SVG export carries text as text, not outlines",
+      "audit": ["C14"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "export consumes a display list"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "export consumes a display list"},
+        "scene": {"crate": "mjx-scene", "api": "DisplayList glyph runs"},
+        "paint": {"crate": "mjx-paint", "api": "SvgPainter"}
+      },
+      "owner": "MJXOFF-303",
+      "rc": "RC07",
+      "ledger": "export-pdf-and-svg"
+    },
+    {
+      "id": "shared-drawingml-paint-once",
+      "format": "shared",
+      "feature": "DrawingML fill, line and effect conversion reaches every companion and the chart resolver",
+      "audit": ["C02"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "FillSpec, LineSpec, effect"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "paint conversion sits between layout handles and the display list"},
+        "scene": {"crate": "none", "api": "shared DrawingML paint conversion (today private to mjx-scene-pptx)", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-302",
+      "rc": "RC06",
+      "ledger": "fills"
+    },
+    {
+      "id": "shared-colour-alpha",
+      "format": "shared",
+      "feature": "Colour opacity survives resolution once, including a theme slot's own alpha",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "SchemeColors::from_scheme, resolve_fill"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "colours are resolved before layout"},
+        "scene": {"crate": "mjx-scene-pptx", "api": "fill_style"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-243",
+      "rc": "RC04",
+      "ledger": "colour-resolution"
+    },
+    {
+      "id": "shared-box-model-issued-contract",
+      "format": "shared",
+      "feature": "Every box model exposes the catalogue of handles it issued, checked for all three",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "a contract between layout and scene"},
+        "layout": {"crate": "mjx-layout", "api": "BoxModel"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-301",
+      "rc": "RC05",
+      "ledger": "the-box-model-seam"
+    },
+    {
+      "id": "shared-render-loss-vocabulary",
+      "format": "shared",
+      "feature": "Every render counts what it could not draw, from layout to painter, including picture fills with no picture",
+      "audit": ["C16"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "losses are counted from layout onward"},
+        "layout": {"crate": "mjx-layout", "api": "PageFragments loss categories — not written yet"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver answers"},
+        "paint": {"crate": "mjx-paint", "api": "DrawReport"}
+      },
+      "owner": "MJXOFF-299",
+      "rc": "RC02",
+      "ledger": null
+    },
+    {
+      "id": "shared-pdf-missing-face",
+      "format": "shared",
+      "feature": "PDF export never silently drops a run whose face is missing",
+      "audit": ["C04"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-text", "api": "FontResolver"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "export consumes a display list"},
+        "scene": {"crate": "mjx-scene", "api": "DisplayList glyph runs"},
+        "paint": {"crate": "mjx-paint", "api": "PdfPainter, FaceLibrary"}
+      },
+      "owner": "MJXOFF-299",
+      "rc": "RC02",
+      "ledger": "export-pdf-and-svg"
+    },
+    {
+      "id": "shared-corporate-fixtures",
+      "format": "shared",
+      "feature": "One corporate-shaped committed fixture per format, and the harness that renders it",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-fixtures", "api": "committed corpus"},
+        "layout": {"crate": "mjx-layout", "api": "BoxModel"},
+        "scene": {"crate": "mjx-scene", "api": "build_scene"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-300",
+      "rc": "RC03",
+      "ledger": null
+    },
+    {
+      "id": "shared-image-decoding",
+      "format": "shared",
+      "feature": "Pictures decode to pixels, with a byte ceiling and typed errors",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-opc", "api": "media sniffing (decodes nothing)"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "decoding happens after layout issues an image handle"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver image"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-306",
+      "rc": "RC11",
+      "ledger": "picture-insertion"
+    },
+    {
+      "id": "shared-picture-adjustment-parity",
+      "format": "shared",
+      "feature": "All four painters apply brightness, contrast, grayscale, duotone and colour change the same way",
+      "audit": ["C05"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "blip adjustments"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "adjustments are carried, not laid out"},
+        "scene": {"crate": "mjx-scene", "api": "paint image adjustments"},
+        "paint": {"crate": "mjx-paint", "api": "SoftwarePainter, WgpuPainter, PdfPainter, SvgPainter"}
+      },
+      "owner": "MJXOFF-306",
+      "rc": "RC11",
+      "ledger": "picture-corrections"
+    },
+    {
+      "id": "shared-text-decorations",
+      "format": "shared",
+      "feature": "Underline, strikethrough, double strike, highlight and baseline offset exist in the shared vocabulary",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "each format's ladder supplies the values"},
+        "layout": {"crate": "mjx-layout", "api": "GlyphRunFragment (no decoration fields today)"},
+        "scene": {"crate": "mjx-scene", "api": "build_scene"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-308",
+      "rc": "RC13",
+      "ledger": "run-formatting"
+    },
+    {
+      "id": "shared-line-ends-and-dashes",
+      "format": "shared",
+      "feature": "Arrowheads are tessellated and custom dashes exist in the stroke vocabulary",
+      "audit": ["C06"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "line (headEnd, tailEnd, custDash)"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "strokes are carried, not laid out"},
+        "scene": {"crate": "mjx-scene", "api": "StrokeStyle, dash_lengths, tessellation"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-309",
+      "rc": "RC14",
+      "ledger": "outlines"
+    },
+    {
+      "id": "shared-custom-geometry",
+      "format": "shared",
+      "feature": "Custom geometry resolves to an outline instead of a placeholder",
+      "audit": ["C07"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "custom geometry specification"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "geometry is resolved after layout names the shape"},
+        "scene": {"crate": "mjx-geometry", "api": "ShapeOutline (preset only today)"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-318",
+      "rc": "RC24",
+      "ledger": "custom-geometry"
+    },
+    {
+      "id": "shared-font-coverage",
+      "format": "shared",
+      "feature": "Bold, italic and bold-italic faces, symbol fonts and embedded fonts resolve",
+      "audit": ["C03"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-text", "api": "FontResolver, EmbeddedFont (Regular faces only bundled)"},
+        "layout": {"crate": "mjx-layout", "api": "LineComposer"},
+        "scene": {"crate": "mjx-scene", "api": "SceneGlyphRun"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-319",
+      "rc": "RC25",
+      "ledger": "font-resolution"
+    },
+    {
+      "id": "shared-colour-glyphs-in-pdf",
+      "format": "shared",
+      "feature": "Colour emoji and colour glyphs survive PDF export",
+      "audit": ["C17"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-text", "api": "face colour tables"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "export consumes a display list"},
+        "scene": {"crate": "mjx-scene", "api": "SceneGlyphRun"},
+        "paint": {"crate": "mjx-paint", "api": "PdfPainter"}
+      },
+      "owner": "MJXOFF-319",
+      "rc": "RC25",
+      "ledger": "export-pdf-and-svg"
+    },
+    {
+      "id": "shared-chart-numbers-and-text",
+      "format": "shared",
+      "feature": "Chart numbers are formatted and chart text is shaped in all three formats",
+      "audit": ["C08", "C15"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-chart", "api": "ChartSpace (c:numFmt)"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartText, format_value (evaluator lives in mjx-layout-xlsx)"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-320",
+      "rc": "RC26",
+      "ledger": "chart-axes-and-scales"
+    },
+    {
+      "id": "shared-drawingml-shape-layout",
+      "format": "shared",
+      "feature": "DrawingML shape and text-body layout sits below all three box models",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "shape_properties, text"},
+        "layout": {"crate": "none", "api": "DrawingML shape, text-body and group layout below the box models", "created_by": "MJXOFF-259"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-259",
+      "rc": "RC27",
+      "ledger": "text-in-a-shape"
+    },
+    {
+      "id": "shared-smartart-cached-drawing",
+      "format": "shared",
+      "feature": "SmartArt renders from its cached drawing before its layout algorithms",
+      "audit": ["C10"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-dml", "api": "diagram"},
+        "layout": {"crate": "none", "api": "DrawingML shape, text-body and group layout below the box models", "created_by": "MJXOFF-259"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-321",
+      "rc": "RC28",
+      "ledger": "diagram-layout"
+    },
+    {
+      "id": "shared-furniture-layer",
+      "format": "shared",
+      "feature": "Non-printing furniture (gridlines, marks, change bars) is a layer of its own that export omits",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "furniture is emitted by layout"},
+        "layout": {"crate": "mjx-layout", "api": "FragmentTree (no layer tag today)"},
+        "scene": {"crate": "mjx-scene", "api": "DisplayList"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-324",
+      "rc": "RC31",
+      "ledger": null
+    },
+    {
+      "id": "shared-text-engine-breadth",
+      "format": "shared",
+      "feature": "Shared justification, East Asian vertical writing and hyphenation patterns",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-text", "api": "hyphenation, line_breaking"},
+        "layout": {"crate": "mjx-layout", "api": "LineComposer"},
+        "scene": {"crate": "mjx-scene", "api": "SceneGlyphRun"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-332",
+      "rc": "RC39",
+      "ledger": "line-breaking"
+    },
+    {
+      "id": "shared-viewer-budgets",
+      "format": "shared",
+      "feature": "The viewer charges image, glyph, tessellation and effect budgets to their owners",
+      "audit": ["C11"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "budgets are a viewer concern"},
+        "layout": {"crate": "mjx-layout", "api": "BoxModel"},
+        "scene": {"crate": "mjx-scene", "api": "MeshCache"},
+        "paint": {"crate": "mjx-paint", "api": "TexturePool"}
+      },
+      "owner": "MJXOFF-333",
+      "rc": "RC40",
+      "ledger": "memory-budgets"
+    },
+    {
+      "id": "shared-math-typesetter",
+      "format": "shared",
+      "feature": "One OMML typesetter and the OpenType MATH table serve Word and PowerPoint",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-omml", "api": "Math, MathParagraph"},
+        "layout": {"crate": "none", "api": "shared math layout below the box models", "created_by": "MJXOFF-334"},
+        "scene": {"crate": "mjx-scene", "api": "ResourceResolver"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-334",
+      "rc": "RC41",
+      "ledger": "math-typesetting"
+    },
+    {
+      "id": "shared-chartex",
+      "format": "shared",
+      "feature": "Waterfall, treemap, sunburst, funnel, histogram, box-and-whisker and region-map charts",
+      "audit": ["C09"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "none", "api": "chartex (cx:) model", "created_by": "MJXOFF-335"},
+        "layout": {"crate": "mjx-layout-chart", "api": "ChartGeometry"},
+        "scene": {"crate": "none", "api": "one DrawingML paint and chart resolver shared by the companions", "created_by": "MJXOFF-302"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-335",
+      "rc": "RC42",
+      "ledger": "chart-unmodelled-plot-types"
+    },
+    {
+      "id": "shared-svg-and-metafiles",
+      "format": "shared",
+      "feature": "SVG, EMF and WMF pictures draw",
+      "audit": [],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-opc", "api": "media sniffing"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "pictures are decoded after layout issues a handle"},
+        "scene": {"crate": "none", "api": "SVG and metafile to display-list translators", "created_by": "MJXOFF-336"},
+        "paint": {"crate": "mjx-paint", "api": "plan_frame, then SoftwarePainter / WgpuPainter / PdfPainter / SvgPainter"}
+      },
+      "owner": "MJXOFF-336",
+      "rc": "RC44",
+      "ledger": "picture-insertion"
+    },
+    {
+      "id": "shared-oracle-document-specimens",
+      "format": "shared",
+      "feature": "The fidelity oracle holds a human-approved plate of a real document per format",
+      "audit": ["C12"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "the oracle consumes snapshots"},
+        "layout": {"crate": "mjx-layout", "api": "FragmentTree snapshot"},
+        "scene": {"crate": "mjx-scene", "api": "DisplayList snapshot"},
+        "paint": {"crate": "mjx-paint", "api": "SoftwarePainter"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "the-fidelity-oracle"
+    },
+    {
+      "id": "shared-real-document-renders",
+      "format": "shared",
+      "feature": "Real documents of all three formats render with pictures, not only two NoImages tests",
+      "audit": ["C13"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "mjx-fixtures", "api": "committed corpus"},
+        "layout": {"crate": "mjx-layout", "api": "BoxModel"},
+        "scene": {"crate": "mjx-scene", "api": "build_scene"},
+        "paint": {"crate": "mjx-paint", "api": "ImageSource (only NoImages exists; the decoder is MJXOFF-306's)"}
+      },
+      "owner": "MJXOFF-338",
+      "rc": "RC46",
+      "ledger": "the-reference-pack"
+    },
+    {
+      "id": "shared-ledger-truth",
+      "format": "shared",
+      "feature": "The parity ledger and crate docs state only what a render-tier suite proves",
+      "audit": ["X25", "W43"],
+      "audit_state": "gap",
+      "stages": {
+        "model": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not documents"},
+        "layout": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not layouts"},
+        "scene": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not display lists"},
+        "paint": {"crate": "not-applicable", "api": "-", "why": "the ledger reads suites, not pixels"}
+      },
+      "owner": "MJXOFF-297",
+      "rc": "RC01",
+      "ledger": null
+    }
+  ]
+}
