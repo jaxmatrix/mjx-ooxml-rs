@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 395 glyphs, 146749 bytes of path data, subset from the
+ * 400 glyphs, 148929 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -1599,10 +1599,30 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 20 20',
     paths: ['M15 3a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM5 4a2 2 0 0 0-2 2v7c0 1.1.9 2 2 2h6.5V4z'],
   },
+  'mjx-fluent:top-speed-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M10 2a8 8 0 0 1 5.44 13.87l-.08.06a.5.5 0 0 1-.6-.8l.25-.24a7 7 0 0 0 1.97-4.39h-1.5A.5.5 0 0 1 15 10c0-.27.2-.5.48-.5h1.5a7 7 0 0 0-6.48-6.48v1.5A.5.5 0 0 1 10 5c-.27 0-.5-.2-.5-.48v-1.5A7 7 0 0 0 5.42 4.7l1.06 1.06c.2.2.17.5-.02.7-.18.18-.5.2-.69.01L4.71 5.42A7 7 0 0 0 3.02 9.5h1.5c.27 0 .48.23.48.5s-.2.5-.48.5h-1.5c.12 1.7.85 3.24 1.97 4.39l.25.24.07.08a.5.5 0 0 1-.75.66A8 8 0 0 1 10 2m3.2 4.1a.5.5 0 0 1 .74.64l-.01.01-.02.04-.08.14a195 195 0 0 1-2.1 3.64l-.37.6q-.15.24-.3.39a1.5 1.5 0 0 1-2.12-2.12c.12-.12.46-.4.86-.72a153 153 0 0 1 3.23-2.5q.08-.05.12-.09l.04-.02'],
+  },
+  'mjx-fluent:note-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M14 3a3 3 0 0 1 3 2.82v4.56a2 2 0 0 1-.47 1.28l-.12.13-4.62 4.62a2 2 0 0 1-1.24.58l-.17.01H6a3 3 0 0 1-3-2.82V6a3 3 0 0 1 2.82-3H14m0 1H6a2 2 0 0 0-2 1.85V14a2 2 0 0 0 1.85 2H10v-3a3 3 0 0 1 2.82-3H16V6a2 2 0 0 0-1.85-2zm1.78 7H13a2 2 0 0 0-2 1.85v2.93l.09-.07 4.62-4.62z'],
+  },
+  'mjx-fluent:note-24-regular': {
+    viewBox: '0 0 24 24',
+    paths: ['M17.75 3C19.55 3 21 4.46 21 6.25v6.88c0 .6-.24 1.17-.66 1.59l-5.62 5.62c-.42.42-1 .66-1.6.66H6.26A3.25 3.25 0 0 1 3 17.75V6.25C3 4.45 4.46 3 6.25 3zm0 1.5H6.25c-.97 0-1.75.78-1.75 1.75v11.5c0 .97.78 1.75 1.75 1.75H13v-3.25a3.25 3.25 0 0 1 3.07-3.24l.18-.01h3.25V6.25c0-.97-.78-1.75-1.75-1.75m.69 10h-2.19c-.92 0-1.67.7-1.74 1.6l-.01.15v2.19z'],
+  },
+  'mjx-fluent:table-lock-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M17 5.5A2.5 2.5 0 0 0 14.5 3h-9A2.5 2.5 0 0 0 3 5.5v9A2.5 2.5 0 0 0 5.5 17H11v-1H8v-3h3.27a2 2 0 0 1 1.23-.94V12q.01-.93.5-1.66V8h3v1.04q.54.1 1 .36zm-13 9V13h3v3H5.36A1.5 1.5 0 0 1 4 14.5M12 8v4H8V8zm0-1H8V4h4zm1-3h1.64A1.5 1.5 0 0 1 16 5.5V7h-3zM4 7V5.36A1.5 1.5 0 0 1 5.5 4H7v3zm3 1v4H4V8zm6.5 4v1H13a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-.5v-1a2 2 0 1 0-4 0m1 1v-1a1 1 0 1 1 2 0v1zm1 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5'],
+  },
+  'mjx-fluent:table-lock-24-regular': {
+    viewBox: '0 0 24 24',
+    paths: ['M3 6.25C3 4.45 4.46 3 6.25 3h11.5C19.55 3 21 4.46 21 6.25v5.3a3.5 3.5 0 0 0-1.5-.9V10h-4v2.2q-.49.8-.5 1.8v.05a2.5 2.5 0 0 0-1.8 1.45H10v4h3V21H6.25A3.25 3.25 0 0 1 3 17.75zM6.25 4.5c-.97 0-1.75.78-1.75 1.75V8.5h4v-4zM4.5 10v4h4v-4zm5.5 0v4h4v-4zm5.5-1.5h4V6.25c0-.97-.78-1.75-1.75-1.75H15.5zm-1.5-4h-4v4h4zm-9.5 11v2.25c0 .97.78 1.75 1.75 1.75H8.5v-4zM16 15h-.5c-.83 0-1.5.67-1.5 1.5v5c0 .83.67 1.5 1.5 1.5h6c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5H21v-1a2.5 2.5 0 0 0-5 0zm1.5-1a1 1 0 1 1 2 0v1h-2zm2 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 395;
+export const subsetGlyphCount = 400;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -1611,7 +1631,7 @@ export const subsetGlyphCount = 395;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 146749;
+export const subsetPathBytes = 148929;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

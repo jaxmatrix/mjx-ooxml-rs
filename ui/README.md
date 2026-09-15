@@ -547,8 +547,8 @@ is Office's and the columns are not.
 
 ### Word's Review (unit 8 of the ribbon programme)
 
-**One tab of one application**: the unit was narrowed to Word's Review. PowerPoint's followed in the next
-section; Excel's Review tab is still a placeholder. Nine groups and twenty-three commands, in Office's order: Proofing,
+**One tab of one application**: the unit was narrowed to Word's Review. PowerPoint's and Excel's followed in
+the next two sections. Nine groups and twenty-three commands, in Office's order: Proofing,
 Accessibility, Language, Comments, Tracking, Changes, Compare, Protect, Ink.
 
 - **A dropdown or split button** over a menu written once in `stories/ribbons/review-menus.ts`: Translate,
@@ -602,6 +602,41 @@ survivor in this catalogue is small.
   arrows and starting positions, Delete's wording and Check Accessibility's entries are from memory of
   Microsoft 365 and PowerPoint 2013, not from a build this project can cite.
 - **Compare, Previous Change, Next Change, End Review, Show Changes and Hide Ink carry no icon.**
+
+### Excel's Review
+
+**The third Review tab, one application again**, to Word's pattern. Eleven groups and twenty-three commands,
+drawn in Office's order where Office has one: Proofing, Performance, Accessibility, Language, Threaded
+Comments, Comments, Notes, Protect, Changes, Ink, Debug. Nothing is declared once with Word or PowerPoint;
+Translate is the only face that matches, and one shared button is not worth a function of the application.
+
+- **A dropdown or split button** over `stories/ribbons/review-menus.ts`: Notes and Track Changes are
+  dropdowns; Check Accessibility is a split button.
+- **A split button whose face is a toggle**: Hide Ink, starting unpressed.
+- **A toggle**: Show Comments, Show/Hide Comment, Show All Comments and Protect Workbook.
+- **No field, no gallery, no dialog launcher.**
+
+**Survivors**: Previous Comment and Next Comment, in Threaded Comments.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Comments is three generations of Office**, as Data's Connections is. Threaded Comments is Microsoft 365's
+  face; Comments is Office 2016's, drawn as Show/Hide Comment and Show All Comments; Notes is Microsoft 365's
+  dropdown. Those two toggles and Notes' Show/Hide Note and Show All Notes entries are the same two commands
+  under two generations' names.
+- **Changes is Office 2016's legacy group**: Share Workbook, Protect and Share Workbook and Track Changes,
+  which Microsoft 365 hides behind ribbon customisation. Protect Sheet, Protect Workbook and Allow Edit Ranges
+  are drawn once, in Protect. Microsoft 365's Show Changes has no census row here.
+- **Debug is one button carrying the group's label**, as Home's Power Options is. The census counts one
+  control and names none.
+- **Performance is drawn second and Ink tenth**; the census declares them tenth and seventh. Insights and
+  Lineage are out of scope.
+- **Office greys Unshare Workbook and, on a protected sheet, Allow Edit Ranges.** Both are drawn available.
+- **Check Performance's speedometer, Protect Sheet's grid with a padlock, Protect Workbook as a toggle, and
+  the Check Accessibility, Notes and Hide Ink entry lists** are from memory of Microsoft 365, not from a
+  build this project can cite.
+- **Show/Hide Comment, Show All Comments, Allow Edit Ranges, Unshare Workbook, Share Workbook, Protect and
+  Share Workbook, Hide Ink and Debug carry no icon.**
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

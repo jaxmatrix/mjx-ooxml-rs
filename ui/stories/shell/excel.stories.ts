@@ -45,6 +45,7 @@ import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
 import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
 /**
@@ -603,6 +604,35 @@ function ribbon(): TemplateResult {
               data-opens="shell-excel-data-outline-ungroup"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // Excel's Review. The split buttons and the two dropdowns open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Hide Ink is a split button whose face is a toggle, starting unpressed.
+            'excel.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-excel-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.review.notes.notes': html`<mjx-button
+              label="Notes"
+              icon="note"
+              size="large"
+              data-opens="shell-excel-review-notes-notes"
+            ></mjx-button>`,
+            'excel.review.changes.track-changes': html`<mjx-button
+              label="Track Changes"
+              icon="document-edit"
+              size="small"
+              data-opens="shell-excel-review-changes-track-changes"
+            ></mjx-button>`,
+            'excel.review.ink.hide-ink': html`<mjx-split-button
+              toggle
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-excel-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -814,7 +844,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
       ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
-      ${mailingsAnimationsDataMenus('excel', 'shell')}
+      ${mailingsAnimationsDataMenus('excel', 'shell')} ${reviewMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

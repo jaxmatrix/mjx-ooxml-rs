@@ -27,6 +27,9 @@
  *    library books, and fourteen commands open a menu.
  * 7. **Data is unit 7**: nine groups and thirty-three commands, three of the groups one Office group in
  *    three generations, and Sort A to Z and Sort Z to A the tab's survivors.
+ * 8. **Review** followed Word's and PowerPoint's, one tab of one application: eleven groups and
+ *    twenty-three commands. Comments is three generations of Office, as Data's Connections is, and every
+ *    menu on the tab carries Office's whole list.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -276,11 +279,48 @@ export function excelDataTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelReviewTab(): TemplateResult {
-  return placeholderTab(entry('review'));
+/**
+ * Review: Proofing, Performance, Accessibility, Language, Threaded Comments, Comments, Notes, Protect,
+ * Changes, Ink, Debug, in **Office's** order where Office has one.
+ *
+ * ⚠ **Performance is second here and tenth in the census's declaration**, where Microsoft 365 draws Check
+ * Performance beside Proofing; **Ink is drawn after Protect and Changes**, where Microsoft 365 draws it
+ * last. Debug stays last, where the declaration puts it, because nothing says where Office does. `GUESS:`
+ * all three positions, and `dev/ribbons/census.ts` records the disagreement. Office's Insights (Smart
+ * Lookup) and Lineage are out of scope in the census and are not drawn.
+ *
+ * ⚠ **Threaded Comments, Comments and Notes are one Office group in three generations**, and each face
+ * command is drawn once; `dev/ribbons/census.ts` gives the reading.
+ *
+ * **Four of the tab's twenty-three commands are bound by the host**: Check Accessibility is a split
+ * button, Hide Ink is a split button whose face is a toggle, and Notes and Track Changes are dropdowns.
+ * All four open menus from `stories/ribbons/review-menus.ts`. Show Comments, Show/Hide Comment, Show All
+ * Comments and Protect Workbook are the generic toggle.
+ *
+ * **No dialog launchers**, because Office puts none here. **Two survivors**, Previous Comment and Next
+ * Comment, and `dev/ribbons/census.ts` gives the reason.
+ */
+export function excelReviewTab(options: TabOptions = {}): TemplateResult {
+  const review = entry('review');
+  const controls = options.controls ?? {};
+  return tab(
+    review.id,
+    review.label,
+    censusGroup(review, 'GroupProofing', {}, controls),
+    censusGroup(review, 'GroupPerformance', {}, controls),
+    censusGroup(review, 'GroupAccessibility', {}, controls),
+    censusGroup(review, 'GroupLanguage', {}, controls),
+    censusGroup(review, 'GroupThreadedComments', {}, controls),
+    censusGroup(review, 'GroupComments', {}, controls),
+    censusGroup(review, 'GroupCommentsLegacy', {}, controls),
+    censusGroup(review, 'GroupProtectExcel', {}, controls),
+    censusGroup(review, 'GroupChangesExcel', {}, controls),
+    censusGroup(review, 'GroupInk', {}, controls),
+    censusGroup(review, 'GroupDebug', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelViewTab(): TemplateResult {
   return placeholderTab(entry('view'));

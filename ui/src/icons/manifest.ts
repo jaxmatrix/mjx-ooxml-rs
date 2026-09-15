@@ -268,7 +268,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-lock',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Protect Document / Presentation / Workbook — the Info group's first command in all three applications. A document with a padlock rather than a bare `shield`: a shield says *this is defended*, and what the command actually does is put a lock on this one file. ⚠ **20 alone, and that is a rendering finding rather than a preference.** It was `size=\"large\"` and asked for 24 until the tab was looked at: a large button is bounded by `largeControlWidthUnits` so its label wraps to two lines inside about eighty pixels, and *Protect Document* came out as `Protect Docume…`. A truncated command is a command nobody can read, so the three Protect verbs are small — and the 24-pixel drawing nothing would have used went with them. **Since unit 8, the 24 and the filled drawing are back, for Restrict Editing** on Word's Review tab: a large toggle whose two-word label fits, drawn pressed while its pane is open. Restrict Editing is what Protect Document's menu opens, so it is the same padlock on the same file.",
+    why: "Protect Document / Presentation / Workbook — the Info group's first command in all three applications. A document with a padlock rather than a bare `shield`: a shield says *this is defended*, and what the command actually does is put a lock on this one file. ⚠ **20 alone, and that is a rendering finding rather than a preference.** It was `size=\"large\"` and asked for 24 until the tab was looked at: a large button is bounded by `largeControlWidthUnits` so its label wraps to two lines inside about eighty pixels, and *Protect Document* came out as `Protect Docume…`. A truncated command is a command nobody can read, so the three Protect verbs are small — and the 24-pixel drawing nothing would have used went with them. **Since unit 8, the 24 and the filled drawing are back, for Restrict Editing** on Word's Review tab: a large toggle whose two-word label fits, drawn pressed while its pane is open. Restrict Editing is what Protect Document's menu opens, so it is the same padlock on the same file. **Since Excel's Review, also Protect Workbook** there, a large toggle drawn pressed while the workbook's structure is protected, which is what Info's Protect Workbook menu opens as *Protect Workbook Structure*.",
   },
   {
     name: 'document-search',
@@ -412,7 +412,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'data-histogram',
     sizes: [20],
     variants: ['regular'],
-    why: "Workbook Statistics — Excel's own addition to the Info group. A histogram is the plainest thing Fluent draws for *statistics*; `document-data` was the alternative and says *a document with numbers in it*, which is every workbook rather than this command.",
+    why: "Workbook Statistics — Excel's own addition to the Info group. A histogram is the plainest thing Fluent draws for *statistics*; `document-data` was the alternative and says *a document with numbers in it*, which is every workbook rather than this command. **Since Excel's Review, also Workbook Statistics** in its Proofing group, the same dialog from a second door.",
   },
 
   // ── Home (Word, PowerPoint, Excel) ──────────────────────────────────────────
@@ -1508,7 +1508,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-edit',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Track Changes, the large split button on Word's Review tab: a page with a pencil, edits recorded against the page. Its face turns tracking on and off (`<mjx-split-button toggle>`), so it draws pressed and needs the filled drawing.",
+    why: "Track Changes, the large split button on Word's Review tab: a page with a pencil, edits recorded against the page. Its face turns tracking on and off (`<mjx-split-button toggle>`), so it draws pressed and needs the filled drawing. **Since Excel's Review, also Track Changes** there, small: Office 2016's legacy dropdown of Highlight Changes and Accept/Reject Changes, the same idea in a workbook.",
   },
   {
     name: 'panel-left-text',
@@ -1544,6 +1544,29 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular', 'filled'],
     why: "Reviewing Pane, the toggle in PowerPoint's Review Compare group: a window with a pane at the right, where PowerPoint docks its Revisions pane. Word's Reviewing Pane draws `panel-left-text` because Word opens it at the left, and Fluent has no right-hand pane with text in it. A toggle, so filled too. `GUESS:`.",
+  },
+  // ── Review (Excel's Review) ─────────────────────────────────────────────────
+  //
+  // Excel's Review tab, authored after PowerPoint's. Every other glyph it draws is a row above; three of
+  // those gained a line of `why` (Workbook Statistics, Protect Workbook, Track Changes). Every command drawn
+  // without an icon is listed, with its reason, in the *Excel's Review* part of `dev/ribbons/census.ts`.
+  {
+    name: 'top-speed',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Check Performance, in Excel's Review Performance group, small: a speedometer, Office's own gauge for the Workbook Performance pane. No other command in this subset draws a gauge. `GUESS:`.",
+  },
+  {
+    name: 'note',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Notes, the large dropdown in Excel's Review tab: a sticky note, what Microsoft 365 renamed the legacy cell comment to. Not `comment`, which is a threaded comment everywhere in this subset.",
+  },
+  {
+    name: 'table-lock',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Protect Sheet, large, in Excel's Review Protect group: a grid with a padlock, one sheet locked. Not `document-lock`, which is the whole workbook beside it. Office relabels the command Unprotect Sheet rather than drawing it pressed, so regular alone. `GUESS:`.",
   },
 ];
 

@@ -1,9 +1,8 @@
 /**
  * **The menus the Review tab opens**, written once and rendered by both hosts.
  *
- * The ribbon programme's unit 8 wrote **Word's Review tab** alone, and PowerPoint's followed in its own
- * unit, one tab of one application each time. Excel's Review menus are not here yet, and `reviewMenus`
- * renders nothing for Excel. The pattern is `stories/ribbons/insert-menus.ts`'s, for its reasons. A binding
+ * The ribbon programme's unit 8 wrote **Word's Review tab** alone, and PowerPoint's and Excel's followed in
+ * their own units, one tab of one application each time. The pattern is `stories/ribbons/insert-menus.ts`'s, for its reasons. A binding
  * lives in its host. The menu it opens is written here, with its id from `commandSurfaceId(host,
  * commandId)` through `commandMenu`. A host renders `reviewMenus(application, host)` once beside its
  * ribbon. Every `commandMenu(host, '…'` call below spells its command id literally, so
@@ -278,15 +277,70 @@ function powerpointReviewMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
-// ── what a host renders ──────────────────────────────────────────────────────
+// ── Excel's Review ───────────────────────────────────────────────────────────
+//
+// Four menus, and none of them shares a list with Word or PowerPoint: Check Accessibility's arrow has no
+// pane in it, Hide Ink's names a sheet, and Notes and Track Changes are Excel's alone. The five entry
+// helpers at the top of this file are shared.
 
 /**
- * Word and PowerPoint, until Excel's Review tab has its own unit. A missing application is not a menu set
- * found to be empty; it is one nobody has written yet.
+ * Check Accessibility's arrow in Excel: the checker, Alt Text, then the options. Word's Navigation Pane and
+ * PowerPoint's Reading Order Pane have no Excel counterpart here. `GUESS:` the list, from Microsoft 365's
+ * Excel, and *Options: Accessibility* in particular.
  */
+function excelCheckAccessibilityEntries(): TemplateResult[] {
+  return [item('Check Accessibility'), item('Alt Text'), separator(), item('Options: Accessibility')];
+}
+
+/**
+ * Notes: Microsoft 365's six, in Office's order. New Note opens a note on the selected cell (Shift+F2);
+ * the two navigators move between notes; Show/Hide Note and Show All Notes are settings, off in a new
+ * workbook; Convert to Comments turns every note into a threaded comment, after a confirmation. `GUESS:`
+ * the separator before Convert to Comments.
+ */
+function excelNotesEntries(): TemplateResult[] {
+  return [
+    item('New Note', 'Shift+F2'),
+    item('Previous Note'),
+    item('Next Note'),
+    setting('Show/Hide Note'),
+    setting('Show All Notes'),
+    separator(),
+    item('Convert to Comments'),
+  ];
+}
+
+/** Track Changes: Office 2016's two dialogs, which Microsoft 365 keeps as *Track Changes (Legacy)*. */
+function excelTrackChangesEntries(): TemplateResult[] {
+  return [item('Highlight Changes…'), item('Accept/Reject Changes')];
+}
+
+/** Hide Ink's arrow in Excel. `GUESS:` the pair, and *on Sheet* in particular. */
+function excelHideInkEntries(): TemplateResult[] {
+  return [setting('Hide Ink'), item('Delete All Ink on Sheet')];
+}
+
+/**
+ * Four menus. Spelling, Thesaurus, Workbook Statistics, Check Performance, Translate, the comment commands,
+ * the Protect group, Share Workbook, Protect and Share Workbook and Debug open a pane or a dialog, act at
+ * once, or are toggles, so they have none.
+ */
+function excelReviewMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'excel.review.accessibility.check-accessibility', 'Check Accessibility', ...excelCheckAccessibilityEntries())}
+    ${commandMenu(host, 'excel.review.notes.notes', 'Notes', ...excelNotesEntries())}
+    ${commandMenu(host, 'excel.review.changes.track-changes', 'Track Changes', ...excelTrackChangesEntries())}
+    ${commandMenu(host, 'excel.review.ink.hide-ink', 'Hide Ink', ...excelHideInkEntries())}
+  `;
+}
+
+// ── what a host renders ──────────────────────────────────────────────────────
+
+/** All three applications, each written in its own unit. */
 const menusByApplication: Partial<Record<RibbonApplication, (host: RibbonSurfaceHost) => TemplateResult>> = {
   word: wordReviewMenus,
   powerpoint: powerpointReviewMenus,
+  excel: excelReviewMenus,
 };
 
 /**

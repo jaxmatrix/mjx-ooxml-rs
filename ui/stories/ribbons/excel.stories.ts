@@ -29,6 +29,7 @@ import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
+import { reviewMenus } from './review-menus.ts';
 
 /**
  * **Excel's ribbon, tab by tab** — the same functions `Shell/Excel` composes.
@@ -39,7 +40,7 @@ import { referencesTransitionsFormulasMenus } from './references-transitions-for
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw, Page Layout, Formulas and Data** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Page Layout, Formulas, Data and Review** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -59,7 +60,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Page Layout, Formulas and Data are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw, Page Layout, Formulas, Data and Review are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -531,6 +532,35 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-excel-data-outline-ungroup"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // Excel's Review. The split buttons and the two dropdowns open their menus from
+  // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Hide Ink is a split button whose face is a toggle, starting unpressed.
+  'excel.review.accessibility.check-accessibility': html`<mjx-split-button
+    label="Check Accessibility"
+    icon="accessibility-checkmark"
+    size="small"
+    data-opens="ribbons-excel-review-accessibility-check-accessibility"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.review.notes.notes': html`<mjx-button
+    label="Notes"
+    icon="note"
+    size="large"
+    data-opens="ribbons-excel-review-notes-notes"
+  ></mjx-button>`,
+  'excel.review.changes.track-changes': html`<mjx-button
+    label="Track Changes"
+    icon="document-edit"
+    size="small"
+    data-opens="ribbons-excel-review-changes-track-changes"
+  ></mjx-button>`,
+  'excel.review.ink.hide-ink': html`<mjx-split-button
+    toggle
+    label="Hide Ink"
+    size="small"
+    data-opens="ribbons-excel-review-ink-hide-ink"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -557,7 +587,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
-    ${mailingsAnimationsDataMenus('excel', 'ribbons')}
+    ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
   `;
 }
 
@@ -717,7 +747,36 @@ export const Formulas: Story = { render: () => ribbon('formulas') };
  */
 export const Data: Story = { render: () => ribbon('data') };
 
-/** Unit 8. */
+/**
+ * **Review**: the tab where a workbook is read by somebody else, authored after Word's and PowerPoint's
+ * under the same one-tab-one-application rule. Eleven groups: Proofing, Performance, Accessibility,
+ * Language, Threaded Comments, Comments, Notes, Protect, Changes, Ink and Debug. What to look at, least
+ * certain first:
+ *
+ * 1. ⚠ **Debug is one button labelled Debug, and all of it is `GUESS:`.** The census names the group and
+ *    counts one control, nothing more. It is a plain labelled button that opens nothing here.
+ * 2. ⚠ **Threaded Comments, Comments and Notes are one Office group in three generations.** Threaded
+ *    Comments is Microsoft 365's five. Comments is Office 2016's, drawn as the two toggles no other group
+ *    has on its face: Show/Hide Comment and Show All Comments. Press either and it draws pressed. Notes is
+ *    one large dropdown: New Note (Shift+F2), Previous Note, Next Note, Show/Hide Note and Show All Notes
+ *    (both unticked), then Convert to Comments. `GUESS:` the reading.
+ * 3. ⚠ **Changes is Office 2016's legacy group**: Share Workbook, Protect and Share Workbook (both labels
+ *    alone), and Track Changes, a small dropdown of Highlight Changes… and Accept/Reject Changes.
+ *    Microsoft 365 hides all three unless the ribbon is customised.
+ * 4. ⚠ **Group order.** Performance is second, after Proofing, and Ink is after Changes, where
+ *    Microsoft 365 draws them; the census declares Performance tenth and Ink seventh. Insights (Smart
+ *    Lookup) and Lineage are out of scope in the census and are not drawn.
+ * 5. **Protect**: Protect Sheet (large, a grid with a padlock), Protect Workbook (a large toggle, pressed
+ *    once pressed, File's padlock glyph), then Allow Edit Ranges and Unshare Workbook, both labels alone.
+ *    Office greys Unshare Workbook in a workbook that is not a legacy shared one; it is available here.
+ * 6. **Previous Comment and Next Comment are the tab's only survivors.** Drag narrow until Threaded
+ *    Comments collapses: the two comment arrows stay beside its trigger. Show Comments is a large plain
+ *    toggle with no arrow.
+ * 7. **The other two menus.** Check Accessibility's arrow: Check Accessibility, Alt Text, then Options:
+ *    Accessibility. Hide Ink is a split button whose face is a toggle: Hide Ink, then Delete All Ink on
+ *    Sheet. Check Performance is a small speedometer. Spelling and Translate are large plain buttons. No
+ *    dialog launchers.
+ */
 export const Review: Story = { render: () => ribbon('review') };
 
 /** Unit 9. */

@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, Mailings, Animations and Data, and Word's and PowerPoint's Review.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, Mailings, Animations and Data, and Review in all three applications.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -88,8 +88,8 @@
  * Formulas**; see the *commands References, Transitions and Formulas show* section. Unit 7 authored **Word's
  * Mailings, PowerPoint's Animations and Excel's Data**; see the *commands Mailings, Animations and Data show*
  * section. Unit 8 authored **Word's Review** alone, the first unit narrowed to one tab of one application;
- * see the *commands Review shows* section. **PowerPoint's Review** followed, one tab of one application
- * again, in that section's *PowerPoint's Review* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * see the *commands Review shows* section. **PowerPoint's Review** and **Excel's Review** followed, one tab of
+ * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -2446,7 +2446,7 @@ const excelDataOutline: readonly RibbonCommand[] = [
 //
 // The ribbon programme's **unit 8**: **Word's Review tab**, all nine in-scope groups. ⚠ **Word alone.**
 // The unit was narrowed to one tab of one application. PowerPoint's Review tab followed in its own unit,
-// declared in the *PowerPoint's Review* part below; Excel's is still a placeholder. Nothing is written as
+// declared in the *PowerPoint's Review* part below, and Excel's after it in the *Excel's Review* part. Nothing is written as
 // a function of the application. Proofing,
 // Accessibility, Language, Comments and Ink carry the same group ids in all three census tabs, but their
 // faces differ (Excel's Proofing is Spelling, Thesaurus and Workbook Statistics; Excel's Comments are
@@ -2680,7 +2680,7 @@ const wordReviewProtect: readonly RibbonCommand[] = [
 // ── PowerPoint's Review ──────────────────────────────────────────────────────
 //
 // **PowerPoint's Review tab**, all seven in-scope groups, authored after Word's and under the same
-// one-tab-one-application rule, so Excel's Review tab is still a placeholder. Word's section above is the
+// one-tab-one-application rule; Excel's followed in the part after this one. Word's section above is the
 // pattern: the shapes, the whole-menu rule, the survivor standard and the icon rule are unchanged, and
 // only what PowerPoint does differently is written here.
 //
@@ -2856,6 +2856,254 @@ const powerpointReviewActivity: readonly RibbonCommand[] = [
  */
 const powerpointReviewInk: readonly RibbonCommand[] = [
   { id: 'powerpoint.review.ink.hide-ink', label: 'Hide Ink', toggle: true },
+];
+
+// ── Excel's Review ───────────────────────────────────────────────────────────
+//
+// **Excel's Review tab**, all eleven in-scope groups, the third Review unit and the last under the
+// one-tab-one-application rule. Word's section above is the pattern: the shapes, the whole-menu rule, the
+// survivor standard and the icon rule are unchanged, and only what Excel does differently is written here.
+//
+// **Not one declaration shared with Word or PowerPoint**, which answers the question Word's section left
+// open. Proofing, Accessibility, Language, Comments and Ink carry the same group ids in all three census
+// tabs. Excel's Proofing adds Workbook Statistics, its Check Accessibility arrow has no pane, its Comments
+// are three generations of Office and its Hide Ink says *sheet*. Translate is the one face that matches
+// PowerPoint's command for command, and one shared declaration of one button would be a function of the
+// application for the sake of a single line.
+//
+// ## The shapes
+//
+// **Dropdown or split button** over a menu written in `stories/ribbons/review-menus.ts`: Notes and Track
+// Changes are dropdowns; Check Accessibility is a split button. **A split button whose face is a toggle**
+// (`<mjx-split-button toggle>`): Hide Ink, starting unpressed. **Toggle**: Show Comments, Show/Hide
+// Comment, Show All Comments and Protect Workbook. **Plain button**: Spelling, Thesaurus, Workbook
+// Statistics, Check Performance, Translate, New Comment, Delete, Previous Comment, Next Comment, Protect
+// Sheet, Allow Edit Ranges, Unshare Workbook, Share Workbook, Protect and Share Workbook, Debug. **No field,
+// no gallery, no dialog launcher**: Office puts none on Excel's Review tab.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **The declaration puts Performance tenth; Microsoft 365 draws Check Performance second, right after
+//    Proofing.** It also puts Ink before Protect and Changes, where Microsoft 365 draws Ink last of the
+//    groups it shows. The group order is the tab module's decision, so `excelReviewTab` draws Proofing,
+//    Performance, Accessibility, Language, Threaded Comments, Comments, Notes, Protect, Changes, Ink,
+//    Debug. Debug stays last because nothing says where Office puts it. `GUESS:` Performance's and Ink's
+//    positions; no build this project can cite is checked.
+// 2. **Office draws groups the census marks out of scope, and they are not drawn here**: **Insights**
+//    (Smart Lookup, one control) and **Lineage** (one control). The census wins.
+// 3. **Comments, Threaded Comments and Notes are one Office group in three generations**, as Data's three
+//    Connections groups are. **Comments** (6) is Office 2016's face: New Comment, Delete, Previous, Next,
+//    Show/Hide Comment and Show All Comments, all acting on what Microsoft 365 calls a note. **Threaded
+//    Comments** (5) is Microsoft 365's Comments face: New Comment, Delete, Previous Comment, Next Comment,
+//    Show Comments. **Notes** (7) is Microsoft 365's Notes dropdown and its six entries, exactly. Data's
+//    rule applies, and a face command is drawn **once**. So Threaded Comments draws its five; Comments
+//    draws the two face toggles neither 365 group draws on its face, **Show/Hide Comment** and **Show All
+//    Comments**; Notes is the one dropdown. ⚠ Those two toggles and Notes' *Show/Hide Note* and *Show All
+//    Notes* entries are the same two commands under two generations' names, one on a face and one in a
+//    menu. That repetition is recorded, not removed: the brief requires the Notes menu whole, and Comments
+//    would otherwise be a group the census declares and nothing draws. `GUESS:` the whole reading.
+// 4. **Changes is Office 2016's group, and Microsoft 365's names differ.** The census counts **8**, which
+//    is 2016's face exactly: Protect Sheet, Protect Workbook, Share Workbook, Protect and Share Workbook,
+//    Allow Users to Edit Ranges and Track Changes, whose menu holds Highlight Changes and Accept/Reject
+//    Changes. Protect Sheet, Protect Workbook and Allow Users to Edit Ranges are Protect's (Microsoft 365
+//    calls the last *Allow Edit Ranges*), so Changes draws the other three. Microsoft 365 hides all three
+//    and offers them only through ribbon customisation, as *Share Workbook (Legacy)*, *Protect Sharing
+//    (Legacy)* and *Track Changes (Legacy)*. The census's group label is 2016's, so the commands carry
+//    2016's names. `GUESS:` that reading. **Microsoft 365's Show Changes** has no census row on this tab
+//    and is not drawn.
+// 5. **Debug is `GUESS:` in its entirety.** The census names the group and counts one control, and says
+//    nothing else. It is drawn as Power Options is on Home: one small button carrying the group's own
+//    label, and no icon.
+// 6. **Office greys Unshare Workbook** unless the workbook is a legacy shared workbook, and greys Allow
+//    Edit Ranges while the sheet is protected. Both are drawn available; `disabled` is loop 2's.
+// 7. **The census's counts are larger than the faces**, and nothing is padded: Accessibility is 9 and
+//    draws one; Ink is 5 and draws one; Language is 3 and draws one.
+//
+// ## Survivors: Previous Comment and Next Comment, and nothing else
+//
+// Word's judgement, on the same glyphs, in Threaded Comments. **Show/Hide Comment and Show All Comments**
+// pass rule 1 and fail rule 2 for want of an honest glyph: `comment-multiple` is Show Comments beside
+// them. **Protect Workbook** is a toggle that asks for a password first. Every other command opens a
+// pane, a dialog or a menu, is a split button, or (Unshare Workbook) cannot be undone.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// `large` where Office draws it large **and** there is an honest glyph **and** the label wraps inside
+// `largeControlWidthUnits`. **Spelling**, **Translate**, **New Comment**, **Show Comments**, **Notes**,
+// **Protect Sheet** and **Protect Workbook** are large. **Check Accessibility** is small, for Word's
+// reason, and **Check Performance** for the same one: *Performance* is eleven letters, the length of the
+// *Recommended* that unit 3 measured clipping. **Allow Edit Ranges** is three tokens. Previous Comment and
+// Next Comment are small survivors, as in PowerPoint.
+//
+// **Show/Hide Comment**, **Show All Comments**, **Allow Edit Ranges**, **Unshare Workbook**, **Share
+// Workbook**, **Protect and Share Workbook** and **Debug** carry no icon, so each is `small` and its label
+// is the command. The two comment toggles are refused above. Fluent draws **no edit range**: `table-edit`
+// is editing a table, and `edit-lock` is editing locked, which is the opposite of allowing it. It draws
+// **no legacy shared workbook**: `share` is File's Share, which is a different command, and `people` is
+// Open's Shared with Me. **Unshare** would be a share mark struck out, which Fluent does not draw.
+
+/**
+ * Excel's Proofing group: Spelling large, then Thesaurus and Workbook Statistics in a column.
+ *
+ * **Spelling draws `text-grammar-checkmark`**, as in PowerPoint, and opens the Spelling dialog (F7).
+ * **Thesaurus draws `book-search`**, as in Word and PowerPoint, and opens the Thesaurus pane (Shift+F7).
+ * **Workbook Statistics draws `data-histogram`**, which is File's Workbook Statistics on the Info page
+ * because it is the same dialog.
+ *
+ * **No survivor**: a dialog, a pane and a dialog.
+ */
+const excelReviewProofing: readonly RibbonCommand[] = [
+  { id: 'excel.review.proofing.spelling', label: 'Spelling', icon: 'text-grammar-checkmark', size: 'large' },
+  { id: 'excel.review.proofing.thesaurus', label: 'Thesaurus', icon: 'book-search' },
+  { id: 'excel.review.proofing.workbook-statistics', label: 'Workbook Statistics', icon: 'data-histogram' },
+];
+
+/**
+ * Excel's Performance group: Check Performance.
+ *
+ * **Draws `top-speed`**, a speedometer, which is Office's own picture of a gauge for this pane. It opens
+ * the Workbook Performance pane, which finds formatted empty cells and offers to clear them. `small`; see
+ * this section's header. `GUESS:` the glyph.
+ *
+ * **No survivor**: a pane, and the only command.
+ */
+const excelReviewPerformance: readonly RibbonCommand[] = [
+  { id: 'excel.review.performance.check-performance', label: 'Check Performance', icon: 'top-speed' },
+];
+
+/**
+ * Excel's Accessibility group: Check Accessibility.
+ *
+ * **A split button drawing `accessibility-checkmark`**, as in Word and PowerPoint. The face runs the
+ * checker and opens its pane; the arrow offers Check Accessibility, Alt Text and Options: Accessibility.
+ * Excel's arrow has neither Word's Navigation Pane nor PowerPoint's Reading Order Pane. `GUESS:` the list.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const excelReviewAccessibility: readonly RibbonCommand[] = [
+  { id: 'excel.review.accessibility.check-accessibility', label: 'Check Accessibility', icon: 'accessibility-checkmark' },
+];
+
+/**
+ * Excel's Language group: Translate.
+ *
+ * **A plain large button drawing `translate`**, as in PowerPoint: it opens the Translator pane on the
+ * selected cells. `GUESS:` that it has no arrow. Excel has no Language dropdown here.
+ *
+ * **No survivor**: a pane, and the only command.
+ */
+const excelReviewLanguage: readonly RibbonCommand[] = [
+  { id: 'excel.review.language.translate', label: 'Translate', icon: 'translate', size: 'large' },
+];
+
+/**
+ * Excel's `GroupThreadedComments`, Microsoft 365's Comments: New Comment large, then Delete, Previous
+ * Comment and Next Comment in a column, then Show Comments large.
+ *
+ * **New Comment draws `comment-add`**, Insert's Comment glyph, because it is the same command. **Delete
+ * draws `comment-dismiss`** and is a plain button: it deletes the selected cell's thread.
+ * `GUESS:` that Excel's has no arrow, unlike PowerPoint's. **Previous Comment and Next Comment draw
+ * `comment-arrow-left` and `comment-arrow-right`**. **Show Comments is a toggle drawing
+ * `comment-multiple`**: Office draws it pressed while the Comments pane is open, and it starts unpressed.
+ * `GUESS:` the sizes, and that Show Comments has no arrow.
+ *
+ * **Survivors: Previous Comment and Next Comment.** See this section's header.
+ */
+const excelReviewThreadedComments: readonly RibbonCommand[] = [
+  { id: 'excel.review.threaded-comments.new-comment', label: 'New Comment', icon: 'comment-add', size: 'large' },
+  { id: 'excel.review.threaded-comments.delete', label: 'Delete', icon: 'comment-dismiss' },
+  { id: 'excel.review.threaded-comments.previous-comment', label: 'Previous Comment', icon: 'comment-arrow-left', essential: true },
+  { id: 'excel.review.threaded-comments.next-comment', label: 'Next Comment', icon: 'comment-arrow-right', essential: true },
+  { id: 'excel.review.threaded-comments.show-comments', label: 'Show Comments', icon: 'comment-multiple', size: 'large', toggle: true },
+];
+
+/**
+ * Excel's `GroupComments`, Office 2016's: Show/Hide Comment and Show All Comments.
+ *
+ * Both are toggles. **Show/Hide Comment** keeps the selected cell's comment on screen, and **Show All
+ * Comments** keeps every one on screen. Office draws each pressed while it holds, and both start
+ * unpressed. No icon; see this section's header. See disagreement 3 on why the other four commands of
+ * Office 2016's face are not here.
+ *
+ * **No survivor**: two toggles with no glyph.
+ */
+const excelReviewComments: readonly RibbonCommand[] = [
+  { id: 'excel.review.comments.show-hide-comment', label: 'Show/Hide Comment', toggle: true },
+  { id: 'excel.review.comments.show-all-comments', label: 'Show All Comments', toggle: true },
+];
+
+/**
+ * Excel's `GroupCommentsLegacy`, labelled **Notes**: one large dropdown.
+ *
+ * **Notes draws `note`**, a sticky note, Office's own picture for a note. The menu holds New Note,
+ * Previous Note, Next Note, Show/Hide Note, Show All Notes and Convert to Comments. Its six entries and
+ * the dropdown are the census's seven controls.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+const excelReviewNotes: readonly RibbonCommand[] = [
+  { id: 'excel.review.notes.notes', label: 'Notes', icon: 'note', size: 'large' },
+];
+
+/**
+ * Excel's `GroupProtectExcel`, labelled **Protect**: Protect Sheet, Protect Workbook, Allow Edit Ranges,
+ * Unshare Workbook.
+ *
+ * **Protect Sheet draws `table-lock`**, a grid with a padlock, and opens the Protect Sheet dialog. Office
+ * relabels it *Unprotect Sheet* once the sheet is protected rather than drawing it pressed. `GUESS:` the
+ * glyph. **Protect Workbook is a toggle drawing `document-lock`**, File's Protect Workbook glyph, because
+ * protecting the workbook's structure is what that menu's *Protect Workbook Structure* opens. Office draws
+ * it pressed while the structure is protected, and it starts unpressed. **Allow Edit Ranges** opens the
+ * dialog of ranges a protected sheet still lets people edit. **Unshare Workbook** stops legacy sharing.
+ * Neither carries an icon; see this section's header.
+ *
+ * **No survivor**: two dialogs, a toggle that asks for a password, and a command that cannot be undone.
+ */
+const excelReviewProtect: readonly RibbonCommand[] = [
+  { id: 'excel.review.protect.protect-sheet', label: 'Protect Sheet', icon: 'table-lock', size: 'large' },
+  { id: 'excel.review.protect.protect-workbook', label: 'Protect Workbook', icon: 'document-lock', size: 'large', toggle: true },
+  { id: 'excel.review.protect.allow-edit-ranges', label: 'Allow Edit Ranges' },
+  { id: 'excel.review.protect.unshare-workbook', label: 'Unshare Workbook' },
+];
+
+/**
+ * Excel's `GroupChangesExcel`, Office 2016's **Changes**: Share Workbook, Protect and Share Workbook, Track
+ * Changes. See disagreement 4 in this section's header.
+ *
+ * **Share Workbook** opens the legacy Share Workbook dialog, and **Protect and Share Workbook** opens the
+ * dialog that shares it with change tracking locked on. Neither carries an icon. **Track Changes is a
+ * dropdown drawing `document-edit`**, Word's Track Changes glyph, because it is the same idea: its menu
+ * holds Highlight Changes and Accept/Reject Changes. Excel's Track Changes has no face of its own, so it
+ * is not a toggle here as Word's is.
+ *
+ * **No survivor**: two dialogs and a menu.
+ */
+const excelReviewChanges: readonly RibbonCommand[] = [
+  { id: 'excel.review.changes.share-workbook', label: 'Share Workbook' },
+  { id: 'excel.review.changes.protect-and-share-workbook', label: 'Protect and Share Workbook' },
+  { id: 'excel.review.changes.track-changes', label: 'Track Changes', icon: 'document-edit' },
+];
+
+/**
+ * Excel's Ink group: Hide Ink.
+ *
+ * PowerPoint's shape: `GUESS:` **a split button whose face is a toggle**, hiding every ink stroke on the
+ * sheet and showing them again, starting unpressed. The arrow holds Hide Ink and Delete All Ink on Sheet.
+ * `GUESS:` the second entry's wording. No icon, so `small`.
+ *
+ * **No survivor**: a split button, no glyph, and the only command.
+ */
+const excelReviewInk: readonly RibbonCommand[] = [
+  { id: 'excel.review.ink.hide-ink', label: 'Hide Ink', toggle: true },
+];
+
+/**
+ * Excel's Debug group. `GUESS:` the whole group; see disagreement 5 in this section's header.
+ *
+ * **No survivor**: no glyph, and the only command.
+ */
+const excelReviewDebug: readonly RibbonCommand[] = [
+  { id: 'excel.review.debug.debug', label: 'Debug' },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -3649,17 +3897,17 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabReview' },
     groups: [
-      { id: 'GroupProofing', label: 'Proofing', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupThreadedComments', label: 'Threaded Comments', priority: 'primary', controls: 5, inScope: true },
-      { id: 'GroupComments', label: 'Comments', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupCommentsLegacy', label: 'Notes', priority: 'standard', controls: 7, inScope: true },
-      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupProtectExcel', label: 'Protect', priority: 'primary', controls: 4, inScope: true },
-      { id: 'GroupChangesExcel', label: 'Changes', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupPerformance', label: 'Performance', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupDebug', label: 'Debug', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupProofing', label: 'Proofing', priority: 'standard', controls: 3, inScope: true, commands: excelReviewProofing },
+      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 9, inScope: true, commands: excelReviewAccessibility },
+      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 3, inScope: true, commands: excelReviewLanguage },
+      { id: 'GroupThreadedComments', label: 'Threaded Comments', priority: 'primary', controls: 5, inScope: true, commands: excelReviewThreadedComments },
+      { id: 'GroupComments', label: 'Comments', priority: 'standard', controls: 6, inScope: true, commands: excelReviewComments },
+      { id: 'GroupCommentsLegacy', label: 'Notes', priority: 'standard', controls: 7, inScope: true, commands: excelReviewNotes },
+      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 5, inScope: true, commands: excelReviewInk },
+      { id: 'GroupProtectExcel', label: 'Protect', priority: 'primary', controls: 4, inScope: true, commands: excelReviewProtect },
+      { id: 'GroupChangesExcel', label: 'Changes', priority: 'standard', controls: 8, inScope: true, commands: excelReviewChanges },
+      { id: 'GroupPerformance', label: 'Performance', priority: 'ancillary', controls: 1, inScope: true, commands: excelReviewPerformance },
+      { id: 'GroupDebug', label: 'Debug', priority: 'ancillary', controls: 1, inScope: true, commands: excelReviewDebug },
     ],
   },
   {
