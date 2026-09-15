@@ -15,9 +15,11 @@
 //!
 //! # Why this is a text scan and not a parse
 //!
-//! It reads Rust source with a line scanner. That is the weakest part of this pipeline and it is
-//! written to fail loudly rather than quietly: comments are stripped before anything is counted, a
-//! provenance ledger whose rows do not pair up is **not read** rather than read wrongly, and a file
+//! It reads Rust source through [`super::scan`]: comments removed, string literals numbered and
+//! whitespace collapsed, over the suite and every helper module it pulls in. That is the weakest
+//! part of this pipeline and it is written to fail loudly rather than quietly: a helper that cannot
+//! be found fails the scan, a provenance ledger whose rows do not pair up is **not read** rather
+//! than read wrongly, and a file
 //! that declares a `Provenance` enum this scanner cannot read is **named in the generated
 //! document** instead of being skipped. A miscount that shows up as a missing row is a defect a
 //! reader can see; one that shows up as a confident `implemented` is the defect this whole child
@@ -35,6 +37,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
+
+use super::scan;
 
 /// The marker a suite writes in its module documentation to declare a limitation it asserts.
 ///
@@ -105,55 +109,60 @@ pub(crate) fn tier_of(path: &str, crate_name: &str) -> Tier {
     }
 }
 
-/// A stand-in a rendering suite supplies for something the product should supply itself.
+/// A stand-in a suite, or a helper module it pulls in, supplies for something the product should supply itself.
 ///
 /// A suite that draws with one of these proves the painter works **around** the stand-in, and
 /// nothing about the feature the stand-in replaces. [`super::rows::STAND_INS`] says which rows each
 /// one is not evidence for.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) enum Double {
-    /// `NoImages`, or a test-local `no_images` function: no picture is ever decoded.
-    NoImages,
+    /// `NoImages`, a test-local `no_images` function, or a test-local `impl … ImageSource for`: no
+    /// picture the document holds is ever decoded.
+    Images,
     /// A `.with_theme(…)` call in the test: the caller, not the product, supplied the theme.
-    TestTheme,
-    /// `PlaceholderGeometry`, a test-local `impl GeometryProvider`, or a closure handed to
+    Theme,
+    /// `PlaceholderGeometry`, a test-local `impl … GeometryProvider for`, or a closure handed to
     /// `register_all`: the outline came from the test, not from library code.
-    TestGeometry,
+    Geometry,
 }
 
 impl Double {
     /// Every double, in the order the generated document lists them.
-    pub(crate) const ALL: [Self; 3] = [Self::NoImages, Self::TestTheme, Self::TestGeometry];
+    pub(crate) const ALL: [Self; 3] = [Self::Images, Self::Theme, Self::Geometry];
 
     /// The spelling the scan looks for, as the generated document names it.
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::NoImages => "`NoImages`",
-            Self::TestTheme => "a test-supplied theme (`with_theme`)",
-            Self::TestGeometry => "a test-local geometry provider",
+            Self::Images => {
+                "a test-supplied image source (`NoImages` or a test-local `ImageSource`)"
+            }
+            Self::Theme => "a test-supplied theme (`with_theme`)",
+            Self::Geometry => "a test-local geometry provider",
         }
     }
 
     /// What the double stands in for, in the words a limitation quotes.
     pub(crate) fn stands_in_for(self) -> &'static str {
         match self {
-            Self::NoImages => "decoded pictures",
-            Self::TestTheme => "the document's own theme reaching the resolver",
-            Self::TestGeometry => "library code carrying each shape's declared outline",
+            Self::Images => "decoded pictures",
+            Self::Theme => "the document's own theme reaching the resolver",
+            Self::Geometry => "library code carrying each shape's declared outline",
         }
     }
 
-    /// Whether one line of code, comments already stripped, uses this double.
+    /// Whether normalised code — a suite and its helpers — uses this double.
     fn used_by(self, code: &str) -> bool {
         match self {
-            Self::NoImages => {
-                contains_identifier(code, "NoImages") || code.contains("fn no_images(")
+            Self::Images => {
+                scan::contains_identifier(code, "NoImages")
+                    || code.contains("fn no_images(")
+                    || scan::implements(code, "ImageSource")
             }
-            Self::TestTheme => code.contains(".with_theme("),
-            Self::TestGeometry => {
-                contains_identifier(code, "PlaceholderGeometry")
-                    || code.contains("impl GeometryProvider for")
-                    || (code.contains("register_all(") && code.contains('|'))
+            Self::Theme => code.contains(".with_theme("),
+            Self::Geometry => {
+                scan::contains_identifier(code, "PlaceholderGeometry")
+                    || scan::implements(code, "GeometryProvider")
+                    || scan::registers_a_closure(code)
             }
         }
     }
@@ -175,7 +184,7 @@ pub(crate) struct Allowance {
 /// outlive the code it excuses.
 pub(crate) const ALLOWANCES: &[Allowance] = &[Allowance {
     suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
-    double: Double::NoImages,
+    double: Double::Images,
     reason: "a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places \
              drawings and lays none of them out — so the painter never asks `NoImages` for a \
              picture, and the stand-in replaces nothing this journey draws",
@@ -189,19 +198,6 @@ pub(crate) fn short_suite(path: &str) -> String {
         Some((crate_name, stem)) => format!("{crate_name}: {stem}"),
         None => trimmed.to_owned(),
     }
-}
-
-/// Whether `code` names `identifier` as a whole identifier rather than as part of a longer one.
-fn contains_identifier(code: &str, identifier: &str) -> bool {
-    let is_identifier = |character: char| character.is_alphanumeric() || character == '_';
-    code.match_indices(identifier).any(|(at, _)| {
-        let before = code[..at].chars().next_back().is_some_and(is_identifier);
-        let after = code[at + identifier.len()..]
-            .chars()
-            .next()
-            .is_some_and(is_identifier);
-        !before && !after
-    })
 }
 
 /// Where one expectation came from, in the vocabulary MJXOFF-172 established and every layout child
@@ -386,7 +382,9 @@ pub(crate) fn scan(root: &Path) -> Result<Evidence> {
     let sources = read_suite_sources(root, &crates)?;
     let mut suites: BTreeMap<String, Suite> = sources
         .iter()
-        .map(|(path, (crate_name, source))| (path.clone(), read_suite(crate_name, source)))
+        .map(|(path, (crate_name, source, helpers))| {
+            (path.clone(), read_unit(crate_name, source, helpers))
+        })
         .collect();
     let provenance_not_read = attach_provenance(&sources, &mut suites)?;
     check_the_journeys_and_allowances(&suites)?;
@@ -498,10 +496,11 @@ fn crate_directories(root: &Path) -> Result<BTreeSet<String>> {
 ///
 /// Depth one is deliberate. `tests/support/mod.rs` and `tests/common/mod.rs` are helpers compiled
 /// *into* a suite rather than suites, and counting their assertions against a capability would
-/// credit a fixture builder with checking something.
+/// credit a fixture builder with checking something. They are still read, as part of the suite
+/// that pulls them in, because a double a helper supplies is a double the suite draws through.
 ///
-/// Returns `path -> (crate name, source)`, sorted, so the whole tree is read exactly once.
-type SuiteSources = BTreeMap<String, (String, String)>;
+/// Returns `path -> (crate name, source, helper sources)`, sorted, so the whole tree is read once.
+type SuiteSources = BTreeMap<String, (String, String, Vec<String>)>;
 
 fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSources> {
     let mut sources = SuiteSources::new();
@@ -523,10 +522,13 @@ fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSou
             };
             let source = std::fs::read_to_string(&path)
                 .with_context(|| format!("reading {}", path.display()))?;
-            sources.insert(
-                format!("crates/{name}/tests/{stem}.rs"),
-                (name.clone(), source),
-            );
+            let relative = format!("crates/{name}/tests/{stem}.rs");
+            let helpers = scan::module_files(root, &relative)
+                .map_err(anyhow::Error::msg)?
+                .into_iter()
+                .map(|(_, helper)| helper)
+                .collect();
+            sources.insert(relative, (name.clone(), source, helpers));
         }
     }
     Ok(sources)
@@ -540,12 +542,15 @@ fn read_suite_sources(root: &Path, crates: &BTreeSet<String>) -> Result<SuiteSou
 /// one. A one-line marker would be either unreadably long or uselessly terse, and a limitation a
 /// reader cannot act on is barely better than none — so the sentence is written the way the rest of
 /// the module documentation is, and joined back up here.
+#[cfg(test)]
 fn read_suite(crate_name: &str, source: &str) -> Suite {
-    let mut tests = 0;
-    let mut assertions = 0;
+    read_unit(crate_name, source, &[])
+}
+
+/// Counts what one suite declares, reading its doubles out of the suite and its helpers together.
+fn read_unit(crate_name: &str, source: &str, helpers: &[String]) -> Suite {
     let mut limitations: Vec<String> = Vec::new();
     let mut pending: Option<String> = None;
-    let mut doubles = BTreeSet::new();
 
     for line in source.lines() {
         let trimmed = line.trim();
@@ -576,16 +581,6 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
         if let Some(complete) = pending.take() {
             limitations.push(complete);
         }
-        let code = strip_comment(trimmed);
-        if code.trim() == "#[test]" {
-            tests += 1;
-        }
-        assertions += count_assertions(code);
-        doubles.extend(
-            Double::ALL
-                .into_iter()
-                .filter(|double| double.used_by(code)),
-        );
     }
     if let Some(complete) = pending.take() {
         limitations.push(complete);
@@ -597,6 +592,19 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
         }
     }
 
+    let code = scan::normalise(source).code;
+    let tests = code.matches("#[test]").count();
+    let assertions = count_assertions(&code);
+    let mut unit = code;
+    for helper in helpers {
+        unit.push(' ');
+        unit.push_str(&scan::normalise(helper).code);
+    }
+    let doubles = Double::ALL
+        .into_iter()
+        .filter(|double| double.used_by(&unit))
+        .collect();
+
     Suite {
         crate_name: crate_name.to_owned(),
         tests,
@@ -607,19 +615,7 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
     }
 }
 
-/// Everything before a `//`, so prose about assertions is not counted as one.
-///
-/// It does not understand a `//` inside a string literal. That can only ever *drop* code from the
-/// scan, never invent it, so the failure direction is the safe one: fewer assertions counted means
-/// a lower state, never a higher one.
-fn strip_comment(line: &str) -> &str {
-    match line.find("//") {
-        Some(at) => &line[..at],
-        None => line,
-    }
-}
-
-/// Assertion-macro invocations on one line of code.
+/// Assertion-macro invocations in normalised code.
 fn count_assertions(code: &str) -> usize {
     const MACROS: [&str; 4] = ["assert!(", "assert_eq!(", "assert_ne!(", "assert_matches!("];
     let mut count = 0;
@@ -659,7 +655,7 @@ fn attach_provenance(
     let mut splits: BTreeMap<String, Split> = BTreeMap::new();
     let mut not_read = Vec::new();
 
-    for (path, (crate_name, source)) in sources {
+    for (path, (crate_name, source, _)) in sources {
         if !source.contains("enum Provenance") {
             continue;
         }
@@ -694,7 +690,7 @@ fn read_provenance_ledger(crate_name: &str, source: &str) -> Option<Vec<(String,
     let mut saw_suite_field = false;
 
     for line in source.lines() {
-        let code = strip_comment(line.trim());
+        let code = scan::strip_comment(line.trim());
         let code = code.trim();
         if let Some(rest) = code.strip_prefix("suite: \"") {
             let (name, _) = rest.split_once('"')?;
@@ -1008,9 +1004,7 @@ mod tests {
         );
         assert_eq!(
             suite.doubles,
-            [Double::TestTheme, Double::TestGeometry]
-                .into_iter()
-                .collect()
+            [Double::Theme, Double::Geometry].into_iter().collect()
         );
         let closure = read_suite(
             "mjx-reference-pack",
@@ -1018,10 +1012,142 @@ mod tests {
         );
         assert_eq!(
             closure.doubles,
-            [Double::NoImages, Double::TestGeometry]
-                .into_iter()
-                .collect()
+            [Double::Images, Double::Geometry].into_iter().collect()
         );
+    }
+
+    // A double written across several lines is still a double.
+    #[test]
+    fn a_double_written_across_lines_is_found() {
+        let suite = read_suite(
+            "mjx-paint",
+            "impl\n    GeometryProvider\n    for Stand {\n}\n",
+        );
+        assert!(
+            suite.doubles.contains(&Double::Geometry),
+            "{:?}",
+            suite.doubles
+        );
+    }
+
+    // A path-qualified impl is the same double as a bare one.
+    #[test]
+    fn a_path_qualified_impl_is_a_double() {
+        let suite = read_suite(
+            "mjx-scene",
+            "impl mjx_scene::GeometryProvider for Stand {\n}\n",
+        );
+        assert!(
+            suite.doubles.contains(&Double::Geometry),
+            "{:?}",
+            suite.doubles
+        );
+    }
+
+    // A `//` inside a string literal is text, so the code after it on the line is still read.
+    #[test]
+    fn a_comment_marker_inside_a_string_is_not_a_comment() {
+        let suite = read_suite(
+            "mjx-paint",
+            "let url = \"http://example.org\"; assert!(url.is_empty());\n",
+        );
+        assert_eq!(suite.assertions, 1);
+        assert_eq!(
+            scan::strip_comment("let url = \"http://x\"; // prose"),
+            "let url = \"http://x\"; "
+        );
+    }
+
+    // Raw strings and character literals hide their contents, so neither can fake a double or an assertion.
+    #[test]
+    fn a_raw_string_and_a_char_literal_hide_their_contents() {
+        let suite = read_suite(
+            "mjx-paint",
+            "let a = r#\"impl GeometryProvider for X \" assert!(y)\"#;\nlet b = '\"';\nlet c = \"NoImages\";\nassert!(a.is_empty());\n",
+        );
+        assert!(suite.doubles.is_empty(), "{:?}", suite.doubles);
+        assert_eq!(suite.assertions, 1);
+    }
+
+    // A test-local picture source is the image double, whatever the type is called.
+    #[test]
+    fn a_test_local_image_source_is_a_double() {
+        let suite = read_suite(
+            "mjx-paint",
+            "impl mjx_paint::ImageSource for OnePicture {\n}\n",
+        );
+        assert!(
+            suite.doubles.contains(&Double::Images),
+            "{:?}",
+            suite.doubles
+        );
+    }
+
+    // A double a suite reaches through a helper module it pulls in is that suite's double.
+    #[test]
+    fn a_double_in_a_helper_module_is_the_suites_double() {
+        let evidence = scan(&crate::codegen::workspace_root()).expect("the workspace scans");
+        let painters = &evidence.suites["crates/mjx-paint/tests/two_painters_agree.rs"];
+        assert!(
+            painters.doubles.contains(&Double::Images),
+            "`two_painters_agree` draws through `common::OnePicture`: {:?}",
+            painters.doubles
+        );
+        let formats =
+            &evidence.suites["crates/mjx-scene-xlsx/tests/a_conditional_format_changes_a_pixel.rs"];
+        assert!(
+            formats.doubles.contains(&Double::Theme),
+            "`a_conditional_format_changes_a_pixel` resolves through `support::resolve`'s `with_theme`: {:?}",
+            formats.doubles
+        );
+    }
+
+    // Helpers are found through `mod name;`, a nested `mod`, and `#[path]`, and one that is missing fails the scan.
+    #[test]
+    fn a_helper_is_found_through_mod_and_path_and_a_missing_one_fails() {
+        let root = std::env::temp_dir().join(format!(
+            "mjx-ledger-helpers-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("a clock after 1970")
+                .as_nanos()
+        ));
+        let write = |relative: &str, text: &str| {
+            let path = root.join(relative);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
+            std::fs::write(path, text).expect("a fixture file");
+        };
+        write(
+            "crates/a/tests/suite.rs",
+            "mod common;\n#[path = \"../../b/tests/support/mod.rs\"]\nmod shared;\n",
+        );
+        write("crates/a/tests/common/mod.rs", "pub mod inner;\n");
+        write(
+            "crates/a/tests/common/inner.rs",
+            "impl x::ImageSource for P {}\n",
+        );
+        write("crates/b/tests/support/mod.rs", "fn helper() {}\n");
+        write("crates/a/tests/broken.rs", "mod absent;\n");
+
+        let found =
+            scan::module_files(&root, "crates/a/tests/suite.rs").expect("the helpers resolve");
+        let paths: Vec<&str> = found.iter().map(|(path, _)| path.as_str()).collect();
+        let missing = scan::module_files(&root, "crates/a/tests/broken.rs");
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_eq!(
+            paths,
+            [
+                "crates/a/tests/common/inner.rs",
+                "crates/a/tests/common/mod.rs",
+                "crates/b/tests/support/mod.rs"
+            ]
+        );
+        let helpers: Vec<String> = found.into_iter().map(|(_, source)| source).collect();
+        let suite = read_unit("a", "mod common;\n", &helpers);
+        assert!(suite.doubles.contains(&Double::Images));
+        assert!(missing.is_err(), "a `mod` with no file is an error");
     }
 
     #[test]

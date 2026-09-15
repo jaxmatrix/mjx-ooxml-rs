@@ -37,7 +37,7 @@ use super::evidence::Double;
 /// scan in [`super::evidence`] decides which suites use which double.
 pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
     (
-        Double::NoImages,
+        Double::Images,
         &[
             "picture-insertion",
             "picture-pixels-pptx",
@@ -51,7 +51,7 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
         ],
     ),
     (
-        Double::TestTheme,
+        Double::Theme,
         &[
             "themes-pptx",
             "themes-xlsx",
@@ -64,7 +64,7 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
         ],
     ),
     (
-        Double::TestGeometry,
+        Double::Geometry,
         &[
             "preset-geometry",
             "custom-geometry",

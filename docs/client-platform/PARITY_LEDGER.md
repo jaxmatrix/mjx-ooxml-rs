@@ -117,7 +117,7 @@ A document capability is `implemented` only on a suite that emits an encoded dis
 
 A rendering suite that draws with a test double is not evidence for the rows the double stands in for. The scan reads each suite's code for:
 
-* `NoImages`, which stands in for decoded pictures
+* a test-supplied image source (`NoImages` or a test-local `ImageSource`), which stands in for decoded pictures
 * a test-supplied theme (`with_theme`), which stands in for the document's own theme reaching the resolver
 * a test-local geometry provider, which stands in for library code carrying each shape's declared outline
 
@@ -125,7 +125,7 @@ The named exceptions, each with its reason:
 
 | Suite | Double | Why it stands in for nothing cited |
 |---|---|---|
-| `mjx-reference-pack: a_real_worksheet_reaches_pixels` | `NoImages` | a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places drawings and lays none of them out — so the painter never asks `NoImages` for a picture, and the stand-in replaces nothing this journey draws |
+| `mjx-reference-pack: a_real_worksheet_reaches_pixels` | a test-supplied image source (`NoImages` or a test-local `ImageSource`) | a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places drawings and lays none of them out — so the painter never asks `NoImages` for a picture, and the stand-in replaces nothing this journey draws |
 
 ### Rows capped by their evidence
 
@@ -159,7 +159,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `colour-resolution-xlsx` | `mjx-scene-xlsx: a_real_sheet_resolves` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `grouping-and-transforms` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
 | `text-in-a-shape` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`, `mjx-layout-pptx`) |
-| `picture-pixels-pptx` | `mjx-reference-pack: a_real_deck_reaches_pixels` draws it only through `NoImages`, standing in for decoded pictures |
+| `picture-pixels-pptx` | `mjx-reference-pack: a_real_deck_reaches_pixels` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures |
 | `picture-anchoring-xlsx` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
 | `chart-series-geometry` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
 | `chart-axes-and-scales` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
@@ -201,10 +201,10 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `pptx-master-and-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
 | `pptx-autofit` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
 | `pptx-notes` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
-| `pptx-reaches-pixels` | `mjx-scene-pptx: every_effect_reaches_the_root` draws it only through `NoImages`, standing in for decoded pictures |
-| `pptx-reaches-pixels` | `mjx-paint: a_page_becomes_pixels` draws it only through `NoImages`, standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
-| `pptx-reaches-pixels` | `mjx-paint: two_painters_agree` draws it only through a test-local geometry provider, standing in for library code carrying each shape's declared outline |
-| `pptx-reaches-pixels` | `mjx-reference-pack: a_real_deck_reaches_pixels` draws it only through `NoImages`, standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `pptx-reaches-pixels` | `mjx-scene-pptx: every_effect_reaches_the_root` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures |
+| `pptx-reaches-pixels` | `mjx-paint: a_page_becomes_pixels` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `pptx-reaches-pixels` | `mjx-paint: two_painters_agree` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `pptx-reaches-pixels` | `mjx-reference-pack: a_real_deck_reaches_pixels` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
 | `cached-values-are-rendered` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
 
 ## The rows
@@ -359,7 +359,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `round-trip-fidelity` | The round-trip contract — untouched parts re-emitted byte for byte | `implemented` | `mjx-opc: roundtrip`<br>`mjx-opc: tree_roundtrip`<br>`mjx-pptx: roundtrip`<br>`mjx-docx: roundtrip`<br>`mjx-xlsx: roundtrip`<br>`mjx-xlsx: preserved_parts` | 52 | 218 | — |
 | `markup-compatibility` | MCE — `mc:AlternateContent`, `Ignorable`, `ProcessContent` | `implemented` | `mjx-mce: resolve`<br>`mjx-mce: untrusted_input` | 10 | 15 | — |
 | `schema-conformance` | ECMA-376 schema validity and child order, for everything this library writes | `implemented` | `mjx-schema-gate: ordering`<br>`mjx-schema-gate: category_rule`<br>`mjx-docx: schema_gate`<br>`mjx-xlsx: schema_gate` | 54 | 137 | — |
-| `untrusted-input` | Untrusted input — a malformed file is a typed error and never a panic | `implemented` | `mjx-xml: untrusted_input`<br>`mjx-opc: untrusted_input`<br>`mjx-text: untrusted_faces`<br>`mjx-text: untrusted_text`<br>`mjx-layout-docx: no_panic_on_a_layout_path`<br>`mjx-layout-pptx: no_panic_on_a_layout_path`<br>`mjx-layout-xlsx: no_panic_on_a_layout_path`<br>`mjx-layout-chart: no_panic_on_a_layout_path` | 55 | 79 | 0 / 0 / 1 |
+| `untrusted-input` | Untrusted input — a malformed file is a typed error and never a panic | `implemented` | `mjx-xml: untrusted_input`<br>`mjx-opc: untrusted_input`<br>`mjx-text: untrusted_faces`<br>`mjx-text: untrusted_text`<br>`mjx-layout-docx: no_panic_on_a_layout_path`<br>`mjx-layout-pptx: no_panic_on_a_layout_path`<br>`mjx-layout-xlsx: no_panic_on_a_layout_path`<br>`mjx-layout-chart: no_panic_on_a_layout_path` | 55 | 69 | 0 / 0 / 1 |
 | `document-properties` | Document properties and metadata | `implemented` | `mjx-opc: package_validation` | 18 | 37 | — |
 | `export-pdf-and-svg` | Export — PDF with selectable text, and SVG, both from the display list | `implemented` | `mjx-paint: a_document_is_a_document`<br>`mjx-render-oracle: the_pdf_tiers_work_on_our_own_exports` | 13 | 59 | — |
 | `find-and-replace` | Find and replace, including formatting and wildcards | `not-started` | **none** | 0 | 0 | — |

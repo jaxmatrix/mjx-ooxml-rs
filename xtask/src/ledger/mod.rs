@@ -48,6 +48,7 @@ pub(crate) mod assess;
 pub(crate) mod emit;
 pub(crate) mod evidence;
 pub(crate) mod rows;
+pub(crate) mod scan;
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
