@@ -87,8 +87,14 @@
  * `shapeStylesCommands`, `wordArtStylesCommands`, `arrangeCommands`, `sizeCommands` and
  * `stories/ribbons/drawing-tools-menus.ts`) and differs only where Office's Word does: no Merge Shapes, Draw Text Box a
  * split button, the Text group, Position and Wrap Text, no Eyedropper and the Layout launcher. **`Ribbons/Word` alone
- * binds it**, because `Shell/Word` draws Table Tools. **The other two, Chart Design and Format, are placeholders**, each
- * until its own unit.
+ * binds it**, because `Shell/Word` draws Table Tools.
+ *
+ * **Chart Design is authored**, the fifth and Word's first of Chart Tools: four groups and nine commands, which elements
+ * a chart carries and how they are laid out, its colours and style, its data, and its type. Its groups are the census's
+ * `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` and `chartTypeCommands`, and its menus and gallery
+ * are in `stories/ribbons/chart-tools-menus.ts`, all written for PowerPoint's and Excel's Chart Design to reuse; Change
+ * Chart Type opens Excel's Insert → Charts lists. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table
+ * Tools. **The last, Chart Tools' Format, is a placeholder** until its own unit.
  *
  * ## The three view tabs
  *
@@ -679,19 +685,46 @@ export function wordShapeFormatTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
+ * Chart Design: Chart Layouts, Chart Styles, Data, Type — Word's fifth contextual tab authored and the twelfth of all,
+ * in **Office's** order, which is also the census's. It sits under the *Chart Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a chart is selected.** `Ribbons/Word` draws every contextual set and
+ * binds it; **`Shell/Word` draws Table Tools alone**, so it binds none of this tab and renders none of its menus.
+ * `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Six of the tab's nine commands are bound by the host**: Add Chart Element, Quick Layout, Change Colours and Change
+ * Chart Type, large dropdowns; Edit Data, a large split button; the Chart Styles gallery. Every menu and the gallery's
+ * pictures are in `stories/ribbons/chart-tools-menus.ts`. Switch Row/Column, Select Data and Refresh Data are plain
+ * large buttons.
+ *
+ * **No dialog launcher**, as Microsoft 365 draws none on this tab. **No survivor.**
+ */
+export function wordChartDesignTab(options: TabOptions = {}): TemplateResult {
+  const chartDesign = entry('chart-design');
+  const controls = options.controls ?? {};
+  return tab(
+    chartDesign.id,
+    chartDesign.label,
+    censusGroup(chartDesign, 'GroupChartLayouts', {}, controls),
+    censusGroup(chartDesign, 'GroupChartStyles', {}, controls),
+    censusGroup(chartDesign, 'GroupChartData', {}, controls),
+    censusGroup(chartDesign, 'GroupChartType', {}, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Table Design, Table Layout, Picture Format and Shape Format are authored; every other entry is `placeholderTab`
- * today.** The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaces
- * its one line here with a `word<Tab>Tab` function, as Table Design's, Table Layout's, Picture Format's and Shape
- * Format's did.
+ * **Table Design, Table Layout, Picture Format, Shape Format and Chart Design are authored; Chart Tools' Format is
+ * `placeholderTab` today.** The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each
+ * tab's unit replaces its one line here with a `word<Tab>Tab` function, as the five authored tabs' units did.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,
   'table-layout': wordTableLayoutTab,
   'picture-format': wordPictureFormatTab,
   'shape-format': wordShapeFormatTab,
-  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-design': wordChartDesignTab,
   'chart-format': () => placeholderTab(entry('chart-format')),
 };
 

@@ -26,6 +26,10 @@
  * `stories/ribbons/drawing-tools-menus.ts`' `insertShapesEntries(application)`: every section and every shape, with
  * PowerPoint's Action Buttons and Word's New Drawing Canvas. `GUESS:` every name, as that file says.
  *
+ * **Excel's eight chart-family lists are exported**, `columnBarChartEntries()` to `scatterBubbleChartEntries()`, because
+ * Chart Design's Change Chart Type opens the same eight families (`stories/ribbons/chart-tools-menus.ts`), and two
+ * copies of a family would be two places for one to drift. They are unchanged by the move.
+ *
  * Two lists name things that are *this machine's* rather than Office's — a link menu's recent items
  * and a screenshot menu's available windows. The first uses invented file names, as
  * `ribbon-parts.ts`'s printers do; the second shows no windows at all, because a list of somebody's
@@ -148,6 +152,91 @@ function equationEntries(): TemplateResult[] {
 /** Signature Line's arrow, in Word and Excel. */
 function signatureLineEntries(): TemplateResult[] {
   return [item('Microsoft Office Signature Line…'), item('Add Signature Services…')];
+}
+
+// ── the chart families: Excel's Insert → Charts, and every Change Chart Type ─
+//
+// Excel's eight chart-family commands open these lists, and `stories/ribbons/chart-tools-menus.ts`' Change Chart Type
+// opens the same eight as submenus, so a chart family is written once. Each ends on its *More … Charts…* entry, which
+// opens the chart dialog at that family, and which is therefore the same entry under both commands.
+
+/** Insert Column or Bar Chart: 2-D Column and 2-D Bar, then the dialog. */
+export function columnBarChartEntries(): TemplateResult[] {
+  return [
+    section('2-D Column', item('Clustered Column'), item('Stacked Column'), item('100% Stacked Column')),
+    section('2-D Bar', item('Clustered Bar'), item('Stacked Bar'), item('100% Stacked Bar')),
+    separator(),
+    item('More Column Charts…'),
+  ];
+}
+
+/** Insert Hierarchy Chart: Treemap and Sunburst, then the dialog. */
+export function hierarchyChartEntries(): TemplateResult[] {
+  return [section('Treemap', item('Treemap')), section('Sunburst', item('Sunburst')), separator(), item('More Hierarchy Charts…')];
+}
+
+/** Insert Waterfall, Funnel, Stock, Surface or Radar Chart: one section each, then the dialog. */
+export function waterfallChartEntries(): TemplateResult[] {
+  return [
+    section('Waterfall', item('Waterfall')),
+    section('Funnel', item('Funnel')),
+    section('Stock', item('High-Low-Close')),
+    section('Surface', item('3-D Surface')),
+    section('Radar', item('Radar')),
+    separator(),
+    item('More Stock Charts…'),
+  ];
+}
+
+/** Insert Line or Area Chart: 2-D Line and 2-D Area, then the dialog. */
+export function lineAreaChartEntries(): TemplateResult[] {
+  return [
+    section('2-D Line', item('Line'), item('Stacked Line'), item('Line with Markers')),
+    section('2-D Area', item('Area'), item('Stacked Area')),
+    separator(),
+    item('More Line Charts…'),
+  ];
+}
+
+/** Insert Statistic Chart: Histogram and Box and Whisker, then the dialog. */
+export function statisticChartEntries(): TemplateResult[] {
+  return [
+    section('Histogram', item('Histogram'), item('Pareto')),
+    section('Box and Whisker', item('Box and Whisker')),
+    separator(),
+    item('More Statistical Charts…'),
+  ];
+}
+
+/** Insert Combo Chart: the three built-in combinations, then the custom one. */
+export function comboChartEntries(): TemplateResult[] {
+  return [
+    item('Clustered Column – Line'),
+    item('Clustered Column – Line on Secondary Axis'),
+    item('Stacked Area – Clustered Column'),
+    separator(),
+    item('Create Custom Combo Chart…'),
+  ];
+}
+
+/** Insert Pie or Doughnut Chart: 2-D Pie and Doughnut, then the dialog. */
+export function pieDoughnutChartEntries(): TemplateResult[] {
+  return [
+    section('2-D Pie', item('Pie'), item('Pie of Pie'), item('Bar of Pie')),
+    section('Doughnut', item('Doughnut')),
+    separator(),
+    item('More Pie Charts…'),
+  ];
+}
+
+/** Insert Scatter (X, Y) or Bubble Chart: Scatter and Bubble, then the dialog. */
+export function scatterBubbleChartEntries(): TemplateResult[] {
+  return [
+    section('Scatter', item('Scatter'), item('Scatter with Smooth Lines')),
+    section('Bubble', item('Bubble')),
+    separator(),
+    item('More Scatter Charts…'),
+  ];
 }
 
 // ── Word ─────────────────────────────────────────────────────────────────────
@@ -339,81 +428,23 @@ function excelInsertMenus(host: RibbonSurfaceHost): TemplateResult {
     ${commandMenu(host, 'excel.insert.illustrations.shapes', 'Shapes', ...insertShapesEntries('excel'))}
     ${commandMenu(host, 'excel.insert.illustrations.3d-models', '3D Models', ...threeDModelsEntries())}
     ${commandMenu(host, 'excel.insert.illustrations.screenshot', 'Screenshot', ...screenshotEntries())}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.column-bar',
-      'Insert Column or Bar Chart',
-      section('2-D Column', item('Clustered Column'), item('Stacked Column'), item('100% Stacked Column')),
-      section('2-D Bar', item('Clustered Bar'), item('Stacked Bar'), item('100% Stacked Bar')),
-      separator(),
-      item('More Column Charts…'),
-    )}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.hierarchy',
-      'Insert Hierarchy Chart',
-      section('Treemap', item('Treemap')),
-      section('Sunburst', item('Sunburst')),
-      separator(),
-      item('More Hierarchy Charts…'),
-    )}
+    ${commandMenu(host, 'excel.insert.charts.column-bar', 'Insert Column or Bar Chart', ...columnBarChartEntries())}
+    ${commandMenu(host, 'excel.insert.charts.hierarchy', 'Insert Hierarchy Chart', ...hierarchyChartEntries())}
     ${commandMenu(
       host,
       'excel.insert.charts.waterfall',
       'Insert Waterfall, Funnel, Stock, Surface or Radar Chart',
-      section('Waterfall', item('Waterfall')),
-      section('Funnel', item('Funnel')),
-      section('Stock', item('High-Low-Close')),
-      section('Surface', item('3-D Surface')),
-      section('Radar', item('Radar')),
-      separator(),
-      item('More Stock Charts…'),
+      ...waterfallChartEntries(),
     )}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.line-area',
-      'Insert Line or Area Chart',
-      section('2-D Line', item('Line'), item('Stacked Line'), item('Line with Markers')),
-      section('2-D Area', item('Area'), item('Stacked Area')),
-      separator(),
-      item('More Line Charts…'),
-    )}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.statistic',
-      'Insert Statistic Chart',
-      section('Histogram', item('Histogram'), item('Pareto')),
-      section('Box and Whisker', item('Box and Whisker')),
-      separator(),
-      item('More Statistical Charts…'),
-    )}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.combo',
-      'Insert Combo Chart',
-      item('Clustered Column – Line'),
-      item('Clustered Column – Line on Secondary Axis'),
-      item('Stacked Area – Clustered Column'),
-      separator(),
-      item('Create Custom Combo Chart…'),
-    )}
-    ${commandMenu(
-      host,
-      'excel.insert.charts.pie-doughnut',
-      'Insert Pie or Doughnut Chart',
-      section('2-D Pie', item('Pie'), item('Pie of Pie'), item('Bar of Pie')),
-      section('Doughnut', item('Doughnut')),
-      separator(),
-      item('More Pie Charts…'),
-    )}
+    ${commandMenu(host, 'excel.insert.charts.line-area', 'Insert Line or Area Chart', ...lineAreaChartEntries())}
+    ${commandMenu(host, 'excel.insert.charts.statistic', 'Insert Statistic Chart', ...statisticChartEntries())}
+    ${commandMenu(host, 'excel.insert.charts.combo', 'Insert Combo Chart', ...comboChartEntries())}
+    ${commandMenu(host, 'excel.insert.charts.pie-doughnut', 'Insert Pie or Doughnut Chart', ...pieDoughnutChartEntries())}
     ${commandMenu(
       host,
       'excel.insert.charts.scatter-bubble',
       'Insert Scatter (X, Y) or Bubble Chart',
-      section('Scatter', item('Scatter'), item('Scatter with Smooth Lines')),
-      section('Bubble', item('Bubble')),
-      separator(),
-      item('More Scatter Charts…'),
+      ...scatterBubbleChartEntries(),
     )}
     ${commandMenu(host, 'excel.insert.charts.maps', 'Maps', item('Filled Map'))}
     ${commandMenu(

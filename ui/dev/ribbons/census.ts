@@ -150,6 +150,10 @@
  * **Excel's Shape Format** followed, the eleventh and Excel's third, calling the same functions and differing from
  * PowerPoint's only where Office does: no Merge Shapes, a Text Box split button, no Eyedropper, Excel's large layer commands and snapping Align,
  * and the Size and Properties launcher; see that section's *Excel's Shape Format* part.
+ * **Word's Chart Design** followed, the twelfth and Word's first of Chart Tools, its four groups written once as
+ * functions of the application and the tab (`chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands`,
+ * `chartTypeCommands`) for PowerPoint's and Excel's Chart Design to call; its menus and gallery are in
+ * `stories/ribbons/chart-tools-menus.ts`; see the *commands Chart Design shows* section.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -198,8 +202,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Eleven contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format and
- * Shape Format, and Excel's Table Design, Picture Format and Shape Format.** Each
+ * **Twelve contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format and
+ * Shape Format, Excel's Table Design, Picture Format and Shape Format, and Word's Chart Design.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -8590,6 +8594,175 @@ const excelShapeFormatAccessibility: readonly RibbonCommand[] = [
   { id: 'excel.shape-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
 ];
 
+// ── the commands Chart Design shows ──────────────────────────────────────────
+//
+// ## Word's Chart Design
+//
+// The unit after Excel's Shape Format, one tab of one application: **Word's `TabChartToolsDesignNew`, in
+// `TabSetChartTools`**, all four in-scope groups and nine commands, and **the twelfth contextual tab authored**, Word's
+// fifth and the first of Chart Tools. Office shows it under the *Chart Tools* band while a chart in the document is
+// selected: which elements the chart carries and how they are laid out, which colours and style it wears, where its
+// data comes from, and what kind of chart it is.
+//
+// ## Office's groups, read onto the census's four
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupChartLayouts` (23) | Chart Layouts | Add Chart Element, Quick Layout |
+// | `GroupChartStyles` (2) | Chart Styles | Change Colours; the Chart Styles gallery |
+// | `GroupChartData` (6) | Data | Switch Row/Column, Select Data, Edit Data, Refresh Data |
+// | `GroupChartType` (1) | Type | Change Chart Type |
+//
+// **The brief's four groups map one to one onto the census's four, in the same order**, and every id, label and
+// priority is the contextual unit's, unchanged: Chart Layouts `primary`, Data `standard`, and Chart Styles and Type
+// `secondary`, the rubric binding their small counts (the header's item 4). No group carries a dialog launcher, as
+// Microsoft 365 draws none on this tab.
+//
+// ## Written once, and what is Word's own
+//
+// Chart Design is nearly the same tab in all three applications, so **each group is a function of the application and
+// the tab**, exported for PowerPoint's and Excel's units: `chartLayoutsCommands`, `chartStylesCommands`,
+// `chartDataCommands` and `chartTypeCommands`, below. `chartDataCommands` is the one that branches: Excel's Data group
+// is Switch Row/Column and Select Data alone, because a workbook's chart reads its own cells and has no separate data to
+// edit or refresh (Excel's census counts 2 there). In `stories/ribbons/chart-tools-menus.ts` every list is a function of
+// nothing: `addChartElementEntries`, `quickLayoutEntries`, `changeColoursEntries`, `chartStyleGalleryItems`,
+// `editDataEntries` and `changeChartTypeEntries`, which **reuses Excel's Insert → Charts lists**
+// (`stories/ribbons/insert-menus.ts`' eight chart-family functions, exported by this unit and otherwise unchanged).
+// Word's own is only the `word` branch of `chartToolsMenus` and the bindings in `Ribbons/Word`.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Spelling.** The brief writes *Change Colors* and *Colorful*; the catalogue writes **Change Colours**,
+//    **Colourful** and **Centred Overlay**, as every label here already does (*More Fill Colours…*, *Centre*). Office's
+//    US spelling loses to the catalogue's for the reason `stories/ribbons/drawing-tools-menus.ts` gives.
+// 2. **Change Chart Type opens a menu, not Office's dialog.** Office's large button opens the Change Chart Type dialog;
+//    the brief asks for Insert → Charts' lists, so the catalogue opens a menu of the eight families, each a submenu
+//    holding Insert's own list and ending on its *More … Charts…* entry, which is the dialog at that family. **No Map
+//    family**, which Word's dialog has and Excel reaches from Insert's Maps. `GUESS:` both.
+// 3. **Quick Layout is a large dropdown over names**, *Layout 1* to *Layout 11*, where Office opens a grid of eleven
+//    thumbnails: the catalogue's shape for a gallery of pictures that opens from a button, as Picture Format's
+//    Corrections is. `GUESS:` that a column chart is offered eleven.
+// 4. **The Chart Styles gallery is in-ribbon**, *Style 1* to *Style 16*, drawn in the document's palette and starting on
+//    Style 1, the look a new chart wears. Every picture is a description of a look (ground, column fill, gridlines, gap),
+//    not a render of the style's `c:chartStyle` part. `GUESS:` sixteen, and every look.
+// 5. **Change Colours** holds *Colourful Palette 1* to *4* and *Monochromatic Palette 1* to *13*, one radio set across
+//    both sections, starting on Colourful Palette 1. Office draws each palette as a strip of swatches; the menu holds
+//    their names. `GUESS:` the counts, the names and the start.
+// 6. **Add Chart Element carries all eleven of Office's submenus with every entry**, as `chartElements` lists them for
+//    the Clustered Column Word inserts, each ending on its *More … Options…* entry. Exclusive sets (Chart Title, Data
+//    Labels, Data Table, Error Bars, Legend, Lines, Up/Down Bars) are radio entries; Axes, Axis Titles and Gridlines are
+//    checkboxes; Trendline is plain, a verb applied per series. **Lines and Up/Down Bars are drawn available**, where
+//    Office greys both on a column chart, because a greyed submenu cannot be opened and its entries could not be
+//    audited. `GUESS:` every entry, every start and every options entry's name; *More Lines Options…* least.
+// 7. **Edit Data is a large split button**: its face opens the data sheet over the document, its arrow *Edit Data* and
+//    *Edit Data in Excel*. `GUESS:` both labels.
+// 8. **Switch Row/Column, Select Data and Refresh Data are plain large buttons, available.** In Office, Switch
+//    Row/Column is greyed until the chart's data sheet is open, and Refresh Data until the chart is linked to a
+//    workbook; the catalogue draws no chart state, so it draws each command as it looks once it applies. `GUESS:`.
+// 9. **The counts.** **Chart Styles (2: Change Colours and the gallery) and Type (1) are met.** **Chart Layouts counts
+//    23 and draws 2**, and one reading reaches 23: Add Chart Element and its eleven submenus, and Quick Layout's eleven
+//    layouts. **Data counts 6 and draws 4**, and one reading reaches 6: Switch Row/Column, Select Data, Refresh Data,
+//    Edit Data's split, and its two entries. `GUESS:` both readings. Nothing is padded.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Chart Layouts**: none. Add Chart Element and Quick Layout both open a menu (rule 1).
+// - **Chart Styles**: none. Change Colours opens a menu and the gallery is a gallery (rule 1).
+// - **Data**: none. Select Data opens a dialog and Edit Data is a split button (rule 1); Switch Row/Column is one press
+//   that one undo takes back but its swap glyph does not say *rows for columns* without its label (rule 2); Refresh Data
+//   reloads from a linked workbook, which one undo does not take back (rule 1).
+// - **Type**: none. Change Chart Type opens a menu (Office: a dialog; rule 1), and it is the group's only command.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape: every command on the tab is large**, and the Chart Styles gallery stands
+// in-ribbon beside Change Colours. **Eight of the nine commands carry a glyph, every one `GUESS:`**; one is new:
+//
+// - **Chart Layouts**: Add Chart Element **`data-bar-vertical-add`**, new, a column chart with a plus, which is what the
+//   command does to a chart; Quick Layout `layout-cell-four`, Excel's Arrange All, a frame divided into regions, which is
+//   what a layout is (a title, a plot, a legend placed in the chart's frame). **Quick Layout's is the weakest glyph on
+//   the tab**: it reads *tiled windows* first.
+// - **Chart Styles**: Change Colours `color`, Design's Colours, a painter's palette: the chart's colours from the theme.
+// - **Data**: Switch Row/Column `table-switch`, Word's Convert to Text, a table with a turn arrow (now at 24 too); Select
+//   Data `table-cursor`, Table Layout's Select, a table with a pointer: choosing the cells; Edit Data `table-edit`, Draw
+//   Table's table with a pencil: editing the data sheet; Refresh Data `arrow-clockwise`, Excel's Refresh All, the same
+//   refresh.
+// - **Type**: Change Chart Type `chart-multiple`, Excel's Recommended Charts, several charts, because the command offers
+//   a choice of them (now at 24 too).
+//
+// **One carries none, and says why**: the Chart Styles gallery is its pictures.
+
+/**
+ * **Chart Layouts, as Office draws it on Chart Design**: Add Chart Element and Quick Layout, both large, under
+ * `<application>.<tab>.chart-layouts`. See Word's Chart Design's disagreements 3 and 6.
+ *
+ * Written once because the group repeats on PowerPoint's and Excel's Chart Design, with the same two commands. **Both
+ * are dropdowns** a host binds over `stories/ribbons/chart-tools-menus.ts`' lists.
+ *
+ * **No survivor**: two menus.
+ */
+export function chartLayoutsCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.${tab}.chart-layouts.add-chart-element`, label: 'Add Chart Element', icon: 'data-bar-vertical-add', size: 'large' },
+    { id: `${application}.${tab}.chart-layouts.quick-layout`, label: 'Quick Layout', icon: 'layout-cell-four', size: 'large' },
+  ];
+}
+
+/**
+ * **Chart Styles, as Office draws it on Chart Design**: Change Colours, large, then the Chart Styles gallery in-ribbon,
+ * under `<application>.<tab>.chart-styles`. See Word's Chart Design's disagreements 1, 4 and 5.
+ *
+ * Written once because the group repeats on PowerPoint's and Excel's Chart Design. **Change Colours is a dropdown** a
+ * host binds over `changeColoursEntries`; **the gallery carries no glyph**, because it is its pictures, and is bound by a
+ * host over `chartStyleGalleryItems`.
+ *
+ * **No survivor**: a menu and a gallery.
+ */
+export function chartStylesCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.${tab}.chart-styles.change-colours`, label: 'Change Colours', icon: 'color', size: 'large' },
+    { id: `${application}.${tab}.chart-styles.style-gallery`, label: 'Chart Styles' },
+  ];
+}
+
+/**
+ * **Data, as Office draws it on Chart Design**: Switch Row/Column, Select Data, then, in Word and PowerPoint, Edit Data
+ * and Refresh Data, all large, under `<application>.<tab>.data`. See Word's Chart Design's disagreements 7 and 8.
+ *
+ * Written once because the group repeats. **Excel's is the first two alone**: a workbook's chart reads its own cells, so
+ * there is no separate data to edit or refresh, and Excel's census counts 2. `GUESS:` that PowerPoint's is Word's four.
+ * **Edit Data is a split button** a host binds over `editDataEntries`; the other three are plain buttons.
+ *
+ * **No survivor**: a swap with no self-evident glyph, a dialog, a split button and a refresh no undo takes back.
+ */
+export function chartDataCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  const shared: readonly RibbonCommand[] = [
+    { id: `${application}.${tab}.data.switch-row-column`, label: 'Switch Row/Column', icon: 'table-switch', size: 'large' },
+    { id: `${application}.${tab}.data.select-data`, label: 'Select Data', icon: 'table-cursor', size: 'large' },
+  ];
+  if (application === 'excel') return shared;
+  return [
+    ...shared,
+    { id: `${application}.${tab}.data.edit-data`, label: 'Edit Data', icon: 'table-edit', size: 'large' },
+    { id: `${application}.${tab}.data.refresh-data`, label: 'Refresh Data', icon: 'arrow-clockwise', size: 'large' },
+  ];
+}
+
+/**
+ * **Type, as Office draws it on Chart Design**: Change Chart Type, large, under `<application>.<tab>.type`. See Word's
+ * Chart Design's disagreement 2.
+ *
+ * Written once because the group repeats in all three applications. **A dropdown** a host binds over
+ * `changeChartTypeEntries`, where Office opens a dialog.
+ *
+ * **No survivor**: a menu, and the group's only command.
+ */
+export function chartTypeCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  return [{ id: `${application}.${tab}.type.change-chart-type`, label: 'Change Chart Type', icon: 'chart-multiple', size: 'large' }];
+}
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -8703,10 +8876,10 @@ export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
         groups: [
-          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
-          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true },
-          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true },
-          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true, commands: chartLayoutsCommands('word', 'chart-design') },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true, commands: chartStylesCommands('word', 'chart-design') },
+          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true, commands: chartDataCommands('word', 'chart-design') },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true, commands: chartTypeCommands('word', 'chart-design') },
         ],
       },
       {

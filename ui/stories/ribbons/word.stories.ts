@@ -50,6 +50,7 @@ import {
   shapeStyleGalleryItems,
   wordShapeMeasures,
 } from './drawing-tools-menus.ts';
+import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
 import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-styles-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
@@ -67,8 +68,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
  * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design, Table Tools'
- * Layout, Picture Format and Shape Format are authored**, the first four. **The other two are placeholders** — Chart
- * Design and Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
+ * Layout, Picture Format, Shape Format and Chart Design are authored**, the first five. **The last is a placeholder** —
+ * Chart Tools' Format — one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
  * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
  *
@@ -81,7 +82,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
- * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format and Shape Format tabs' menus open,
+ * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format, Shape Format and Chart Design tabs'
+ * menus open,
  * the pickers open, the
  * galleries preview — and no document changes, because command dispatch is loop 2.
  */
@@ -103,8 +105,8 @@ const meta: Meta = {
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
           'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
-          'four common sets, Table Design, Layout, Picture Format and Shape Format are authored; Chart Design and ' +
-          'Format are placeholders carrying the census’s own priorities.',
+          'four common sets, Table Design, Layout, Picture Format, Shape Format and Chart Design are authored; Chart ' +
+          'Tools’ Format is a placeholder carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -1190,6 +1192,50 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Chart Design (a contextual tab, in Chart Tools). `Shell/Word` draws Table Tools alone, so these six bindings and
+  // `chartToolsMenus('word', …)` are written here and nowhere else. Every menu and the gallery's pictures are
+  // `stories/ribbons/chart-tools-menus.ts`'s; the pictures read this document's palette. Switch Row/Column, Select Data
+  // and Refresh Data are the generic large button; none is bound.
+  'word.chart-design.chart-layouts.add-chart-element': html`<mjx-button
+    label="Add Chart Element"
+    icon="data-bar-vertical-add"
+    size="large"
+    data-opens="ribbons-word-chart-design-chart-layouts-add-chart-element"
+  ></mjx-button>`,
+  'word.chart-design.chart-layouts.quick-layout': html`<mjx-button
+    label="Quick Layout"
+    icon="layout-cell-four"
+    size="large"
+    data-opens="ribbons-word-chart-design-chart-layouts-quick-layout"
+  ></mjx-button>`,
+  'word.chart-design.chart-styles.change-colours': html`<mjx-button
+    label="Change Colours"
+    icon="color"
+    size="large"
+    data-opens="ribbons-word-chart-design-chart-styles-change-colours"
+  ></mjx-button>`,
+  'word.chart-design.chart-styles.style-gallery': html`<mjx-gallery
+    id="ribbons-word-chart-design-chart-styles"
+    label="Chart Styles"
+    value="style-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${chartStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'word.chart-design.data.edit-data': html`<mjx-split-button
+    label="Edit Data"
+    icon="table-edit"
+    size="large"
+    menu-label="Edit Data"
+    data-opens="ribbons-word-chart-design-data-edit-data"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.chart-design.type.change-chart-type': html`<mjx-button
+    label="Change Chart Type"
+    icon="chart-multiple"
+    size="large"
+    data-opens="ribbons-word-chart-design-type-change-chart-type"
+  ></mjx-button>`,
 };
 
 /**
@@ -1222,7 +1268,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
     ${viewMenus('word', 'ribbons')} ${printPreviewMenus('word', 'ribbons')}
     ${tableToolsMenus('word', 'ribbons')} ${pictureToolsMenus('word', 'ribbons')}
-    ${drawingToolsMenus('word', 'ribbons')}
+    ${drawingToolsMenus('word', 'ribbons')} ${chartToolsMenus('word', 'ribbons')}
   `;
 }
 
@@ -1759,9 +1805,39 @@ export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 
 /**
- * **Chart Design** — Chart Tools' first tab, a placeholder. Four groups are declared: Chart Layouts, Chart Styles,
- * Data and Type, with Chart Layouts primary. This is the census's `TabChartToolsDesignNew`; the three older chart
- * tabs the census also carries are recorded as unbuilt.
+ * **Chart Design**: which elements a chart in the document carries and how they are laid out, which colours and style it
+ * wears, where its data comes from, and what kind of chart it is. Chart Tools' first tab, and Word's fifth contextual
+ * tab authored; Office shows it only while a chart is selected. Four groups: Chart Layouts, Chart Styles, Data and Type,
+ * every command large. It is the census's `TabChartToolsDesignNew`; the three older chart tabs the census also carries
+ * are recorded as unbuilt. What to look at here, least certain first:
+ *
+ * 1. ⚠ **Change Chart Type opens a menu, where Office opens a dialog.** Its eight submenus are Excel's Insert → Charts
+ *    families, each holding exactly the list `Ribbons/Excel`'s Insert tab opens for it and ending on *More … Charts…*.
+ *    **No Map family.** `GUESS:` both.
+ * 2. ⚠ **Add Chart Element's eleven submenus**, for the Clustered Column Word inserts: **Chart Title** (*Above Chart*
+ *    checked), **Legend** (*Bottom*), **Gridlines** (*Primary Major Horizontal* ticked, a checkbox each), **Axes** (both
+ *    ticked), **Axis Titles** (neither), **Data Labels**, **Data Table**, **Error Bars**, **Lines** and **Up/Down Bars**
+ *    (each on *None*), and **Trendline** (plain entries, a verb per series); each ends on its *More … Options…* under a
+ *    separator. **Lines and Up/Down Bars open**, where Office greys both on a column chart, so their entries can be
+ *    judged. Choose a radio entry: the tick moves within its submenu. `GUESS:` every entry and start.
+ * 3. ⚠ **The Chart Styles gallery**, *Style 1* to *Style 16* in this document's palette, starting on Style 1: three
+ *    columns in Accent 1, 2 and 3 on a paper, tinted or dark ground, solid, outlined, hatched, shaded or pale, with or
+ *    without gridlines. Each picture describes a look rather than rendering Office's. `GUESS:` sixteen, and every look.
+ * 4. ⚠ **Quick Layout's glyph is the weakest on the tab**: four tiled regions, which reads *arrange windows* before
+ *    *arrange a chart's title, plot and legend*. Its menu is *Layout 1* to *Layout 11*, names where Office draws
+ *    thumbnails.
+ * 5. **Change Colours** opens *Colourful* (Palettes 1–4) and *Monochromatic* (Palettes 1–13), one set across both, on
+ *    *Colourful Palette 1*. Office draws a strip of swatches per palette; the menu holds names. `GUESS:` both counts.
+ * 6. **Edit Data is a split button**: its face opens the data sheet, and its arrow *Edit Data* and *Edit Data in Excel*.
+ * 7. **Switch Row/Column, Select Data and Refresh Data** are plain large buttons, drawn available; in Office the first is
+ *    greyed until the data sheet is open and the last until the chart is linked. Judge their glyphs together: a table
+ *    with a turn arrow, a table with a pointer, and the refresh arrow.
+ * 8. **The spelling is the catalogue's**: *Change Colours*, *Colourful*, *Centred Overlay*, *Centre*.
+ * 9. **No dialog launcher** on any group, as Microsoft 365 draws none here.
+ * 10. **No survivor anywhere.** Drag narrow: Chart Styles and Type (`secondary`) give way first, then Data (`standard`),
+ *     and Chart Layouts (`primary`) last; each collapses to a trigger with nothing beside it.
+ * 11. **Not in `Shell/Word`**, which draws Table Tools: there is no Chart Tools band there and none of these menus is on
+ *     that page.
  */
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 

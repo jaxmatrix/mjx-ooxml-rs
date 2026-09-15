@@ -906,9 +906,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'chart-multiple',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Recommended Charts, the first command of Excel's Charts group. Several charts together, because the command offers a choice of them; each single chart glyph beside it already names one family. ⚠ **20 alone, and that is a measurement.** It was `size=\"large\"` with a 24 requested, and the built catalogue showed its label clipped: *Recommended* does not fit a large button's width on one line. So the command is small, as `document-lock` records for Protect Document, and the 24 nothing would draw went with it.",
+    why: "Recommended Charts, the first command of Excel's Charts group. Several charts together, because the command offers a choice of them; each single chart glyph beside it already names one family. ⚠ **20 alone, and that is a measurement.** It was `size=\"large\"` with a 24 requested, and the built catalogue showed its label clipped: *Recommended* does not fit a large button's width on one line. So the command is small, as `document-lock` records for Protect Document, and the 24 nothing would draw went with it. **Since Word's Chart Design unit, also Change Chart Type**, large, in Type, which offers the chart families: several charts, a choice of them. Recommended Charts stays small; the 24 is for Change Chart Type, whose label is three short words and wraps. `GUESS:`.",
   },
   {
     name: 'data-treemap',
@@ -1052,7 +1052,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'color',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Colours**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Colours**, the same shared group. **Since Word's Picture Format unit, also Colour**, the large dropdown in Adjust, which opens Colour Saturation, Colour Tone and Recolour: a painter's palette, a picture's colours. Design's Colours draws it too, and neither is a survivor, so rule 2 never asks which one a bare palette means. `GUESS:`.",
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Colours**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Colours**, the same shared group. **Since Word's Picture Format unit, also Colour**, the large dropdown in Adjust, which opens Colour Saturation, Colour Tone and Recolour: a painter's palette, a picture's colours. Design's Colours draws it too, and neither is a survivor, so rule 2 never asks which one a bare palette means. `GUESS:`. **Since Word's Chart Design unit, also Change Colours**, large, in Chart Styles, which opens the Colourful and Monochromatic palettes: the chart's colours from the theme. `GUESS:`.",
   },
   {
     name: 'text-font',
@@ -1384,7 +1384,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-clockwise',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Refresh All, on Excel's Data tab, large: the refresh arrow. Not `arrow-sync`, which is AutoSave. **Since Excel's Table Design unit, also its Refresh**, the large split button in External Table Data, whose face refreshes the table from its source: the same arrow. `GUESS:`.",
+    why: "Refresh All, on Excel's Data tab, large: the refresh arrow. Not `arrow-sync`, which is AutoSave. **Since Excel's Table Design unit, also its Refresh**, the large split button in External Table Data, whose face refreshes the table from its source: the same arrow. `GUESS:`. **Since Word's Chart Design unit, also Refresh Data**, large, in Data, which reloads a linked chart's data: the same refresh arrow. `GUESS:`.",
   },
   {
     name: 'building-bank',
@@ -1817,7 +1817,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'layout-cell-four',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Arrange All, the large button in Excel's View Window group: four windows tiled, the first arrangement in the Arrange Windows dialog it opens. `GUESS:`. **Since PowerPoint's Handout Master unit, also Slides Per Page**, large, in Handout Master's Page Setup: a page divided into frames, slides laid out on one handout. Not `slide-grid`, Slide Sorter, nor `document-one-page-multiple`, Handout Master itself on View. The two uses are never on one ribbon. `GUESS:`.",
+    why: "Arrange All, the large button in Excel's View Window group: four windows tiled, the first arrangement in the Arrange Windows dialog it opens. `GUESS:`. **Since PowerPoint's Handout Master unit, also Slides Per Page**, large, in Handout Master's Page Setup: a page divided into frames, slides laid out on one handout. Not `slide-grid`, Slide Sorter, nor `document-one-page-multiple`, Handout Master itself on View. The two uses are never on one ribbon. `GUESS:`. **Since Word's Chart Design unit, also Quick Layout**, large, in Chart Layouts, which opens Layout 1 to Layout 11: a frame divided into regions, where a chart's title, plot and legend are placed. It reads *tiled windows* first, so it is that tab's weakest glyph. `GUESS:`.",
   },
   {
     name: 'table-freeze-column-and-row',
@@ -2139,7 +2139,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-cursor',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Select, small, in Word's Table Layout Table group, which opens Select Cell, Column, Row and Table: a table with a pointer, Office's own picture. Not `select-all-on`, Home's Select. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Select**, large, which opens Select Table, Column and Row: the same command, so 24 too. `GUESS:`.",
+    why: "Select, small, in Word's Table Layout Table group, which opens Select Cell, Column, Row and Table: a table with a pointer, Office's own picture. Not `select-all-on`, Home's Select. `GUESS:`. **Since PowerPoint's Table Layout unit, also its Select**, large, which opens Select Table, Column and Row: the same command, so 24 too. `GUESS:`. **Since Word's Chart Design unit, also Select Data**, large, in Data, which opens Select Data Source: a table with a pointer, choosing the cells a chart plots. `GUESS:`.",
   },
   {
     name: 'border-inside',
@@ -2151,7 +2151,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-edit',
     sizes: [24],
     variants: ['regular', 'filled'],
-    why: "Draw Table, the large toggle in Word's Table Layout Draw group, which arms a pencil that draws cell borders: a table with a pencil. In one set with Eraser that may hold none, so filled while armed. `GUESS:`. **Since PowerPoint's Table Design unit, also its Draw Table**, the large toggle in Draw Borders: the same pencil drawing the same borders, in one exclusive set with Eraser. `GUESS:`.",
+    why: "Draw Table, the large toggle in Word's Table Layout Draw group, which arms a pencil that draws cell borders: a table with a pencil. In one set with Eraser that may hold none, so filled while armed. `GUESS:`. **Since PowerPoint's Table Design unit, also its Draw Table**, the large toggle in Draw Borders: the same pencil drawing the same borders, in one exclusive set with Eraser. `GUESS:`. **Since Word's Chart Design unit, also Edit Data**, the large split button in Data, which opens the chart's data sheet: a table with a pencil, editing it. `GUESS:`.",
   },
   {
     name: 'table-stack-above',
@@ -2275,9 +2275,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'table-switch',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Convert to Text, small, in Word's Table Layout Data group, which opens Convert Table to Text: a table with a turn arrow. Not `convert-range`, which Excel's Table Design will want for Convert to Range. `GUESS:`.",
+    why: "Convert to Text, small, in Word's Table Layout Data group, which opens Convert Table to Text: a table with a turn arrow. Not `convert-range`, which Excel's Table Design will want for Convert to Range. `GUESS:`. **Since Word's Chart Design unit, also Switch Row/Column**, large, in Data, which exchanges a chart's rows for its columns: a table with a turn arrow, the data turned the other way, so 24 too. `GUESS:`.",
   },
   {
     name: 'resize-table',
@@ -2382,6 +2382,17 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Merge Shapes, the small dropdown in PowerPoint's Shape Format Insert Shapes group, which opens Union, Combine, Fragment, Intersect and Subtract: two overlapping shapes drawn as one outline, which is Union, the first of the five and the operation a person means by merging. `shape-subtract`, `shape-intersect` and `shape-exclude` are the other entries, and a menu row carries no glyph here. `GUESS:`.",
+  },
+  // ── Chart Design (Word's, the first Chart Tools tab authored) ─────────────────
+  // One new glyph. Every other glyph on the tab is reused: `layout-cell-four` (Quick Layout), `color` (Change Colours),
+  // `table-switch` (Switch Row/Column, now at 24), `table-cursor` (Select Data), `table-edit` (Edit Data),
+  // `arrow-clockwise` (Refresh Data) and `chart-multiple` (Change Chart Type, now at 24). The census's *commands Chart
+  // Design shows* section says why each command carries what it carries.
+  {
+    name: 'data-bar-vertical-add',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Add Chart Element, the large dropdown in Chart Design's Chart Layouts group, which opens Axes, Axis Titles, Chart Title, Data Labels, Data Table, Error Bars, Gridlines, Legend, Lines, Trendline and Up/Down Bars: a column chart with a plus, which is what the command does to a chart. Not `data-bar-vertical`, Insert's Chart, which makes a new chart rather than adding to one. Large alone, so 24 alone. `GUESS:`.",
   },
 ];
 
