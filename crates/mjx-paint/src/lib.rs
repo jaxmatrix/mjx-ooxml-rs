@@ -143,7 +143,7 @@ pub use painter::{
 pub use pattern::{cell_of, coverage_atlas, mask_of, PATTERN_MASKS, PATTERN_SIDE};
 pub use plan::{
     plan_frame, plan_frame_from, plan_frame_with, DrawOp, FramePlan, LabelMeshes, Layer, LayerKind,
-    OpOrigin, PaintProgram, PlanOptions, PlanSources, RunIdentity, VectorPath,
+    LossLabel, OpOrigin, PaintProgram, PlanOptions, PlanSources, RunIdentity, VectorPath,
 };
 pub use pool::{PoolHandle, PoolStatistics, TexturePool, TextureSize, DEFAULT_TEXTURE_POOL_BYTES};
 pub use resources::{

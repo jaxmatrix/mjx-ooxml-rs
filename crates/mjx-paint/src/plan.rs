@@ -1028,8 +1028,7 @@ pub fn plan_frame_from(
                             if let Some(op) = placeholder_op(
                                 bounds,
                                 SceneTransform::IDENTITY,
-                                PainterLossKind::EffectUnsupported.label(),
-                                PainterLossKind::EffectUnsupported.short_label(),
+                                LossLabel::of(PainterLossKind::EffectUnsupported),
                                 OpOrigin::synthesised(index as u32),
                                 tessellator,
                                 options,
@@ -1226,8 +1225,7 @@ pub fn plan_frame_from(
                     if let Some(op) = placeholder_op(
                         bounds,
                         run_transform,
-                        PainterLossKind::GlyphRunNotEmbedded.label(),
-                        PainterLossKind::GlyphRunNotEmbedded.short_label(),
+                        LossLabel::of(PainterLossKind::GlyphRunNotEmbedded),
                         origin,
                         tessellator,
                         options,
@@ -1303,8 +1301,7 @@ pub fn plan_frame_from(
                     if let Some(op) = placeholder_op(
                         destination,
                         transform,
-                        PainterLossKind::ImageWithNoPixels.label(),
-                        PainterLossKind::ImageWithNoPixels.short_label(),
+                        LossLabel::of(PainterLossKind::ImageWithNoPixels),
                         origin,
                         tessellator,
                         options,
@@ -1373,6 +1370,29 @@ pub fn plan_frame_from(
     Ok(FramePlan { layers, report })
 }
 
+/// What a placeholder's label reads, and the one word it falls back to in a box too small for it.
+///
+/// One value rather than two arguments: every site that draws a placeholder carries both forms, and
+/// a lowering that passed only the long one would have no way to label a cell-sized box at all.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct LossLabel {
+    /// What the label reads where there is room for it.
+    pub full: &'static str,
+    /// The one word a box too small for `full` reads instead.
+    pub short: &'static str,
+}
+
+impl LossLabel {
+    /// The two forms `kind` reads as.
+    #[must_use]
+    pub const fn of(kind: PainterLossKind) -> Self {
+        Self {
+            full: kind.label(),
+            short: kind.short_label(),
+        }
+    }
+}
+
 // An element's identity in a walk: its geometry row, and the transform it is drawn under, bit for bit.
 type ElementKey = (u32, [u32; 6]);
 
@@ -1397,8 +1417,7 @@ struct OwedPlaceholder {
     layer: usize,
     bounds: SceneRect,
     transform: SceneTransform,
-    label: &'static str,
-    short: &'static str,
+    label: LossLabel,
     origin: OpOrigin,
 }
 
@@ -1437,8 +1456,7 @@ impl ElementLosses {
                 .geometry(geometry)
                 .map_or(drawn, |outline| outline.bounds()),
             transform,
-            label: kind.label(),
-            short: kind.short_label(),
+            label: LossLabel::of(kind),
             origin,
         }
     }
@@ -1461,7 +1479,6 @@ fn place_owed(
         owed.bounds,
         owed.transform,
         owed.label,
-        owed.short,
         owed.origin,
         tessellator,
         options,
@@ -1691,8 +1708,10 @@ fn emit_list_placeholder(
     if let Some(op) = placeholder_op(
         placeholder.rect,
         transform,
-        placeholder.category.label(),
-        placeholder.category.short_label(),
+        LossLabel {
+            full: placeholder.category.label(),
+            short: placeholder.category.short_label(),
+        },
         origin,
         tessellator,
         options,
@@ -1709,8 +1728,7 @@ fn emit_list_placeholder(
 fn placeholder_op(
     bounds: SceneRect,
     transform: SceneTransform,
-    label: &'static str,
-    short: &'static str,
+    label: LossLabel,
     origin: OpOrigin,
     tessellator: &mut Tessellator,
     options: TessellationOptions,
@@ -1729,7 +1747,7 @@ fn placeholder_op(
         })
     });
     let mesh = tessellator.fill(&resolved.into_geometry(), &stand_in, options)?;
-    let lettering = match placeholder_lettering(label, short, bounds) {
+    let lettering = match placeholder_lettering(label.full, label.short, bounds) {
         Some(set) => {
             let plate = Geometry::Rectangle(set.plate);
             Some(LabelMeshes {
@@ -1747,7 +1765,7 @@ fn placeholder_op(
         transform,
         bounds,
         outline,
-        label,
+        label: label.full,
         lettering,
         origin,
     }))
