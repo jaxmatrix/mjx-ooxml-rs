@@ -43,32 +43,156 @@ use anyhow::{bail, Context, Result};
 /// a limitation a suite asserts is a fact, and the marker is where the fact says so.
 pub(crate) const LIMITATION_MARKER: &str = "MJX-LEDGER-LIMITATION:";
 
-/// Crates whose suites exercise the **rendering** path.
+/// Crates whose suites emit an **encoded `DisplayList` or pixels** — the only evidence that can make a
+/// document capability `implemented`.
 ///
-/// It decides one thing: whether a document capability has anything at all that draws it, which is
-/// the difference between `implemented` and `preserved-not-rendered`. A crate absent from this list
-/// is model tier, which can only ever *lower* a state — so an unclassified newcomer is reported
-/// conservatively rather than optimistically.
+/// Every `mjx-scene-*` companion must be here, and [`scan`] refuses a workspace where one is not.
+/// `mjx-reference-pack` is not: only its journeys draw a document, and they are named one by one in
+/// [`RENDERING_JOURNEYS`]. `mjx-canvas-harness` is not either: it draws synthetic fragment trees and
+/// no document ever reaches it, so nothing it asserts is about a capability in this ledger.
 ///
-/// Every name here is checked against the real workspace by [`scan`], because a stale entry would
-/// silently demote everything it was meant to promote.
+/// A crate in neither this list nor [`LAYOUT_TIER`] is model tier, which can only ever *lower* a
+/// state — so an unclassified newcomer is reported conservatively rather than optimistically.
 pub(crate) const RENDERING_TIER: &[&str] = &[
+    "mjx-scene",
+    "mjx-scene-pptx",
+    "mjx-scene-xlsx",
+    "mjx-paint",
+    "mjx-render-oracle",
+];
+
+/// The `mjx-reference-pack` suites that carry a committed document all the way to pixels.
+pub(crate) const RENDERING_JOURNEYS: &[&str] = &[
+    "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+    "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+];
+
+/// Crates whose suites stop at a **`FragmentTree`**, a measured run or an outline.
+///
+/// Evidence here proves a capability is laid out, and nothing about whether it is drawn: a
+/// `Kind::Rendered` row whose only evidence is this tier caps at `partial`, and the row says so.
+/// Every `mjx-layout-*` box model must be here, and [`scan`] refuses a workspace where one is not.
+pub(crate) const LAYOUT_TIER: &[&str] = &[
     "mjx-text",
     "mjx-layout",
     "mjx-layout-chart",
     "mjx-layout-docx",
     "mjx-layout-pptx",
     "mjx-layout-xlsx",
-    "mjx-scene",
-    "mjx-scene-pptx",
-    "mjx-scene-xlsx",
     "mjx-geometry",
-    "mjx-paint",
     "mjx-view",
-    "mjx-canvas-harness",
-    "mjx-render-oracle",
-    "mjx-reference-pack",
 ];
+
+/// Which tier a suite's evidence is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Tier {
+    /// It emits an encoded display list or pixels.
+    Rendering,
+    /// It stops at a fragment tree.
+    Layout,
+    /// It reads or writes markup.
+    Model,
+}
+
+/// The tier of the suite at `path`, which lives in `crate_name`.
+pub(crate) fn tier_of(path: &str, crate_name: &str) -> Tier {
+    if RENDERING_TIER.contains(&crate_name) || RENDERING_JOURNEYS.contains(&path) {
+        Tier::Rendering
+    } else if LAYOUT_TIER.contains(&crate_name) {
+        Tier::Layout
+    } else {
+        Tier::Model
+    }
+}
+
+/// A stand-in a rendering suite supplies for something the product should supply itself.
+///
+/// A suite that draws with one of these proves the painter works **around** the stand-in, and
+/// nothing about the feature the stand-in replaces. [`super::rows::STAND_INS`] says which rows each
+/// one is not evidence for.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub(crate) enum Double {
+    /// `NoImages`, or a test-local `no_images` function: no picture is ever decoded.
+    NoImages,
+    /// A `.with_theme(…)` call in the test: the caller, not the product, supplied the theme.
+    TestTheme,
+    /// `PlaceholderGeometry`, a test-local `impl GeometryProvider`, or a closure handed to
+    /// `register_all`: the outline came from the test, not from library code.
+    TestGeometry,
+}
+
+impl Double {
+    /// Every double, in the order the generated document lists them.
+    pub(crate) const ALL: [Self; 3] = [Self::NoImages, Self::TestTheme, Self::TestGeometry];
+
+    /// The spelling the scan looks for, as the generated document names it.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::NoImages => "`NoImages`",
+            Self::TestTheme => "a test-supplied theme (`with_theme`)",
+            Self::TestGeometry => "a test-local geometry provider",
+        }
+    }
+
+    /// What the double stands in for, in the words a limitation quotes.
+    pub(crate) fn stands_in_for(self) -> &'static str {
+        match self {
+            Self::NoImages => "decoded pictures",
+            Self::TestTheme => "the document's own theme reaching the resolver",
+            Self::TestGeometry => "library code carrying each shape's declared outline",
+        }
+    }
+
+    /// Whether one line of code, comments already stripped, uses this double.
+    fn used_by(self, code: &str) -> bool {
+        match self {
+            Self::NoImages => {
+                contains_identifier(code, "NoImages") || code.contains("fn no_images(")
+            }
+            Self::TestTheme => code.contains(".with_theme("),
+            Self::TestGeometry => {
+                contains_identifier(code, "PlaceholderGeometry")
+                    || code.contains("impl GeometryProvider for")
+                    || (code.contains("register_all(") && code.contains('|'))
+            }
+        }
+    }
+}
+
+/// A rendering suite's use of a double that stands in for nothing the rows citing it are about.
+pub(crate) struct Allowance {
+    /// The suite, workspace-relative.
+    pub(crate) suite: &'static str,
+    /// The double it uses.
+    pub(crate) double: Double,
+    /// Why the use is not a stand-in for any row that cites the suite.
+    pub(crate) reason: &'static str,
+}
+
+/// The named exceptions to the double scan, each with its reason.
+///
+/// An entry that names a suite which no longer uses the double fails [`scan`], so the list cannot
+/// outlive the code it excuses.
+pub(crate) const ALLOWANCES: &[Allowance] = &[Allowance {
+    suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+    double: Double::NoImages,
+    reason: "a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places \
+             drawings and lays none of them out — so the painter never asks `NoImages` for a \
+             picture, and the stand-in replaces nothing this journey draws",
+}];
+
+/// Whether `code` names `identifier` as a whole identifier rather than as part of a longer one.
+fn contains_identifier(code: &str, identifier: &str) -> bool {
+    let is_identifier = |character: char| character.is_alphanumeric() || character == '_';
+    code.match_indices(identifier).any(|(at, _)| {
+        let before = code[..at].chars().next_back().is_some_and(is_identifier);
+        let after = code[at + identifier.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_identifier);
+        !before && !after
+    })
+}
 
 /// Where one expectation came from, in the vocabulary MJXOFF-172 established and every layout child
 /// since has used.
@@ -140,14 +264,11 @@ pub(crate) struct Suite {
     pub(crate) limitations: Vec<String>,
     /// The provenance of the expectations declared *for* this suite, wherever they are declared.
     pub(crate) split: Split,
+    /// The test doubles its code uses.
+    pub(crate) doubles: BTreeSet<Double>,
 }
 
 impl Suite {
-    /// Whether this suite exercises the rendering path.
-    pub(crate) fn renders(&self) -> bool {
-        RENDERING_TIER.contains(&self.crate_name.as_str())
-    }
-
     /// Whether it checks anything at all.
     ///
     /// A suite that asserts nothing is not evidence, however many `#[test]` functions it declares.
@@ -226,6 +347,14 @@ impl Evidence {
         })
     }
 
+    /// Whether the suite at `path` uses `double` in a way no [`ALLOWANCES`] entry excuses.
+    pub(crate) fn uses_double(&self, path: &str, suite: &Suite, double: Double) -> bool {
+        suite.doubles.contains(&double)
+            && !ALLOWANCES
+                .iter()
+                .any(|allowance| allowance.suite == path && allowance.double == double)
+    }
+
     /// Every limitation any suite in the workspace declares, as `(suite path, text)`.
     pub(crate) fn declared_limitations(&self) -> Vec<(&str, &str)> {
         let mut all = Vec::new();
@@ -242,16 +371,7 @@ impl Evidence {
 pub(crate) fn scan(root: &Path) -> Result<Evidence> {
     let crates = crate_directories(root)?;
 
-    for name in RENDERING_TIER {
-        if !crates.contains(*name) {
-            bail!(
-                "`RENDERING_TIER` names `{name}`, which is not a crate in this workspace. That \
-                 classification decides whether a capability is `implemented` or \
-                 `preserved-not-rendered`, so a stale name here would silently demote everything \
-                 it was meant to promote."
-            );
-        }
-    }
+    check_the_tiers(&crates)?;
 
     let sources = read_suite_sources(root, &crates)?;
     let mut suites: BTreeMap<String, Suite> = sources
@@ -259,6 +379,7 @@ pub(crate) fn scan(root: &Path) -> Result<Evidence> {
         .map(|(path, (crate_name, source))| (path.clone(), read_suite(crate_name, source)))
         .collect();
     let provenance_not_read = attach_provenance(&sources, &mut suites)?;
+    check_the_journeys_and_allowances(&suites)?;
 
     Ok(Evidence {
         suites,
@@ -268,6 +389,74 @@ pub(crate) fn scan(root: &Path) -> Result<Evidence> {
         declared_elements: read_schema_census(root)?,
         crates,
     })
+}
+
+/// The two tier lists name real crates, share none, and between them classify every companion and
+/// every box model.
+fn check_the_tiers(crates: &BTreeSet<String>) -> Result<()> {
+    for (list, names) in [
+        ("RENDERING_TIER", RENDERING_TIER),
+        ("LAYOUT_TIER", LAYOUT_TIER),
+    ] {
+        for name in names {
+            if !crates.contains(*name) {
+                bail!(
+                    "`{list}` names `{name}`, which is not a crate in this workspace. The tiers \
+                     decide whether a capability is `implemented`, `partial` or \
+                     `preserved-not-rendered`, so a stale name here misstates every row it touches."
+                );
+            }
+        }
+    }
+    if let Some(shared) = RENDERING_TIER
+        .iter()
+        .find(|name| LAYOUT_TIER.contains(name))
+    {
+        bail!("`{shared}` is in both `RENDERING_TIER` and `LAYOUT_TIER`; a suite has one tier");
+    }
+    for name in crates {
+        let rendering = RENDERING_TIER.contains(&name.as_str());
+        let layout = LAYOUT_TIER.contains(&name.as_str());
+        if name.starts_with("mjx-scene-") && !rendering {
+            bail!("`{name}` is a scene companion and is not in `RENDERING_TIER`");
+        }
+        if name.starts_with("mjx-layout-") && !layout {
+            bail!("`{name}` is a box model and is not in `LAYOUT_TIER`");
+        }
+    }
+    Ok(())
+}
+
+/// Every named journey is a suite, and every allowance names a suite that really uses its double.
+fn check_the_journeys_and_allowances(suites: &BTreeMap<String, Suite>) -> Result<()> {
+    for journey in RENDERING_JOURNEYS {
+        if !suites.contains_key(*journey) {
+            bail!("`RENDERING_JOURNEYS` names `{journey}`, which is not a suite in this workspace");
+        }
+    }
+    for allowance in ALLOWANCES {
+        let Some(suite) = suites.get(allowance.suite) else {
+            bail!(
+                "an allowance names `{}`, which is not a suite in this workspace",
+                allowance.suite
+            );
+        };
+        if !suite.doubles.contains(&allowance.double) {
+            bail!(
+                "an allowance excuses `{}` for {}, which it no longer uses; delete the entry",
+                allowance.suite,
+                allowance.double.name()
+            );
+        }
+        if allowance.reason.len() < 40 {
+            bail!(
+                "the allowance for `{}` states too short a reason to check: {:?}",
+                allowance.suite,
+                allowance.reason
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Every directory directly under `crates/` that carries a manifest.
@@ -346,6 +535,7 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
     let mut assertions = 0;
     let mut limitations: Vec<String> = Vec::new();
     let mut pending: Option<String> = None;
+    let mut doubles = BTreeSet::new();
 
     for line in source.lines() {
         let trimmed = line.trim();
@@ -381,6 +571,11 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
             tests += 1;
         }
         assertions += count_assertions(code);
+        doubles.extend(
+            Double::ALL
+                .into_iter()
+                .filter(|double| double.used_by(code)),
+        );
     }
     if let Some(complete) = pending.take() {
         limitations.push(complete);
@@ -398,6 +593,7 @@ fn read_suite(crate_name: &str, source: &str) -> Suite {
         assertions,
         limitations,
         split: Split::default(),
+        doubles,
     }
 }
 
@@ -716,6 +912,98 @@ mod tests {
         // unread instead, and the generated document names it.
         let source = "enum Provenance {}\nuse Provenance::{SpecCode as Spec};\n    Spec,\n";
         assert!(read_provenance_ledger("mjx-layout-xlsx", source).is_none());
+    }
+
+    // A journey that draws with `NoImages` has never decoded a picture, so it cannot promote a picture row.
+    #[test]
+    fn a_rendering_suite_that_draws_with_no_images_is_not_evidence_for_a_picture_row() {
+        use super::super::assess::{assess, State};
+        use super::super::rows::{Capability, Kind, Section};
+        const PATH: &str = "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs";
+        let source = "use mjx_paint::NoImages;\n#[test]\nfn t() { let images = NoImages; assert!(draw(&images)); }\n";
+        let evidence = Evidence {
+            suites: [(PATH.to_owned(), read_suite("mjx-reference-pack", source))]
+                .into_iter()
+                .collect(),
+            provenance_not_read: Vec::new(),
+            approvals: Vec::new(),
+            commands: CommandCensus {
+                per_application: vec![("PowerPoint".to_owned(), 1)],
+            },
+            declared_elements: 1,
+            crates: BTreeSet::new(),
+        };
+        let row: &'static Capability = Box::leak(Box::new(Capability {
+            id: "picture-insertion",
+            section: Section::SharedPictures,
+            capability: "pictures",
+            kind: Kind::Rendered,
+            excluded_because: None,
+            evidence: &[PATH],
+        }));
+        let assessed = assess(row, &evidence).expect("the suite exists");
+        assert_ne!(assessed.state, State::Implemented);
+        assert_eq!(assessed.state, State::Partial);
+        assert!(
+            assessed.caps.iter().any(|cap| cap.contains("NoImages")),
+            "the cap names the double: {:?}",
+            assessed.caps
+        );
+    }
+
+    // A box model is layout tier and a companion is rendering tier, and no crate is both.
+    #[test]
+    fn the_tiers_are_disjoint_and_a_box_model_is_not_rendering() {
+        assert!(RENDERING_TIER
+            .iter()
+            .all(|name| !LAYOUT_TIER.contains(name)));
+        assert_eq!(
+            tier_of("crates/mjx-layout-pptx/tests/a.rs", "mjx-layout-pptx"),
+            Tier::Layout
+        );
+        assert_eq!(
+            tier_of("crates/mjx-scene-pptx/tests/a.rs", "mjx-scene-pptx"),
+            Tier::Rendering
+        );
+        assert_eq!(
+            tier_of(
+                "crates/mjx-reference-pack/tests/the_instructions_are_complete.rs",
+                "mjx-reference-pack"
+            ),
+            Tier::Model
+        );
+        assert_eq!(
+            tier_of(RENDERING_JOURNEYS[0], "mjx-reference-pack"),
+            Tier::Rendering
+        );
+    }
+
+    // Each double is read from code, never from prose, and a longer identifier is not the double.
+    #[test]
+    fn a_double_is_read_from_code_and_not_from_prose() {
+        let suite = read_suite(
+            "mjx-paint",
+            "//! NoImages and PlaceholderGeometry in prose\n\
+             use mjx_scene::PlaceholderGeometry;\n\
+             let palette = palette.with_theme(theme);\n\
+             let images = NoImagesAtAll;\n",
+        );
+        assert_eq!(
+            suite.doubles,
+            [Double::TestTheme, Double::TestGeometry]
+                .into_iter()
+                .collect()
+        );
+        let closure = read_suite(
+            "mjx-reference-pack",
+            "geometry.register_all(model.catalogue(), |request| {\nfn no_images(_id: &str) -> Option<u64> { None }\n",
+        );
+        assert_eq!(
+            closure.doubles,
+            [Double::NoImages, Double::TestGeometry]
+                .into_iter()
+                .collect()
+        );
     }
 
     #[test]

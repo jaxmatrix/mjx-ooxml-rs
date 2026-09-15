@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 
 use super::assess::{Assessed, State};
-use super::evidence::{Evidence, Provenance, Split};
+use super::evidence::{self, Double, Evidence, Provenance, Split};
 use super::rows::{Kind, Section};
 
 /// Renders the whole document.
@@ -25,8 +25,77 @@ pub(crate) fn render(rows: &[Assessed], evidence: &Evidence) -> String {
     denominators(&mut out, rows, evidence);
     provenance(&mut out, rows, evidence);
     limitations(&mut out, rows);
+    caps(&mut out, rows);
     table(&mut out, rows);
     out
+}
+
+/// What counts as drawing, and every row that has evidence and none of it draws.
+fn caps(out: &mut String, rows: &[Assessed]) {
+    let listed = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| format!("`{name}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let _ = write!(
+        out,
+        "## What counts as drawn\n\
+         \n\
+         A document capability is `implemented` only on a suite that emits an encoded display list \
+         or pixels: a suite in {}, or one of the pack's journeys ({}). A suite in {} stops at a \
+         fragment tree, so it proves a capability is laid out and nothing about whether it is \
+         drawn; a rendered row whose only evidence is that tier is `partial`.\n\
+         \n\
+         A rendering suite that draws with a test double is not evidence for the rows the double \
+         stands in for. The scan reads each suite's code for:\n\n",
+        listed(evidence::RENDERING_TIER),
+        evidence::RENDERING_JOURNEYS
+            .iter()
+            .map(|path| format!("`{}`", short(path)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        listed(evidence::LAYOUT_TIER),
+    );
+    for double in Double::ALL {
+        let _ = writeln!(
+            out,
+            "* {}, which stands in for {}",
+            double.name(),
+            double.stands_in_for()
+        );
+    }
+    out.push_str("\nThe named exceptions, each with its reason:\n\n| Suite | Double | Why it stands in for nothing cited |\n|---|---|---|\n");
+    for allowance in evidence::ALLOWANCES {
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | {} |",
+            short(allowance.suite),
+            allowance.double.name(),
+            allowance.reason
+        );
+    }
+    out.push_str(
+        "\n### Rows capped by their evidence\n\
+         \n\
+         Each of these has evidence that asserts something, and none of it proves the capability \
+         is drawn. The reason is derived from the tiers and the doubles, not written by hand.\n\
+         \n\
+         | Row | Why it is not `implemented` |\n\
+         |---|---|\n",
+    );
+    let mut any = false;
+    for row in rows {
+        for cap in &row.caps {
+            any = true;
+            let _ = writeln!(out, "| `{}` | {cap} |", row.capability.id);
+        }
+    }
+    if !any {
+        out.push_str("| — | none |\n");
+    }
+    out.push('\n');
 }
 
 /// The part a reader meets before any number.

@@ -28,6 +28,40 @@
 //! summary look better, and do not point one at a suite that does not exercise it — the assertion
 //! count is derived, so an empty suite promotes nothing anyway.
 
+use super::evidence::Double;
+
+/// Which rows each test double is **not** evidence for.
+///
+/// A rendering suite that draws with a double proves the painter works around the stand-in, so it
+/// cannot promote a row about the thing the stand-in replaces. The assessor reads this table; the
+/// scan in [`super::evidence`] decides which suites use which double.
+pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
+    (
+        Double::NoImages,
+        &[
+            "picture-insertion",
+            "picture-cropping",
+            "picture-corrections",
+            "pptx-reaches-pixels",
+            "excel-reaches-pixels",
+        ],
+    ),
+    (
+        Double::TestTheme,
+        &["themes", "colour-resolution", "excel-reaches-pixels"],
+    ),
+    (
+        Double::TestGeometry,
+        &[
+            "preset-geometry",
+            "custom-geometry",
+            "shape-adjustments",
+            "connectors",
+            "pptx-reaches-pixels",
+        ],
+    ),
+];
+
 /// Which part of the inventory a row comes from.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) enum Section {

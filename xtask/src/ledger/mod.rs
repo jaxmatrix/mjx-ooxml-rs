@@ -172,6 +172,21 @@ fn check_the_rows_are_well_formed() -> Result<()> {
             _ => {}
         }
     }
+    for (double, ids) in rows::STAND_INS {
+        for id in *ids {
+            match CAPABILITIES.iter().find(|capability| capability.id == *id) {
+                None => bail!(
+                    "`STAND_INS` says {} is not evidence for `{id}`, which is not a row",
+                    double.name()
+                ),
+                Some(capability) if capability.kind != Kind::Rendered => bail!(
+                    "`STAND_INS` names `{id}`, which is not a rendered row; a double only matters \
+                     where the question is whether something is drawn"
+                ),
+                Some(_) => {}
+            }
+        }
+    }
     Ok(())
 }
 

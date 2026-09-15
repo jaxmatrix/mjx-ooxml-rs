@@ -21,9 +21,9 @@ From `OFFICE_FEATURE_INVENTORY.md` §7, and enforced rather than quoted:
 
 | State | Means |
 |---|---|
-| `implemented` | suites in a crate that draws cover it, and they assert something. **Not** a claim that the output matches Office |
-| `partial` | covered, and a suite declares a limitation it asserts — the limitation is quoted in the row |
-| `preserved-not-rendered` | the markup round-trips faithfully and nothing draws it. A legitimate, permanent state |
+| `implemented` | suites that emit a display list or pixels cover it, with no test double standing in for it, and they assert something. **Not** a claim that the output matches Office |
+| `partial` | covered, and either a suite declares a limitation it asserts, or nothing proves it is drawn — the evidence stops at a fragment tree, or every suite that draws it does so through a test double. The reason is quoted |
+| `preserved-not-rendered` | the markup round-trips faithfully and nothing lays it out or draws it. A legitimate, permanent state |
 | `not-started` | nothing tests it, whatever anyone believes about it. This is the default, and it is what an unrecognised row becomes |
 | `out-of-scope` | excluded by decision, with the reason in the row |
 
@@ -51,8 +51,8 @@ From `OFFICE_FEATURE_INVENTORY.md` §7, and enforced rather than quoted:
 
 | State | Rows |
 |---|---:|
-| `implemented` | 79 |
-| `partial` | 6 |
+| `implemented` | 26 |
+| `partial` | 59 |
 | `preserved-not-rendered` | 22 |
 | `not-started` | 27 |
 | `out-of-scope` | 12 |
@@ -100,6 +100,89 @@ Each of these is written in the module documentation of the suite that **asserts
 | `excel-conditional-formatting` | a conditional-formatting rule whose condition is a formula — an `expression` rule, a `cellIs` with a reference operand, a `cfvo` of `type="formula"` — is reported unevaluated and painted as nothing, because evaluating it needs a calculation engine | `mjx-layout-xlsx: the_conditional_ledger_is_computed` |
 | `excel-cell-borders` | a cell border reaches the display list as a filled band, so a dashed or dotted edge draws solid at the right weight and colour; the style survives in the catalogue and nothing consumes it | `mjx-scene-xlsx: the_dash_is_lost_at_the_band` |
 
+## What counts as drawn
+
+A document capability is `implemented` only on a suite that emits an encoded display list or pixels: a suite in `mjx-scene`, `mjx-scene-pptx`, `mjx-scene-xlsx`, `mjx-paint`, `mjx-render-oracle`, or one of the pack's journeys (`mjx-reference-pack: a_real_deck_reaches_pixels`, `mjx-reference-pack: a_real_worksheet_reaches_pixels`). A suite in `mjx-text`, `mjx-layout`, `mjx-layout-chart`, `mjx-layout-docx`, `mjx-layout-pptx`, `mjx-layout-xlsx`, `mjx-geometry`, `mjx-view` stops at a fragment tree, so it proves a capability is laid out and nothing about whether it is drawn; a rendered row whose only evidence is that tier is `partial`.
+
+A rendering suite that draws with a test double is not evidence for the rows the double stands in for. The scan reads each suite's code for:
+
+* `NoImages`, which stands in for decoded pictures
+* a test-supplied theme (`with_theme`), which stands in for the document's own theme reaching the resolver
+* a test-local geometry provider, which stands in for library code carrying each shape's declared outline
+
+The named exceptions, each with its reason:
+
+| Suite | Double | Why it stands in for nothing cited |
+|---|---|---|
+| `mjx-reference-pack: a_real_worksheet_reaches_pixels` | `NoImages` | a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places drawings and lays none of them out — so the painter never asks `NoImages` for a picture, and the stand-in replaces nothing this journey draws |
+
+### Rows capped by their evidence
+
+Each of these has evidence that asserts something, and none of it proves the capability is drawn. The reason is derived from the tiers and the doubles, not written by hand.
+
+| Row | Why it is not `implemented` |
+|---|---|
+| `run-formatting` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`, `mjx-layout-pptx`) |
+| `text-shaping` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `bidirectional-text` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `line-breaking` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`, `mjx-text`) |
+| `hyphenation-and-segmentation` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `font-resolution` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `glyph-rasterisation` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `font-subsetting` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-text`) |
+| `text-measurement` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout`) |
+| `paragraph-alignment` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `paragraph-spacing-and-indents` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `bullets-and-numbering` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`, `mjx-layout-pptx`) |
+| `paragraph-borders-and-rules` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `pagination-controls` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `preset-geometry` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`) |
+| `shape-adjustments` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`) |
+| `custom-geometry` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`) |
+| `connectors` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`) |
+| `grouping-and-transforms` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `text-in-a-shape` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-geometry`, `mjx-layout-pptx`) |
+| `picture-anchoring` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `chart-series-geometry` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `chart-axes-and-scales` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `chart-furniture` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `chart-decoration` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `chart-in-three-formats` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `diagram-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-chart`) |
+| `math-typesetting` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `table-merging` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `table-grid-solving` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `table-splitting` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `table-borders` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `styles-and-inheritance` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`, `mjx-layout-pptx`, `mjx-layout-xlsx`) |
+| `print-and-page-setup` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `word-flow-and-pagination` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-sections` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-columns` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-headers-and-footers` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-floating-objects` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-footnotes-and-endnotes` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-fields` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-track-changes` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `word-line-numbers` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-docx`) |
+| `excel-number-format-engine` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-grid-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-merged-regions` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-text-overflow` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-panes` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-print-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+| `excel-reaches-pixels` | `mjx-scene-xlsx: a_real_sheet_resolves` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
+| `excel-reaches-pixels` | `mjx-reference-pack: a_real_worksheet_reaches_pixels` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
+| `pptx-slide-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `pptx-master-and-layout` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `pptx-autofit` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `pptx-notes` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-pptx`) |
+| `pptx-reaches-pixels` | `mjx-scene-pptx: every_effect_reaches_the_root` draws it only through `NoImages`, standing in for decoded pictures |
+| `pptx-reaches-pixels` | `mjx-paint: a_page_becomes_pixels` draws it only through `NoImages`, standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `pptx-reaches-pixels` | `mjx-paint: two_painters_agree` draws it only through a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `pptx-reaches-pixels` | `mjx-reference-pack: a_real_deck_reaches_pixels` draws it only through `NoImages`, standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
+| `cached-values-are-rendered` | no rendering-tier suite proves it is drawn: the evidence stops at the fragment tier (`mjx-layout-xlsx`) |
+
 ## The rows
 
 ### §2 · Excluded by decision
@@ -122,16 +205,16 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `run-formatting` | Run formatting — family, size, colour, bold, italic, underline, strikethrough, caps | `implemented` | `mjx-dml: character_model`<br>`mjx-pptx: text_formatting`<br>`mjx-docx: run_properties`<br>`mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-layout-docx: a_document_becomes_fragments` | 77 | 321 | — |
-| `text-shaping` | Shaping and script itemisation | `implemented` | `mjx-text: shaping`<br>`mjx-text: itemisation` | 34 | 128 | — |
-| `bidirectional-text` | Bidirectional text — the UBA, and a bidi-aware run order | `implemented` | `mjx-text: bidirectional_text` | 11 | 62 | — |
-| `line-breaking` | Line breaking — UAX #14 classes and the break opportunities a layout consumes | `implemented` | `mjx-text: line_breaking`<br>`mjx-layout-docx: break_opportunities_that_matter` | 26 | 88 | 1 / 7 / 1 |
-| `hyphenation-and-segmentation` | Hyphenation, and grapheme/word segmentation | `implemented` | `mjx-text: segmentation_and_hyphenation` | 18 | 53 | — |
-| `font-resolution` | Font resolution — the three tiers, metric-compatible substitution, the per-document manifest | `implemented` | `mjx-text: metric_compatibility`<br>`mjx-text: substitution_manifest`<br>`mjx-text: empty_system_tier` | 19 | 56 | — |
-| `glyph-rasterisation` | Glyph rasterisation and the atlas | `implemented` | `mjx-text: glyph_rasterisation`<br>`mjx-text: glyph_atlas` | 22 | 123 | — |
+| `run-formatting` | Run formatting — family, size, colour, bold, italic, underline, strikethrough, caps | `partial` | `mjx-dml: character_model`<br>`mjx-pptx: text_formatting`<br>`mjx-docx: run_properties`<br>`mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-layout-docx: a_document_becomes_fragments` | 77 | 321 | — |
+| `text-shaping` | Shaping and script itemisation | `partial` | `mjx-text: shaping`<br>`mjx-text: itemisation` | 34 | 128 | — |
+| `bidirectional-text` | Bidirectional text — the UBA, and a bidi-aware run order | `partial` | `mjx-text: bidirectional_text` | 11 | 62 | — |
+| `line-breaking` | Line breaking — UAX #14 classes and the break opportunities a layout consumes | `partial` | `mjx-text: line_breaking`<br>`mjx-layout-docx: break_opportunities_that_matter` | 26 | 88 | 1 / 7 / 1 |
+| `hyphenation-and-segmentation` | Hyphenation, and grapheme/word segmentation | `partial` | `mjx-text: segmentation_and_hyphenation` | 18 | 53 | — |
+| `font-resolution` | Font resolution — the three tiers, metric-compatible substitution, the per-document manifest | `partial` | `mjx-text: metric_compatibility`<br>`mjx-text: substitution_manifest`<br>`mjx-text: empty_system_tier` | 19 | 56 | — |
+| `glyph-rasterisation` | Glyph rasterisation and the atlas | `partial` | `mjx-text: glyph_rasterisation`<br>`mjx-text: glyph_atlas` | 22 | 123 | — |
 | `glyph-outlines` | Glyph outlines as paths, tessellated for the vector painters | `implemented` | `mjx-scene: glyph_outlines_tessellate_as_paths` | 2 | 14 | — |
-| `font-subsetting` | Font subsetting, for an export that embeds only what it uses | `implemented` | `mjx-text: a_subset_is_a_font` | 5 | 15 | — |
-| `text-measurement` | Character spacing, scaling, kerning and position — the measures a line is composed from | `implemented` | `mjx-dml: text_measures`<br>`mjx-layout: text_composition` | 13 | 76 | — |
+| `font-subsetting` | Font subsetting, for an export that embeds only what it uses | `partial` | `mjx-text: a_subset_is_a_font` | 5 | 15 | — |
+| `text-measurement` | Character spacing, scaling, kerning and position — the measures a line is composed from | `partial` | `mjx-dml: text_measures`<br>`mjx-layout: text_composition` | 13 | 76 | — |
 | `text-effects` | Text effects — shadow, glow, reflection, bevel | `implemented` | `mjx-dml: effect_model`<br>`mjx-scene-pptx: every_effect_reaches_the_root` | 15 | 63 | — |
 | `east-asian-typography` | East Asian typography — ruby, vertical text, `kinsoku` line-break rules | `not-started` | **none** | 0 | 0 | — |
 
@@ -139,30 +222,30 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `paragraph-alignment` | Alignment and justification, including the positions a justified line resolves to | `implemented` | `mjx-layout-docx: a_justified_line_has_positions` | 11 | 31 | 2 / 3 / 2 |
-| `paragraph-spacing-and-indents` | Indentation, spacing before and after, line spacing, and five kinds of tab stop | `implemented` | `mjx-layout-docx: spacing_tabs_and_indents`<br>`mjx-docx: paragraph_properties` | 16 | 108 | 7 / 1 / 6 |
-| `bullets-and-numbering` | Bullets and multilevel numbered lists, with restart and continuation | `implemented` | `mjx-layout-docx: a_list_composes_its_marker`<br>`mjx-layout-pptx: bullets_and_indent_levels`<br>`mjx-docx: numbering` | 36 | 79 | 5 / 1 / 6 |
-| `paragraph-borders-and-rules` | Paragraph borders and shading, at every weight the format allows | `implemented` | `mjx-layout-docx: no_rule_rounds_to_nothing` | 7 | 20 | 2 / 1 / 1 |
-| `pagination-controls` | Widow and orphan control, keep-with-next, keep-lines-together, page-break-before | `implemented` | `mjx-layout-docx: each_constraint_moves_a_paragraph` | 8 | 16 | 1 / 0 / 4 |
+| `paragraph-alignment` | Alignment and justification, including the positions a justified line resolves to | `partial` | `mjx-layout-docx: a_justified_line_has_positions` | 11 | 31 | 2 / 3 / 2 |
+| `paragraph-spacing-and-indents` | Indentation, spacing before and after, line spacing, and five kinds of tab stop | `partial` | `mjx-layout-docx: spacing_tabs_and_indents`<br>`mjx-docx: paragraph_properties` | 16 | 108 | 7 / 1 / 6 |
+| `bullets-and-numbering` | Bullets and multilevel numbered lists, with restart and continuation | `partial` | `mjx-layout-docx: a_list_composes_its_marker`<br>`mjx-layout-pptx: bullets_and_indent_levels`<br>`mjx-docx: numbering` | 36 | 79 | 5 / 1 / 6 |
+| `paragraph-borders-and-rules` | Paragraph borders and shading, at every weight the format allows | `partial` | `mjx-layout-docx: no_rule_rounds_to_nothing` | 7 | 20 | 2 / 1 / 1 |
+| `pagination-controls` | Widow and orphan control, keep-with-next, keep-lines-together, page-break-before | `partial` | `mjx-layout-docx: each_constraint_moves_a_paragraph` | 8 | 16 | 1 / 0 / 4 |
 | `paragraph-hierarchy` | Paragraph and list level hierarchy in a shape's text body | `preserved-not-rendered` | `mjx-pptx: paragraph_hierarchy` | 15 | 30 | — |
 
 ### §3.3 · Drawing and shapes
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `preset-geometry` | The preset shape geometries and their path tables | `implemented` | `mjx-geometry: a_preset_renders_as_itself`<br>`mjx-geometry: every_preset_is_structurally_sound`<br>`mjx-geometry: every_preset_stands_where_its_box_is`<br>`mjx-pptx: geometry` | 26 | 103 | — |
-| `shape-adjustments` | Adjustment handles, and the guide formulas they drive | `implemented` | `mjx-geometry: an_adjustment_moves_the_shape`<br>`mjx-geometry: every_adjustment_moves_its_shape`<br>`mjx-dml: guide_formula`<br>`mjx-pptx: preset_adjustments` | 77 | 185 | — |
-| `custom-geometry` | Custom freeform geometry — `a:custGeom` paths | `implemented` | `mjx-dml: custom_geometry_model`<br>`mjx-geometry: the_third_route_is_the_parser`<br>`mjx-pptx: custom_geometry` | 37 | 133 | — |
-| `connectors` | Connectors and their connection sites | `implemented` | `mjx-geometry: a_connector_lands_on_the_outline` | 8 | 37 | — |
+| `preset-geometry` | The preset shape geometries and their path tables | `partial` | `mjx-geometry: a_preset_renders_as_itself`<br>`mjx-geometry: every_preset_is_structurally_sound`<br>`mjx-geometry: every_preset_stands_where_its_box_is`<br>`mjx-pptx: geometry` | 26 | 103 | — |
+| `shape-adjustments` | Adjustment handles, and the guide formulas they drive | `partial` | `mjx-geometry: an_adjustment_moves_the_shape`<br>`mjx-geometry: every_adjustment_moves_its_shape`<br>`mjx-dml: guide_formula`<br>`mjx-pptx: preset_adjustments` | 77 | 185 | — |
+| `custom-geometry` | Custom freeform geometry — `a:custGeom` paths | `partial` | `mjx-dml: custom_geometry_model`<br>`mjx-geometry: the_third_route_is_the_parser`<br>`mjx-pptx: custom_geometry` | 37 | 133 | — |
+| `connectors` | Connectors and their connection sites | `partial` | `mjx-geometry: a_connector_lands_on_the_outline` | 8 | 37 | — |
 | `fills` | Fills — solid, gradient with stop and tile semantics, 54 preset patterns, picture, texture | `implemented` | `mjx-dml: fill_model`<br>`mjx-pptx: fill`<br>`mjx-paint: the_tables_are_tables` | 32 | 73 | — |
 | `outlines` | Outlines — weight, dash, cap, join, compound, arrowheads | `implemented` | `mjx-dml: line_model`<br>`mjx-paint: the_tables_are_tables` | 16 | 58 | — |
 | `effects` | Effects — `outerShdw`, `innerShdw`, `glow`, `softEdge`, `reflection`, `blur`, and the effect DAG | `partial` | `mjx-dml: effect_model`<br>`mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 18 | 67 | — |
 | `colour-resolution` | Colour resolution — scheme colours and the transform chain | `implemented` | `mjx-dml: color_model`<br>`mjx-dml: resolve_model`<br>`mjx-scene-xlsx: the_alpha_survives` | 42 | 106 | — |
 | `three-dimensional-shapes` | 3-D rotation and extrusion — `a:scene3d` and `a:sp3d` | `preserved-not-rendered` | `mjx-dml: shape3d_model`<br>`mjx-pptx: shape_3d` | 25 | 96 | — |
 | `shape-styles` | Shape styles and theme style references | `preserved-not-rendered` | `mjx-dml: style_model`<br>`mjx-pptx: shape_list_style` | 17 | 47 | — |
-| `grouping-and-transforms` | Grouping, nested group transforms, flipping and rotation | `implemented` | `mjx-dml: transform_model`<br>`mjx-pptx: groups`<br>`mjx-pptx: grouping`<br>`mjx-layout-pptx: nested_group_transforms_compose` | 57 | 152 | — |
+| `grouping-and-transforms` | Grouping, nested group transforms, flipping and rotation | `partial` | `mjx-dml: transform_model`<br>`mjx-pptx: groups`<br>`mjx-pptx: grouping`<br>`mjx-layout-pptx: nested_group_transforms_compose` | 57 | 152 | — |
 | `z-order-and-placement` | Z-order, size and position, alignment and distribution | `preserved-not-rendered` | `mjx-pptx: placement`<br>`mjx-pptx: transform` | 29 | 64 | — |
-| `text-in-a-shape` | The text body inside a shape — insets, anchoring, and the geometry that bounds it | `implemented` | `mjx-dml: text_model`<br>`mjx-geometry: text_goes_inside_the_shape`<br>`mjx-layout-pptx: the_body_geometry_is_honoured` | 58 | 169 | — |
+| `text-in-a-shape` | The text body inside a shape — insets, anchoring, and the geometry that bounds it | `partial` | `mjx-dml: text_model`<br>`mjx-geometry: text_goes_inside_the_shape`<br>`mjx-layout-pptx: the_body_geometry_is_honoured` | 58 | 169 | — |
 | `wordart` | WordArt — `TabSetWordArtTools`, and the text-warp preset geometries | `not-started` | **none** | 0 | 0 | — |
 | `snapping-and-guides` | Snapping, alignment guides and the editing affordances around a shape | `not-started` | **none** | 0 | 0 | — |
 
@@ -171,7 +254,7 @@ Each of these is written in the module documentation of the suite that **asserts
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `picture-insertion` | Pictures — insertion, the media part graph, and the relationship that reaches the bytes | `preserved-not-rendered` | `mjx-pptx: pictures`<br>`mjx-pptx: images` | 27 | 60 | — |
-| `picture-anchoring` | The anchoring models — inline, floating, one-cell, two-cell, absolute | `implemented` | `mjx-dml: spreadsheet_drawing_model`<br>`mjx-sml: anchor_geometry`<br>`mjx-layout-xlsx: three_anchor_modes_move_differently`<br>`mjx-docx: drawing_placement` | 42 | 154 | — |
+| `picture-anchoring` | The anchoring models — inline, floating, one-cell, two-cell, absolute | `partial` | `mjx-dml: spreadsheet_drawing_model`<br>`mjx-sml: anchor_geometry`<br>`mjx-layout-xlsx: three_anchor_modes_move_differently`<br>`mjx-docx: drawing_placement` | 42 | 154 | — |
 | `picture-cropping` | Cropping, including crop-to-shape and aspect fill | `not-started` | **none** | 0 | 0 | — |
 | `picture-corrections` | Corrections and colour — brightness, contrast, saturation, recolour, artistic effects | `not-started` | **none** | 0 | 0 | — |
 
@@ -180,20 +263,20 @@ Each of these is written in the module documentation of the suite that **asserts
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `chart-model` | The chart model — plot types, series, and the parts that carry them | `preserved-not-rendered` | `mjx-chart: plot_types`<br>`mjx-chart: bar_model`<br>`mjx-chart: author`<br>`mjx-chart: edit` | 28 | 103 | — |
-| `chart-series-geometry` | Series geometry — every chart family producing marks in the right places | `implemented` | `mjx-layout-chart: series_geometry_is_asserted`<br>`mjx-layout-chart: every_family_produces_marks`<br>`mjx-layout-chart: degenerate_data_is_defined` | 25 | 77 | 8 / 5 / 13 |
+| `chart-series-geometry` | Series geometry — every chart family producing marks in the right places | `partial` | `mjx-layout-chart: series_geometry_is_asserted`<br>`mjx-layout-chart: every_family_produces_marks`<br>`mjx-layout-chart: degenerate_data_is_defined` | 25 | 77 | 8 / 5 / 13 |
 | `chart-axes-and-scales` | Axes, scales and tick selection | `partial` | `mjx-layout-chart: ticks_are_arithmetic`<br>`mjx-layout-chart: the_furniture_is_drawn` | 19 | 86 | 6 / 8 / 13 |
 | `chart-furniture` | Titles, legends, data labels and gridlines | `partial` | `mjx-chart: furniture`<br>`mjx-layout-chart: the_furniture_is_drawn` | 19 | 115 | 4 / 2 / 8 |
-| `chart-decoration` | Series and data-point formatting, and the document palette a series inherits | `implemented` | `mjx-chart: decoration`<br>`mjx-layout-chart: the_document_palette_wins` | 30 | 214 | 1 / 0 / 0 |
+| `chart-decoration` | Series and data-point formatting, and the document palette a series inherits | `partial` | `mjx-chart: decoration`<br>`mjx-layout-chart: the_document_palette_wins` | 30 | 214 | 1 / 0 / 0 |
 | `chart-embedded-workbook` | The embedded workbook that backs the data, and its external-data alternative | `preserved-not-rendered` | `mjx-chart: data_sources`<br>`mjx-chart: external_data`<br>`mjx-pptx: chart_workbook` | 15 | 53 | — |
 | `chart-unmodelled-plot-types` | The plot types `mjx-chart` preserves without modelling | `preserved-not-rendered` | `mjx-chart: unmodelled_plot_types` | 5 | 21 | — |
-| `chart-in-three-formats` | A chart reached through PowerPoint's, Word's and Excel's box models | `implemented` | `mjx-layout-chart: fragments_reach_the_tree`<br>`mjx-docx: charts`<br>`mjx-xlsx: charts`<br>`mjx-pptx: charts` | 106 | 479 | 0 / 0 / 3 |
+| `chart-in-three-formats` | A chart reached through PowerPoint's, Word's and Excel's box models | `partial` | `mjx-layout-chart: fragments_reach_the_tree`<br>`mjx-docx: charts`<br>`mjx-xlsx: charts`<br>`mjx-pptx: charts` | 106 | 479 | 0 / 0 / 3 |
 
 ### §3.6 · SmartArt and diagrams
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `diagram-parts` | The four-part diagram model — data, layout, style, colours | `preserved-not-rendered` | `mjx-pptx: diagrams`<br>`mjx-pptx: diagram_read_back` | 14 | 40 | — |
-| `diagram-layout` | Diagram layout — a hierarchy solved into boxes | `implemented` | `mjx-layout-chart: a_hierarchy_is_laid_out` | 10 | 29 | 4 / 1 / 3 |
+| `diagram-layout` | Diagram layout — a hierarchy solved into boxes | `partial` | `mjx-layout-chart: a_hierarchy_is_laid_out` | 10 | 29 | 4 / 1 / 3 |
 | `diagram-layout-catalogue` | The ~200 published layouts across eight categories, and their algorithm evaluation | `not-started` | **none** | 0 | 0 | — |
 
 ### §3.7 · Mathematics
@@ -209,10 +292,10 @@ Each of these is written in the module documentation of the suite that **asserts
 |---|---|---|---|---:|---:|---|
 | `table-model` | Table structure — rows, columns, cells, insertion and deletion | `preserved-not-rendered` | `mjx-dml: table_model`<br>`mjx-pptx: tables`<br>`mjx-pptx: table_structure`<br>`mjx-docx: tables` | 94 | 303 | — |
 | `table-styles` | Table styles and the six conditional-formatting bands | `preserved-not-rendered` | `mjx-dml: table_style`<br>`mjx-pptx: table_styles`<br>`mjx-pptx: table_effective` | 44 | 124 | — |
-| `table-merging` | Merged and split cells, and the walk that must not be naive | `implemented` | `mjx-pptx: table_merging`<br>`mjx-layout-pptx: merged_cells_are_not_a_naive_walk` | 25 | 54 | — |
-| `table-grid-solving` | Column sizing — the fixed and autofit layout algorithms | `implemented` | `mjx-layout-docx: a_table_grid_is_solved` | 10 | 25 | 4 / 2 / 5 |
-| `table-splitting` | Tables that split across pages, with repeated header rows | `implemented` | `mjx-layout-docx: a_table_splits_across_a_page` | 5 | 16 | 2 / 0 / 4 |
-| `table-borders` | Cell borders and shading, with the resolution precedence between them | `implemented` | `mjx-pptx: table_formatting`<br>`mjx-docx: table_formatting`<br>`mjx-layout-pptx: a_cell_border_is_a_band_that_covers_pixels` | 31 | 88 | — |
+| `table-merging` | Merged and split cells, and the walk that must not be naive | `partial` | `mjx-pptx: table_merging`<br>`mjx-layout-pptx: merged_cells_are_not_a_naive_walk` | 25 | 54 | — |
+| `table-grid-solving` | Column sizing — the fixed and autofit layout algorithms | `partial` | `mjx-layout-docx: a_table_grid_is_solved` | 10 | 25 | 4 / 2 / 5 |
+| `table-splitting` | Tables that split across pages, with repeated header rows | `partial` | `mjx-layout-docx: a_table_splits_across_a_page` | 5 | 16 | 2 / 0 / 4 |
+| `table-borders` | Cell borders and shading, with the resolution precedence between them | `partial` | `mjx-pptx: table_formatting`<br>`mjx-docx: table_formatting`<br>`mjx-layout-pptx: a_cell_border_is_a_band_that_covers_pixels` | 31 | 88 | — |
 | `table-selection` | Formatting a region of cells in one call, and the smaller cell surfaces beside it — accessibility headers, visible cell text | `implemented` | `mjx-pptx: table_selection`<br>`mjx-pptx: table_gaps` | 23 | 41 | — |
 
 ### §3.9 · Cross-cutting document surfaces
@@ -220,7 +303,7 @@ Each of these is written in the module documentation of the suite that **asserts
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `themes` | Themes — colour schemes, font schemes, effect schemes | `preserved-not-rendered` | `mjx-dml: theme_model`<br>`mjx-pptx: theme` | 19 | 98 | — |
-| `styles-and-inheritance` | Styles, style sets, and every inheritance ladder a property resolves through | `implemented` | `mjx-docx: styles`<br>`mjx-docx: effective`<br>`mjx-pptx: text_inheritance`<br>`mjx-pptx: transform_inheritance`<br>`mjx-layout-pptx: the_ladder_is_consumed`<br>`mjx-layout-docx: the_ladder_is_consumed`<br>`mjx-layout-xlsx: the_ladder_is_consumed` | 58 | 136 | — |
+| `styles-and-inheritance` | Styles, style sets, and every inheritance ladder a property resolves through | `partial` | `mjx-docx: styles`<br>`mjx-docx: effective`<br>`mjx-pptx: text_inheritance`<br>`mjx-pptx: transform_inheritance`<br>`mjx-layout-pptx: the_ladder_is_consumed`<br>`mjx-layout-docx: the_ladder_is_consumed`<br>`mjx-layout-xlsx: the_ladder_is_consumed` | 58 | 136 | — |
 | `comments` | Comments, both legacy and threaded | `preserved-not-rendered` | `mjx-docx: annotations`<br>`mjx-xlsx: comments` | 32 | 118 | — |
 | `hyperlinks` | Hyperlinks, and the relationships that carry their targets | `preserved-not-rendered` | `mjx-pptx: hyperlinks`<br>`mjx-sml: worksheet_hyperlinks`<br>`mjx-xlsx: hyperlinks` | 40 | 183 | — |
 | `round-trip-fidelity` | The round-trip contract — untouched parts re-emitted byte for byte | `implemented` | `mjx-opc: roundtrip`<br>`mjx-opc: tree_roundtrip`<br>`mjx-pptx: roundtrip`<br>`mjx-docx: roundtrip`<br>`mjx-xlsx: roundtrip`<br>`mjx-xlsx: preserved_parts` | 52 | 218 | — |
@@ -233,21 +316,21 @@ Each of these is written in the module documentation of the suite that **asserts
 | `spelling-and-grammar` | Spell check, grammar, and the proofing language settings | `not-started` | **none** | 0 | 0 | — |
 | `clipboard` | The clipboard, its four flavours, and paste-special | `not-started` | **none** | 0 | 0 | — |
 | `protection-and-signatures` | Document protection, encryption and digital signatures | `not-started` | **none** | 0 | 0 | — |
-| `print-and-page-setup` | Print and page setup, across the three applications | `implemented` | `mjx-layout-xlsx: print_layout_paginates`<br>`mjx-sml: print_and_sheet_kinds` | 39 | 232 | — |
+| `print-and-page-setup` | Print and page setup, across the three applications | `partial` | `mjx-layout-xlsx: print_layout_paginates`<br>`mjx-sml: print_and_sheet_kinds` | 39 | 232 | — |
 
 ### §4.1 · Word
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `word-flow-and-pagination` | Flow and pagination — a document becoming pages, consistently | `implemented` | `mjx-layout-docx: a_document_becomes_fragments`<br>`mjx-layout-docx: a_long_document_paginates_consistently`<br>`mjx-layout-docx: the_fragments_match_their_baselines` | 12 | 32 | 0 / 1 / 3 |
-| `word-sections` | Sections — page size, orientation, margins, and section-scoped numbering | `implemented` | `mjx-docx: sections`<br>`mjx-layout-docx: a_section_changes_the_page` | 16 | 87 | 5 / 2 / 9 |
-| `word-columns` | Multiple columns, and the balance at a continuous break | `implemented` | `mjx-layout-docx: columns_balance_at_a_continuous_break` | 6 | 23 | 3 / 1 / 4 |
-| `word-headers-and-footers` | Headers and footers — first page, odd and even, and per section | `implemented` | `mjx-docx: headers`<br>`mjx-layout-docx: the_headers_differ_by_page` | 20 | 51 | 4 / 0 / 3 |
-| `word-floating-objects` | Floating objects and text wrapping — `square`, `tight`, `through`, `topAndBottom`, behind, in front | `implemented` | `mjx-layout-docx: text_wraps_around_a_float` | 12 | 35 | 3 / 1 / 6 |
-| `word-footnotes-and-endnotes` | Footnotes and endnotes — their own reflow, and the mark on the line | `implemented` | `mjx-layout-docx: a_footnote_moves_the_body`<br>`mjx-layout-docx: endnotes_flow_at_the_end_of_their_scope`<br>`mjx-layout-docx: a_generated_mark_is_measured` | 19 | 47 | 5 / 3 / 13 |
-| `word-fields` | Fields — the 90+ types, their computation, and the fixed point an update reaches | `implemented` | `mjx-docx: fields`<br>`mjx-layout-docx: a_field_fixed_point_terminates`<br>`mjx-layout-docx: a_stale_field_is_recomputed` | 33 | 88 | 5 / 5 / 7 |
-| `word-track-changes` | Track changes — insertions, deletions, formatting revisions, and their effect on layout | `implemented` | `mjx-docx: revisions`<br>`mjx-layout-docx: a_deletion_changes_the_page` | 20 | 63 | 2 / 1 / 4 |
-| `word-line-numbers` | Line numbers, restarting per the four modes | `implemented` | `mjx-layout-docx: line_numbers_restart_per_mode` | 6 | 14 | 2 / 0 / 4 |
+| `word-flow-and-pagination` | Flow and pagination — a document becoming pages, consistently | `partial` | `mjx-layout-docx: a_document_becomes_fragments`<br>`mjx-layout-docx: a_long_document_paginates_consistently`<br>`mjx-layout-docx: the_fragments_match_their_baselines` | 12 | 32 | 0 / 1 / 3 |
+| `word-sections` | Sections — page size, orientation, margins, and section-scoped numbering | `partial` | `mjx-docx: sections`<br>`mjx-layout-docx: a_section_changes_the_page` | 16 | 87 | 5 / 2 / 9 |
+| `word-columns` | Multiple columns, and the balance at a continuous break | `partial` | `mjx-layout-docx: columns_balance_at_a_continuous_break` | 6 | 23 | 3 / 1 / 4 |
+| `word-headers-and-footers` | Headers and footers — first page, odd and even, and per section | `partial` | `mjx-docx: headers`<br>`mjx-layout-docx: the_headers_differ_by_page` | 20 | 51 | 4 / 0 / 3 |
+| `word-floating-objects` | Floating objects and text wrapping — `square`, `tight`, `through`, `topAndBottom`, behind, in front | `partial` | `mjx-layout-docx: text_wraps_around_a_float` | 12 | 35 | 3 / 1 / 6 |
+| `word-footnotes-and-endnotes` | Footnotes and endnotes — their own reflow, and the mark on the line | `partial` | `mjx-layout-docx: a_footnote_moves_the_body`<br>`mjx-layout-docx: endnotes_flow_at_the_end_of_their_scope`<br>`mjx-layout-docx: a_generated_mark_is_measured` | 19 | 47 | 5 / 3 / 13 |
+| `word-fields` | Fields — the 90+ types, their computation, and the fixed point an update reaches | `partial` | `mjx-docx: fields`<br>`mjx-layout-docx: a_field_fixed_point_terminates`<br>`mjx-layout-docx: a_stale_field_is_recomputed` | 33 | 88 | 5 / 5 / 7 |
+| `word-track-changes` | Track changes — insertions, deletions, formatting revisions, and their effect on layout | `partial` | `mjx-docx: revisions`<br>`mjx-layout-docx: a_deletion_changes_the_page` | 20 | 63 | 2 / 1 / 4 |
+| `word-line-numbers` | Line numbers, restarting per the four modes | `partial` | `mjx-layout-docx: line_numbers_restart_per_mode` | 6 | 14 | 2 / 0 / 4 |
 | `word-content-controls` | Content controls, bookmarks and structured document tags | `preserved-not-rendered` | `mjx-docx: structured_content`<br>`mjx-docx: content_model` | 32 | 87 | — |
 | `word-resumable-layout` | The checkpoint that makes flow layout resumable, across tables and floats | `implemented` | `mjx-layout-docx: a_checkpoint_is_work_not_output`<br>`mjx-layout-docx: a_checkpoint_survives_tables_and_floats`<br>`mjx-layout-docx: termination` | 20 | 40 | 0 / 3 / 0 |
 | `word-reaches-pixels` | A Word document reaching a display list, and then pixels | `not-started` | **none** | 0 | 0 | — |
@@ -259,18 +342,18 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `excel-number-format-engine` | The number-format engine — `numFmt` to display string, and its degradation on a bad code | `implemented` | `mjx-layout-xlsx: the_format_language_is_evaluated`<br>`mjx-layout-xlsx: a_cell_shows_its_formatted_value`<br>`mjx-layout-xlsx: a_broken_format_degrades` | 24 | 58 | — |
-| `excel-grid-layout` | Grid layout — row and column sizing, a windowed and sparse read of a large sheet | `implemented` | `mjx-layout-xlsx: a_sheet_becomes_fragments`<br>`mjx-layout-xlsx: the_grid_is_windowed_and_sparse`<br>`mjx-layout-xlsx: sparsity_is_measured` | 21 | 102 | — |
-| `excel-merged-regions` | Merged regions, rendered once | `implemented` | `mjx-layout-xlsx: merged_regions_render_once` | 5 | 15 | — |
-| `excel-text-overflow` | Text overflowing into empty neighbours, and the rules that clip it | `implemented` | `mjx-layout-xlsx: text_overflows_into_empty_neighbours` | 7 | 22 | — |
-| `excel-panes` | Frozen and split panes over one geometry | `implemented` | `mjx-layout-xlsx: frozen_panes_share_one_geometry` | 6 | 29 | — |
+| `excel-number-format-engine` | The number-format engine — `numFmt` to display string, and its degradation on a bad code | `partial` | `mjx-layout-xlsx: the_format_language_is_evaluated`<br>`mjx-layout-xlsx: a_cell_shows_its_formatted_value`<br>`mjx-layout-xlsx: a_broken_format_degrades` | 24 | 58 | — |
+| `excel-grid-layout` | Grid layout — row and column sizing, a windowed and sparse read of a large sheet | `partial` | `mjx-layout-xlsx: a_sheet_becomes_fragments`<br>`mjx-layout-xlsx: the_grid_is_windowed_and_sparse`<br>`mjx-layout-xlsx: sparsity_is_measured` | 21 | 102 | — |
+| `excel-merged-regions` | Merged regions, rendered once | `partial` | `mjx-layout-xlsx: merged_regions_render_once` | 5 | 15 | — |
+| `excel-text-overflow` | Text overflowing into empty neighbours, and the rules that clip it | `partial` | `mjx-layout-xlsx: text_overflows_into_empty_neighbours` | 7 | 22 | — |
+| `excel-panes` | Frozen and split panes over one geometry | `partial` | `mjx-layout-xlsx: frozen_panes_share_one_geometry` | 6 | 29 | — |
 | `excel-conditional-formatting` | Conditional formatting — every rule kind, graded interpolation, and Excel's precedence | `partial` | `mjx-sml: conditional_formatting`<br>`mjx-xlsx: conditional_formatting`<br>`mjx-layout-xlsx: every_rule_kind_fires_and_does_not`<br>`mjx-layout-xlsx: graded_rules_interpolate`<br>`mjx-layout-xlsx: precedence_composes_in_excels_order`<br>`mjx-layout-xlsx: the_conditional_ledger_is_computed`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel` | 88 | 299 | — |
 | `excel-cell-borders` | Cell borders — every weight reaching a pixel, and the dash that does not | `partial` | `mjx-layout-xlsx: no_border_rounds_to_nothing`<br>`mjx-scene-xlsx: the_dash_is_lost_at_the_band` | 9 | 22 | — |
 | `excel-cell-formatting` | The effective cell format — the `xf` chain, fills, fonts and alignment | `implemented` | `mjx-sml: effective_cell_format`<br>`mjx-sml: style_resources`<br>`mjx-xlsx: effective_format`<br>`mjx-scene-xlsx: a_red_negative_reaches_the_paint_table` | 34 | 243 | — |
-| `excel-print-layout` | Print layout — page breaks, print areas, repeated rows and scaling | `implemented` | `mjx-layout-xlsx: print_layout_paginates` | 17 | 65 | — |
+| `excel-print-layout` | Print layout — page breaks, print areas, repeated rows and scaling | `partial` | `mjx-layout-xlsx: print_layout_paginates` | 17 | 65 | — |
 | `excel-tables-and-filters` | Tables, autofilters and sorting | `preserved-not-rendered` | `mjx-sml: worksheet_tables`<br>`mjx-sml: validation_and_filters`<br>`mjx-xlsx: worksheet_tables`<br>`mjx-xlsx: validation_and_filters` | 73 | 308 | — |
 | `excel-drawings` | Cell drawings and worksheet objects | `preserved-not-rendered` | `mjx-sml: worksheet_objects`<br>`mjx-xlsx: worksheet_drawings` | 24 | 126 | — |
-| `excel-reaches-pixels` | A worksheet reaching a display list, and then pixels | `implemented` | `mjx-scene-xlsx: a_real_sheet_resolves`<br>`mjx-reference-pack: a_real_worksheet_reaches_pixels` | 9 | 35 | — |
+| `excel-reaches-pixels` | A worksheet reaching a display list, and then pixels | `partial` | `mjx-scene-xlsx: a_real_sheet_resolves`<br>`mjx-reference-pack: a_real_worksheet_reaches_pixels` | 9 | 35 | — |
 | `excel-cell-store` | The packed cell store — what holding a large sheet costs, measured rather than asserted | `implemented` | `mjx-sml: cell_store_allocation`<br>`mjx-sml: cell_store_fidelity`<br>`mjx-sml: shared_string_allocation` | 18 | 151 | — |
 | `excel-gridlines` | Sheet gridlines — the ruled lines a worksheet shows where no border is set | `not-started` | **none** | 0 | 0 | — |
 | `excel-sparklines` | Sparklines — `x14:sparklineGroups`, preserved in an `extLst` and unmodelled | `not-started` | **none** | 0 | 0 | — |
@@ -281,12 +364,12 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `pptx-slide-layout` | A slide becoming fragments, against a committed baseline | `implemented` | `mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-layout-pptx: the_fragments_match_their_baselines` | 14 | 41 | — |
-| `pptx-master-and-layout` | The master, layout, notes and handout hierarchy, and placeholder inheritance | `implemented` | `mjx-pptx: layouts`<br>`mjx-pptx: surfaces`<br>`mjx-layout-pptx: the_ladder_is_consumed` | 30 | 77 | — |
-| `pptx-autofit` | Autofit — the search that makes text fit its body | `implemented` | `mjx-layout-pptx: autofit_is_a_search` | 9 | 28 | — |
-| `pptx-notes` | Notes pages, laid out as slides by another name | `implemented` | `mjx-pptx: notes`<br>`mjx-layout-pptx: a_notes_page_is_a_slide_by_another_name` | 18 | 48 | — |
+| `pptx-slide-layout` | A slide becoming fragments, against a committed baseline | `partial` | `mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-layout-pptx: the_fragments_match_their_baselines` | 14 | 41 | — |
+| `pptx-master-and-layout` | The master, layout, notes and handout hierarchy, and placeholder inheritance | `partial` | `mjx-pptx: layouts`<br>`mjx-pptx: surfaces`<br>`mjx-layout-pptx: the_ladder_is_consumed` | 30 | 77 | — |
+| `pptx-autofit` | Autofit — the search that makes text fit its body | `partial` | `mjx-layout-pptx: autofit_is_a_search` | 9 | 28 | — |
+| `pptx-notes` | Notes pages, laid out as slides by another name | `partial` | `mjx-pptx: notes`<br>`mjx-layout-pptx: a_notes_page_is_a_slide_by_another_name` | 18 | 48 | — |
 | `pptx-slide-authoring` | Creating, removing and reordering slides | `implemented` | `mjx-pptx: slide_creation`<br>`mjx-pptx: removal`<br>`mjx-pptx: blank_document` | 41 | 145 | — |
-| `pptx-reaches-pixels` | A deck reaching a display list, and then pixels, through two independent painters | `implemented` | `mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-paint: a_page_becomes_pixels`<br>`mjx-paint: two_painters_agree`<br>`mjx-reference-pack: a_real_deck_reaches_pixels` | 25 | 97 | — |
+| `pptx-reaches-pixels` | A deck reaching a display list, and then pixels, through two independent painters | `partial` | `mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-paint: a_page_becomes_pixels`<br>`mjx-paint: two_painters_agree`<br>`mjx-reference-pack: a_real_deck_reaches_pixels` | 25 | 97 | — |
 | `pptx-hit-testing` | A point finding its run, and the addressing agreeing with the session's | `implemented` | `mjx-layout-pptx: a_point_finds_its_run`<br>`mjx-layout-pptx: the_addressing_agrees_with_the_session` | 13 | 47 | — |
 | `pptx-media` | Audio and video — the parts, the timing markup, and playback | `preserved-not-rendered` | `mjx-pptx: media` | 8 | 25 | — |
 | `pptx-ole-and-activex` | OLE objects and ActiveX controls | `preserved-not-rendered` | `mjx-pptx: ole`<br>`mjx-pptx: activex` | 42 | 128 | — |
@@ -301,7 +384,7 @@ Each of these is written in the module documentation of the suite that **asserts
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `calculation-engine` | The calculation engine — the dependency graph, ~500 functions, dynamic arrays, the error lattice — *excluded:* `PLAN.md`'s *Explicitly out of scope for v1* names it, and `crates/mjx-xlsx/docs/guide/deliberate_limitations.md` gathers what follows. The inventory §5 treats it as its own programme rather than a feature; it gates Excel **editing** only, since rendering an unedited workbook uses the cached `<v>` already in the file | `out-of-scope` | **none** | 0 | 0 | — |
-| `cached-values-are-rendered` | A formula's cached `<v>` reaching the screen, which is what makes a viewer possible without an engine | `implemented` | `mjx-sml: formulas`<br>`mjx-xlsx: formulas`<br>`mjx-layout-xlsx: a_cell_shows_its_formatted_value` | 31 | 140 | — |
+| `cached-values-are-rendered` | A formula's cached `<v>` reaching the screen, which is what makes a viewer possible without an engine | `partial` | `mjx-sml: formulas`<br>`mjx-xlsx: formulas`<br>`mjx-layout-xlsx: a_cell_shows_its_formatted_value` | 31 | 140 | — |
 
 ### §6 · The third axis — behaviour with neither markup nor a button
 
