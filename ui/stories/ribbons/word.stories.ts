@@ -77,17 +77,14 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
  * View, Outlining, Print Preview and Background Removal. **All six contextual tabs are authored**: Table Design, Table
  * Tools' Layout, Picture Format, Shape Format, Chart Design and Chart Tools' Format. Each was a placeholder until its
- * unit — one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding one button
- * that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already right and every
- * tab present, so each later unit is a small diff rather than a new file.
+ * unit — one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declared for it, holding one button
+ * that said so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already right and every
+ * tab present, so each later unit was a small diff rather than a new file. **None is left**, and `placeholderTab` has
+ * been deleted; `tests/ribbons.test.ts` refuses a group declared with no commands, so a tab added later cannot quietly
+ * arrive empty.
  *
  * **Every story draws all four contextual sets**, as every story draws the view tabs, so a contextual tab can be
  * reached from any story; Office shows one set at a time, and `Shell/Word` draws Table Tools alone.
- *
- * The placeholder button says *Not yet authored* rather than naming a plausible command, for the
- * reason `dev/word-tab-home.ts` gives about its own filler: a made-up command name is a worse lie
- * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
- * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
  * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format, Shape Format, Chart Design and Chart
@@ -1801,13 +1798,12 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
  * **Table Design**: the style a table wears and the pen its borders are drawn with. Table Tools' first tab, and the
  * first contextual tab authored; Office shows it only while the insertion point is in a table. Three groups: Table
  * Style Options, Table Styles and Borders. What to look at, least certain first. **Items 1 and 2 hold on every
- * contextual story**, placeholders included:
+ * contextual story**:
  *
  * 1. **The band.** The strip draws *Table Tools* over this tab and Layout, in the contextual tone, after every core
  *    tab; the tab's accessible name is *Table Design, Table Tools*.
- * 2. **The collapse order is the census's.** A placeholder's one group is drawn at the strongest priority its tab
- *    declares. Here, authored: Table Style Options is `standard` and gives way first, and Table Styles and Borders
- *    are `primary` and give way last.
+ * 2. **The collapse order is the census's.** Table Style Options is `standard` and gives way first, and Table Styles
+ *    and Borders are `primary` and give way last.
  * 3. **Border Styles is Borders' first command**, large, left of Line Style, as Microsoft 365 draws it; Table Styles
  *    holds only the gallery and Shading. Press it: *Theme Borders*, twenty-one entries from *Single solid line, ½ pt,
  *    Text 1* to *Single solid line, 1 ½ pt, Accent 6*, then Border Sampler.

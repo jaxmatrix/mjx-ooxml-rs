@@ -55,7 +55,7 @@
  * Colour/Greyscale are fields, all from `stories/ribbons/print-preview-menus.ts`, and `Ribbons/PowerPoint`
  * alone binds and renders them.
  *
- * **Slide Master** followed Excel's Print Preview, PowerPoint's third view tab authored: six groups and eighteen
+ * **Slide Master** followed Excel's Print Preview, PowerPoint's third view tab authored: six groups and seventeen
  * commands, the master and its layouts. Edit Theme, Background and Close are declared once for every master view,
  * and every menu is from `stories/ribbons/slide-master-menus.ts`, over Design's own lists.
  *
@@ -529,7 +529,7 @@ export function powerpointPrintPreviewTab(options: TabOptions = {}): TemplateRes
  * written there and nowhere else. `dev/ribbons/census.ts` records every disagreement, where Colours, Fonts and
  * Effects sit among them.
  *
- * **Ten of the tab's eighteen commands are bound by the host**: Insert Placeholder is a split button; Themes,
+ * **Ten of the tab's seventeen commands are bound by the host**: Insert Placeholder is a split button; Themes,
  * Colours, Fonts, Effects, Background Styles and Slide Size are dropdowns over
  * `stories/ribbons/slide-master-menus.ts`; Title, Footers and Hide Background Graphics are checkboxes. Preserve is
  * the generic toggle, and everything else the generic button.

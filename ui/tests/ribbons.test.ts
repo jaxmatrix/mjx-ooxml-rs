@@ -243,6 +243,198 @@ describe('the ribbon census', () => {
   });
 });
 
+// ── every declared tab is authored ───────────────────────────────────────────
+
+/**
+ * **A command that stands in for a command** rather than naming one.
+ *
+ * `placeholderTab` drew a tab whose unit had not landed as one group carrying the tab's own name, holding one
+ * button that said *Not yet authored*, so those are the two spellings a tab that renders nothing real would use.
+ * The function is gone — `stories/ribbons/ribbon-parts.ts` keeps the note of what it was built around — and this
+ * is what would catch its return.
+ */
+function isFillerCommand(command: RibbonCommand, tab: RibbonTabEntry): boolean {
+  const label = command.label.trim().toLowerCase();
+  return label === 'not yet authored' || label === 'todo' || label === tab.label.trim().toLowerCase();
+}
+
+/**
+ * **What is unauthored about one tab** — a group with no commands on it, or a tab with no real command anywhere.
+ *
+ * Every declared tab of all three applications is authored, and the thing that would quietly undo that is not a
+ * deletion: it is a **new** tab or group, transcribed from the census and left with its `commands` field off,
+ * which every other gate in this file accepts. `commands` is optional on `RibbonGroupEntry` on purpose — *"an
+ * empty array would claim a tab had been authored and found to hold nothing"* — so the optionality is the hole,
+ * and this is the gate over it. Three things are refused, each naming the tab **and** the group:
+ *
+ * 1. a group that declares no `commands` at all, which is what an untouched transcription looks like;
+ * 2. a group whose `commands` is empty, which is the same tab claiming it was authored; and
+ * 3. a tab whose commands are **all** filler, which is a tab present in the strip with nothing on its face.
+ *
+ * ⚠ **A caption is a real command here, and so is a command nothing dispatches.** PowerPoint's Transitions
+ * declares *Advance Slide* as a `RibbonCommand` that both hosts bind as an `<mjx-label>`, so that its place in
+ * the group's reading order is the census's rather than the renderer's; nothing in this catalogue dispatches
+ * anything, because command dispatch is loop 2. A rule written against either of those would refuse the whole
+ * census. What it is written against is a command whose *label* stands in for a name nobody has chosen yet.
+ */
+export function authoringFindings(application: RibbonApplication, tab: RibbonTabEntry): string[] {
+  const findings: string[] = [];
+  for (const group of tab.groups) {
+    if (group.commands === undefined) {
+      findings.push(
+        `${application}/${tab.id}: the ${group.id} group (${group.label}) declares no commands at all, so the ` +
+          'tab draws a group with nothing in it. A group transcribed from the census and never authored looks ' +
+          'exactly like this, and no other gate here can tell the two apart.',
+      );
+      continue;
+    }
+    if (group.commands.length === 0) {
+      findings.push(
+        `${application}/${tab.id}: the ${group.id} group (${group.label}) declares an empty commands list, ` +
+          'which claims the group was authored and found to hold nothing. Office draws no empty group.',
+      );
+    }
+  }
+  const commands = tab.groups.flatMap((group) => group.commands ?? []);
+  if (commands.length > 0 && commands.every((command) => isFillerCommand(command, tab))) {
+    findings.push(
+      `${application}/${tab.id} declares ${String(commands.length)} command(s) and every one is filler ` +
+        `[${commands.map((command) => command.label).join(', ')}], so the tab renders no real command. That is ` +
+        'the shape placeholderTab drew, and it is gone.',
+    );
+  }
+  return findings;
+}
+
+describe('every declared tab is authored', () => {
+  const declared = ribbonApplicationNames.flatMap((application) =>
+    everyRibbonTab(application).map((tab) => ({ application, tab })),
+  );
+
+  it('sweeps every tab of all three applications, or it is asserting nothing', () => {
+    expect(declared.length, 'almost no tabs are declared, so the sweep below is empty against empty').toBeGreaterThan(
+      50,
+    );
+    expect(
+      declared.some(({ tab }) => tab.appearance === 'view'),
+      'no view tab is swept, and a view tab is exactly the kind a shell never draws and nobody would notice',
+    ).toBe(true);
+    expect(
+      declared.some(({ tab }) => tab.appearance === 'contextual'),
+      'no contextual tab is swept, and the contextual sets are where the next unauthored tab would appear',
+    ).toBe(true);
+  });
+
+  it('gives every group of every tab — core, view and contextual — at least one real command', () => {
+    expect(declared.flatMap(({ application, tab }) => authoringFindings(application, tab))).toEqual([]);
+  });
+});
+
+describe('the authoring rule can reject', () => {
+  const group = (over: Partial<RibbonGroupEntry>): RibbonGroupEntry => ({
+    id: 'GroupX',
+    label: 'X',
+    priority: 'standard',
+    controls: 12,
+    inScope: true,
+    commands: [{ id: 'word.specimen.x.bold', label: 'Bold' }],
+    ...over,
+  });
+  const tab = (...groups: RibbonGroupEntry[]): RibbonTabEntry => ({
+    id: 'specimen',
+    label: 'Specimen',
+    appearance: 'always',
+    source: { kind: 'core', tab: 'TabSpecimen' },
+    groups,
+  });
+
+  it('starts from green: a tab whose every group carries a command passes', () => {
+    expect(authoringFindings('word', tab(group({ id: 'A' }), group({ id: 'B' })))).toEqual([]);
+  });
+
+  it('refuses a group that declares no commands, and names the tab and the group', () => {
+    // Written without the helper's spread: `exactOptionalPropertyTypes` refuses an explicit `commands: undefined`,
+    // and an untouched transcription omits the field rather than setting it.
+    const unwritten: RibbonGroupEntry = {
+      id: 'GroupUnwritten',
+      label: 'Unwritten',
+      priority: 'standard',
+      controls: 12,
+      inScope: true,
+    };
+    const findings = authoringFindings('powerpoint', tab(group({ id: 'A' }), unwritten));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('powerpoint/specimen');
+    expect(findings[0]).toContain('GroupUnwritten');
+    expect(findings[0]).toContain('declares no commands at all');
+  });
+
+  it('refuses an empty commands list, which is the same group claiming it was authored', () => {
+    const findings = authoringFindings('excel', tab(group({ id: 'GroupEmptied', label: 'Emptied', commands: [] })));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('GroupEmptied');
+    expect(findings[0]).toContain('empty commands list');
+  });
+
+  it('refuses a tab whose only command is the placeholder button, or is the tab’s own name', () => {
+    const notYet = authoringFindings(
+      'word',
+      tab(group({ commands: [{ id: 'word.specimen.x.specimen', label: 'Not yet authored' }] })),
+    );
+    expect(notYet).toHaveLength(1);
+    expect(notYet[0]).toContain('renders no real command');
+    const named = authoringFindings(
+      'word',
+      tab(group({ commands: [{ id: 'word.specimen.x.specimen', label: 'Specimen' }] })),
+    );
+    expect(named).toHaveLength(1);
+    expect(named[0]).toContain('renders no real command');
+  });
+
+  it('does not mistake a caption, or a tab holding one filler command among real ones, for an unauthored tab', () => {
+    // PowerPoint's Transitions declares *Advance Slide* as a command both hosts bind as a caption, so a rule that
+    // refused a command nothing dispatches would refuse the real census.
+    expect(
+      authoringFindings(
+        'powerpoint',
+        tab(
+          group({
+            commands: [
+              { id: 'powerpoint.specimen.x.advance-slide', label: 'Advance Slide' },
+              { id: 'powerpoint.specimen.x.after', label: 'After' },
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      authoringFindings(
+        'word',
+        tab(
+          group({
+            commands: [
+              { id: 'word.specimen.x.specimen', label: 'Specimen' },
+              { id: 'word.specimen.x.bold', label: 'Bold' },
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a real tab with one group emptied, on the census’s own entries', () => {
+    const real = everyRibbonTab('word')[0];
+    expect(real, 'word declares no tabs, so this rejection is being watched on nothing').toBeDefined();
+    if (real === undefined) return;
+    const emptied: RibbonTabEntry = {
+      ...real,
+      groups: real.groups.map((entry, index) => (index === 0 ? { ...entry, commands: [] } : entry)),
+    };
+    expect(authoringFindings('word', real)).toEqual([]);
+    expect(authoringFindings('word', emptied)).toHaveLength(1);
+  });
+});
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 
 /** The census's in-scope `TabSet*` tabs for one application, as sorted `<set> <tab>` strings. */

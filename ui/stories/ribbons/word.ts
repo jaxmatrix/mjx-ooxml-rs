@@ -49,7 +49,7 @@
  * three groups and twenty-one commands, the tab that restructures a document by its headings. It opens no menu;
  * its two fields and two checkboxes are bound by `Ribbons/Word`, the only host that draws a view tab.
  *
- * **Print Preview** followed Outlining, the second view tab authored: four groups and seventeen commands, the
+ * **Print Preview** followed Outlining, the second view tab authored: four groups and sixteen commands, the
  * document as it will print. Margins, Orientation and Size open Layout's own lists through
  * `stories/ribbons/print-preview-menus.ts`, and `Ribbons/Word` alone binds and renders them.
  *
@@ -96,7 +96,7 @@
  * Chart Type opens Excel's Insert → Charts lists. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table
  * Tools.
  *
- * **Chart Tools' Format is authored**, the sixth and last: seven groups and twenty-five commands, which part of a chart
+ * **Chart Tools' Format is authored**, the sixth and last: seven groups and twenty-four commands, which part of a chart
  * is selected and how to format or reset it, a shape over the chart, how the part is styled, how its text is dressed,
  * and how the chart is described, placed and sized. It calls Shape Format's code (`insertShapesCommands` for a chart,
  * `shapeStylesCommands`, `wordArtStylesCommands`, `arrangeCommands`, `sizeCommands` and

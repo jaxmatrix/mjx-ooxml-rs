@@ -902,7 +902,7 @@ would exceed the ceiling of three.
 ### Word's Print Preview
 
 **One tab of one application, and the second view tab authored**, after Word's Outlining. Four groups and
-seventeen commands, drawn in Office's order, which is also the census's: Print, Page Setup, Zoom, Preview. It
+sixteen commands, drawn in Office's order, which is also the census's: Print, Page Setup, Zoom, Preview. It
 is Word's classic Print Preview (Word 2007 and 2010, and Microsoft 365's *Print Preview Edit Mode*): the document
 as it will print, with the page setup and zoom a person needs to judge it.
 
@@ -1083,7 +1083,7 @@ It renders in `Ribbons/Excel` alone, as every view tab does. The one binding and
 ### PowerPoint's Slide Master
 
 **One tab of one application, and PowerPoint's third view tab authored**, after Excel's Print Preview. Six groups
-and eighteen commands, in Office's order, which is also the census's: Edit Master, Master Layout, Edit Theme,
+and seventeen commands, in Office's order, which is also the census's: Edit Master, Master Layout, Edit Theme,
 Background, Size, Close. It is the tab Slide Master view shows: the master and its layouts, the placeholders a
 layout carries, and the theme and background every slide inherits.
 
@@ -1416,7 +1416,9 @@ fifteenth**, see *Word's Chart Format*, the first Chart Format and the last of W
 Chart Format the seventeenth**, see *Excel's Chart Format*, the last of Excel's and **the last contextual tab of the
 four common sets in the catalogue**. Nothing draws through a placeholder any more, so `placeholderTab` has been
 deleted; `stories/ribbons/ribbon-parts.ts` keeps a note of the two things it was built around, for the day the user
-builds a fifth set.
+builds a fifth set. **What is still uncertain about all seventeen is indexed under *What still needs a human eye*
+below**, and `tests/ribbons.test.ts` refuses a group declared with no commands, so a fifth set cannot arrive empty
+and stay that way unnoticed.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -2321,7 +2323,7 @@ Data. Beyond it:
 ### Word's Chart Format
 
 **One tab of one application, and the fifteenth contextual tab authored**, Word's sixth and last, and the first Chart
-Format. Seven groups and twenty-five commands, in Office's order, which is also the census's: Current Selection,
+Format. Seven groups and twenty-four commands, in Office's order, which is also the census's: Current Selection,
 Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange, Size. It is `TabChartToolsFormatNew` in
 `TabSetChartTools`, under the *Chart Tools* band while a chart in the document is selected. **It is Word's Shape
 Format wherever a chart behaves as a shape**, with a chart's own Current Selection in front.
@@ -4430,6 +4432,68 @@ Two smaller ones, recorded rather than argued: the **thumbnail rail wraps a titl
 per line below about 150 px** (the tablet fraction is 0.19 for that reason), and a **paused toast
 stack pins itself to the viewport corner**, so it is declared on the PowerPoint *desktop* shell only
 — at tablet it covered the task pane and at phone it would cover the command rail.
+
+## What still needs a human eye
+
+Every tab of all three applications is authored: **sixty tabs** — Word 19, PowerPoint 25, Excel 16, each counting
+its File tab and its contextual tabs — **349 groups and 1,220 commands**. A great deal of it is drawn from memory
+of Microsoft 365 rather than from a build anybody had open, and every such call is marked at its site: **373 lines
+of `dev/ribbons/census.ts` carry a `GUESS:`**, and 296 more in `stories/ribbons/`. This section is the index to
+them, not a transcript.
+
+**The per-story docs are the list.** Every ribbon story's *What to look at* block is ordered **least certain
+first**, and an item marked ⚠ is one whose answer would change the tab. Open the story — `Ribbons/Word →
+ShapeFormat`, `Ribbons/PowerPoint → TableLayout` — and read down its block with Office beside it. What follows
+says which stories to open first and what kind of answer each needs.
+
+### Where to start, per application
+
+Ordered by the `GUESS:` calls in each story's own doc, which is where a reviewer meets them:
+
+| Application | Least certain first |
+|---|---|
+| **Word** | Shape Format, Picture Format (6 each), Chart Format (5), then Table Design, Table Layout, Chart Design, View, Outlining (4 each) |
+| **PowerPoint** | Table Layout (8), Table Design, Shape Format (6 each), Picture Format, Chart Design, Chart Format (5 each), then Slide Master, Handout Master, Transitions, Review, View (4 each) |
+| **Excel** | Shape Format, Picture Format, Chart Design, Chart Format (5 each), then Table Design, View, Print Preview, Background Removal (3 each) |
+
+**The contextual tabs head every column, and that is not an accident.** They were authored last, they are mostly
+galleries and effect menus — the two things hardest to recall correctly — and each of the three applications draws
+its own variant of the same four tabs, so an error in one is an error in three. Judge Word's first: PowerPoint's
+and Excel's are Word's tab through Word's own functions, and each story names the differences Office actually has.
+
+### The kinds of guess, by theme
+
+- **Gallery and list contents — much the largest.** What is in a list, in what order, and how many. Excel's 60
+  built-in table styles and Word's 49 Grid Tables and 49 List Tables; the chart type, layout, style and colour
+  lists; every transition (13 Subtle, 29 Exciting, 7 Dynamic Content) and every animation; the theme lists Slide
+  Master, Design and Page Layout now share (31 themes, 24 colour sets, 20 font pairs, 15 effects). Concentrated in
+  `stories/ribbons/table-tools-menus.ts` (28 `GUESS:`), `chart-tools-menus.ts` (17), `drawing-tools-menus.ts` (15),
+  `review-menus.ts` (12) and `picture-tools-menus.ts` (10).
+- **Effect and preset submenus.** Shape Effects and Text Effects, Picture Corrections, Colour and Artistic Effects,
+  Crop to Shape, and which entries each leaves out. These are the `GUESS:`es most likely to be wrong in a way a
+  screenshot settles in seconds.
+- **Gallery art.** Every picture in every in-ribbon gallery is drawn here from the palette rather than rendered
+  from a document: the table styles, picture styles, shape Theme Styles, WordArt and chart styles. The question is
+  never the pixels — it is whether two neighbouring cells read as *different styles*.
+- **Glyph choices.** Every icon is a `GUESS:`, judged from Fluent's drawings against Office's. Three are recorded
+  as the weakest: Reset to Match Style's `arrow-reset` (says *reset*, not *to the style*), Print Preview's Next and
+  Previous Page (may read as *download* and *upload*), and Shrink One Page.
+- **Starting measures.** What size an object starts at, per application: a chart is 8.89 × 15.24 cm in Word,
+  15.05 × 22.58 in PowerPoint and 7.62 × 12.7 in Excel; a picture is 8.57 × 11.43 cm. All step by 0.01 cm. Excel's
+  chart pair is recorded as the weakest call on that tab.
+- **Starting states.** Which member of an exclusive set is pressed and which checkboxes start ticked — Black and
+  White and Greyscale on *Automatic*, Table Design's Header Row, Banded Rows and First Column, Slide Master's
+  Preserve unpressed with Title and Footers ticked. Each is a claim about a *new* document.
+- **Readings where the census's count and Office's face disagree.** The census counts every entry inside every
+  menu, so a group's `controls` is normally larger than what a tab draws, and a few readings are genuinely open:
+  Transitions' Timing (seven entries where the census counts two), Slide Master's Master Layout (15 and draws 4)
+  and Background (11 and draws 2), Word's Print Preview Page Setup (6 and draws 3) and Zoom (6 and draws 5).
+- **Two labels nobody has confirmed.** `GroupImagePlay` is drawn *Image Play*, derived from its id because the
+  inventory names it nowhere; `GroupTableLayout` is read as Word's Table Style Options from the counts and the
+  order.
+- **One gap in the census itself.** Excel's File tab carries no `TabPrint` row where Word's and PowerPoint's do,
+  so Excel's File tab here has no Print. Excel obviously has one; the census is the checked source and the row was
+  not invented. `dev/ribbons/census.ts`'s header records it.
 
 ## Things a later child should know
 
