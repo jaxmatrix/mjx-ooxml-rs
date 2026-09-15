@@ -51,8 +51,8 @@ From `OFFICE_FEATURE_INVENTORY.md` §7, and enforced rather than quoted:
 
 | State | Rows |
 |---|---:|
-| `implemented` | 26 |
-| `partial` | 78 |
+| `implemented` | 25 |
+| `partial` | 79 |
 | `preserved-not-rendered` | 40 |
 | `not-started` | 36 |
 | `out-of-scope` | 13 |
@@ -72,7 +72,7 @@ The two figures below **are** independent. Each is summed by the generator from 
 | **In-scope controls, all three** | **11,869** | `data/command-surface.tsv` |
 | **Declared elements, ECMA-376** | **3,404** | `data/schema-census.txt` |
 
-The workspace holds **35** crates and **388** integration suites, of which the rows below name **264**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
+The workspace holds **35** crates and **390** integration suites, of which the rows below name **266**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
 
 ## The provenance of the evidence
 
@@ -95,6 +95,8 @@ Each of these is written in the module documentation of the suite that **asserts
 |---|---|---|
 | `paragraph-borders-and-rules` | `w:pBdr/w:between` is carried on the paragraph's decoration and placed nowhere — it changes no stroke rectangle, so no rule is drawn between two paragraphs that share the border | `mjx-layout-docx: no_rule_rounds_to_nothing` |
 | `fills` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
+| `outlines` | an arrowhead (`a:headEnd`, `a:tailEnd`) is carried through the display list and never tessellated, so no line draws its line ends | `mjx-scene: a_line_end_is_carried_and_never_tessellated` |
+| `outlines` | a custom dash (`a:custDash`) draws as the preset `Dash`, because `LineSpec` does not model its stops | `mjx-scene-pptx: a_custom_dash_draws_as_the_preset_dash` |
 | `effects` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `colour-resolution` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `colour-resolution-pptx` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
@@ -270,7 +272,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `custom-geometry` | Custom freeform geometry — `a:custGeom` paths | `partial` | `mjx-dml: custom_geometry_model`<br>`mjx-geometry: the_third_route_is_the_parser`<br>`mjx-pptx: custom_geometry` | 37 | 133 | — |
 | `connectors` | Connectors and their connection sites | `partial` | `mjx-geometry: a_connector_lands_on_the_outline` | 8 | 37 | — |
 | `fills` | Fills — solid, gradient with stop and tile semantics, 54 preset patterns, picture, texture | `partial` | `mjx-dml: fill_model`<br>`mjx-pptx: fill`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary`<br>`mjx-paint: the_tables_are_tables` | 35 | 77 | — |
-| `outlines` | Outlines — weight, dash, cap, join, compound, arrowheads | `implemented` | `mjx-dml: line_model`<br>`mjx-paint: the_tables_are_tables` | 16 | 58 | — |
+| `outlines` | Outlines — weight, dash, cap, join, compound, arrowheads | `partial` | `mjx-dml: line_model`<br>`mjx-scene: a_line_end_is_carried_and_never_tessellated`<br>`mjx-scene-pptx: a_custom_dash_draws_as_the_preset_dash` | 12 | 36 | — |
 | `effects` | Effects — `outerShdw`, `innerShdw`, `glow`, `softEdge`, `reflection`, `blur`, and the effect DAG | `partial` | `mjx-dml: effect_model`<br>`mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 18 | 67 | — |
 | `colour-resolution` | Colour resolution — scheme colours, the transform chain, and an opacity that survives it once | `partial` | `mjx-dml: color_model`<br>`mjx-dml: resolve_model`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 42 | 104 | — |
 | `colour-resolution-pptx` | PowerPoint colour resolution — the theme, the colour map and a slide's own override, from every surface | `partial` | `mjx-pptx: surfaces`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 17 | 38 | — |

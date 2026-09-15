@@ -598,7 +598,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "Outlines — weight, dash, cap, join, compound, arrowheads",
         &[
             "crates/mjx-dml/tests/line_model.rs",
-            "crates/mjx-paint/tests/the_tables_are_tables.rs",
+            "crates/mjx-scene/tests/a_line_end_is_carried_and_never_tessellated.rs",
+            "crates/mjx-scene-pptx/tests/a_custom_dash_draws_as_the_preset_dash.rs",
         ],
     ),
     rendered(
