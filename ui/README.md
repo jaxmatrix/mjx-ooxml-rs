@@ -1220,6 +1220,53 @@ gate refuses; Background holds a menu and a checkbox; Close leaves the view.
   `slide-size`; the shared groups draw Slide Master's `style-guide`, `color`, `text-font`, `square-shadow`,
   `color-background` and `dismiss-square`. The five checkboxes carry none.
 
+### PowerPoint's Notes Master
+
+**One tab of one application, and PowerPoint's sixth view tab authored**, after Handout Master. Five groups and
+fifteen commands, in Office's order, which is also the census's: Page Setup, Placeholders, Edit Theme, Background,
+Close. It is `TabNotesMaster`, the tab Notes Master view shows: one printed notes page, the slide image at its top,
+the notes body under it, and the header, date, footer and page number around them.
+
+**Three groups are Slide Master's, called and not rewritten**, as on Handout Master: Edit Theme, Background and Close
+are `masterEditThemeCommands('notes-master')`, `masterBackgroundCommands('notes-master')` and
+`masterCloseCommands('notes-master')`, and their menus are `editThemeMenuEntries` and `backgroundMenuEntries` under
+this tab's ids, in `notesMasterMenus`, the function this unit added to `menusByTab` in
+`stories/ribbons/slide-master-menus.ts`. **Page Setup and Placeholders are this tab's own, and it writes no list**:
+both Page Setup menus reuse lists already written.
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does: the fourteen bindings and
+`masterViewMenus('powerpoint', 'ribbons')` are in `stories/ribbons/powerpoint.stories.ts`, and `Shell/PowerPoint`
+draws neither.
+
+- **Seven dropdowns a host binds**: Notes Page Orientation (Layout's `orientationEntries()`), Slide Size (Design's
+  `slideSizeEntries()`), and Slide Master's Themes, Colours, Fonts, Effects and Background Styles.
+- **Seven checkboxes a host binds**: Header, Slide Image, Footer, Date, Body and Page Number, ticked; Hide Background
+  Graphics, unticked.
+- **One button**: Close Master View.
+- **One dialog launcher**, *Format Background*, on Background.
+
+**No survivors.** Page Setup's two and Edit Theme's four open menus; Placeholders' six are checkboxes, which the gate
+refuses; Background holds a menu and a checkbox; Close leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Page Setup counts 3 and draws 2.** `GUESS:` the census counts Slide Size's face and arrow as two, as Slide
+  Master's Size does, plus Notes Page Orientation. PowerPoint 2010's group (Page Setup, Notes Page Orientation, Slide
+  Orientation) also reaches 3. **Handout Master's reading, the choices the menus offer, gives 4 here**, so the
+  census's two Page Setup counts are not read one way; that is recorded, not reconciled. Placeholders (6), Edit Theme
+  (4) and Close (1) draw their counts; Background (11) is Slide Master's disagreement, unchanged.
+- **Background is `primary` and Page Setup `standard`**, the census's priorities, kept. They are the reverse of
+  Handout Master's, so as the ribbon narrows here Background collapses after Page Setup, Placeholders and Edit Theme,
+  where on Handout Master it collapses before Page Setup.
+- **Microsoft 365's Page Setup is drawn, not PowerPoint 2010's.** `GUESS:` both.
+- **All six placeholders start ticked**, in Office's two columns of three read down each column, and Notes Page
+  Orientation starts on Portrait. `GUESS:` all three.
+- **Office greys Themes on Notes Master.** `GUESS:`. It is drawn available, because `disabled` is loop 2's.
+- **The Format Background launcher is kept.** `GUESS:` that Notes Master draws it, as Slide Master does.
+- **No glyph is new.** Notes Page Orientation draws `orientation` and Slide Size `slide-size`; the shared groups draw
+  Slide Master's `style-guide`, `color`, `text-font`, `square-shadow`, `color-background` and `dismiss-square`. The
+  seven checkboxes carry none.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

@@ -73,7 +73,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home and Handout Master** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master and Notes Master** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -93,7 +93,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home and Handout Master are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master and Notes Master are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -789,6 +789,79 @@ const bindings: ControlOverrides = {
   'powerpoint.handout-master.background.hide-background-graphics': html`<mjx-checkbox
     id="ribbons-powerpoint-handout-master-hide-background-graphics"
     label="Hide Background Graphics"
+  ></mjx-checkbox>`,  // Notes Master (a view tab). `Shell/PowerPoint` never draws a view tab, so these fourteen bindings and the seven
+  // menus they open are written here and nowhere else. Page Setup's two and Edit Theme's and Background's five are
+  // dropdowns over `stories/ribbons/slide-master-menus.ts`; Placeholders' six and Hide Background Graphics are
+  // checkboxes.
+  'powerpoint.notes-master.page-setup.notes-page-orientation': html`<mjx-button
+    label="Notes Page Orientation"
+    icon="orientation"
+    size="large"
+    data-opens="ribbons-powerpoint-notes-master-page-setup-notes-page-orientation"
+  ></mjx-button>`,
+  'powerpoint.notes-master.page-setup.slide-size': html`<mjx-button
+    label="Slide Size"
+    icon="slide-size"
+    size="large"
+    data-opens="ribbons-powerpoint-notes-master-page-setup-slide-size"
+  ></mjx-button>`,
+  'powerpoint.notes-master.placeholders.header': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-header"
+    label="Header" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.placeholders.slide-image': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-slide-image"
+    label="Slide Image" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.placeholders.footer': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-footer"
+    label="Footer" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.placeholders.date': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-date"
+    label="Date" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.placeholders.body': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-body"
+    label="Body" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.placeholders.page-number': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-page-number"
+    label="Page Number" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.notes-master.edit-theme.themes': html`<mjx-button
+    label="Themes"
+    icon="style-guide"
+    size="large"
+    data-opens="ribbons-powerpoint-notes-master-edit-theme-themes"
+  ></mjx-button>`,
+  'powerpoint.notes-master.edit-theme.colours': html`<mjx-button
+    label="Colours"
+    icon="color"
+    size="small"
+    data-opens="ribbons-powerpoint-notes-master-edit-theme-colours"
+  ></mjx-button>`,
+  'powerpoint.notes-master.edit-theme.fonts': html`<mjx-button
+    label="Fonts"
+    icon="text-font"
+    size="small"
+    data-opens="ribbons-powerpoint-notes-master-edit-theme-fonts"
+  ></mjx-button>`,
+  'powerpoint.notes-master.edit-theme.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-notes-master-edit-theme-effects"
+  ></mjx-button>`,
+  'powerpoint.notes-master.background.background-styles': html`<mjx-button
+    label="Background Styles"
+    icon="color-background"
+    size="small"
+    data-opens="ribbons-powerpoint-notes-master-background-background-styles"
+  ></mjx-button>`,
+  'powerpoint.notes-master.background.hide-background-graphics': html`<mjx-checkbox
+    id="ribbons-powerpoint-notes-master-hide-background-graphics"
+    label="Hide Background Graphics"
   ></mjx-checkbox>`,
 };
 
@@ -1191,7 +1264,36 @@ export const SlideMasterHome: Story = { render: () => ribbon('slide-master-home'
  */
 export const HandoutMaster: Story = { render: () => ribbon('handout-master') };
 
-/** Unit 10, and a view tab. */
+/**
+ * **Notes Master**: the printed notes page, the slide image at its top, the notes body under it, and the header,
+ * date, footer and page number around them. A view tab Office shows only in Notes Master view. Authored after Handout
+ * Master, one tab of one application, and PowerPoint's sixth view tab. Five groups: Page Setup, Placeholders, Edit
+ * Theme, Background and Close. What to look at, least certain first:
+ *
+ * 1. ⚠ **Page Setup draws two large dropdowns**, Notes Page Orientation and Slide Size, where the census counts 3.
+ *    `GUESS:` that the census counts Slide Size's face and arrow as two, as Slide Master's Size does. Handout
+ *    Master's reading of its own Page Setup would give 4 here, so the two counts disagree with each other.
+ * 2. ⚠ **Collapse order is the reverse of Handout Master's.** The census makes Background `primary` and Page Setup
+ *    `standard` on this tab. Drag narrow: Close goes first, then Page Setup, Placeholders and Edit Theme, and
+ *    Background last. Do the same on `HandoutMaster`: there Background goes before Page Setup. Judge whether that
+ *    difference is right for Office.
+ * 3. **Six checkboxes in Placeholders**: Header, Slide Image, Footer, Date, Body and Page Number, all ticked. Office
+ *    draws two columns of three, Header, Slide Image and Footer down the first. Check the order they flow in here, and
+ *    untick one: it unticks and no other does. `GUESS:` the order and that all six start ticked.
+ * 4. **Notes Page Orientation** opens Portrait (checked) and Landscape, Layout's list. **Slide Size** opens Standard
+ *    (4:3), Widescreen (16:9, checked) and Custom Slide Size…, Design's list. Both match `HandoutMaster`'s entry for
+ *    entry.
+ * 5. **Edit Theme, Background and Close are Slide Master's.** Switch between this story and `SlideMaster`: the three
+ *    groups should match command for command, glyph for glyph and list for list, with the one *Format Background*
+ *    launcher on Background. Inspect a command: its id carries `notes-master`. Tick Hide Background Graphics here,
+ *    then open `HandoutMaster`: that tab's checkbox has not changed. Office greys Themes here; it is drawn available.
+ * 6. **No survivor anywhere.** Drag narrow: each group collapses to a trigger with nothing beside it, and every
+ *    command opens from its popup.
+ * 7. **Glyphs to judge**, all `GUESS:` and none new: the turning page and the resized frame, then Slide Master's
+ *    swatch book, palette, letters, shadowed square, paint bucket and cross in a square.
+ * 8. **Not in `Shell/PowerPoint`**: the shell's strip has no Notes Master tab, and no Notes Master menu is on that
+ *    page.
+ */
 export const NotesMaster: Story = { render: () => ribbon('notes-master') };
 
 /** A view tab: Office shows it only while a deck is being previewed in black and white. */

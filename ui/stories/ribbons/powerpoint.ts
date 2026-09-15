@@ -67,6 +67,10 @@
  * commands, the printed handout page. Edit Theme, Background and Close are Slide Master's functions under this tab's
  * ids; Page Setup's three menus and Placeholders' four checkboxes are its own.
  *
+ * **Notes Master** followed Handout Master, PowerPoint's sixth view tab authored: five groups and fifteen commands, the
+ * printed notes page. Edit Theme, Background and Close are Slide Master's functions under this tab's ids; Page Setup's
+ * two menus and Placeholders' six checkboxes are its own.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -560,11 +564,42 @@ export function powerpointHandoutMasterTab(options: TabOptions = {}): TemplateRe
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointNotesMasterTab(): TemplateResult {
-  return placeholderTab(entry('notes-master'));
+/**
+ * Notes Master: Page Setup, Placeholders, Edit Theme, Background, Close — PowerPoint's sixth view tab authored, in
+ * **Office's** order, which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only in Notes Master view**, so `powerpointTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks, which is why the tab's bindings and menus are
+ * written there and nowhere else. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * ⚠ **Background is this tab's `primary` group and Page Setup `standard`**, the census's priorities and the reverse
+ * of Handout Master's.
+ *
+ * **Edit Theme, Background and Close are Slide Master's**, from the census's master-view functions under this tab's
+ * ids. **Page Setup and Placeholders are this tab's own.**
+ *
+ * **Fourteen of the tab's fifteen commands are bound by the host**: Notes Page Orientation, Slide Size, Themes,
+ * Colours, Fonts, Effects and Background Styles are dropdowns over `stories/ribbons/slide-master-menus.ts`; Header,
+ * Slide Image, Footer, Date, Body, Page Number and Hide Background Graphics are checkboxes. Close Master View is the
+ * generic button.
+ *
+ * **One dialog launcher, on Background**, which opens the Format Background pane. **No survivor.**
+ */
+export function powerpointNotesMasterTab(options: TabOptions = {}): TemplateResult {
+  const notesMaster = entry('notes-master');
+  const controls = options.controls ?? {};
+  return tab(
+    notesMaster.id,
+    notesMaster.label,
+    censusGroup(notesMaster, 'GroupPageSetupNotesMaster', {}, controls),
+    censusGroup(notesMaster, 'GroupPlaceholdersNotesMaster', {}, controls),
+    censusGroup(notesMaster, 'GroupMasterEditTheme', {}, controls),
+    censusGroup(notesMaster, 'GroupBackground', { launcher: 'Format Background' }, controls),
+    censusGroup(notesMaster, 'GroupMasterClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointBlackAndWhiteTab(): TemplateResult {
   return placeholderTab(entry('black-and-white'));

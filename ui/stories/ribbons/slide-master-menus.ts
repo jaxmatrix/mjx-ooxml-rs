@@ -1,6 +1,6 @@
 /**
- * **The menus the master view tabs open**: PowerPoint's Slide Master, the Home tab beside it and Handout Master today,
- * and Notes Master when its unit lands, written once for the host that draws them.
+ * **The menus the master view tabs open**: PowerPoint's Slide Master, the Home tab beside it, Handout Master and Notes
+ * Master, written once for the host that draws them.
  *
  * The pattern is `stories/ribbons/print-preview-menus.ts`'s, for its reasons. A binding lives in its host. The
  * menu it opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host
@@ -42,6 +42,14 @@
  * list. Its Page Setup opens three menus: **Handout Orientation** over Layout's `orientationEntries()`, **Slide
  * Size** over Design's `slideSizeEntries()`, and **Slides Per Page**, Office's seven handout layouts, which is
  * Handout Master's own list because no other tab opens it. Its Placeholders are checkboxes and open nothing.
+ *
+ * ## PowerPoint's Notes Master
+ *
+ * **The second unit to take the shared seam, and the first to write no list at all**: `notesMasterMenus` writes Edit
+ * Theme's four and Background Styles' `commandMenu` calls under its own ids over `editThemeMenuEntries` and
+ * `backgroundMenuEntries`, and its Page Setup opens two menus over lists already written, **Notes Page Orientation**
+ * over Layout's `orientationEntries()` and **Slide Size** over Design's `slideSizeEntries()`. Its six Placeholders
+ * are checkboxes and open nothing.
  *
  * ## Who renders these
  *
@@ -208,16 +216,35 @@ function handoutMasterMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── PowerPoint's Notes Master ────────────────────────────────────────────────
+
+/**
+ * Seven menus: Page Setup's two, Edit Theme's four and Background Styles. Header, Slide Image, Footer, Date, Body, Page
+ * Number and Hide Background Graphics are checkboxes the host binds; Close Master View opens nothing.
+ */
+function notesMasterMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.notes-master.page-setup.notes-page-orientation', 'Notes Page Orientation', ...orientationEntries())}
+    ${commandMenu(host, 'powerpoint.notes-master.page-setup.slide-size', 'Slide Size', ...slideSizeEntries())}
+    ${commandMenu(host, 'powerpoint.notes-master.edit-theme.themes', 'Themes', ...editThemeMenuEntries.themes())}
+    ${commandMenu(host, 'powerpoint.notes-master.edit-theme.colours', 'Colours', ...editThemeMenuEntries.colours())}
+    ${commandMenu(host, 'powerpoint.notes-master.edit-theme.fonts', 'Fonts', ...editThemeMenuEntries.fonts())}
+    ${commandMenu(host, 'powerpoint.notes-master.edit-theme.effects', 'Effects', ...editThemeMenuEntries.effects())}
+    ${commandMenu(host, 'powerpoint.notes-master.background.background-styles', 'Background Styles', ...backgroundMenuEntries.backgroundStyles())}
+  `;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
- * Every master view's menus, as each unit authors them. Notes Master adds its own here; Slide Master Home is not a
+ * Every master view's menus, as each unit authors them, one function per master view tab. Slide Master Home is not a
  * master view of its own, and shares this file because it is shown inside Slide Master view.
  */
 const menusByTab: readonly ((host: RibbonSurfaceHost) => TemplateResult)[] = [
   slideMasterMenus,
   slideMasterHomeMenus,
   handoutMasterMenus,
+  notesMasterMenus,
 ];
 
 /**

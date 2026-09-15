@@ -109,7 +109,8 @@
  * its Clipboard, Font, Paragraph, Drawing and Editing groups written once as functions of the Home tab they share;
  * see that section's *PowerPoint's Slide Master Home* part. **PowerPoint's Handout Master** followed, PowerPoint's
  * fifth view tab authored, calling Slide Master's Edit Theme, Background and Close functions; see that section's
- * *PowerPoint's Handout Master* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * *PowerPoint's Handout Master* part. **PowerPoint's Notes Master** followed, PowerPoint's sixth view tab
+ * authored, calling the same three functions; see that section's *PowerPoint's Notes Master* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -5327,6 +5328,116 @@ const powerpointHandoutMasterPlaceholders: readonly RibbonCommand[] = [
   { id: 'powerpoint.handout-master.placeholders.page-number', label: 'Page Number', toggle: true, pressed: true },
 ];
 
+// ## PowerPoint's Notes Master
+//
+// The unit after Handout Master, one tab of one application: **PowerPoint's `TabNotesMaster`**, all five in-scope
+// groups and fifteen commands, and PowerPoint's sixth view tab authored. Office shows it only in Notes Master view,
+// which View's *Notes Master* opens: one printed notes page, the slide image at its top, the notes body under it,
+// and the header, date, footer and page number around them. *Close Master View* takes the deck back to Normal.
+//
+// ## Three groups are Slide Master's, called rather than written
+//
+// **Edit Theme, Background and Close are `masterEditThemeCommands('notes-master')`,
+// `masterBackgroundCommands('notes-master')` and `masterCloseCommands('notes-master')`**, as Handout Master's are.
+// The rows' ids and counts (4, 11 and 1) are Slide Master's, and so are every shape, size, glyph and reason,
+// disagreements 1, 3, 6 and 8 of that part included. Every id is `powerpoint.notes-master.<group>.<command>`, so a
+// host binds this tab's controls apart from Slide Master's and Handout Master's. **Page Setup and Placeholders are
+// this tab's own** and are declared as constants.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Two dropdowns a host binds in Page Setup**: Notes Page Orientation, over Layout's own `orientationEntries()`,
+// and Slide Size, over Design's `slideSizeEntries()`. Neither list is written again. **Six checkboxes a host binds
+// in Placeholders**: Header, Slide Image, Footer, Date, Body and Page Number, all ticked. The shared groups add
+// **five dropdowns** (Themes, Colours, Fonts, Effects, Background Styles), **one checkbox** (Hide Background
+// Graphics), **one button** (Close Master View) and **one dialog launcher**, Format Background. **No field, no
+// gallery, no split button, no toggle, no exclusive set**, and no list of this tab's own.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Page Setup counts 3 and draws 2.** `GUESS:` the reading that the census counts **Slide Size's face and its
+//    arrow as two**, exactly as Slide Master's Size counts 2 for the same one command (that part's disagreement 4),
+//    and Notes Page Orientation as the third. A second reading also reaches 3: **PowerPoint 2010's group**, *Page
+//    Setup* (a dialog), *Notes Page Orientation* and *Slide Orientation* (disagreement 4 below). **Handout Master's
+//    reading does not reach it**: counting the choices the menus offer gives 4 here (Portrait and Landscape,
+//    Standard and Widescreen), so the census's two Page Setup counts cannot both be read one way, and this unit
+//    records that rather than choosing a reading that fits both. Nothing is padded.
+// 2. **Placeholders counts 6 and draws 6**, one checkbox per placeholder. **Edit Theme (4) and Close (1) draw their
+//    counts; Background counts 11 and draws 2 and a launcher**, Slide Master's disagreement 3, unchanged.
+// 3. **Background is `primary` and Page Setup `standard` on this tab**, the census's priorities, kept. They are the
+//    reverse of Handout Master's, where Page Setup is `primary` and Background `standard`, although the two tabs'
+//    Background rows are the same group with the same commands. So as the ribbon narrows here Page Setup,
+//    Placeholders and Edit Theme collapse before Background does, and on Handout Master Background collapses
+//    before Page Setup. The census wins; no reason for the difference is recorded in it.
+// 4. **PowerPoint 2010's Page Setup is not this one.** 2010 drew *Page Setup*, *Notes Page Orientation* and *Slide
+//    Orientation*; Microsoft 365 draws Notes Page Orientation and Slide Size. The brief names 365's two and they
+//    are drawn. `GUESS:` both, from memory.
+// 5. **Notes Page Orientation opens Layout's list unchanged**, Portrait checked, as Handout Orientation does: a
+//    notes page prints portrait by default. `GUESS:` that Office's labels are Word's.
+// 6. **All six placeholders start ticked**: a new deck's notes master carries all six. `GUESS:`. The order is the
+//    brief's, Header, Slide Image and Footer, then Date, Body and Page Number, which is Office's two columns of
+//    three read down each column. `GUESS:` that column order.
+// 7. **Office greys Themes on Notes Master** (`GUESS:`), because a notes master cannot take a theme of its own. It
+//    is drawn available, because `disabled` is loop 2's, and so is Hide Background Graphics.
+// 8. **The launcher at Background's corner is Format Background**, as on Slide Master and Handout Master.
+//    `GUESS:` that Notes Master keeps it.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Page Setup**: none. Notes Page Orientation and Slide Size each open a menu, which fails rule 1.
+// - **Placeholders**: none. All six are checkboxes, which the gate refuses.
+// - **Edit Theme**: none. All four open menus, as on Slide Master.
+// - **Background**: none. Background Styles opens a menu and Hide Background Graphics is a checkbox. Its `primary`
+//   priority changes when the group collapses, not what may survive it.
+// - **Close**: none. Close Master View leaves the view and takes the tab with it, and it is the only command.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Notes Page Orientation and Slide Size are `large`, side by side, and the
+// six checkboxes are small. The shared groups keep Slide Master's sizes. Every glyph is one this subset already
+// carries, and every one is `GUESS:`:
+//
+// - **Notes Page Orientation draws `orientation`**, Layout's, both Print Previews' and Handout Orientation's: a
+//   portrait page turning to landscape, the same choice.
+// - **Slide Size draws `slide-size`**, Design's, Slide Master's and Handout Master's.
+// - **Themes, Colours, Fonts, Effects, Background Styles and Close Master View** draw Slide Master's `style-guide`,
+//   `color`, `text-font`, `square-shadow`, `color-background` and `dismiss-square`.
+//
+// **Seven commands carry no glyph, and say why**: Header, Slide Image, Footer, Date, Body, Page Number and Hide
+// Background Graphics are checkboxes, which draw their tick box.
+
+/**
+ * PowerPoint's `GroupPageSetupNotesMaster`, labelled **Page Setup**: Notes Page Orientation and Slide Size, both
+ * large. See disagreements 1, 4 and 5.
+ *
+ * **Both are dropdowns** a host binds, over the menus in `stories/ribbons/slide-master-menus.ts`.
+ *
+ * **No survivor**: two menus.
+ */
+const powerpointNotesMasterPageSetup: readonly RibbonCommand[] = [
+  { id: 'powerpoint.notes-master.page-setup.notes-page-orientation', label: 'Notes Page Orientation', icon: 'orientation', size: 'large' },
+  { id: 'powerpoint.notes-master.page-setup.slide-size', label: 'Slide Size', icon: 'slide-size', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupPlaceholdersNotesMaster`, labelled **Placeholders**: Header, Slide Image and Footer, then Date,
+ * Body and Page Number. See disagreements 2 and 6.
+ *
+ * **All six are toggles drawn as checkboxes**, ticked, which a host binds.
+ *
+ * **No survivor**: six checkboxes.
+ */
+const powerpointNotesMasterPlaceholders: readonly RibbonCommand[] = [
+  { id: 'powerpoint.notes-master.placeholders.header', label: 'Header', toggle: true, pressed: true },
+  { id: 'powerpoint.notes-master.placeholders.slide-image', label: 'Slide Image', toggle: true, pressed: true },
+  { id: 'powerpoint.notes-master.placeholders.footer', label: 'Footer', toggle: true, pressed: true },
+  { id: 'powerpoint.notes-master.placeholders.date', label: 'Date', toggle: true, pressed: true },
+  { id: 'powerpoint.notes-master.placeholders.body', label: 'Body', toggle: true, pressed: true },
+  { id: 'powerpoint.notes-master.placeholders.page-number', label: 'Page Number', toggle: true, pressed: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -5943,11 +6054,11 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabNotesMaster' },
     groups: [
-      { id: 'GroupPageSetupNotesMaster', label: 'Page Setup', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupPlaceholdersNotesMaster', label: 'Placeholders', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupBackground', label: 'Background', priority: 'primary', controls: 11, inScope: true },
-      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupPageSetupNotesMaster', label: 'Page Setup', priority: 'standard', controls: 3, inScope: true, commands: powerpointNotesMasterPageSetup },
+      { id: 'GroupPlaceholdersNotesMaster', label: 'Placeholders', priority: 'standard', controls: 6, inScope: true, commands: powerpointNotesMasterPlaceholders },
+      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true, commands: masterEditThemeCommands('notes-master') },
+      { id: 'GroupBackground', label: 'Background', priority: 'primary', controls: 11, inScope: true, commands: masterBackgroundCommands('notes-master') },
+      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: masterCloseCommands('notes-master') },
     ],
   },
   {
