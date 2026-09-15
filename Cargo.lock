@@ -1034,6 +1034,7 @@ dependencies = [
  "mjx-fixtures",
  "mjx-geometry",
  "mjx-layout",
+ "mjx-layout-docx",
  "mjx-layout-pptx",
  "mjx-layout-xlsx",
  "mjx-ooxml-core",
