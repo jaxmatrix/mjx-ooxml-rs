@@ -377,8 +377,9 @@ function printAreaEntries(): TemplateResult[] {
 // `stories/ribbons/picture-tools-menus.ts` under that tab's ids, so Position, Wrap Text, Group and Rotate are exported
 // too. **PowerPoint's Picture Format** renders Bring Forward, Send Backward, Align, Group and Rotate for PowerPoint there
 // in the same way; it has no Position or Wrap Text. **Excel's Picture Format** renders the same five for Excel, Align
-// ending on Excel's snaps. **PowerPoint's Shape Format** renders PowerPoint's five again, and **Word's Shape Format**
-// all seven of Word's, from `stories/ribbons/drawing-tools-menus.ts`, under those tabs' ids.
+// ending on Excel's snaps. **PowerPoint's Shape Format** renders PowerPoint's five again, **Word's Shape Format** all
+// seven of Word's, and **Excel's Shape Format** Excel's five, from `stories/ribbons/drawing-tools-menus.ts`, under those
+// tabs' ids.
 
 /** Position, in Word: in line, three of Office's nine wrapped positions, and the dialog. */
 export function positionEntries(): TemplateResult[] {

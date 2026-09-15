@@ -23,9 +23,16 @@ import {
   scalePercentages,
   type ControlOverrides,
 } from './ribbon-parts.ts';
-import { colourPickerEntries, outlineEntries } from './colour-picker-entries.ts';
+import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
+import {
+  drawingToolsMenus,
+  excelShapeMeasures,
+  shapeFillEntryOptions,
+  shapeOutlineEntryOptions,
+  shapeStyleGalleryItems,
+} from './drawing-tools-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
@@ -40,6 +47,7 @@ import {
   tableToolsMenus,
 } from './table-tools-menus.ts';
 import { excelSheetViews, viewMenus } from './view-menus.ts';
+import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-styles-menus.ts';
 
 /**
  * **Excel's ribbon, tab by tab** — the same functions `Shell/Excel` composes.
@@ -51,11 +59,11 @@ import { excelSheetViews, viewMenus } from './view-menus.ts';
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
- * Print Preview and Background Removal. **Of the five contextual tabs, Table Design and Picture Format are authored**,
- * Excel's first two; **the other three are placeholders** at the census's own priorities: Shape Format, Chart Design
+ * Print Preview and Background Removal. **Of the five contextual tabs, Table Design, Picture Format and Shape Format
+ * are authored**, Excel's first three; **the other two are placeholders** at the census's own priorities: Chart Design
  * and Format. Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone,
- * and binds Table Design as this file does, which is why Picture Format's bindings and menus are written here and
- * nowhere else. See
+ * and binds Table Design as this file does, which is why Picture Format's and Shape Format's bindings and menus are
+ * written here and nowhere else. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -77,7 +85,7 @@ const meta: Meta = {
           'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
           'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, Table ' +
-          'Design and Picture Format are authored; Shape Format, Chart Design and Format are placeholders carrying ' +
+          'Design, Picture Format and Shape Format are authored; Chart Design and Format are placeholders carrying ' +
           'the census’s priorities.',
       },
     },
@@ -788,6 +796,166 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Shape Format (a contextual tab, in Drawing Tools). `Shell/Excel` draws Table Tools alone, so these seventeen bindings
+  // and `drawingToolsMenus('excel', …)` are written here and nowhere else. Every menu, the Theme Styles gallery, the
+  // entry options and the starting measures are `stories/ribbons/drawing-tools-menus.ts`'s; the WordArt gallery is
+  // `stories/ribbons/wordart-styles-menus.ts`'; the four pickers and both galleries' pictures read this workbook's
+  // palette. Other Theme Fills, under the Theme Styles gallery, opens the menu declared for the gallery's own command.
+  // Text Box is the generic button, and Alt Text and Selection Pane the generic toggle; none is bound.
+  'excel.shape-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-excel-shape-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'excel.shape-format.insert-shapes.edit-shape': html`<mjx-button
+    label="Edit Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-excel-shape-format-insert-shapes-edit-shape"
+  ></mjx-button>`,
+  'excel.shape-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-xl-shape-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-excel-shape-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'excel.shape-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-xl-shape-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="theme:accent1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.shape-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-xl-shape-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="theme:accent1/darker50"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(shapeOutlineEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.shape-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-excel-shape-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'excel.shape-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-xl-shape-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  // Excel's Text Fill and Text Outline are PowerPoint's less the Eyedropper: a shape's text in a workbook is DrawingML
+  // text, as a slide's is, so it keeps Picture…, Texture ▸ and Sketched ▸, which Word's shorter pair drops. See the
+  // census's Excel's Shape Format disagreement 6.
+  'excel.shape-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-xl-shape-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:background1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Text Fill',
+      fillEntries({ moreColours: 'More Fill Colours…', picture: true, gradient: true, texture: true }),
+    )}
+  </mjx-color-picker>`,
+  'excel.shape-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-xl-shape-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Text Outline',
+      outlineEntries({ moreColours: 'More Outline Colours…', weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'excel.shape-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-excel-shape-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'excel.shape-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="large"
+    data-opens="ribbons-excel-shape-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.shape-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="large"
+    data-opens="ribbons-excel-shape-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.shape-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-excel-shape-format-arrange-align"
+  ></mjx-button>`,
+  'excel.shape-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-excel-shape-format-arrange-group"
+  ></mjx-button>`,
+  'excel.shape-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-excel-shape-format-arrange-rotate"
+  ></mjx-button>`,
+  'excel.shape-format.size.height': html`<mjx-measure-input
+    id="ribbons-xl-shape-format-height"
+    label="Height"
+    value=${excelShapeMeasures.height}
+    unit="cm"
+    step=${excelShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'excel.shape-format.size.width': html`<mjx-measure-input
+    id="ribbons-xl-shape-format-width"
+    label="Width"
+    value=${excelShapeMeasures.width}
+    unit="cm"
+    step=${excelShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -817,6 +985,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
     ${viewMenus('excel', 'ribbons')} ${printPreviewMenus('excel', 'ribbons')}
     ${tableToolsMenus('excel', 'ribbons')} ${pictureToolsMenus('excel', 'ribbons')}
+    ${drawingToolsMenus('excel', 'ribbons')}
   `;
 }
 
@@ -1168,8 +1337,45 @@ export const TableDesign: Story = { render: () => ribbon('table-design') };
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 
 /**
- * **Shape Format** — a placeholder. Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange
- * and Size. Excel's has no Text group.
+ * **Shape Format**: which shape a shape over the worksheet is, how it is filled, outlined and given effects, how its
+ * text is dressed, how it is described, where it sits among the sheet's objects, and its size. Drawing Tools' one tab,
+ * and Excel's third contextual tab authored; Office shows it only while a shape, a text box or a WordArt is selected.
+ * Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange and Size. **It is PowerPoint's Shape
+ * Format wherever Office's Excel is**, so `Ribbons/PowerPoint`'s `ShapeFormat` story covers the Theme Styles pictures,
+ * Other Theme Fills, the Shapes list and Edit Shape; and Arrange is this file's `PictureFormat`'s. What to look at here,
+ * least certain first:
+ *
+ * 1. ⚠ **Text Box is a small plain button**, beside Edit Shape, where Word's is a Draw Text Box split button. Press it:
+ *    nothing opens, because it arms a drawing gesture. The census counts Excel's Insert Shapes 12, exactly Word's, and
+ *    Word's 12 is reached only through its split button, so **this is the call on the tab most likely to be wrong**.
+ *    **No Merge Shapes** beside it. `GUESS:` both.
+ * 2. ⚠ **Text Fill and Text Outline are PowerPoint's less the Eyedropper**, not Word's shorter pair. Text Fill starts on
+ *    Background 1 (the white text of an inserted shape), with *No Fill*, More Fill Colours…, Picture…, Gradient ▸ and
+ *    Texture ▸ beneath the palette; Text Outline starts on none, with *No Outline*, More Outline Colours…, Weight ▸,
+ *    Sketched ▸ and Dashes ▸. `GUESS:` all of it, Sketched most.
+ * 3. ⚠ **No Eyedropper anywhere.** Shape Fill starts on Accent 1 with More Fill Colours…, Picture…, Gradient ▸ and
+ *    Texture ▸; Shape Outline on Accent 1, Darker 50%, with More Outline Colours…, Weight ▸, Sketched ▸, Dashes ▸ and
+ *    Arrows ▸. `GUESS:` both starts, and that recent builds have not brought the Eyedropper to Excel.
+ * 4. ⚠ **Arrange is Picture Format's six, not Word's eight**: **Bring Forward and Send Backward large** split buttons at
+ *    the head, their arrows without Word's text layers; Selection Pane small with no glyph; **Align ending on Snap to
+ *    Grid, Snap to Shape and View Gridlines, the last ticked**; Group and Rotate. No Position or Wrap Text.
+ * 5. **Shapes** opens the whole gallery with **no Action Buttons and no New Drawing Canvas**, the list `Insert → Shapes`
+ *    opens. **Edit Shape**'s Change Shape has no Action Buttons either, and Reroute Connectors is unavailable.
+ * 6. **Height and Width start on 2.54 cm**, stepping by 0.01. `GUESS:` both. They do not follow each other.
+ * 7. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', and **Size
+ *    and Properties** at Size's, as on Picture Format, where PowerPoint's says *Size and Position* and Word's *Layout*.
+ *    `GUESS:` all three.
+ * 8. **Theme Styles and Quick Styles** are PowerPoint's galleries in this workbook's palette, Other Theme Fills in the
+ *    first one's footer; **Shape Effects** opens Picture Effects' seven submenus; **Text Effects** WordArt's six.
+ * 9. **Alt Text** is a large toggle, unpressed; its glyph, a picture with a label, is **the weakest on the tab**. No pane
+ *    opens, nor does Selection Pane's or any launcher's.
+ * 10. **Glyphs**: eleven, every one reused (Shapes, Edit Shape, Text Box, Shape Effects, Text Effects, Alt Text and
+ *     Arrange's five). The two galleries, the four colour pickers, Height, Width and Selection Pane carry none.
+ * 11. **No survivor anywhere.** Drag narrow: Accessibility (`secondary`) gives way first, then Insert Shapes, WordArt
+ *     Styles, Arrange and Size (`standard`), and Shape Styles (`primary`) last; each collapses to a trigger with nothing
+ *     beside it.
+ * 12. **Not in `Shell/Excel`**, which draws Table Tools: there is no Drawing Tools band there and none of these menus is
+ *     on that page.
  */
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 

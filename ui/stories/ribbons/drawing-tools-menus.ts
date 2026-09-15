@@ -1,12 +1,16 @@
 /**
  * **The menus, gallery and starting measures the Shape Format tab opens**, written once for all three applications:
- * PowerPoint's and Word's Shape Format today, and Excel's when its unit lands. Insert's Shapes menu reads the same
+ * PowerPoint's, Word's and Excel's Shape Format. Insert's Shapes menu reads the same
  * shape gallery (`insertShapesEntries`), so the gallery Office repeats on two tabs is written once.
  *
  * **Word's differs from PowerPoint's only where Office's Word does**, and those pieces are written here beside the
  * shared ones: `drawTextBoxEntries()`, Draw Text Box's arrow, where PowerPoint has a plain Text Box and Merge Shapes;
  * the **Text** group's `wordTextDirectionEntries()` and `alignTextEntries()`; `wordShapeMeasures`; and Word's
  * Position and Wrap Text menus, rendered from `design-layout-menus.ts`.
+ *
+ * **Excel's differs from PowerPoint's only where Office's Excel does**, and needs less of its own: no Merge Shapes (so
+ * Insert Shapes opens two menus), no Eyedropper (which `shapeFillEntryOptions` and `shapeOutlineEntryOptions` already
+ * gave every application but PowerPoint), Excel's Arrange lists, and `excelShapeMeasures`.
  *
  * The pattern is `stories/ribbons/picture-tools-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -32,8 +36,8 @@
  *   id is Shape Format's.
  * - **Arrange is not here either**: its commands are `arrangeCommands` and its lists are
  *   `stories/ribbons/design-layout-menus.ts`'. The menus are rendered here, under Shape Format's ids.
- * - **Size**: `powerpointShapeMeasures` and `wordShapeMeasures`, the height and width each host starts its two fields
- *   on.
+ * - **Size**: `powerpointShapeMeasures`, `wordShapeMeasures` and `excelShapeMeasures`, the height and width each host
+ *   starts its two fields on.
  *
  * `GUESS:` every label, order and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * spelling the census's wins (*Coloured*, *Centre*).
@@ -439,6 +443,13 @@ export const powerpointShapeMeasures = { height: '2.54', width: '2.54', step: '0
  */
 export const wordShapeMeasures = { height: '2.54', width: '2.54', step: '0.01' } as const;
 
+/**
+ * **The height and width an Excel host starts Size's two fields on**, in centimetres: a shape Excel inserts with one
+ * click, one inch square, as PowerPoint's and Word's. Its own constant because a workbook's measures are Excel's, as
+ * `excelPictureMeasures` is beside Word's and PowerPoint's. `GUESS:` both numbers, the 0.01 cm step, and centimetres.
+ */
+export const excelShapeMeasures = { height: '2.54', width: '2.54', step: '0.01' } as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -493,17 +504,38 @@ function wordDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Shape Format tab opens, with ids for one host's page. **PowerPoint's and Word's are
- * authored**; Excel's renders nothing until its unit, exactly as `pictureToolsMenus` rendered nothing before it. That
- * unit adds a branch here and calls the lists above with its application.
+ * Excel's ten menus. **Insert Shapes' two**: Shapes (the whole gallery, with no Action Buttons and no New Drawing
+ * Canvas) and Edit Shape; Text Box is a plain button and there is no Merge Shapes. **Shape Styles' two** and **WordArt
+ * Styles' one**, as PowerPoint's. **Arrange's five**, over `stories/ribbons/design-layout-menus.ts`' Excel lists, as
+ * Excel's Picture Format: Bring Forward and Send Backward with no text layer, Align ending on Snap to Grid, Snap to
+ * Shape and View Gridlines, then Group and Rotate. Every other Shape Format command is a field, a picker, a gallery, a
+ * toggle or a plain button.
+ */
+function excelDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'excel.shape-format.insert-shapes.shapes', 'Shapes', ...insertShapesEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.insert-shapes.edit-shape', 'Edit Shape', ...editShapeEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
+    ${commandMenu(host, 'excel.shape-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
+    ${commandMenu(host, 'excel.shape-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'excel.shape-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.arrange.align', 'Align', ...alignEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'excel.shape-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+  `;
+}
+
+/**
+ * Every menu one application's Shape Format tab opens, with ids for one host's page. **All three are authored.**
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Drawing Tools **and** binds its
- * commands: `Ribbons/PowerPoint` and `Ribbons/Word`. `Shell/PowerPoint` draws Picture Tools and `Shell/Word` Table
- * Tools, so neither renders these, and `tests/ribbons.test.ts` requires each application's menus of its `Ribbons/*`
- * host alone.
+ * commands: `Ribbons/PowerPoint`, `Ribbons/Word` and `Ribbons/Excel`. `Shell/PowerPoint` draws Picture Tools and
+ * `Shell/Word` and `Shell/Excel` Table Tools, so none of them renders these, and `tests/ribbons.test.ts` requires each
+ * application's menus of its `Ribbons/*` host alone.
  */
 export function drawingToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult {
   if (application === 'powerpoint') return powerpointDrawingToolsMenus(host);
   if (application === 'word') return wordDrawingToolsMenus(host);
-  return html``;
+  return excelDrawingToolsMenus(host);
 }

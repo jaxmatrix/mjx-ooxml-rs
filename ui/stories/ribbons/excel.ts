@@ -54,8 +54,15 @@
  * gallery and the thumbnails in `stories/ribbons/picture-tools-menus.ts`, Arrange from `arrangeCommands` and Size from
  * `sizeCommands`. It differs where Office does: no Position or Wrap Text, Bring Forward and Send Backward large, Align
  * snapping to the grid, a picture's native starting size and Size's *Size and Properties* launcher. **`Ribbons/Excel`
- * alone binds it**, because `Shell/Excel` draws Table Tools. **The other three are placeholders**, each until its own
- * unit.
+ * alone binds it**, because `Shell/Excel` draws Table Tools.
+ *
+ * **Shape Format is authored**, the third and the last Shape Format of the three: six groups and twenty commands, how a
+ * shape over a worksheet is drawn and changed, styled, dressed as WordArt, described, placed and sized. It calls
+ * PowerPoint's Shape Format code (`insertShapesCommands`, `shapeStylesCommands`, `wordArtStylesCommands`,
+ * `arrangeCommands`, `sizeCommands` and `stories/ribbons/drawing-tools-menus.ts`) and differs only where Office's Excel
+ * does: no Merge Shapes, no Eyedropper, Bring Forward and Send Backward large, Align snapping to the grid, and Size's
+ * *Size and Properties* launcher. **`Ribbons/Excel` alone binds it**, because `Shell/Excel` draws Table Tools. **The
+ * other two, Chart Design and Format, are placeholders**, each until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -528,13 +535,46 @@ export function excelPictureFormatTab(options: TabOptions = {}): TemplateResult 
 }
 
 /**
- * Which function builds which contextual tab. **Table Design and Picture Format are authored; every other entry is
- * `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
+ * Shape Format: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange, Size — Excel's third contextual tab
+ * authored and the eleventh of all, in **Office's** order, which is also the census's. It sits under the *Drawing
+ * Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a shape, a text box or a WordArt over the sheet is selected.**
+ * `Ribbons/Excel` draws every contextual set and binds it. **`Shell/Excel` draws Table Tools alone**, so it binds none
+ * of this tab and renders none of its menus. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Seventeen of the tab's twenty commands are bound by the host**: Shapes, Edit Shape, Shape Effects, Text Effects,
+ * Align, Group and Rotate, dropdowns; Bring Forward and Send Backward, large split buttons; the Theme Styles and Quick
+ * Styles galleries, the first with Other Theme Fills under it; Shape Fill, Shape Outline, Text Fill and Text Outline,
+ * colour pickers; Height and Width, measure fields. Every menu is in `stories/ribbons/drawing-tools-menus.ts`. Text Box
+ * is a plain button, and Alt Text and Selection Pane generic toggles.
+ *
+ * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, Size and Properties
+ * on Size. **No survivor.**
+ */
+export function excelShapeFormatTab(options: TabOptions = {}): TemplateResult {
+  const shapeFormat = entry('shape-format');
+  const controls = options.controls ?? {};
+  return tab(
+    shapeFormat.id,
+    shapeFormat.label,
+    censusGroup(shapeFormat, 'GroupShapes', {}, controls),
+    censusGroup(shapeFormat, 'GroupShapeStyles', { launcher: 'Format Shape' }, controls),
+    censusGroup(shapeFormat, 'GroupWordArtStyles', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(shapeFormat, 'GroupAltText', {}, controls),
+    censusGroup(shapeFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(shapeFormat, 'GroupSize', { launcher: 'Size and Properties' }, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design, Picture Format and Shape Format are authored; every other
+ * entry is `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': excelTableDesignTab,
   'picture-format': excelPictureFormatTab,
-  'shape-format': () => placeholderTab(entry('shape-format')),
+  'shape-format': excelShapeFormatTab,
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),
 };

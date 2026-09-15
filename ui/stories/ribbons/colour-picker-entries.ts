@@ -3,8 +3,8 @@
  * Table Design Shading and Pen Colour, PowerPoint's Table Design Shading, Text Fill, Text Outline and Pen Colour, Word's,
  * PowerPoint's and Excel's Picture Format Picture Border (PowerPoint's alone with an Eyedropper), and PowerPoint's Shape
  * Format Shape Fill and Shape Outline (Arrows ▸ on the outline), Text Fill and Text Outline, and Word's Shape Format's
- * four, with no Eyedropper and a shorter Text Fill and Text Outline. Excel's Shape Format passes
- * `stories/ribbons/drawing-tools-menus.ts`' `shapeFillEntryOptions` and `shapeOutlineEntryOptions` when its unit lands.
+ * four, with no Eyedropper and a shorter Text Fill and Text Outline, and Excel's Shape Format's four, with no Eyedropper
+ * and PowerPoint's Text Fill and Text Outline otherwise.
  *
  * `<mjx-color-picker>` draws one slotted `<mjx-menu slot="entries">` beneath its swatches; its module note says why it
  * is a real menu and how the keyboard crosses into it. A binding writes the menu inside its picker:
