@@ -112,6 +112,7 @@ pub struct ConditionalEffect {
     /// after the rule fired. GUESS: that leaving the base format in force is closer to Excel than
     /// a second formatting pass would be; it is the one member of a `dxf` this build reports and
     /// does not honour, and it is marked here rather than in a changelog.
+    /// Owned by MJXOFF-258 (RC43), differential number formats.
     pub number_format: Option<(u32, Option<String>)>,
     /// The colour a scale interpolated, unresolved.
     pub scale: Option<ScaleBlend>,

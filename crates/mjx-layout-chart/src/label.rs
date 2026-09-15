@@ -14,6 +14,7 @@
 //! implementation. That is a ticket of its own; until it exists, this module formats a value by its
 //! **axis step**, which gets `0.002` and `1 400` right and gets `[Red]$#,##0.00` wrong by ignoring
 //! it, and the stated format is carried on the model so nothing is lost.
+//! Owned by MJXOFF-320 (RC26), chart number formats.
 
 use crate::model::{PlotModel, SeriesModel};
 use crate::scale::{Scale, Step};
@@ -47,6 +48,7 @@ pub fn format_value(value: f64, step: Step, percent: bool) -> String {
 /// a five-digit axis label with no grouping is the single clearest sign of a chart drawn by something
 /// that is not Office. `GUESS:` the separator is a comma, because this engine has no locale — a
 /// locale-aware separator needs the number-format language this module's docs describe.
+/// Owned by MJXOFF-320 (RC26), chart number formats.
 fn group_thousands(text: &str) -> String {
     let (sign, rest) = match text.strip_prefix('-') {
         Some(rest) => ("-", rest),

@@ -67,6 +67,7 @@ use crate::text::TextEngine;
 /// **`GUESS:`** the OpenType `MATH` table's `ScriptPercentScaleDown` default, 80 %. A font that
 /// carries the table states its own; `mjx-text` reads none, so this is the documented fallback
 /// rather than a measurement.
+/// Owned by MJXOFF-334 (RC41), the OpenType MATH table.
 pub const SCRIPT_SCALE: f64 = 0.8;
 
 /// How much smaller a second-level script is set — a superscript of a superscript.
@@ -1072,6 +1073,7 @@ fn scripts(
         // supplies — is **not implemented**, because `mjx-text` reads no such table (see this
         // module's own header). So `m:alnScr="0"` and `m:alnScr="1"` lay out identically, and the
         // flag is read and honoured in the direction this crate can honour it.
+        // Owned by MJXOFF-334 (RC41), staggered scripts.
         let _ = aligned;
         children.push(PlacedMathBox {
             x: script_x,
@@ -1414,6 +1416,7 @@ fn border_box(
     }
     // The two axis-aligned strikes. The two diagonal ones would need a transform, and this crate
     // resolves none — they are **not drawn**, which is stated here rather than silently dropped.
+    // Owned by MJXOFF-334 (RC41), diagonal strikes.
     let [horizontal, vertical, _rising, _falling] = strikes;
     if horizontal {
         let axis = context.axis();

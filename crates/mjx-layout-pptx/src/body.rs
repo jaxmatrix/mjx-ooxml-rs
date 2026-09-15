@@ -172,6 +172,7 @@ pub struct VerticalLayout {
 /// in the wrong places, which is the visible half of getting this wrong.
 ///
 /// # What is deliberately not implemented
+/// Owned by MJXOFF-332 (RC39), East Asian and WordArt vertical text.
 ///
 /// `eaVert`, `mongolianVert`, `wordArtVert` and `wordArtVertRtl` are **not** rotations. They stack
 /// upright glyphs down a column, which needs per-glyph vertical metrics, vertical substitution

@@ -39,6 +39,7 @@ const MAX_FRACTION_PLACEHOLDERS: u32 = 9;
 /// the *glyph advance* of the skipped character, which is a measurement rather than a string, and
 /// would make the formatted text depend on the font — see [`super`] for why that seam is not
 /// crossed here.
+/// Owned by MJXOFF-326 (RC33), width-dependent number formats.
 const SKIP_WIDTH: &str = " ";
 
 /// Renders `value` through `section`.

@@ -10,6 +10,7 @@
 //! **There is no companion for Word yet**, and that is stated rather than implied: the handles here
 //! are correct, deduplicated and addressable, and nothing resolves them until `mjx-scene-docx`
 //! exists. See the crate documentation.
+//! Owned by MJXOFF-255 (RC09), Word's scene companion.
 //!
 //! # A rule half a stroke wide
 //!

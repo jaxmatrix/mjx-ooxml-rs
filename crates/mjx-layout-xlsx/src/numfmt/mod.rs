@@ -48,6 +48,7 @@
 //! 1900 leap-year bug.
 //!
 //! Deliberately not implemented, and each degrades to a literal or to `General` rather than failing:
+//! Owned by MJXOFF-326 (RC33), localised names, the Japanese and Thai calendars and `*` expansion.
 //!
 //! * **Localised month and weekday names.** English only — see [`datetime`] for why a locale
 //!   database is not linked in to answer a question `[$-40C]` does not actually ask.

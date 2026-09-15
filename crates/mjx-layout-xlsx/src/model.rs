@@ -304,6 +304,7 @@ pub struct CellReport {
     /// five glyphs, none of them in any specification and none of them in this repository — and
     /// drawing a stand-in would be inventing a picture and presenting it as the file's. The index
     /// is asserted by a gate; the pixels wait for artwork somebody is entitled to ship.
+    /// Owned by MJXOFF-258 (RC43), icon sets.
     pub icon: Option<IconChoice>,
 }
 

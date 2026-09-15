@@ -110,6 +110,7 @@ pub struct Marker {
     /// `mjx-docx` keeps it unparsed on purpose, and this crate resolves no picture at all — the same
     /// line an inline drawing's *content* already sits on. What travels is that there is one, so a
     /// scene companion can draw it and a reader can be told why a bullet is missing.
+    /// Owned by MJXOFF-323 (RC30), picture bullets.
     pub picture_bullet: Option<i64>,
 }
 

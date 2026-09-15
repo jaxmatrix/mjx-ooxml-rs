@@ -79,6 +79,7 @@
 //! * **`c:numFmt` is not applied** — [`label`]. The number-format language has exactly one evaluator
 //!   in this workspace, in `mjx-layout-xlsx` at rank 3.6, and the edge would be upward. Moving it
 //!   down is a ticket of its own; a value is formatted by its axis step until then.
+//!   Owned by MJXOFF-320 (RC26), chart number formats.
 //! * **`c:plotArea > c:layout`'s stated plot rectangle is not read** — [`space`]. A chart whose
 //!   reader has dragged its plot area is laid out by the negotiation instead.
 //! * **Chart text is measured, not shaped** — [`text`]. All three hosts pass [`NominalMetrics`]

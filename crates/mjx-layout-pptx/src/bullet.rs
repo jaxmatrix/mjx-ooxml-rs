@@ -14,6 +14,7 @@
 //! and its next nested item `a)` again.
 //!
 //! # `a:buBlip` is still not drawn, and what is left is smaller than it was
+//! Owned by MJXOFF-323 (RC30), picture bullets.
 //!
 //! MJXOFF-170 built the half that was missing: a picture is an
 //! [`ImageRef`](mjx_layout::ImageRef) resolved through
@@ -125,6 +126,7 @@ pub fn marker_for(
         // A picture bullet is not drawn: a `PlacedMarker` is glyphs, and this would be an image.
         // See this module's own documentation for what that costs. The indents still apply, so the
         // text sits where it will sit once the picture arrives.
+        // Owned by MJXOFF-323 (RC30), picture bullets.
         Bullet::Picture(_) => {
             counters.interrupt(level);
             return None;

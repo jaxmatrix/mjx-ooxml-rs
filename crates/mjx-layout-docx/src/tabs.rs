@@ -55,6 +55,7 @@ impl TabKind {
             // GUESS: `num` aligns text to the list's own tab position, which is numbering and so
             // MJXOFF-177 (R22). Until a list has a number, its tab has no position, and a leading
             // tab is what the paragraph looks like without one.
+            // Owned by MJXOFF-323 (RC30), list tab alignment.
             TabStopType::List => Self::Leading,
         })
     }

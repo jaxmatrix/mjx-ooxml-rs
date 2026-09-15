@@ -477,6 +477,7 @@ fn tokenise(text: &str) -> (Vec<Raw>, Option<Condition>, Option<u32>) {
                 } else {
                     // `g`, `gg`, `ggg` are the Japanese era name, not implemented; it passes
                     // through as a literal rather than silently vanishing.
+                    // Owned by MJXOFF-326 (RC33), the Japanese era calendar.
                     push_literal(&mut raw, ch);
                     at += 1;
                 }

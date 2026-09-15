@@ -1095,6 +1095,7 @@ fn cell_path(surface: u32, shape: &[u32], placed: &PlacedCell) -> SourcePath {
 /// The two diagonals are not drawn at all: a diagonal is not a band, and drawing it as one would
 /// put a horizontal line across the cell. They are read (`CELL_EDGES` has six entries and
 /// `crate::deck` fills all six) so that the layer that grows a diagonal has the value waiting.
+/// Owned by MJXOFF-328 (RC35), table-cell diagonals.
 #[allow(
     clippy::too_many_arguments,
     reason = "one call site, and every argument is a different kind of thing the build genuinely \
