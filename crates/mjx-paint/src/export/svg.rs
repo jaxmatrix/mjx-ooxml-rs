@@ -472,7 +472,7 @@ impl SvgPainter {
                         continue;
                     };
                     let (size, x, y) = super::label_placement(*bounds, label);
-                    // The label's plate and letters are the same paths every painter draws; the text beneath them is selectable and not drawn.
+                    // The label's plate and letters are the same paths every painter draws; the text beneath them is selectable and invisible.
                     let drawn = lettering.as_ref().map_or(String::new(), |lettering| {
                         [
                             (&lettering.plate_outline, crate::PLACEHOLDER_LABEL_PLATE),
