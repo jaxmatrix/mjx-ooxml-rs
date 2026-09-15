@@ -42,6 +42,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
@@ -393,6 +394,43 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-word-insert-symbols-symbol"
             ></mjx-button>`,
+            // Draw (unit 4). Five dropdowns and a split Eraser, each opening its menu from
+            // `stories/ribbons/draw-menus.ts`. `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'word.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-word-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'word.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-word-draw-pens-pens"
+            ></mjx-button>`,
+            'word.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-word-draw-pens-colour"
+            ></mjx-button>`,
+            'word.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-word-draw-pens-thickness"
+            ></mjx-button>`,
+            'word.draw.write.eraser': html`<mjx-split-button
+              label="Eraser"
+              icon="eraser"
+              size="large"
+              data-opens="shell-word-draw-write-eraser"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-word-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -542,7 +580,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
         <mjx-menu-item label="Set Default Paste"></mjx-menu-item>
       </mjx-menu>
-      ${insertMenus('word', 'shell')}
+      ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

@@ -32,9 +32,10 @@
  *    PowerPoint 14 / 82, Excel 10 / 67"*. Filtering the TSV on `tab_set = "None (Core Tab)"` and
  *    `in_scope = 1` gives **Word 12 / 68, PowerPoint 18 / 96, Excel 10 / 67**. The filter is the
  *    thing a test can run, so the filter wins and every in-scope core tab is declared here.
- * 3. **Two of Word's Draw groups carry Excel's ids** (`GroupEditingExcel`), and PowerPoint's
+ * 3. **One of Word's Draw groups carries Excel's id** (`GroupEditingExcel`), and PowerPoint's
  *    Recording tab carries both a `GroupRecord` and a `GroupRecordTabRecord`. Both are the
- *    census's own spellings, transcribed unchanged; only the English labels disambiguate.
+ *    census's own spellings, transcribed unchanged; only the English labels disambiguate. (This
+ *    item said *two* Draw groups until unit 4 authored the tab and counted: the TSV has one.)
  *
  * ## The priority rubric — and it is a rubric rather than a per-group opinion
  *
@@ -71,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home and Insert.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert and Draw.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -79,8 +80,9 @@
  * groups the shells had never carried: Word's Editor, PowerPoint's Slides, and Excel's Cells and
  * Power Options. Unit 3 authored **Insert** — thirty groups across the three applications, and the
  * first tab where nearly every command opens something, so the first where most of a tab's face is
- * bound by its hosts rather than drawn generically; see the *commands Insert shows* section. Every
- * remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * bound by its hosts rather than drawn generically; see the *commands Insert shows* section. Unit 4
+ * authored **Draw**, whose census declares two generations of Office's ink tools on one tab; see the
+ * *commands Draw shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -1119,6 +1121,242 @@ const excelInsertCellControls: readonly RibbonCommand[] = [
   { id: 'excel.insert.cell-controls.checkbox', label: 'Checkbox', icon: 'checkbox-checked', size: 'large' },
 ];
 
+// ── the commands Draw shows ──────────────────────────────────────────────────
+//
+// The ribbon programme's **unit 4**: Draw, in all three applications — eleven groups in Word, nine in
+// PowerPoint, eight in Excel — carrying the commands Office shows on the face of each group the census
+// declares, and nothing added to reach the census's counts.
+//
+// ## ⚠ The census's Draw tab is two generations of Office at once, and the census wins
+//
+// `TabDrawInk` declares groups that no single Office build draws side by side:
+//
+// - **Write, Pens and Close** are the three groups of Office 2013's *Ink Tools | Pens* contextual tab,
+//   where inking lived before it had a tab of its own. Write held the tools (Select Objects, Lasso
+//   Select, Pen, Highlighter, Eraser), Pens held the pen styles with Colour and Thickness, and Close
+//   held Stop Inking. The census's counts fit that reading: Excel's `GroupWrite` is **5**, exactly those
+//   five tools, and Word's and PowerPoint's are **10**, which is those five plus the eraser sizes behind
+//   a split Eraser.
+// - **Drawing Tools, Stencils, Drawing Canvas, Replay, Help and Draw with Touch** are the Microsoft 365
+//   Draw tab's.
+//
+// A group the census declares in scope is a group this catalogue draws, so the tab draws both. It
+// draws each command **once**, though. Microsoft 365's Drawing Tools tray repeats Select, Lasso Select,
+// Eraser and the pens that Write already holds, so **Drawing Tools keeps the one command Write does
+// not have: Add Pen**, which matches the census's count of one. `GUESS:` the whole reading. No Office
+// build this project can cite draws the union.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **Word's `GroupEditingExcel` is Excel's Home Editing id, on Word's Draw tab.** The census spells
+//    it that way and the id is transcribed unchanged; only the label, *Editing*, is this file's. This
+//    file's header said *two* of Word's Draw groups carry Excel's ids until this unit counted: the TSV
+//    has one. What Word's Draw tab has and the other two lack is **Ink Editor**, which edits the text
+//    under the pen by gesture, so it is the group's command. `GUESS:`. The census counts six controls
+//    here, and six cannot be named, so none are padded in.
+// 2. **Input Mode is not a label Office draws.** Its three controls fit exactly one control Office
+//    ships: **Touch/Mouse Mode**, a dropdown holding Mouse and Touch. `GUESS:`.
+// 3. **Two labels differ from Office's.** Word's `GroupInsertDrawingCanvas` is labelled *Drawing
+//    Canvas* here and *Insert* in Office. `GroupPenAndInkHelp` is *Help* in both, and its command is
+//    `GUESS:` **Pen Help**.
+// 4. **Office draws groups the census marks out of scope, and they are not drawn here.**
+//    `GroupInkConvertOneNote` is Office's Convert group (Ink to Shape, Ink to Math, and Ink to Text in
+//    PowerPoint), and `GroupPensOneNote` is its pen tray. The census wins.
+// 5. **The group order is `GUESS:` the declaration's**, in all three applications. The union has no
+//    Office order to follow, and the declaration keeps Office 2013's Pens and Write adjacent.
+//
+// ## One survivor on the whole tab, in all three applications
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws. On Draw, the
+// deciding rule is rule 1, and unit 3's Text Box sets its standard: **arming a gesture is not one press
+// doing one thing.** Pressing Pen, Highlighter, Lasso Select or Eraser does nothing until the pointer
+// is dragged, so all four fail, whether they are plain toggles (Excel's Eraser) or split buttons (Word's
+// and PowerPoint's). **Select Objects is the exception, and it is the one survivor.** It arms nothing:
+// one press puts the pointer back, and one press on a pen takes that back. Its arrow is recognisable
+// with no label and is no other command's glyph. It is one of Write's five, so the collapsed popup
+// keeps the rest.
+//
+// The other plain toggles pass rules 1 and 2 and are still not kept. **Ruler** (one press shows the
+// stencil, one hides it) and **Draw with Touch** are each their group's only command, so a survivor
+// would leave the collapsed popup empty — `excelInsertCellControls`' argument. Pens, Colour, Thickness,
+// Add Pen, Touch/Mouse Mode and Word's split Eraser open menus. Ink Replay plays the ink back, Pen Help
+// opens a pane, and Stop Inking closes the tools; each is its group's only command.
+//
+// ## Eight groups are written once, as functions of the application
+//
+// **Drawing Tools, Pens, Write, Input Mode, Draw with Touch, Replay, Help and Close** declare the same
+// commands with the same names, icons and sizes in all three applications. **Stencils** is shared by
+// Word and PowerPoint, and Excel's census has no Stencils. What differs is a *shape*, not a
+// declaration. Word's and PowerPoint's Eraser is a split button, with the eraser sizes behind its
+// arrow, and their hosts bind one. Excel's is the plain toggle its census count of five says it is, so
+// Excel's hosts bind nothing over it. That is the Symbol argument from unit 3, again.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// Office 2013 drew Pen, Highlighter and Eraser large, with Select Objects and Lasso Select in a small
+// column. Microsoft 365 draws Ruler, Ink Replay, Pen Help and Ink Editor large. Those are `large`
+// here. **Draw with Touch** is `small` for the reason unit 3 gives about *Header & Footer*: three tokens
+// do not wrap inside `largeControlWidthUnits`. Pens is `large` because Office draws it as an in-ribbon
+// gallery, the widest thing in its group. Colour and Thickness beside it are `small`.
+//
+// Unit 1's rule, unchanged: a wrong icon is worse than a missing one. **Add Pen** has no Fluent
+// drawing, since Fluent ships no pen with a plus. **Touch/Mouse Mode** is a hand over a pointer in
+// Office, and Fluent's tapping finger names only one of the two modes. **Drawing Canvas** is a frame
+// with shapes in it in Office, and Fluent's nearest drawings are a whiteboard and a shape being drawn.
+// All three are `small`, and the label is the command.
+
+/**
+ * Drawing Tools: **Add Pen**, the one command in Microsoft 365's tray that Write does not already hold.
+ *
+ * Office draws it large, as a pen with a plus. Fluent draws no such thing, so it is `small` and
+ * labelled. It is a dropdown in Office (Pen, Pencil, Highlighter), and every host binds one.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+function drawDrawingToolsCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.drawing-tools.add-pen`, label: 'Add Pen' }];
+}
+
+/**
+ * Pens: the pen styles, Colour and Thickness, which is Office 2013's Pens group.
+ *
+ * `GUESS:` **the gallery's label is *Pens*.** Office draws the styles as an in-ribbon gallery with no
+ * visible name, and a host binds it as a dropdown of named styles, for decision 3 of the approved plan.
+ * `inking-tool` is Fluent's own pen nib. **Colour draws `color-line`**, a pen over a stroke of colour,
+ * which is also PowerPoint's Shape Outline. That is the same idea twice rather than a collision: both
+ * set the colour of a drawn line.
+ *
+ * The census counts six in Word and Excel and seven in PowerPoint. All of that count is behind these
+ * three controls, and none is padded in.
+ *
+ * **No survivor**: all three open a menu.
+ */
+function drawPensCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.draw.pens.pens`, label: 'Pens', icon: 'inking-tool', size: 'large' },
+    { id: `${application}.draw.pens.colour`, label: 'Colour', icon: 'color-line' },
+    { id: `${application}.draw.pens.thickness`, label: 'Thickness', icon: 'line-thickness' },
+  ];
+}
+
+/**
+ * Write: Select Objects, Lasso Select, Pen, Highlighter, Eraser — Office 2013's tool set, in its order.
+ *
+ * All five are toggles, because Office draws the current tool pressed. **Select Objects starts
+ * pressed**, since a person arriving on the tab has not picked up a pen yet.
+ *
+ * **Select Objects is the tab's one survivor.** See the section header for why the other four arm a
+ * gesture and fail rule 1. **Highlighter draws `highlight`**, Word's Text Highlight Colour glyph. That
+ * is the same marker for the same stroke, and Highlighter is not a survivor, so rule 2's collision
+ * standard never applies to it. **Eraser draws `eraser`**, Excel's Clear glyph, for the same reason.
+ *
+ * `GUESS:` **Highlighter at `large`.** *Highlighter* is eleven letters in one word, the same length as
+ * the *Recommended* unit 3 measured clipping. Its letters are narrower, and nobody has measured it.
+ */
+function drawWriteCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    {
+      id: `${application}.draw.write.select-objects`,
+      label: 'Select Objects',
+      icon: 'cursor',
+      toggle: true,
+      pressed: true,
+      essential: true,
+    },
+    { id: `${application}.draw.write.lasso-select`, label: 'Lasso Select', icon: 'lasso', toggle: true },
+    { id: `${application}.draw.write.pen`, label: 'Pen', icon: 'pen', size: 'large', toggle: true },
+    { id: `${application}.draw.write.highlighter`, label: 'Highlighter', icon: 'highlight', size: 'large', toggle: true },
+    { id: `${application}.draw.write.eraser`, label: 'Eraser', icon: 'eraser', size: 'large', toggle: true },
+  ];
+}
+
+/**
+ * Stencils: **Ruler**, in Word and PowerPoint. Excel's census declares no Stencils group.
+ *
+ * A toggle: Office draws it pressed while the ruler lies on the page.
+ *
+ * **No survivor, although it passes rules 1 and 2**: it is the group's only command.
+ */
+function drawStencilsCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.stencils.ruler`, label: 'Ruler', icon: 'ruler', size: 'large', toggle: true }];
+}
+
+/**
+ * Input Mode: `GUESS:` **Touch/Mouse Mode**, a dropdown of Mouse and Touch. See the section header.
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+function drawInputModeCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.input-mode.touch-mouse-mode`, label: 'Touch/Mouse Mode' }];
+}
+
+/**
+ * Draw with Touch: one toggle, drawn pressed while a finger inks instead of scrolling.
+ *
+ * `small`, because three tokens do not wrap inside a large button. `hand-draw` is a finger tracing a
+ * stroke, which is the command.
+ *
+ * **No survivor, although it passes rules 1 and 2**: it is the group's only command.
+ */
+function drawWithTouchCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.draw.draw-with-touch.draw-with-touch`, label: 'Draw with Touch', icon: 'hand-draw', toggle: true },
+  ];
+}
+
+/**
+ * Replay: **Ink Replay**, which plays the ink back stroke by stroke and shows its playback controls.
+ *
+ * **No survivor**: a playback that must be stopped rather than one thing done, and the only command.
+ */
+function drawReplayCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.replay.ink-replay`, label: 'Ink Replay', icon: 'replay', size: 'large' }];
+}
+
+/**
+ * Help: `GUESS:` **Pen Help**. `question-circle` is the File tab's Help glyph, for the same kind of page.
+ *
+ * **No survivor**: it opens the Help pane, and it is the only command.
+ */
+function drawHelpCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.help.pen-help`, label: 'Pen Help', icon: 'question-circle', size: 'large' }];
+}
+
+/**
+ * Close: **Stop Inking**, Office 2013's own last group, which puts the pen down and leaves ink mode.
+ *
+ * `pen-dismiss` is a pen with a cross, Office's picture of the command.
+ *
+ * **No survivor**: nothing a press can take back, and the only command.
+ */
+function drawCloseCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  return [{ id: `${application}.draw.close.stop-inking`, label: 'Stop Inking', icon: 'pen-dismiss', size: 'large' }];
+}
+
+/**
+ * ⚠ Word's `GroupEditingExcel`, labelled *Editing*: `GUESS:` **Ink Editor**. See the section header.
+ *
+ * A toggle, drawn pressed while the editing pen is held. `text-edit-style` is a letter beside a pen,
+ * which is what the command does: it edits text with a pen.
+ *
+ * **No survivor**: it arms a gesture, and it is the only command.
+ */
+const wordDrawEditing: readonly RibbonCommand[] = [
+  { id: 'word.draw.editing.ink-editor', label: 'Ink Editor', icon: 'text-edit-style', size: 'large', toggle: true },
+];
+
+/**
+ * Word's Drawing Canvas group, which Office labels *Insert*: one command, which inserts a canvas.
+ *
+ * **Carries no icon**, and is therefore `small`. See the section header.
+ *
+ * **No survivor**: one press and one undo, so rules 1 and 4 hold, but there is no glyph and it is the
+ * group's only command.
+ */
+const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
+  { id: 'word.draw.drawing-canvas.drawing-canvas', label: 'Drawing Canvas' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -1396,17 +1634,17 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabDrawInk' },
     groups: [
-      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 6, inScope: true },
-      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupStencils', label: 'Stencils', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupEditingExcel', label: 'Editing', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupInsertDrawingCanvas', label: 'Drawing Canvas', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true, commands: drawDrawingToolsCommands('word') },
+      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 6, inScope: true, commands: drawPensCommands('word') },
+      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 10, inScope: true, commands: drawWriteCommands('word') },
+      { id: 'GroupStencils', label: 'Stencils', priority: 'ancillary', controls: 1, inScope: true, commands: drawStencilsCommands('word') },
+      { id: 'GroupEditingExcel', label: 'Editing', priority: 'standard', controls: 6, inScope: true, commands: wordDrawEditing },
+      { id: 'GroupInsertDrawingCanvas', label: 'Drawing Canvas', priority: 'ancillary', controls: 1, inScope: true, commands: wordDrawDrawingCanvas },
+      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true, commands: drawInputModeCommands('word') },
+      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true, commands: drawWithTouchCommands('word') },
+      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true, commands: drawReplayCommands('word') },
+      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true, commands: drawHelpCommands('word') },
+      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: drawCloseCommands('word') },
     ],
   },
   {
@@ -1580,15 +1818,15 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabDrawInk' },
     groups: [
-      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 7, inScope: true },
-      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupStencils', label: 'Stencils', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true, commands: drawDrawingToolsCommands('powerpoint') },
+      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 7, inScope: true, commands: drawPensCommands('powerpoint') },
+      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 10, inScope: true, commands: drawWriteCommands('powerpoint') },
+      { id: 'GroupStencils', label: 'Stencils', priority: 'ancillary', controls: 1, inScope: true, commands: drawStencilsCommands('powerpoint') },
+      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true, commands: drawInputModeCommands('powerpoint') },
+      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true, commands: drawWithTouchCommands('powerpoint') },
+      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true, commands: drawReplayCommands('powerpoint') },
+      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true, commands: drawHelpCommands('powerpoint') },
+      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: drawCloseCommands('powerpoint') },
     ],
   },
   {
@@ -1852,14 +2090,14 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabDrawInk' },
     groups: [
-      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 6, inScope: true },
-      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 5, inScope: true },
-      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupDrawingTools', label: 'Drawing Tools', priority: 'ancillary', controls: 1, inScope: true, commands: drawDrawingToolsCommands('excel') },
+      { id: 'GroupPens2', label: 'Pens', priority: 'primary', controls: 6, inScope: true, commands: drawPensCommands('excel') },
+      { id: 'GroupWrite', label: 'Write', priority: 'primary', controls: 5, inScope: true, commands: drawWriteCommands('excel') },
+      { id: 'GroupInputMode', label: 'Input Mode', priority: 'standard', controls: 3, inScope: true, commands: drawInputModeCommands('excel') },
+      { id: 'GroupDrawWithTouch', label: 'Draw with Touch', priority: 'ancillary', controls: 1, inScope: true, commands: drawWithTouchCommands('excel') },
+      { id: 'InkReplay', label: 'Replay', priority: 'ancillary', controls: 1, inScope: true, commands: drawReplayCommands('excel') },
+      { id: 'GroupPenAndInkHelp', label: 'Help', priority: 'ancillary', controls: 1, inScope: true, commands: drawHelpCommands('excel') },
+      { id: 'GroupInkClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: drawCloseCommands('excel') },
     ],
   },
   {

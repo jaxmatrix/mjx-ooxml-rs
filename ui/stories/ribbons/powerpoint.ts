@@ -21,8 +21,10 @@
  *
  * **Insert** is unit 3: all eleven in-scope groups, the most of any application's Insert tab,
  * because a deck splits Word's Illustrations into Images and Illustrations and adds Camera and Media.
- * Fourteen commands are dropdowns or split buttons a host binds by id. Every other tab is a
- * placeholder until its own unit.
+ * Fourteen commands are dropdowns or split buttons a host binds by id.
+ *
+ * **Draw** is unit 4: nine groups and fifteen commands, declared by the same functions as Word's. Every
+ * other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -130,11 +132,38 @@ export function powerpointInsertTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointDrawTab(): TemplateResult {
-  return placeholderTab(entry('draw'));
+/**
+ * Draw: Drawing Tools, Pens, Write, Stencils, Input Mode, Draw with Touch, Replay, Help, Close — the
+ * ribbon programme's unit 4.
+ *
+ * Word's Draw tab without Editing (Ink Editor is Word's) and Drawing Canvas (a deck has no canvas to
+ * insert). Every group here is declared by the same function as Word's, so the reasoning is
+ * `wordDrawTab`'s and `dev/ribbons/census.ts`'s — including `GUESS:` **the order is the
+ * declaration's**. The census counts **seven** controls in PowerPoint's Pens where the other two count
+ * six, and it draws the same three commands: nothing is padded in.
+ *
+ * **Six of the tab's fifteen commands are bound by the host**, the same six as Word's, over the menus
+ * in `stories/ribbons/draw-menus.ts`. **No dialog launchers**, and **one survivor**, Select Objects.
+ */
+export function powerpointDrawTab(options: TabOptions = {}): TemplateResult {
+  const draw = entry('draw');
+  const controls = options.controls ?? {};
+  return tab(
+    draw.id,
+    draw.label,
+    censusGroup(draw, 'GroupDrawingTools', {}, controls),
+    censusGroup(draw, 'GroupPens2', {}, controls),
+    censusGroup(draw, 'GroupWrite', {}, controls),
+    censusGroup(draw, 'GroupStencils', {}, controls),
+    censusGroup(draw, 'GroupInputMode', {}, controls),
+    censusGroup(draw, 'GroupDrawWithTouch', {}, controls),
+    censusGroup(draw, 'InkReplay', {}, controls),
+    censusGroup(draw, 'GroupPenAndInkHelp', {}, controls),
+    censusGroup(draw, 'GroupInkClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointDesignTab(): TemplateResult {
   return placeholderTab(entry('design'));

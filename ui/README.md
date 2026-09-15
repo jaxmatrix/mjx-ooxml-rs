@@ -428,6 +428,23 @@ or `aria-expanded`, so a screen reader hears *Table, button* where Office says *
 collapsed*. The menu itself is a real `<mjx-menu>` — roving focus, Escape restores focus to the
 button — but the announcement before the press is a component gap, not something a binding can fix.
 
+### The Draw tab is two generations of Office, and it has one survivor (unit 4 of the ribbon programme)
+
+The census's `TabDrawInk` declares Office 2013's *Ink Tools* groups (Write, Pens, Close) next to
+Microsoft 365's Draw groups (Drawing Tools, Stencils, Drawing Canvas, Replay, Help, Draw with Touch).
+No Office build draws both sets together, and the census wins, so the tab draws both. Each command is
+drawn once, so Drawing Tools holds only Add Pen. `dev/ribbons/census.ts` records the reading as
+`GUESS:`, along with Word's `GroupEditingExcel` and the unnamed Input Mode group. The menus are
+written once, in `stories/ribbons/draw-menus.ts`, under the same gate as Insert's.
+
+**Select Objects is the tab's only survivor.** Pen, Highlighter, Lasso Select and Eraser arm a
+gesture, which is the reason unit 3 refused Text Box. Ruler and Draw with Touch pass the rules, but
+each is its group's only command.
+
+⚠ **The tools draw pressed and do not release each other.** `<mjx-toggle-button>` has no notion of a
+sibling, so pressing Pen leaves Select Objects pressed, where Office holds one tool at a time. That
+is a component gap in the same sense as the dropdown announcement above: no binding can fix it.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

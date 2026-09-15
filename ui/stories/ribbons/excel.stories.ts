@@ -21,6 +21,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
 
@@ -33,7 +34,7 @@ import { insertMenus } from './insert-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home and Insert** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert and Draw** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -53,7 +54,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home and Insert are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert and Draw are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -244,6 +245,36 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-excel-insert-symbols-equation"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // Draw (unit 4): Word's bindings less Eraser, which Excel draws as the plain toggle its census
+  // count says it is. Each opens its menu from `stories/ribbons/draw-menus.ts`.
+  'excel.draw.drawing-tools.add-pen': html`<mjx-button
+    label="Add Pen"
+    size="small"
+    data-opens="ribbons-excel-draw-drawing-tools-add-pen"
+  ></mjx-button>`,
+  'excel.draw.pens.pens': html`<mjx-button
+    label="Pens"
+    icon="inking-tool"
+    size="large"
+    data-opens="ribbons-excel-draw-pens-pens"
+  ></mjx-button>`,
+  'excel.draw.pens.colour': html`<mjx-button
+    label="Colour"
+    icon="color-line"
+    size="small"
+    data-opens="ribbons-excel-draw-pens-colour"
+  ></mjx-button>`,
+  'excel.draw.pens.thickness': html`<mjx-button
+    label="Thickness"
+    icon="line-thickness"
+    size="small"
+    data-opens="ribbons-excel-draw-pens-thickness"
+  ></mjx-button>`,
+  'excel.draw.input-mode.touch-mouse-mode': html`<mjx-button
+    label="Touch/Mouse Mode"
+    size="small"
+    data-opens="ribbons-excel-draw-input-mode-touch-mouse-mode"
+  ></mjx-button>`,
 };
 
 /**
@@ -268,7 +299,7 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
 
-    ${insertMenus('excel', 'ribbons')}
+    ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
   `;
 }
 
@@ -345,7 +376,18 @@ export const Home: Story = { render: () => ribbon('home') };
  */
 export const Insert: Story = { render: () => ribbon('insert') };
 
-/** Unit 4. */
+/**
+ * **Draw**: eight groups and the ribbon programme's unit 4. See `Ribbons/Word → Draw` for what shapes
+ * every Draw tab: two generations of Office's ink tools on one tab, one survivor (Select Objects),
+ * and tools that draw pressed but do not yet release each other. What is Excel's own:
+ *
+ * 1. **No Stencils group**, because Excel's census declares none. There is no Ruler, and the strip
+ *    goes from Write to Input Mode.
+ * 2. **Eraser is a plain toggle, not a split button.** Excel's census counts five controls in Write,
+ *    exactly its five tools, so nothing is behind an arrow. Press it and it draws pressed; nothing
+ *    opens. Compare `Ribbons/PowerPoint → Draw`, where the same command has an arrow.
+ * 3. **Five commands open something**: Add Pen, Pens, Colour, Thickness and Touch/Mouse Mode.
+ */
 export const Draw: Story = { render: () => ribbon('draw') };
 
 /** Unit 5. */

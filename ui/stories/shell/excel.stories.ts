@@ -40,6 +40,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 
 /**
@@ -317,6 +318,36 @@ function ribbon(): TemplateResult {
               data-opens="shell-excel-insert-symbols-equation"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // Draw (unit 4). Five dropdowns, each opening its menu from `stories/ribbons/draw-menus.ts`;
+            // Excel's Eraser is the plain toggle its census declares, so nothing is bound over it.
+            'excel.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-excel-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'excel.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-excel-draw-pens-pens"
+            ></mjx-button>`,
+            'excel.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-excel-draw-pens-colour"
+            ></mjx-button>`,
+            'excel.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-excel-draw-pens-thickness"
+            ></mjx-button>`,
+            'excel.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-excel-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -526,7 +557,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
-      ${insertMenus('excel', 'shell')}
+      ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

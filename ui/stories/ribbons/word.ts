@@ -22,8 +22,12 @@
  * of the face opens something — eighteen of those commands are dropdowns or split buttons that a
  * host binds by id, over the menus `stories/ribbons/insert-menus.ts` writes once for both hosts.
  *
+ * **Draw** is unit 4: all eleven in-scope groups and seventeen commands, the first tab made mostly of
+ * *state* (the tool in hand, the ruler on the page), and the one where the census declares two
+ * generations of Office's ink tools side by side.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 4 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Units 5 onward replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -150,11 +154,43 @@ export function wordInsertTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordDrawTab(): TemplateResult {
-  return placeholderTab(entry('draw'));
+/**
+ * Draw: Drawing Tools, Pens, Write, Stencils, Editing, Drawing Canvas, Input Mode, Draw with Touch,
+ * Replay, Help, Close — the ribbon programme's unit 4, and the largest of the three Draw tabs.
+ *
+ * ⚠ **The census's Draw tab is two generations of Office on one tab.** Write, Pens and Close are
+ * Office 2013's *Ink Tools | Pens* groups, and the rest are Microsoft 365's Draw tab. No Office build
+ * draws them together, so `GUESS:` **the order is the declaration's** — see `dev/ribbons/census.ts`,
+ * which also records that **Editing is `GroupEditingExcel`**, Excel's Home id, on Word's tab.
+ *
+ * **Six of the tab's seventeen commands are bound by the host**: Add Pen, Pens, Colour, Thickness and
+ * Touch/Mouse Mode are dropdowns, and Eraser is a split button with the eraser sizes behind its arrow.
+ * Each opens a menu from `stories/ribbons/draw-menus.ts`.
+ *
+ * **No dialog launchers**: Office puts none on its Draw tab. **One survivor**, Select Objects, in
+ * Write.
+ */
+export function wordDrawTab(options: TabOptions = {}): TemplateResult {
+  const draw = entry('draw');
+  const controls = options.controls ?? {};
+  return tab(
+    draw.id,
+    draw.label,
+    censusGroup(draw, 'GroupDrawingTools', {}, controls),
+    censusGroup(draw, 'GroupPens2', {}, controls),
+    censusGroup(draw, 'GroupWrite', {}, controls),
+    censusGroup(draw, 'GroupStencils', {}, controls),
+    censusGroup(draw, 'GroupEditingExcel', {}, controls),
+    censusGroup(draw, 'GroupInsertDrawingCanvas', {}, controls),
+    censusGroup(draw, 'GroupInputMode', {}, controls),
+    censusGroup(draw, 'GroupDrawWithTouch', {}, controls),
+    censusGroup(draw, 'InkReplay', {}, controls),
+    censusGroup(draw, 'GroupPenAndInkHelp', {}, controls),
+    censusGroup(draw, 'GroupInkClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordDesignTab(): TemplateResult {
   return placeholderTab(entry('design'));

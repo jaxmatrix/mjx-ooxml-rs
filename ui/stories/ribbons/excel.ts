@@ -17,6 +17,9 @@
  *    Charts alone draws eleven — Recommended Charts, eight chart families as glyphs, Maps and
  *    PivotChart. Nineteen commands are dropdowns or split buttons a host binds by id, and Charts is
  *    the only group on any application's Insert tab with a dialog launcher.
+ * 4. **Draw is unit 4**: eight groups and fourteen commands, declared by the same functions as the
+ *    other two. Excel's differences are its census's: no Stencils group, and an Eraser with nothing
+ *    behind an arrow.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -140,11 +143,40 @@ export function excelInsertTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelDrawTab(): TemplateResult {
-  return placeholderTab(entry('draw'));
+/**
+ * Draw: Drawing Tools, Pens, Write, Input Mode, Draw with Touch, Replay, Help, Close — the ribbon
+ * programme's unit 4.
+ *
+ * PowerPoint's Draw tab without Stencils, which Excel's census does not declare. Every group is
+ * declared by the same function as Word's and PowerPoint's; see `wordDrawTab` and
+ * `dev/ribbons/census.ts`, including `GUESS:` **the order is the declaration's**.
+ *
+ * **Eraser is the one command drawn differently from the other two applications.** Excel's census
+ * counts **five** controls in Write, exactly its five tools, so Eraser has no sizes behind an arrow.
+ * It is the plain toggle the census declares, and Excel's hosts bind nothing over it.
+ *
+ * **Five of the tab's fourteen commands are bound by the host**: Add Pen, Pens, Colour, Thickness and
+ * Touch/Mouse Mode, over the menus in `stories/ribbons/draw-menus.ts`. **No dialog launchers**, and
+ * **one survivor**, Select Objects.
+ */
+export function excelDrawTab(options: TabOptions = {}): TemplateResult {
+  const draw = entry('draw');
+  const controls = options.controls ?? {};
+  return tab(
+    draw.id,
+    draw.label,
+    censusGroup(draw, 'GroupDrawingTools', {}, controls),
+    censusGroup(draw, 'GroupPens2', {}, controls),
+    censusGroup(draw, 'GroupWrite', {}, controls),
+    censusGroup(draw, 'GroupInputMode', {}, controls),
+    censusGroup(draw, 'GroupDrawWithTouch', {}, controls),
+    censusGroup(draw, 'InkReplay', {}, controls),
+    censusGroup(draw, 'GroupPenAndInkHelp', {}, controls),
+    censusGroup(draw, 'GroupInkClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelPageLayoutTab(): TemplateResult {
   return placeholderTab(entry('page-layout'));

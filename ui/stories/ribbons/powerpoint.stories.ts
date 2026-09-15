@@ -23,6 +23,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 
@@ -40,7 +41,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home and Insert** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert and Draw** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -60,7 +61,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home and Insert are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert and Draw are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -234,6 +235,42 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-insert-media-clips-audio"
   ></mjx-button>`,
+  // Draw (unit 4): Word's six bindings, over `stories/ribbons/draw-menus.ts`. See `Ribbons/Word`.
+  'powerpoint.draw.drawing-tools.add-pen': html`<mjx-button
+    label="Add Pen"
+    size="small"
+    data-opens="ribbons-powerpoint-draw-drawing-tools-add-pen"
+  ></mjx-button>`,
+  'powerpoint.draw.pens.pens': html`<mjx-button
+    label="Pens"
+    icon="inking-tool"
+    size="large"
+    data-opens="ribbons-powerpoint-draw-pens-pens"
+  ></mjx-button>`,
+  'powerpoint.draw.pens.colour': html`<mjx-button
+    label="Colour"
+    icon="color-line"
+    size="small"
+    data-opens="ribbons-powerpoint-draw-pens-colour"
+  ></mjx-button>`,
+  'powerpoint.draw.pens.thickness': html`<mjx-button
+    label="Thickness"
+    icon="line-thickness"
+    size="small"
+    data-opens="ribbons-powerpoint-draw-pens-thickness"
+  ></mjx-button>`,
+  'powerpoint.draw.write.eraser': html`<mjx-split-button
+    label="Eraser"
+    icon="eraser"
+    size="large"
+    data-opens="ribbons-powerpoint-draw-write-eraser"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.draw.input-mode.touch-mouse-mode': html`<mjx-button
+    label="Touch/Mouse Mode"
+    size="small"
+    data-opens="ribbons-powerpoint-draw-input-mode-touch-mouse-mode"
+  ></mjx-button>`,
 };
 
 /**
@@ -258,7 +295,7 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
 
-    ${insertMenus('powerpoint', 'ribbons')}
+    ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
   `;
 }
 
@@ -327,7 +364,18 @@ export const Home: Story = { render: () => ribbon('home') };
  */
 export const Insert: Story = { render: () => ribbon('insert') };
 
-/** Unit 4. */
+/**
+ * **Draw**: nine groups and the ribbon programme's unit 4. See `Ribbons/Word → Draw` for what shapes
+ * every Draw tab: two generations of Office's ink tools on one tab, one survivor (Select Objects),
+ * and tools that draw pressed but do not yet release each other. What is PowerPoint's own:
+ *
+ * 1. **Word's tab without two groups.** Editing (Ink Editor) and Drawing Canvas are Word's alone, so
+ *    the strip goes straight from Stencils to Input Mode.
+ * 2. **Every command is declared by the same function as Word's.** The census counts seven controls
+ *    in Pens where Word counts six, and the same three commands are drawn. Nothing is padded to the
+ *    count.
+ * 3. **The same six commands open something**, and Eraser is the same split button.
+ */
 export const Draw: Story = { render: () => ribbon('draw') };
 
 /** Unit 5. */

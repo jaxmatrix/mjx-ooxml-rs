@@ -43,6 +43,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
@@ -337,6 +338,43 @@ function ribbon(): TemplateResult {
               size="large"
               data-opens="shell-powerpoint-insert-media-clips-audio"
             ></mjx-button>`,
+            // Draw (unit 4). Five dropdowns and a split Eraser, each opening its menu from
+            // `stories/ribbons/draw-menus.ts`. `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-powerpoint-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-powerpoint-draw-pens-pens"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-powerpoint-draw-pens-colour"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-powerpoint-draw-pens-thickness"
+            ></mjx-button>`,
+            'powerpoint.draw.write.eraser': html`<mjx-split-button
+              label="Eraser"
+              icon="eraser"
+              size="large"
+              data-opens="shell-powerpoint-draw-write-eraser"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-powerpoint-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -585,7 +623,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
-      ${insertMenus('powerpoint', 'shell')}
+      ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
       <mjx-dialog id="ppt-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

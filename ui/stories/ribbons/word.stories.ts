@@ -23,6 +23,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
@@ -37,7 +38,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home and Insert** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert and Draw** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -47,8 +48,9 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
  * command does.
  *
- * **Nothing here dispatches a command.** The paste button's menu opens, the Insert tab's menus open,
- * the pickers open, the gallery previews — and no document changes, because command dispatch is loop 2.
+ * **Nothing here dispatches a command.** The paste button's menu opens, the Insert and Draw tabs'
+ * menus open, the pickers open, the gallery previews — and no document changes, because command
+ * dispatch is loop 2.
  */
 
 const conventions = storyConventions({
@@ -66,7 +68,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home and Insert are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert and Draw are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -259,6 +261,44 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-word-insert-symbols-symbol"
   ></mjx-button>`,
+  // Draw (unit 4). Office draws five of these as a dropdown and Eraser as a split button, so each
+  // opens its menu from `stories/ribbons/draw-menus.ts`. `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+  'word.draw.drawing-tools.add-pen': html`<mjx-button
+    label="Add Pen"
+    size="small"
+    data-opens="ribbons-word-draw-drawing-tools-add-pen"
+  ></mjx-button>`,
+  'word.draw.pens.pens': html`<mjx-button
+    label="Pens"
+    icon="inking-tool"
+    size="large"
+    data-opens="ribbons-word-draw-pens-pens"
+  ></mjx-button>`,
+  'word.draw.pens.colour': html`<mjx-button
+    label="Colour"
+    icon="color-line"
+    size="small"
+    data-opens="ribbons-word-draw-pens-colour"
+  ></mjx-button>`,
+  'word.draw.pens.thickness': html`<mjx-button
+    label="Thickness"
+    icon="line-thickness"
+    size="small"
+    data-opens="ribbons-word-draw-pens-thickness"
+  ></mjx-button>`,
+  'word.draw.write.eraser': html`<mjx-split-button
+    label="Eraser"
+    icon="eraser"
+    size="large"
+    data-opens="ribbons-word-draw-write-eraser"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.draw.input-mode.touch-mouse-mode': html`<mjx-button
+    label="Touch/Mouse Mode"
+    size="small"
+    data-opens="ribbons-word-draw-input-mode-touch-mouse-mode"
+  ></mjx-button>`,
 };
 
 /**
@@ -286,7 +326,7 @@ function ribbon(selected: string): TemplateResult {
       <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
     </mjx-menu>
 
-    ${insertMenus('word', 'ribbons')}
+    ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
   `;
 }
 
@@ -374,7 +414,34 @@ export const Home: Story = { render: () => ribbon('home') };
  */
 export const Insert: Story = { render: () => ribbon('insert') };
 
-/** Unit 4. */
+/**
+ * **Draw**: the tab of the pen, and the ribbon programme's unit 4. Eleven groups: Drawing Tools, Pens,
+ * Write, Stencils, Editing, Drawing Canvas, Input Mode, Draw with Touch, Replay, Help and Close.
+ * What to look at:
+ *
+ * 1. **This is two generations of Office on one tab, because the census says so.** Write, Pens and
+ *    Close are Office 2013's *Ink Tools* groups: Select Objects, Lasso Select, Pen, Highlighter and
+ *    Eraser; then the pen styles, Colour and Thickness; then Stop Inking. The rest are Microsoft 365's
+ *    Draw tab. Each command is drawn once, so Drawing Tools holds only **Add Pen**. The group order
+ *    is `GUESS:` the declaration's, because no Office build draws the union. `dev/ribbons/census.ts`
+ *    has the whole reading, including **Editing**: that is `GroupEditingExcel`, an Excel id on Word's
+ *    tab, and it holds Ink Editor.
+ * 2. **One command on the tab survives a collapse: Select Objects.** Drag the container in and Write
+ *    collapses to its trigger with the arrow pointer beside it; every other group goes to its trigger
+ *    alone. Pen, Highlighter, Lasso Select and Eraser arm a gesture rather than doing one thing, which
+ *    is unit 3's reason for refusing Text Box. Ruler and Draw with Touch pass the rules and are each
+ *    their group's only command. Pens and Write are the tab's primary groups, so they are the last two
+ *    standing.
+ * 3. **The tools draw pressed, and Select Objects starts pressed.** ⚠ **They do not yet release each
+ *    other**: press Pen and Select Objects stays pressed, where Office holds one tool at a time. A
+ *    toggle button knows no siblings. That is a gap in the component, not a claim that Office works
+ *    this way.
+ * 4. **Six commands open something.** Press Add Pen, Pens, Colour, Thickness or Touch/Mouse Mode and
+ *    its menu opens; press Eraser's arrow and the eraser sizes open. The other commands are the plain
+ *    toggles and buttons Office draws.
+ * 5. **Three commands carry no icon**: Add Pen, Touch/Mouse Mode and Drawing Canvas. Fluent draws no
+ *    pen with a plus, no mouse-and-touch switch and no canvas, and a wrong glyph is worse than a label.
+ */
 export const Draw: Story = { render: () => ribbon('draw') };
 
 /** Unit 5. */

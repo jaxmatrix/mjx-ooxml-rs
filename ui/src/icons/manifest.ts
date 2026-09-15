@@ -493,9 +493,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'highlight',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Text Highlight Colour, on Word's Font group. A marker pen, which is Office's own drawing — and what distinguishes it from Font Colour, which is bound as a colour picker rather than a button in both hosts.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Text Highlight Colour, on Word's Font group. A marker pen, which is Office's own drawing — and what distinguishes it from Font Colour, which is bound as a colour picker rather than a button in both hosts. **Since unit 4, also Highlighter** on the Draw tab's Write group in all three applications — the same marker making the same stroke, in ink rather than on text — which is a large toggle, so 24 and `filled`.",
   },
   {
     name: 'text-color',
@@ -567,7 +567,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'color-line',
     sizes: [20],
     variants: ['regular'],
-    why: "Shape Outline, on PowerPoint's Drawing group. Fluent's own counterpart to `color-fill`, and the pairing is what stops fill and outline being two buckets.",
+    why: "Shape Outline, on PowerPoint's Drawing group. Fluent's own counterpart to `color-fill`, and the pairing is what stops fill and outline being two buckets. **Since unit 4, also Colour** on the Draw tab's Pens group: a pen over a stroke of colour is the ink colour as much as it is an outline's, and both set the colour of a drawn line. Small in both, so 20 alone still.",
   },
   {
     name: 'square-shadow',
@@ -721,9 +721,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'eraser',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike. **Since unit 4, also Eraser** on the Draw tab's Write group in all three applications: a large toggle, so 24, and `filled` for its pressed state. Two commands with one eraser, and no collision: neither is a survivor, so rule 2's glyph standard never asks which one a bare eraser means.",
   },
   {
     name: 'arrow-down',
@@ -948,6 +948,79 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Checkbox, the one command of Excel's Cell Controls group, large. The ticked box is the control the command turns a cell into. A verb here, not a toggle — pressing it converts the selection, it does not draw pressed — so `regular` alone.",
+  },
+  // ── Draw (Word, PowerPoint, Excel) ──────────────────────────────────────────
+  //
+  // The ribbon programme's unit 4. Draw is the first tab that is mostly **state**: the tool in hand,
+  // the ruler on the page, whether a finger inks. So unlike Insert, most rows below ask for `filled`,
+  // because a toggle draws filled while it is pressed and a regular-only request goes blank the moment
+  // somebody presses it. **20 for a small command and 20 and 24 for a large one**, because a large
+  // command lays out sideways at 20 in a reduced group (see `question-circle`).
+  //
+  // **Three rows above gained Draw commands rather than a row here**: `eraser` and `highlight` (each
+  // now 24 and `filled`) and `color-line`. `question-circle` is reused at the sizes it already has.
+  //
+  // **Three commands carry no icon**: Add Pen, Touch/Mouse Mode and Drawing Canvas. `dev/ribbons/census.ts`
+  // gives the reasons in the *commands Draw shows* section.
+  {
+    name: 'cursor',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Select Objects, on the Draw tab's Write group in all three applications: the plain arrow pointer, which is Office's own picture of putting the pen down to select. A small toggle, and **the tab's one survivor**, so it has to be recognisable with no label: a pointer is. Not `select-object`, a dashed marquee with handles, which is what a selection looks like rather than the tool that makes one.",
+  },
+  {
+    name: 'lasso',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Lasso Select, beside Select Objects: a dashed loop with its rope, which is the gesture. A small toggle.",
+  },
+  {
+    name: 'pen',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Pen, on the Draw tab's Write group, a large toggle. Fluent's plain pen: the Draw tab's pens are ballpoint ink, not a nib or a brush.",
+  },
+  {
+    name: 'ruler',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Ruler, the one command of Word's and PowerPoint's Stencils group, a large toggle. Office draws a ruler too.",
+  },
+  {
+    name: 'hand-draw',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Draw with Touch, the one command of its group in all three applications: a finger tracing a stroke, which is the sentence the command toggles. A small toggle, because three tokens do not wrap inside a large button. Not `tap-single`, which is a tap and names a press rather than ink.",
+  },
+  {
+    name: 'replay',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Ink Replay, large: a circular arrow around a play mark. The play mark is what separates it from `arrow-reset` and `arrow-undo`, which would say *take it back* rather than *play it back*.",
+  },
+  {
+    name: 'pen-dismiss',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Stop Inking, the Close group's one command, large: a pen with a cross on it, which is Office's own picture of putting the pen away. `dismiss` alone would say *close this panel*.",
+  },
+  {
+    name: 'inking-tool',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Pens, the pen-style gallery on the Draw tab's Pens group, large. Fluent's own mark for an inking tool, a nib. Distinct from `pen` for the Pen *tool* one group away: the gallery chooses what the pens draw with, and the tool picks one up. `GUESS:` that a reader will tell the two apart.",
+  },
+  {
+    name: 'line-thickness',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Thickness, on the Draw tab's Pens group: three rules of increasing weight, which is the menu under it. Small.",
+  },
+  {
+    name: 'text-edit-style',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Ink Editor, on Word's Draw tab (the census's `GroupEditingExcel`), a large toggle: a letter beside a pen, because the command edits text by pen gesture. `GUESS:` the command itself — see `dev/ribbons/census.ts`.",
   },
 ];
 
