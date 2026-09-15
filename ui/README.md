@@ -335,8 +335,9 @@ Open `Ribbon/Ribbon → The Priority Ladder` first, and resize the container rat
 <mjx-ribbon label="Word" selected="home" state="expanded">
   <mjx-ribbon-tab tab-id="home" label="Home">
     <mjx-ribbon-group label="Font" priority="primary">
+      <mjx-button label="Clear All Formatting" icon="clear-formatting" size="icon"></mjx-button>
       <mjx-toggle-button slot="essential" label="Bold" icon="text-bold" size="icon"></mjx-toggle-button>
-      <mjx-button label="Clear All Formatting" icon="dismiss"></mjx-button>
+      <mjx-toggle-button label="Strikethrough" icon="text-strikethrough" size="icon"></mjx-toggle-button>
       <mjx-dialog-launcher slot="dialog-launcher" label="Font settings"></mjx-dialog-launcher>
     </mjx-ribbon-group>
   </mjx-ribbon-tab>
@@ -346,13 +347,57 @@ Open `Ribbon/Ribbon → The Priority Ladder` first, and resize the container rat
 </mjx-ribbon>
 ```
 
-### One slot, three presentations — which is why nothing can be lost
+### Two slots, one order — which is why nothing can be lost and nothing moves
 
 The obvious way to build a collapsing group is to render its commands twice, once in the strip and
-once in a menu. That is also the way to lose one. So a group renders its commands **once**, into one
-`<slot>` inside one `.panel`, and the three presentations change what that element *is*: part of the
-strip in `full` and `reduced`, an overlay anchored to a single button in `collapsed`. *Reachable in
-all three* is therefore structural rather than remembered — the same DOM nodes at every width.
+once in a menu. That is also the way to lose one. So a group renders its commands **once**, and the
+three presentations change what its `.panel` *is*: part of the strip in `full` and `reduced`, an
+overlay anchored to a single button in `collapsed`. *Reachable in all three* is therefore structural
+rather than remembered — the same DOM nodes at every width.
+
+Children are written **in the order Office draws them**, and `slot="essential"` marks a survivor
+where it stands. The group's shadow root uses *manual* slot assignment: in `full` and `reduced` every
+command is in the panel's one ordered slot and the survivor row is empty; in `collapsed` the
+survivors are moved into the row beside the trigger and the rest stay in the popup. A command is
+moved between slots, never rebuilt.
+
+### Where a survivor draws (unit 2b of the ribbon programme)
+
+For three units the survivor row was built `trigger, essential, panel`, so an essential command drew
+**first** at every width — Bold, Italic and Underline ahead of the font name and size, the reverse
+of Word. `d01cf93` made it `trigger, panel, essential` and was reverted, because *last* is as wrong:
+Word's Font draws its survivors in the middle. **Where a survivor sits is a property of the group**,
+so the declared order is the answer and the component keeps it. `survivorPlacement` in
+`src/ribbon/ribbon-model.ts` records the decision and the four designs refused with it — CSS `order`
+over one grid (focus follows the flat tree, not `order`, and `reading-flow` is Chromium's alone),
+splitting only while the popup is open, a second copy beside the trigger, and observing the ribbon
+rather than a probe.
+
+The slots have to follow CSS's decision, and CSS cannot say when it changed. So one shared
+`ResizeObserver` watches a zero-height probe inside each group whose width is `100cqi` — the query
+container's own width and nothing else. It fires exactly when a container condition can have
+changed, and when a group in a hidden tab becomes rendered; its callback ignores the sizes, reads
+every group's presentation, then re-slots them all. The probe rather than the group is observed
+because re-slotting resizes the group inside the callback, which is a ResizeObserver loop error.
+
+**Essential is declared, never inferred.** `toggle()` used to put every toggle in the survivor slot,
+which capped a group at three state commands and left Justify, Subscript and Excel's vertical
+alignments unable to draw pressed. A state is a toggle; a survivor is `essential: true` in
+`dev/ribbons/census.ts`, and `toggle()` requires every caller to say which.
+
+Five gates hold it: `tests/ribbons.test.ts` runs `placeGroupCommands` over every authored group and
+watches a survivors-first and a survivors-last rule fail on the census's own data;
+`tests/browser/ribbon.spec.ts` reads the real slots and geometry expanded and collapsed, and walks
+Tab through Word's Paragraph group in both; the same file **selects the File tab by clicking the
+picker at 390px** and requires every group to arrive collapsed with exactly its declared survivors —
+the path every later tab's audit takes — and **widens an open collapsed Font group to 1440px** and
+requires every command back in order and the popup, and its focus trap, gone; and it asserts its
+fixture is **discriminating** — Font and Paragraph declare a command on each side of their survivors.
+
+Besides the MutationObserver and the probe, a change to `priority` or `simplified` re-slots too. And
+a group whose presentation stops being a popup **closes itself without moving focus**: left `open`
+at a desktop width it would keep its dismissal listener and trap Tab inside a group that has no
+popup.
 
 | Presentation | What changes | Reached when |
 |---|---|---|
@@ -1975,8 +2020,10 @@ Three gates, and the second is the one that matters:
 
 `wordPhoneCommands` is Word's Home tab declared in *ribbon* order — Clipboard first, and Clipboard is
 `secondary` — so the two genuinely disagree. Font contributes four essential commands so the
-per-group ceiling of three has something to refuse, and two commands carry `hasPopup` so demotion
-rule 1 does.
+per-group ceiling of three has something to refuse, and four commands carry `hasPopup` so demotion
+rule 1 does. **Paste is one of the four, and is not essential** — in this fixture and in the
+contextual bar's shared four alike — because it is a split button in Office, which is the judgement
+the ribbon census makes for every Clipboard group.
 
 ### The sheet was **completed**, not replaced
 

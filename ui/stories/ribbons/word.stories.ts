@@ -106,7 +106,6 @@ const bindings: ControlOverrides = {
     ${copyCounts.map((count) => html`<mjx-option value=${count} label=${count}></mjx-option>`)}
   </mjx-combo-box>`,
   'word.home.clipboard.paste': html`<mjx-split-button
-    slot="essential"
     label="Paste"
     icon="clipboard-paste"
     size="large"
@@ -186,11 +185,12 @@ function ribbon(selected: string): TemplateResult {
  *
  * 1. **The two primary groups are Open and Save**, which is the census's own reading of what a File
  *    tab is for, and it is what decides the collapse order. Drag the container in and Help goes
- *    first, then Print, then Info, Share and Export; Open and Save are still there at a phone's
- *    width, each down to its one essential command — *Browse* and *Save*.
- * 2. **Browse survives the Open group's collapse and Recent does not.** Recent is the page's
- *    headline and the group's `large` button; a collapsed group has room for a verb rather than for
- *    a list, and the verb is *go and find one*.
+ *    first, then Print, then Info, Share and Export; Open and Save give way last.
+ * 2. **AutoSave is the only command on the tab that survives a collapse.** Collapsed, Save keeps it
+ *    beside the trigger and every other group is its trigger alone. Unit 1 gave each group a
+ *    survivor; six of the seven open something or cannot be taken back — Browse is a file dialog,
+ *    Protect a menu, Print a page that has left the printer — and demotion rule 1 refuses all of
+ *    them. Expanded, every command draws in the order Office lists it, survivors included.
  * 3. **Properties has no icon**, deliberately, and neither do three commands on PowerPoint's and
  *    Excel's File tabs. Fluent draws nothing honest for them, and `<mjx-icon>`'s own rule is that a
  *    wrong icon is worse than a missing one because a person acts on it.
@@ -211,20 +211,23 @@ export const File: Story = { render: () => ribbon('file') };
  *    draws two fields and eleven glyphs; Paragraph draws fourteen glyphs and nothing else. A
  *    `size="icon"` control keeps its label as the accessible name — it is drawn off-screen, never
  *    dropped — so every one of them is still reachable by a screen reader and by a tooltip.
- * 2. **Only three commands per group can draw pressed.** Bold, Italic and Underline are toggles and
- *    Strikethrough, Subscript and Superscript are not; Left, Centre and Right are toggles and
- *    Justify is not. `essentialCommandLimit` is 3 and `shell-parts.ts`'s `toggle()` always claims
- *    an essential slot, so a fourth state command in one group is impossible today. The commands
- *    are all there and all work; what the fourth cannot do is show you the paragraph is justified.
- *    `dev/ribbons/census.ts` names all four groups this bites.
+ * 2. **Every state command draws pressed, and only three per group survive a collapse.** All six
+ *    character formats are toggles, and so are Show/Hide ¶ and all four alignments — Strikethrough,
+ *    Subscript, Superscript, Justify and Show/Hide could not be before unit 2b, because a toggle
+ *    was essential by construction and a group may keep three. *Survives a collapse* is declared
+ *    now: Bold and Italic, and Left, Centre and Right. Underline draws pressed and does not survive,
+ *    because in Word it is a split button. **And the survivors draw where Office draws them** — Bold
+ *    is the seventh command in Font, not the first. `dev/ribbons/census.ts` has the
+ *    table for all three applications.
  * 3. **Editor is new here.** The census has declared Word's one-command Editor group since unit 0
  *    and nothing rendered it, so this catalogue's Word could not open the proofing pane.
  * 4. **Three icons changed meaning rather than appearing.** Format Painter was a cog, Bullets was a
  *    plus, Numbering was a minus, Borders was a table and Select was a tick — five stand-ins from
  *    the migrated shell set, each replaced by the glyph Office actually draws.
  *
- * Drag the container in and Font and Paragraph are the last two groups standing, each down to its
- * three toggles; Editor and Editing give way first.
+ * Drag the container in and Font and Paragraph are the last two groups standing, down to their
+ * survivors beside the trigger — Bold and Italic, and the three alignments; Editor and Editing give
+ * way first, and keep none — Find is a split button in Office, and a survivor may not open anything.
  */
 export const Home: Story = { render: () => ribbon('home') };
 

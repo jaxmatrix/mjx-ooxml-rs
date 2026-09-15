@@ -90,8 +90,15 @@ export function documentArea(text: string): TemplateResult {
  * turned the whole demotion suite into a test of nothing, which is the failure MJXOFF-193's
  * *the tight fixture really is tight* exists to prevent, met a second time.
  *
- * Two commands carry `hasPopup`, so demotion rule 1 has something to refuse, and Font contributes
- * four essential commands so the per-group ceiling of three has something to bite on.
+ * Four commands carry `hasPopup` — Paste, Font colour, Bullets and Styles — so demotion rule 1 has
+ * something to refuse, and Font contributes four essential commands so the per-group ceiling of
+ * three has something to bite on.
+ *
+ * **Paste carries `hasPopup` and is not essential**, as the ribbon census judges it: Paste is a split
+ * button in Office, whose arrow opens the paste options, and rule 1 refuses anything with a menu
+ * behind it. Until unit 2b it was the fixture's first essential command. Being declared first, it
+ * is also what the naive partition takes first, so it is now a rule-1 break the naive answer makes
+ * as well as a priority inversion.
  */
 export const wordPhoneCommands: readonly MobileCommand[] = [
   {
@@ -100,8 +107,8 @@ export const wordPhoneCommands: readonly MobileCommand[] = [
     icon: 'clipboard-paste',
     group: 'Clipboard',
     priority: 'secondary',
-    essential: true,
-    hasPopup: false,
+    essential: false,
+    hasPopup: true,
   },
   {
     id: 'cut',

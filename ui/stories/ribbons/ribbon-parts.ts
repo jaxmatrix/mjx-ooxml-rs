@@ -114,9 +114,20 @@ export function tab(id: string, label: string, ...groups: TemplateResult[]): Tem
 /**
  * One command: the host's binding for it, or the generic control the census describes.
  *
- * A toggle goes through `shell-parts.ts`'s `toggle()` rather than being built here, because that
- * function is what puts every toggle in `slot="essential"` — the single fact `essentialCommandLimit`
- * is counted against, and a second spelling of it here would be a second place for it to drift.
+ * **`essential` is read from the census and from nowhere else**, for a toggle and a button alike.
+ * Until unit 2b a toggle was essential *because* it was a toggle — `toggle()` put every one of them
+ * in `slot="essential"` — which capped a group at three state commands and made Justify, Subscript
+ * and Excel's vertical alignments impossible to draw pressed. A state is not a survivor; a survivor
+ * is declared.
+ *
+ * A toggle still goes through `shell-parts.ts`'s `toggle()` rather than being built here, so there
+ * is one spelling of a ribbon toggle; what it no longer does is decide anything on the census's
+ * behalf.
+ *
+ * ⚠ An override is drawn exactly as the host wrote it, `slot` included, which is why
+ * `tests/ribbons.test.ts` refuses an override that claims `slot="essential"`: every override in
+ * this catalogue is richer than a button — a split button, a picker, a gallery, a field — and so
+ * fails demotion rule 1 before anyone has to ask.
  */
 export function renderCommand(
   command: RibbonCommand,
@@ -125,7 +136,11 @@ export function renderCommand(
   const override = overrides[command.id];
   if (override !== undefined) return override;
   if (command.toggle === true) {
-    return toggle(command.label, command.icon ?? '', command.pressed === true);
+    return toggle(command.label, command.icon, {
+      essential: command.essential === true,
+      pressed: command.pressed === true,
+      size: command.size ?? 'small',
+    });
   }
   return html`<mjx-button
     slot=${command.essential === true ? 'essential' : nothing}

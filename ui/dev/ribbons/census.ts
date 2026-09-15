@@ -126,13 +126,21 @@ export interface RibbonCommand {
   readonly label: string;
   /** A name from `src/icons/manifest.ts`, or `undefined` for a text-only command. */
   readonly icon?: string;
-  /** Defaults to `small`, which is what a group's secondary commands use. */
+  /** Defaults to `small`, which is what a group's secondary commands use — toggles included. */
   readonly size?: ControlSize;
-  /** A state rather than a verb. Rendered as `<mjx-toggle-button>`, always `slot="essential"`. */
+  /**
+   * A state rather than a verb — Office draws it pressed while it holds. Rendered as
+   * `<mjx-toggle-button>`, and **not** thereby essential: see `essential`.
+   */
   readonly toggle?: boolean;
   /** A toggle that starts on, so the ribbon shows a pressed state without a pointer. */
   readonly pressed?: boolean;
-  /** A one-shot command that survives a collapse. See `demotionRules`. Ignored for a toggle. */
+  /**
+   * **This command survives its group's collapse** — declared, never inferred, for a toggle and a
+   * button alike. It must pass every one of `demotionRules`, and it says nothing about *position*:
+   * a survivor draws where it is declared at every width with room for the group, and beside the
+   * trigger once the group collapses. See `survivorPlacement`.
+   */
   readonly essential?: boolean;
 }
 
@@ -203,25 +211,69 @@ export const ribbonCensusSource = {
 // `dev/word-tab-home.ts` remains the artefact that pads to the census count, and
 // `tests/ribbons.test.ts` says so at the assertion.
 //
-// ## ⚠ Three toggles per group is a ceiling, and Office needs more than three
+// ## A state is a toggle; a survivor is declared — and the two are independent
 //
-// `shell-parts.ts`'s `toggle()` emits `slot="essential"` unconditionally, and
-// `essentialCommandLimit` is **3** — so a group may declare at most three toggles, ever. Office's
-// Home tab exceeds that in four places:
+// Until unit 2b, `shell-parts.ts`'s `toggle()` emitted `slot="essential"` unconditionally and
+// `essentialCommands()` counted every toggle, so *draws pressed* and *survives a collapse* were one
+// fact and `essentialCommandLimit` (3) capped every group at three state commands. Four groups on
+// this tab paid for it — Word's Font and Paragraph, PowerPoint's Font, Excel's Alignment — and their
+// fourth and later states were drawn as plain buttons that could never fill. **They are toggles
+// now**, every one Office draws pressed:
 //
-// | Group | What Office toggles | What is drawn here |
+// | Group | Toggles | Survivors |
 // |---|---|---|
-// | Word Font | Bold, Italic, Underline, Strikethrough, Subscript, Superscript | three toggles, three icon buttons |
-// | Word Paragraph | Left, Centre, Right, Justify, Show/Hide ¶ | three toggles, two icon buttons |
-// | PowerPoint Font | Bold, Italic, Underline, Text Shadow, Strikethrough | three toggles, two buttons |
-// | Excel Alignment | Left, Centre, Right and Top, Middle, Bottom | three toggles, three icon buttons |
+// | Word Font | Bold, Italic, Underline, Strikethrough, Subscript, Superscript | Bold, Italic |
+// | Word Paragraph | Show/Hide ¶, Align Left, Centre, Align Right, Justify | Align Left, Centre, Align Right |
+// | PowerPoint Font | Bold, Italic, Underline, Text Shadow, Strikethrough | Bold, Italic, Underline |
+// | PowerPoint Paragraph | Align Left, Centre, Align Right, Justify | Align Left, Centre, Align Right |
+// | Excel Font | Bold, Italic, Underline | Bold, Italic |
+// | Excel Alignment | Top, Middle, Bottom Align, Wrap Text, Align Left, Centre, Align Right | Align Left, Centre, Align Right |
 //
-// The commands are all present and all reachable; what the fourth and later ones cannot do is
-// **draw pressed**. That is a real loss — a person reading a ribbon learns the paragraph's
-// alignment from which mark is filled, and Justify will never fill — and it is recorded here rather
-// than smoothed over, because the fix is a change to `<mjx-ribbon-group>`'s ceiling or to
-// `toggle()`'s unconditional slot, and neither is unit 2's to make. Which three a group spends its
-// slots on is the same rule everywhere: **the three Office draws pressed most often**.
+// Excel's **Wrap Text** is on that list although the old table did not name it: Office draws it
+// pressed while the cell wraps, so it was a state command drawn as a verb for the same reason.
+// **Merge & Centre** is not, because it is a split button — it too highlights on a merged cell,
+// but its arrow opens a menu, and `RibbonCommand` is deliberately a button or a toggle.
+//
+// ## Which commands survive a collapse, and why most groups keep none
+//
+// A command is `essential` only if it passes **all four** of `demotionRules`, judged on the shape
+// **Office** draws it in rather than on the simpler shape this catalogue happens to render: nothing
+// that opens a menu, a gallery, a dialog or a file picker; nothing irreversible; an icon a person
+// recognises with no label; at most three. Most groups have none, and that is the rule working:
+//
+// - **Clipboard keeps none, in all three applications.** Paste is a split button in Office, and in
+//   every host here — rule 1 — which is why it no longer claims the survivor slot it held since unit
+//   0. Cut, Copy and Format Painter pass the rules, and are on the keyboard anyway
+//   (Ctrl+X, Ctrl+C, Ctrl+Shift+C) — the reason `dev/word-tab-home.ts` has always given for its own
+//   Clipboard keeping none, and the reason the group is `secondary`.
+// - **Font keeps the character formats Office draws as plain toggles; Paragraph (Alignment in
+//   Excel) keeps three alignments.** PowerPoint's Font keeps Bold, Italic and Underline. **Word's
+//   and Excel's keep Bold and Italic only**, because their Underline is a split button in Office —
+//   Word's arrow opens the underline styles and the underline colour, Excel's offers Underline and
+//   Double Underline — and rule 1 refuses anything with a menu behind it, however the catalogue
+//   draws it today. Justify is the fourth alignment and is the one a collapsed group gives up.
+// - **Word's Editing keeps none.** Find is a split button in Office (Find, Advanced Find, Go To),
+//   Replace opens a dialog, Select opens a menu. **PowerPoint's** Find opens a dialog, and **Excel's**
+//   five are all menus or split buttons. The survivors unit 2 declared there — Find, and AutoSum —
+//   were rule-1 failures this catalogue could not see, because it draws both as plain buttons.
+// - **Slides, Drawing, Styles, Number, Cells, Editor and Power Options keep none.** New Slide,
+//   Shapes, Arrange and every shape format open a gallery or a menu; Reset passes rule 1 and fails
+//   rule 2, by the standard in the next item.
+//   Percent Style passes both, and is not kept, because nothing says Office keeps it: `GUESS:` the
+//   one judgement in this list with no Office behaviour behind it either way. Editor's only command
+//   is its group's name, and a survivor there would leave the collapsed popup empty.
+// - **Rule 2 is judged on the glyph alone, and by one standard: an unlabelled glyph fails when it
+//   is already the glyph of a *different* command a person reaches for**, because pressing it would
+//   do something they did not ask for. PowerPoint's **Reset** draws `arrow-reset`, the loop that
+//   means *undo* and *refresh* everywhere else, so it fails. **AutoSave** draws `arrow-sync`, the
+//   glyph of the cloud sync AutoSave *is*, and as a toggle it draws filled while it is on, so it
+//   passes. A survivor keeps its own size in the survivor row, so a `small` survivor such as
+//   AutoSave also keeps its label there — but the label is never what lets a command pass, or every
+//   labelled command would. `GUESS:` a judgement about glyphs, stated as one.
+//
+// **Where** a survivor draws is not this file's concern any more: every command draws in the order
+// below at every width with room for its group, and the survivors move beside the trigger only when
+// the group collapses. `survivorPlacement` in `src/ribbon/ribbon-model.ts` is that decision.
 //
 // ## `size: 'icon'` is the tab's default, which is new
 //
@@ -241,7 +293,7 @@ export const ribbonCensusSource = {
 // five are `small`, so the label carries the whole command.
 
 const wordHomeClipboard: readonly RibbonCommand[] = [
-  { id: 'word.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
+  { id: 'word.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large' },
   { id: 'word.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'word.home.clipboard.copy', label: 'Copy', icon: 'copy' },
   { id: 'word.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
@@ -250,10 +302,15 @@ const wordHomeClipboard: readonly RibbonCommand[] = [
 /**
  * Word's Font group: the two fields, the four size-and-case verbs, and the nine character formats.
  *
- * Bold, Italic and Underline take the group's three essential slots — they are what Office draws
- * pressed, and a collapsed Font group that kept anything else would be a Font group nobody could
- * read. Strikethrough, Subscript and Superscript are states too and are drawn as icon buttons; see
- * this section's header.
+ * All six character formats are toggles, because Office draws all six pressed. **Bold and Italic
+ * are the group's survivors.** They sit **seventh and eighth**, after the two fields and the four
+ * size-and-case verbs, and that position is exactly why `survivorPlacement` exists: the old survivor
+ * row drew them first.
+ *
+ * **Underline is not a survivor**, although it is the third format Office draws pressed most often:
+ * in Word it is a split button whose arrow opens the underline styles and the underline colour, and
+ * demotion rule 1 refuses anything with a menu behind it. It stays a toggle here, because that is
+ * the shape this unit draws; the split button is a later unit's.
  */
 const wordHomeFont: readonly RibbonCommand[] = [
   { id: 'word.home.font.name', label: 'Font' },
@@ -262,12 +319,12 @@ const wordHomeFont: readonly RibbonCommand[] = [
   { id: 'word.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
   { id: 'word.home.font.change-case', label: 'Change Case', icon: 'text-change-case', size: 'icon' },
   { id: 'word.home.font.clear-formatting', label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
-  { id: 'word.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true },
-  { id: 'word.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true, pressed: true },
-  { id: 'word.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
-  { id: 'word.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon' },
-  { id: 'word.home.font.subscript', label: 'Subscript', icon: 'text-subscript', size: 'icon' },
-  { id: 'word.home.font.superscript', label: 'Superscript', icon: 'text-superscript', size: 'icon' },
+  { id: 'word.home.font.bold', label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, essential: true },
+  { id: 'word.home.font.italic', label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, pressed: true, essential: true },
+  { id: 'word.home.font.underline', label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true },
+  { id: 'word.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon', toggle: true },
+  { id: 'word.home.font.subscript', label: 'Subscript', icon: 'text-subscript', size: 'icon', toggle: true },
+  { id: 'word.home.font.superscript', label: 'Superscript', icon: 'text-superscript', size: 'icon', toggle: true },
   { id: 'word.home.font.text-effects', label: 'Text Effects and Typography', icon: 'text-effects', size: 'icon' },
   { id: 'word.home.font.highlight', label: 'Text Highlight Colour', icon: 'highlight', size: 'icon' },
   { id: 'word.home.font.colour', label: 'Font colour' },
@@ -277,8 +334,10 @@ const wordHomeFont: readonly RibbonCommand[] = [
  * Word's Paragraph group: the three lists, the two indents, Sort and Show/Hide, then the four
  * alignments, line spacing, Shading and Borders.
  *
- * Office lays this out as two rows of seven and this is that reading order. The alignment marks take
- * the three essential slots, and Justify is the fourth member that cannot — see the header.
+ * Office lays this out as two rows of seven and this is that reading order. Show/Hide ¶ and all four
+ * alignments are toggles; Align Left, Centre and Align Right survive a collapse, and Justify — the
+ * fourth alignment and the least used — is the one the collapsed group gives up. It still draws
+ * pressed on a justified paragraph, which it could not before unit 2b.
  */
 const wordHomeParagraph: readonly RibbonCommand[] = [
   { id: 'word.home.paragraph.bullets', label: 'Bullets', icon: 'text-bullet-list-ltr', size: 'icon' },
@@ -287,11 +346,11 @@ const wordHomeParagraph: readonly RibbonCommand[] = [
   { id: 'word.home.paragraph.decrease-indent', label: 'Decrease Indent', icon: 'text-indent-decrease', size: 'icon' },
   { id: 'word.home.paragraph.increase-indent', label: 'Increase Indent', icon: 'text-indent-increase', size: 'icon' },
   { id: 'word.home.paragraph.sort', label: 'Sort', icon: 'arrow-sort', size: 'icon' },
-  { id: 'word.home.paragraph.show-marks', label: 'Show/Hide ¶', icon: 'text-paragraph', size: 'icon' },
-  { id: 'word.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', toggle: true, pressed: true },
-  { id: 'word.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', toggle: true },
-  { id: 'word.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
-  { id: 'word.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon' },
+  { id: 'word.home.paragraph.show-marks', label: 'Show/Hide ¶', icon: 'text-paragraph', size: 'icon', toggle: true },
+  { id: 'word.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', size: 'icon', toggle: true, pressed: true, essential: true },
+  { id: 'word.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, essential: true },
+  { id: 'word.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
+  { id: 'word.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon', toggle: true },
   { id: 'word.home.paragraph.line-spacing', label: 'Line and Paragraph Spacing', icon: 'text-line-spacing', size: 'icon' },
   { id: 'word.home.paragraph.shading', label: 'Shading', icon: 'color-fill', size: 'icon' },
   { id: 'word.home.paragraph.borders', label: 'Borders', icon: 'border-all', size: 'icon' },
@@ -309,8 +368,13 @@ const wordHomeStyles: readonly RibbonCommand[] = [
   { id: 'word.home.styles.gallery', label: 'Styles' },
 ];
 
+/**
+ * Word's Editing group keeps **no** survivor. Office draws Find as a split button (Find, Advanced
+ * Find, Go To), Replace opens a dialog and Select opens a menu — three rule-1 failures, the first of
+ * which unit 2 declared essential because this catalogue draws it as a plain button.
+ */
 const wordHomeEditing: readonly RibbonCommand[] = [
-  { id: 'word.home.editing.find', label: 'Find', icon: 'search', essential: true },
+  { id: 'word.home.editing.find', label: 'Find', icon: 'search' },
   { id: 'word.home.editing.replace', label: 'Replace', icon: 'arrow-swap' },
   { id: 'word.home.editing.select', label: 'Select', icon: 'select-all-on' },
 ];
@@ -327,7 +391,7 @@ const wordHomeEditor: readonly RibbonCommand[] = [
 ];
 
 const powerpointHomeClipboard: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
+  { id: 'powerpoint.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large' },
   { id: 'powerpoint.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'powerpoint.home.clipboard.copy', label: 'Copy', icon: 'copy' },
   { id: 'powerpoint.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
@@ -339,9 +403,14 @@ const powerpointHomeClipboard: readonly RibbonCommand[] = [
  * New Slide is the only `size: 'large'` command unit 2 adds. Section is drawn with
  * `slide-multiple`, which is a judgement: a section *is* a run of slides taken together, and
  * Fluent draws no divider-between-slides at twenty pixels.
+ *
+ * **No survivor.** New Slide is a split button in Office whose arrow is the layout gallery, Layout
+ * is a gallery and Section a menu; Reset is the one that opens nothing, and it fails rule 2: its
+ * glyph is the loop that means *undo* and *refresh* elsewhere. The standard is stated once, in this
+ * section's header, beside AutoSave's.
  */
 const powerpointHomeSlides: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.slides.new-slide', label: 'New Slide', icon: 'slide-add', size: 'large', essential: true },
+  { id: 'powerpoint.home.slides.new-slide', label: 'New Slide', icon: 'slide-add', size: 'large' },
   { id: 'powerpoint.home.slides.layout', label: 'Layout', icon: 'slide-layout' },
   { id: 'powerpoint.home.slides.reset', label: 'Reset', icon: 'arrow-reset' },
   { id: 'powerpoint.home.slides.section', label: 'Section', icon: 'slide-multiple' },
@@ -353,7 +422,13 @@ const powerpointHomeSlides: readonly RibbonCommand[] = [
  *
  * **Text Shadow carries no icon**, and it is `small` for that reason: Fluent draws no shadowed
  * letter, and every candidate (`square-shadow`, `text-effects`) already names a different command
- * in this same subset.
+ * in this same subset. It is a toggle all the same — Office draws it pressed on shadowed text — so it
+ * is the one *labelled* toggle on the tab, and it can never be a survivor, because a survivor has no
+ * room for a label.
+ *
+ * Bold, Italic and Underline survive a collapse; Text Shadow and Strikethrough draw pressed and do
+ * not. **Underline survives here and not in Word or Excel**: PowerPoint's is a plain toggle, where
+ * theirs are split buttons with a menu behind them.
  */
 const powerpointHomeFont: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.font.name', label: 'Font' },
@@ -361,11 +436,11 @@ const powerpointHomeFont: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
   { id: 'powerpoint.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
   { id: 'powerpoint.home.font.clear-formatting', label: 'Clear All Formatting', icon: 'clear-formatting', size: 'icon' },
-  { id: 'powerpoint.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true, pressed: true },
-  { id: 'powerpoint.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true },
-  { id: 'powerpoint.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
-  { id: 'powerpoint.home.font.text-shadow', label: 'Text Shadow' },
-  { id: 'powerpoint.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon' },
+  { id: 'powerpoint.home.font.bold', label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, pressed: true, essential: true },
+  { id: 'powerpoint.home.font.italic', label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
+  { id: 'powerpoint.home.font.underline', label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true, essential: true },
+  { id: 'powerpoint.home.font.text-shadow', label: 'Text Shadow', size: 'small', toggle: true },
+  { id: 'powerpoint.home.font.strikethrough', label: 'Strikethrough', icon: 'text-strikethrough', size: 'icon', toggle: true },
   { id: 'powerpoint.home.font.character-spacing', label: 'Character Spacing', icon: 'font-space-tracking-out', size: 'icon' },
   { id: 'powerpoint.home.font.change-case', label: 'Change Case', icon: 'text-change-case', size: 'icon' },
   { id: 'powerpoint.home.font.colour', label: 'Font colour' },
@@ -385,10 +460,10 @@ const powerpointHomeParagraph: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.paragraph.decrease-list-level', label: 'Decrease List Level', icon: 'text-indent-decrease', size: 'icon' },
   { id: 'powerpoint.home.paragraph.increase-list-level', label: 'Increase List Level', icon: 'text-indent-increase', size: 'icon' },
   { id: 'powerpoint.home.paragraph.line-spacing', label: 'Line Spacing', icon: 'text-line-spacing', size: 'icon' },
-  { id: 'powerpoint.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', toggle: true, pressed: true },
-  { id: 'powerpoint.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', toggle: true },
-  { id: 'powerpoint.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
-  { id: 'powerpoint.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon' },
+  { id: 'powerpoint.home.paragraph.align-left', label: 'Align left', icon: 'text-align-left', size: 'icon', toggle: true, pressed: true, essential: true },
+  { id: 'powerpoint.home.paragraph.centre', label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, essential: true },
+  { id: 'powerpoint.home.paragraph.align-right', label: 'Align right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
+  { id: 'powerpoint.home.paragraph.justify', label: 'Justify', icon: 'text-align-justify', size: 'icon', toggle: true },
   { id: 'powerpoint.home.paragraph.columns', label: 'Columns', icon: 'text-column-two', size: 'icon' },
   { id: 'powerpoint.home.paragraph.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right' },
   { id: 'powerpoint.home.paragraph.align-text', label: 'Align Text', icon: 'align-center-vertical' },
@@ -401,15 +476,16 @@ const powerpointHomeParagraph: readonly RibbonCommand[] = [
  *
  * Sixty-three is the shapes gallery's entire catalogue plus three effect menus and the Arrange
  * menu's fourteen entries. What Office draws is the gallery, Arrange, Quick Styles and the three
- * shape formats. **Shapes is the group's survivor**: a collapsed Drawing group has room for one
- * verb, and *put something on the slide* is the one.
+ * shape formats. **No survivor**: every one of the six opens a gallery or a menu. Unit 2 declared
+ * Shapes essential, which put a gallery inside the collapsed group's popup — rule 1's exact case,
+ * invisible here only because this catalogue draws Shapes as a plain button.
  *
  * `drawing.styles` keeps the label *Shape styles* rather than Office's *Quick Styles* because both
  * hosts bind a `<mjx-gallery>` over it and the gallery's own label is what a reader sees; renaming
  * the census entry would change nothing visible and would make the two disagree.
  */
 const powerpointHomeDrawing: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.drawing.shapes', label: 'Shapes', icon: 'shapes', essential: true },
+  { id: 'powerpoint.home.drawing.shapes', label: 'Shapes', icon: 'shapes' },
   { id: 'powerpoint.home.drawing.arrange', label: 'Arrange', icon: 'layer' },
   { id: 'powerpoint.home.drawing.styles', label: 'Shape styles' },
   { id: 'powerpoint.home.drawing.fill', label: 'Shape Fill', icon: 'color-fill' },
@@ -417,14 +493,15 @@ const powerpointHomeDrawing: readonly RibbonCommand[] = [
   { id: 'powerpoint.home.drawing.effects', label: 'Shape Effects', icon: 'square-shadow' },
 ];
 
+/** No survivor: PowerPoint's Find opens a dialog, Replace is a split button and Select a menu. */
 const powerpointHomeEditing: readonly RibbonCommand[] = [
-  { id: 'powerpoint.home.editing.find', label: 'Find', icon: 'search', essential: true },
+  { id: 'powerpoint.home.editing.find', label: 'Find', icon: 'search' },
   { id: 'powerpoint.home.editing.replace', label: 'Replace', icon: 'arrow-swap' },
   { id: 'powerpoint.home.editing.select', label: 'Select', icon: 'select-all-on' },
 ];
 
 const excelHomeClipboard: readonly RibbonCommand[] = [
-  { id: 'excel.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large', essential: true },
+  { id: 'excel.home.clipboard.paste', label: 'Paste', icon: 'clipboard-paste', size: 'large' },
   { id: 'excel.home.clipboard.cut', label: 'Cut', icon: 'cut' },
   { id: 'excel.home.clipboard.copy', label: 'Copy', icon: 'copy' },
   { id: 'excel.home.clipboard.format-painter', label: 'Format Painter', icon: 'paint-brush' },
@@ -436,39 +513,48 @@ const excelHomeClipboard: readonly RibbonCommand[] = [
  * A cell has an edge and a paragraph does not, which is why Word keeps Borders on Paragraph and
  * Excel keeps it here. Underline arrives in unit 2: the shell's migrated list had Bold and Italic
  * alone, which left Excel the one application whose Font group could not underline anything.
+ *
+ * **Bold and Italic survive a collapse; Underline does not.** Excel's Underline is a split button in
+ * Office — Underline and Double Underline — and demotion rule 1 refuses anything with a menu behind
+ * it, exactly as it refuses AutoSum two groups along.
  */
 const excelHomeFont: readonly RibbonCommand[] = [
   { id: 'excel.home.font.name', label: 'Font' },
   { id: 'excel.home.font.size', label: 'Font size' },
   { id: 'excel.home.font.grow', label: 'Increase Font Size', icon: 'font-increase', size: 'icon' },
   { id: 'excel.home.font.shrink', label: 'Decrease Font Size', icon: 'font-decrease', size: 'icon' },
-  { id: 'excel.home.font.bold', label: 'Bold', icon: 'text-bold', toggle: true },
-  { id: 'excel.home.font.italic', label: 'Italic', icon: 'text-italic', toggle: true },
-  { id: 'excel.home.font.underline', label: 'Underline', icon: 'text-underline', toggle: true },
+  { id: 'excel.home.font.bold', label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, essential: true },
+  { id: 'excel.home.font.italic', label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
+  { id: 'excel.home.font.underline', label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true },
   { id: 'excel.home.font.borders', label: 'Borders', icon: 'border-all', size: 'icon' },
   { id: 'excel.home.font.fill', label: 'Fill colour' },
   { id: 'excel.home.font.font-colour', label: 'Font Colour', icon: 'text-color', size: 'icon' },
 ];
 
 /**
- * Excel's Alignment group — eleven commands, three of which can be toggles.
+ * Excel's Alignment group — eleven commands, seven of them states.
  *
- * Office draws two rows: the three vertical alignments and Orientation above, the three horizontal
- * alignments, the two indents, Wrap Text and Merge & Centre below. The horizontal three take the
- * essential slots because they are the pair a person reads a sheet by; see this section's header on
- * what that costs Top, Middle and Bottom.
+ * Office draws two rows: the three vertical alignments, Orientation and Wrap Text above, the three
+ * horizontal alignments, the two indents and Merge & Centre below — and this is that reading order,
+ * which unit 2 had wrong for Wrap Text. Top, Middle and Bottom Align, Wrap Text and the three
+ * horizontal alignments are all toggles; the horizontal three survive a collapse, because they are
+ * what a person reads a sheet's columns by.
+ *
+ * **Bottom Align starts pressed**, beside Centre: Excel's default vertical alignment is bottom, so a
+ * cell nobody has formatted is bottom-aligned, and a resting state nobody has seen is a state
+ * nobody has audited.
  */
 const excelHomeAlignment: readonly RibbonCommand[] = [
-  { id: 'excel.home.alignment.align-top', label: 'Top Align', icon: 'align-top', size: 'icon' },
-  { id: 'excel.home.alignment.align-middle', label: 'Middle Align', icon: 'align-center-vertical', size: 'icon' },
-  { id: 'excel.home.alignment.align-bottom', label: 'Bottom Align', icon: 'align-bottom', size: 'icon' },
+  { id: 'excel.home.alignment.align-top', label: 'Top Align', icon: 'align-top', size: 'icon', toggle: true },
+  { id: 'excel.home.alignment.align-middle', label: 'Middle Align', icon: 'align-center-vertical', size: 'icon', toggle: true },
+  { id: 'excel.home.alignment.align-bottom', label: 'Bottom Align', icon: 'align-bottom', size: 'icon', toggle: true, pressed: true },
   { id: 'excel.home.alignment.orientation', label: 'Orientation', icon: 'text-direction-rotate-90-right', size: 'icon' },
-  { id: 'excel.home.alignment.align-left', label: 'Align left', icon: 'text-align-left', toggle: true },
-  { id: 'excel.home.alignment.centre', label: 'Centre', icon: 'text-align-center', toggle: true, pressed: true },
-  { id: 'excel.home.alignment.align-right', label: 'Align right', icon: 'text-align-right', toggle: true },
+  { id: 'excel.home.alignment.wrap', label: 'Wrap Text', icon: 'text-wrap', toggle: true },
+  { id: 'excel.home.alignment.align-left', label: 'Align left', icon: 'text-align-left', size: 'icon', toggle: true, essential: true },
+  { id: 'excel.home.alignment.centre', label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, pressed: true, essential: true },
+  { id: 'excel.home.alignment.align-right', label: 'Align right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
   { id: 'excel.home.alignment.decrease-indent', label: 'Decrease Indent', icon: 'text-indent-decrease', size: 'icon' },
   { id: 'excel.home.alignment.increase-indent', label: 'Increase Indent', icon: 'text-indent-increase', size: 'icon' },
-  { id: 'excel.home.alignment.wrap', label: 'Wrap Text', icon: 'text-wrap' },
   { id: 'excel.home.alignment.merge', label: 'Merge & Centre', icon: 'table-cells-merge' },
 ];
 
@@ -509,8 +595,9 @@ const excelHomeCells: readonly RibbonCommand[] = [
   { id: 'excel.home.cells.format', label: 'Format', icon: 'table-settings' },
 ];
 
+/** No survivor: AutoSum is a split button in Office, and Fill, Clear, Sort & Filter and Find & Select are menus. */
 const excelHomeEditing: readonly RibbonCommand[] = [
-  { id: 'excel.home.editing.autosum', label: 'AutoSum', icon: 'autosum', essential: true },
+  { id: 'excel.home.editing.autosum', label: 'AutoSum', icon: 'autosum' },
   { id: 'excel.home.editing.fill', label: 'Fill', icon: 'arrow-down' },
   { id: 'excel.home.editing.clear', label: 'Clear', icon: 'eraser' },
   { id: 'excel.home.editing.sort-filter', label: 'Sort & Filter', icon: 'arrow-sort' },
@@ -566,6 +653,19 @@ const excelHomePowerOptions: readonly RibbonCommand[] = [
 // *Presentation* / *Workbook*), PowerPoint's Export carries video and packaging commands nothing
 // else has, and Excel's Share is short because Excel has a Publish page beside it.
 //
+// ## One survivor on the whole tab, and it is AutoSave
+//
+// Unit 1 gave every File group a survivor — Protect, Browse, Save, Print, Share, Create PDF/XPS,
+// Help — and unit 2b re-judged all seven against `demotionRules` on the shape Office draws them in.
+// **Six of them fail rule 1.** A File page is a list of *destinations*: Protect is a menu, Browse
+// the system file dialog, Share and Create PDF/XPS dialogs, Help a pane, and Save and Print are
+// irreversible — nothing takes back a save that wrote over the file, or a page that left the
+// printer. **AutoSave passes all four**: one press, one more press takes it back, a glyph that is
+// the sync it performs (rule 2's standard is stated once, in the Home section's header, beside
+// Reset's refusal), and it is a state Office keeps in the title bar at every width. So in all three applications
+// Save is the only File group with a survivor, and every other File group collapses to its trigger
+// alone — which `demotionRules` allows and which a collapsed destination list genuinely is.
+//
 // ## The commands that carry no icon, and why that is not an omission
 //
 // Properties, Package Presentation for CD, Create Handouts and Publish to Power BI are drawn as
@@ -578,9 +678,10 @@ const excelHomePowerOptions: readonly RibbonCommand[] = [
 /**
  * Open, as Office lists it: the five places a document comes from.
  *
- * **Browse** is the group's survivor rather than Recent, and that is a deliberate reading of what
- * a collapsed group is for. Recent is the page's headline and is therefore the `large` button; but
- * a collapsed group has room for a verb, not for a list, and the verb here is *go and find one*.
+ * **No survivor.** Unit 1 declared Browse, and Browse opens the system's file dialog — rule 1's
+ * dialog, one level further out. Recent, Shared with Me, OneDrive and This PC each open a list to
+ * choose from, so on this page the choice always comes *after* the press, and nothing here is a
+ * command that does one thing on its own.
  */
 function fileOpenCommands(application: RibbonApplication): readonly RibbonCommand[] {
   return [
@@ -588,7 +689,7 @@ function fileOpenCommands(application: RibbonApplication): readonly RibbonComman
     { id: `${application}.file.open.shared-with-me`, label: 'Shared with Me', icon: 'people' },
     { id: `${application}.file.open.onedrive`, label: 'OneDrive', icon: 'cloud' },
     { id: `${application}.file.open.this-pc`, label: 'This PC', icon: 'desktop' },
-    { id: `${application}.file.open.browse`, label: 'Browse', icon: 'folder-open', essential: true },
+    { id: `${application}.file.open.browse`, label: 'Browse', icon: 'folder-open' },
   ];
 }
 
@@ -600,13 +701,21 @@ function fileOpenCommands(application: RibbonApplication): readonly RibbonComman
  * a control that vanished the moment somebody turned it on would be the same defect as a blank
  * square arriving from the other direction. It is declared `pressed` because that is what Office
  * ships for a cloud document, and a resting state nobody has seen is a state nobody has audited.
+ *
+ * **AutoSave is also the File tab's only survivor**, and Save is not — the reversal of unit 1.
+ * Demotion rule 1 asks for *immediate and reversible*: pressing AutoSave again takes it back, and
+ * nothing takes back a save, which writes over the file on disk (and on a document never saved,
+ * opens Save As). Save As and Save a Copy open a dialog.
+ *
+ * AutoSave is `small`, as it was before it survived anything: the File page draws its name, and a
+ * survivor keeps its own size in the survivor row, so it keeps its name there too.
  */
 function fileSaveCommands(application: RibbonApplication): readonly RibbonCommand[] {
   return [
-    { id: `${application}.file.save.save`, label: 'Save', icon: 'save', size: 'large', essential: true },
+    { id: `${application}.file.save.save`, label: 'Save', icon: 'save', size: 'large' },
     { id: `${application}.file.save.save-as`, label: 'Save As', icon: 'save-edit' },
     { id: `${application}.file.save.save-a-copy`, label: 'Save a Copy', icon: 'save-copy' },
-    { id: `${application}.file.save.autosave`, label: 'AutoSave', icon: 'arrow-sync', toggle: true, pressed: true },
+    { id: `${application}.file.save.autosave`, label: 'AutoSave', icon: 'arrow-sync', toggle: true, pressed: true, essential: true },
   ];
 }
 
@@ -619,20 +728,28 @@ function fileSaveCommands(application: RibbonApplication): readonly RibbonComman
  * `stories/ribbons/ribbon-parts.ts` exists to draw, and Print is the first group in the census that
  * actually needs it for something other than a font list — *which printer* is this machine's
  * business, and a ribbon module has no way to know.
+ *
+ * **No survivor.** Print is the only verb and it is irreversible — no undo takes a page back out of
+ * a printer — so it fails rule 1; Printer and Copies are fields and Settings opens a list.
  */
 function filePrintCommands(application: RibbonApplication): readonly RibbonCommand[] {
   return [
-    { id: `${application}.file.print.print`, label: 'Print', icon: 'print', size: 'large', essential: true },
+    { id: `${application}.file.print.print`, label: 'Print', icon: 'print', size: 'large' },
     { id: `${application}.file.print.printer`, label: 'Printer' },
     { id: `${application}.file.print.copies`, label: 'Copies' },
     { id: `${application}.file.print.settings`, label: 'Settings', icon: 'settings' },
   ];
 }
 
-/** Help, and the four places Office's Help page actually goes. */
+/**
+ * Help, and the four places Office's Help page actually goes.
+ *
+ * **No survivor**: all five open somewhere — a pane, a form, a page, a dialog — which is what a
+ * destination is, and none of them is a command that does one thing in place.
+ */
 function fileHelpCommands(application: RibbonApplication): readonly RibbonCommand[] {
   return [
-    { id: `${application}.file.help.help`, label: 'Help', icon: 'question-circle', size: 'large', essential: true },
+    { id: `${application}.file.help.help`, label: 'Help', icon: 'question-circle', size: 'large' },
     { id: `${application}.file.help.contact-support`, label: 'Contact Support', icon: 'person-support' },
     { id: `${application}.file.help.feedback`, label: 'Feedback', icon: 'person-feedback' },
     { id: `${application}.file.help.whats-new`, label: 'What’s New', icon: 'megaphone' },
@@ -648,6 +765,10 @@ function fileHelpCommands(application: RibbonApplication): readonly RibbonComman
  * command whose label is not the one on the screen is a command a reviewer cannot check.
  * `additional` is Excel's Workbook Statistics, which the other two applications have no equivalent
  * of at all.
+ *
+ * **No survivor.** Protect, Check for Issues and Manage are each a menu in Office — Protect's holds
+ * Always Open Read-Only, Encrypt with Password and four more — and Properties has no icon. Unit 1
+ * declared Protect essential, which put a menu inside the collapsed group's popup.
  */
 function fileInfoCommands(
   application: RibbonApplication,
@@ -655,7 +776,7 @@ function fileInfoCommands(
   additional: readonly RibbonCommand[] = [],
 ): readonly RibbonCommand[] {
   return [
-    { id: `${application}.file.info.protect`, label: `Protect ${noun}`, icon: 'document-lock', essential: true },
+    { id: `${application}.file.info.protect`, label: `Protect ${noun}`, icon: 'document-lock' },
     { id: `${application}.file.info.check-for-issues`, label: 'Check for Issues', icon: 'document-search' },
     { id: `${application}.file.info.manage`, label: `Manage ${noun}`, icon: 'history' },
     ...additional,
@@ -664,19 +785,19 @@ function fileInfoCommands(
 }
 
 const wordFileShare: readonly RibbonCommand[] = [
-  { id: 'word.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'word.file.share.share', label: 'Share', icon: 'share', size: 'large' },
   { id: 'word.file.share.email', label: 'Email', icon: 'mail' },
   { id: 'word.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
   { id: 'word.file.share.present-online', label: 'Present Online', icon: 'presenter' },
 ];
 
 const wordFileExport: readonly RibbonCommand[] = [
-  { id: 'word.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'word.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf' },
   { id: 'word.file.export.change-file-type', label: 'Change File Type', icon: 'arrow-swap' },
 ];
 
 const powerpointFileShare: readonly RibbonCommand[] = [
-  { id: 'powerpoint.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'powerpoint.file.share.share', label: 'Share', icon: 'share', size: 'large' },
   { id: 'powerpoint.file.share.email', label: 'Email', icon: 'mail' },
   { id: 'powerpoint.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
   { id: 'powerpoint.file.share.present-online', label: 'Present Online', icon: 'presenter' },
@@ -691,7 +812,7 @@ const powerpointFileShare: readonly RibbonCommand[] = [
  * carry no icon: see this section's header.
  */
 const powerpointFileExport: readonly RibbonCommand[] = [
-  { id: 'powerpoint.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'powerpoint.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf' },
   { id: 'powerpoint.file.export.video', label: 'Create a Video', icon: 'video' },
   { id: 'powerpoint.file.export.package-for-cd', label: 'Package Presentation for CD' },
   { id: 'powerpoint.file.export.handouts', label: 'Create Handouts' },
@@ -700,13 +821,13 @@ const powerpointFileExport: readonly RibbonCommand[] = [
 
 /** Excel's Share page is short because Excel has a Publish page beside it. See `excelFilePublish`. */
 const excelFileShare: readonly RibbonCommand[] = [
-  { id: 'excel.file.share.share', label: 'Share', icon: 'share', size: 'large', essential: true },
+  { id: 'excel.file.share.share', label: 'Share', icon: 'share', size: 'large' },
   { id: 'excel.file.share.email', label: 'Email', icon: 'mail' },
   { id: 'excel.file.share.get-a-link', label: 'Get a Link', icon: 'link' },
 ];
 
 const excelFileExport: readonly RibbonCommand[] = [
-  { id: 'excel.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf', essential: true },
+  { id: 'excel.file.export.pdf', label: 'Create PDF/XPS Document', icon: 'document-pdf' },
   { id: 'excel.file.export.change-file-type', label: 'Change File Type', icon: 'arrow-swap' },
 ];
 
@@ -1393,16 +1514,15 @@ export function strongestPriority(tab: RibbonTabEntry): GroupPriority {
 }
 
 /**
- * The commands a group shows that survive a collapse.
+ * The commands a group shows that survive a collapse, in declared order.
  *
- * A toggle always does — `shell-parts.ts`'s `toggle()` emits `slot="essential"` unconditionally —
- * and a one-shot command does when it says so. `essentialCommandLimit` is the ceiling, and
+ * **Declared, never inferred.** This used to count every toggle as essential, because
+ * `shell-parts.ts`'s `toggle()` put every toggle in the survivor slot; a state command is not a
+ * survivor, and the two are now independent. `essentialCommandLimit` is the ceiling, and
  * `tests/ribbons.test.ts` holds it.
  */
 export function essentialCommands(group: RibbonGroupEntry): readonly RibbonCommand[] {
-  return (group.commands ?? []).filter(
-    (command) => command.toggle === true || command.essential === true,
-  );
+  return (group.commands ?? []).filter((command) => command.essential === true);
 }
 
 /** Every command declared anywhere in the census, for the gates that sweep all of them. */

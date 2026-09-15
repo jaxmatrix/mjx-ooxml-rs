@@ -23,7 +23,9 @@
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
 
-import { html, type TemplateResult } from 'lit';
+import { html, nothing, type TemplateResult } from 'lit';
+
+import type { ControlSize } from '../../src/controls/control-states.ts';
 
 import { typeRoleClass } from '../../src/foundations/typography.ts';
 import type { MjxDialog } from '../../src/surfaces/dialog.ts';
@@ -256,14 +258,36 @@ export const ribbonColourFieldStyle = 'inline-size:9rem;flex:0 0 auto';
  */
 export const ribbonGalleryStyle = 'overflow:hidden';
 
-/** A toggle that starts on, so the ribbon shows a pressed state without a pointer. */
-export function toggle(label: string, icon: string, pressed = false): TemplateResult {
+/** What a ribbon toggle is asked to be. */
+export interface ToggleOptions {
+  /**
+   * **Whether it survives its group's collapse — required, so every caller says.**
+   *
+   * This function used to emit `slot="essential"` unconditionally, which made *is a state* and
+   * *survives a collapse* one fact, capped every group at `essentialCommandLimit` state commands,
+   * and left Justify, Subscript and Excel's vertical alignments unable to draw pressed. There is no
+   * default because the old default was the defect: a toggle that claimed the survivor row by
+   * omission is exactly how a fourth one got refused.
+   */
+  readonly essential: boolean;
+  /** Starts on, so the ribbon shows a pressed state without a pointer. */
+  readonly pressed?: boolean;
+  /** Defaults to `icon`, the size nearly every ribbon toggle is. A toggle with no icon must not use it. */
+  readonly size?: ControlSize;
+}
+
+/** A ribbon toggle. */
+export function toggle(
+  label: string,
+  icon: string | undefined,
+  options: ToggleOptions,
+): TemplateResult {
   return html`<mjx-toggle-button
-    slot="essential"
+    slot=${options.essential ? 'essential' : nothing}
     label=${label}
-    icon=${icon}
-    size="icon"
-    ?pressed=${pressed}
+    icon=${icon ?? nothing}
+    size=${options.size ?? 'icon'}
+    ?pressed=${options.pressed === true}
   ></mjx-toggle-button>`;
 }
 

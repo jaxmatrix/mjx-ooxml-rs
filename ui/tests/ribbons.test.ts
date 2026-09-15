@@ -17,7 +17,13 @@ import {
 } from '../dev/ribbons/census.ts';
 import { controlSizes, type ControlSize } from '../src/controls/control-states.ts';
 import { iconRequests } from '../src/icons/manifest.ts';
-import { essentialCommandLimit, groupPriorityNames } from '../src/ribbon/ribbon-model.ts';
+import {
+  essentialCommandLimit,
+  groupPresentationOrder,
+  groupPriorityNames,
+  presentedCommandOrder,
+  type GroupPresentation,
+} from '../src/ribbon/ribbon-model.ts';
 
 /**
  * **The ribbon catalogue's model**, with no rendering in it.
@@ -363,7 +369,17 @@ function variantsFor(command: RibbonCommand): readonly string[] {
 
 /** What is missing from `src/icons/manifest.ts` for one command, in a message a person can act on. */
 export function iconFindings(command: RibbonCommand): string[] {
-  if (command.icon === undefined) return [];
+  if (command.icon === undefined) {
+    // `size: 'icon'` draws the label off-screen and the glyph alone, so with no glyph it draws
+    // nothing at all. Unit 2b added the first toggle with no icon — PowerPoint's Text Shadow — and
+    // `toggle()`'s own default size is `icon`, which is exactly how that would have happened.
+    return command.size === 'icon'
+      ? [
+          `${command.id} is size="icon" and names no icon, so it draws an empty square with its ` +
+            'name off-screen. A command with no glyph is `small`, and its label is the command.',
+        ]
+      : [];
+  }
   const request = iconRequests.find((entry) => entry.name === command.icon);
   if (request === undefined) {
     return [
@@ -435,6 +451,20 @@ describe('the icon rule can reject', () => {
 
   it('accepts a command with no icon at all', () => {
     expect(iconFindings({ id: 'word.home.styles.gallery', label: 'Styles' })).toEqual([]);
+    expect(
+      iconFindings({ id: 'powerpoint.home.font.text-shadow', label: 'Text Shadow', size: 'small', toggle: true }),
+    ).toEqual([]);
+  });
+
+  it('catches an icon-size command with no icon to draw', () => {
+    const findings = iconFindings({
+      id: 'powerpoint.home.font.text-shadow',
+      label: 'Text Shadow',
+      size: 'icon',
+      toggle: true,
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('empty square');
   });
 
   it('catches an icon the manifest never requested', () => {
@@ -486,13 +516,19 @@ function overrideKeysIn(source: string): string[] {
   return [...source.matchAll(/'([a-z]+(?:\.[a-z0-9-]+){3})'\s*:/g)].map((match) => match[1] ?? '');
 }
 
+/** The six files that assemble a ribbon and bind overrides over the census. */
+const assemblySources = ['ribbons/word', 'ribbons/powerpoint', 'ribbons/excel', 'shell/word', 'shell/powerpoint', 'shell/excel'].map(
+  (name) => ({
+    name: `${name}.stories.ts`,
+    source: readFileSync(resolve(import.meta.dirname, `../stories/${name}.stories.ts`), 'utf8'),
+  }),
+);
+
+/** Every command id any host binds an override to. */
+const overriddenIds = new Set(assemblySources.flatMap((file) => overrideKeysIn(file.source)));
+
 describe('every override a host binds names a command that exists', () => {
-  const files = ['ribbons/word', 'ribbons/powerpoint', 'ribbons/excel', 'shell/word', 'shell/powerpoint', 'shell/excel'].map(
-    (name) => ({
-      name: `${name}.stories.ts`,
-      source: readFileSync(resolve(import.meta.dirname, `../stories/${name}.stories.ts`), 'utf8'),
-    }),
-  );
+  const files = assemblySources;
   const declared = new Set(everyRibbonCommand().map((command) => command.id));
 
   it('finds keys at all, or it is checking nothing', () => {
@@ -524,34 +560,275 @@ describe('every override a host binds names a command that exists', () => {
 
 // ── the collapse ceiling ─────────────────────────────────────────────────────
 
-describe('the demotion ceiling', () => {
-  it('keeps every authored group inside it', () => {
-    for (const application of ribbonApplicationNames) {
-      for (const tab of ribbonCensus[application]) {
-        for (const group of tab.groups) {
-          const survivors = essentialCommands(group);
-          expect(
-            survivors.length,
-            `${application}/${tab.id}/${group.label} declares ${String(survivors.length)} ` +
-              'essential commands. A survivor row longer than the ceiling is a ribbon again.',
-          ).toBeLessThanOrEqual(essentialCommandLimit);
-        }
-      }
+/**
+ * What is wrong with one group's declared survivors.
+ *
+ * ⚠ **Counts `essential` alone.** Until unit 2b `essentialCommands()` also counted every toggle, so
+ * this ceiling was secretly a ceiling on *state commands* and refused a fourth alignment. A state is
+ * not a survivor; this is now the rule `demotionRules` states and nothing more.
+ *
+ * What it can check of rule 1 — *nothing that opens anything* — is the part the data can see: an
+ * essential command must be drawn by the generic button or toggle, never by a host's override,
+ * because every override in this catalogue exists precisely because the command is richer than a
+ * button (a split button, a picker, a gallery, a field). Whether **Office** draws a generic-looking
+ * command as a split button is a judgement recorded beside each group in `dev/ribbons/census.ts`,
+ * and it is stated as a judgement here rather than dressed up as a check.
+ */
+export function survivorFindings(
+  where: string,
+  commands: readonly RibbonCommand[],
+  overridden: ReadonlySet<string>,
+): string[] {
+  const findings: string[] = [];
+  const survivors = commands.filter((command) => command.essential === true);
+  if (survivors.length > essentialCommandLimit) {
+    findings.push(
+      `${where} declares ${String(survivors.length)} essential commands. A survivor row longer ` +
+        `than ${String(essentialCommandLimit)} is a ribbon again.`,
+    );
+  }
+  if (survivors.length > 0 && survivors.length === commands.length) {
+    findings.push(
+      `${where} declares every one of its commands essential, so its collapsed popup opens empty.`,
+    );
+  }
+  for (const command of survivors) {
+    if (command.icon === undefined) {
+      findings.push(`${command.id} is essential and has no icon; a survivor row has no room for a label.`);
     }
+    if (overridden.has(command.id)) {
+      findings.push(
+        `${command.id} is essential and a host binds its own control over it. Every override is ` +
+          'richer than a button — demotion rule 1 refuses it.',
+      );
+    }
+  }
+  return findings;
+}
+
+describe('the demotion ceiling', () => {
+  const authored = ribbonApplicationNames.flatMap((application) =>
+    ribbonCensus[application].flatMap((tab) =>
+      tab.groups
+        .filter((group) => group.commands !== undefined)
+        .map((group) => ({ where: `${application}/${tab.id}/${group.label}`, group })),
+    ),
+  );
+
+  it('sweeps authored groups, some of which declare survivors', () => {
+    expect(authored.length).toBeGreaterThan(20);
+    expect(
+      authored.filter(({ group }) => essentialCommands(group).length > 0).length,
+      'no authored group declares a survivor, so every assertion below is about an empty set',
+    ).toBeGreaterThan(5);
   });
 
-  it('gives every survivor an icon, because a collapsed group has no room for a label', () => {
-    for (const application of ribbonApplicationNames) {
-      for (const tab of ribbonCensus[application]) {
-        for (const group of tab.groups) {
-          for (const command of essentialCommands(group)) {
-            expect(
-              command.icon,
-              `${command.id} is essential and has no icon`,
-            ).toBeDefined();
-          }
-        }
-      }
-    }
+  it('keeps every authored group inside it, counting declared survivors only', () => {
+    const findings = authored.flatMap(({ where, group }) =>
+      survivorFindings(where, group.commands ?? [], overriddenIds),
+    );
+    expect(findings).toEqual([]);
   });
+
+  it('no longer counts a toggle as a survivor', () => {
+    // The unit's own defect, pinned: Word's Font group declares six toggles and two survivors — the
+    // survivors named rather than counted, so a ceiling-sized coincidence cannot pass for the rule.
+    const font = ribbonCensus.word
+      .find((tab) => tab.id === 'home')
+      ?.groups.find((group) => group.id === 'GroupFont');
+    expect(font).toBeDefined();
+    const toggles = (font?.commands ?? []).filter((command) => command.toggle === true);
+    expect(toggles.length, 'Word Font has fewer toggles than the ceiling').toBeGreaterThan(
+      essentialCommandLimit,
+    );
+    expect(
+      essentialCommands(font ?? { id: '', label: '', priority: 'primary', controls: 0, inScope: true }).map(
+        (command) => command.id,
+      ),
+    ).toEqual(['word.home.font.bold', 'word.home.font.italic']);
+  });
+
+  it('refuses a fourth survivor, a survivor with no icon, an overridden survivor, and an empty popup', () => {
+    const command = (id: string, over: Partial<RibbonCommand> = {}): RibbonCommand => ({
+      id: `word.home.specimen.${id}`,
+      label: id,
+      icon: 'text-bold',
+      ...over,
+    });
+    expect(
+      survivorFindings('fine', [command('a', { essential: true }), command('b')], new Set()),
+    ).toEqual([]);
+    expect(
+      survivorFindings(
+        'four',
+        ['a', 'b', 'c', 'd'].map((id) => command(id, { essential: true })).concat(command('e')),
+        new Set(),
+      ),
+    ).toHaveLength(1);
+    expect(
+      survivorFindings(
+        'no icon',
+        [{ id: 'word.home.specimen.a', label: 'a', essential: true }, command('b')],
+        new Set(),
+      )[0],
+    ).toContain('no icon');
+    expect(
+      survivorFindings('bound', [command('a', { essential: true }), command('b')], new Set(['word.home.specimen.a']))[0],
+    ).toContain('rule 1');
+    expect(survivorFindings('empty', [command('a', { essential: true })], new Set())[0]).toContain(
+      'opens empty',
+    );
+  });
+});
+
+// ── where a survivor draws ───────────────────────────────────────────────────
+
+/** How a group presents its commands, as a function a gate can swap out. */
+type Presenter = (
+  presentation: GroupPresentation,
+  commands: readonly RibbonCommand[],
+  isEssential: (command: RibbonCommand) => boolean,
+) => readonly RibbonCommand[];
+
+const declaredEssential = (command: RibbonCommand): boolean => command.essential === true;
+
+/**
+ * **The order a group presents its commands in, against the order it declares them** — for every
+ * presentation.
+ *
+ * The expectation is written out per presentation rather than derived from `groupPresentations`,
+ * so a presenter that consulted the wrong field would disagree with it: `full` and `reduced` present
+ * exactly the declaration, and `collapsed` presents the declared survivors, then the rest, each in
+ * declared order.
+ *
+ * The presenter is a parameter so the instrument tests can hand it the two rules this unit exists
+ * to refuse — survivors first (the old row) and survivors last (`d01cf93`) — and watch both fail on
+ * the census's own data. `presentedCommandOrder` is the default because it is what
+ * `<mjx-ribbon-group>` executes; `tests/browser/ribbon.spec.ts` reads the real slots.
+ */
+export function orderFindings(
+  where: string,
+  commands: readonly RibbonCommand[],
+  present: Presenter = presentedCommandOrder,
+): string[] {
+  const survivors = commands.filter(declaredEssential);
+  const rest = commands.filter((command) => !declaredEssential(command));
+  const expected: Readonly<Record<GroupPresentation, readonly RibbonCommand[]>> = {
+    full: commands,
+    reduced: commands,
+    collapsed: [...survivors, ...rest],
+  };
+  const ids = (list: readonly RibbonCommand[]): string => list.map((command) => command.id).join(', ');
+  return groupPresentationOrder.flatMap((presentation) => {
+    const actual = ids(present(presentation, commands, declaredEssential));
+    const wanted = ids(expected[presentation]);
+    return actual === wanted
+      ? []
+      : [`${where} presents [${actual}] when ${presentation}, and the rule says [${wanted}].`];
+  });
+}
+
+/** Whether a group puts a survivor with a non-survivor on each side — the shape both blanket rules get wrong. */
+function interleavesSurvivors(commands: readonly RibbonCommand[]): boolean {
+  // ES2022 has no `findLastIndex`, and this workspace's `lib` is ES2022.
+  const survivorIndices = commands.flatMap((command, index) => (declaredEssential(command) ? [index] : []));
+  const first = survivorIndices[0];
+  const last = survivorIndices[survivorIndices.length - 1];
+  if (first === undefined || last === undefined) return false;
+  return (
+    commands.slice(0, first).some((command) => !declaredEssential(command)) &&
+    commands.slice(last + 1).some((command) => !declaredEssential(command))
+  );
+}
+
+const survivorsFirst: Presenter = (_presentation, commands, isEssential) => [
+  ...commands.filter(isEssential),
+  ...commands.filter((command) => !isEssential(command)),
+];
+
+const survivorsLast: Presenter = (_presentation, commands, isEssential) => [
+  ...commands.filter((command) => !isEssential(command)),
+  ...commands.filter(isEssential),
+];
+
+describe('every authored group presents its commands in the order it declares them', () => {
+  const authored = ribbonApplicationNames.flatMap((application) =>
+    ribbonCensus[application].flatMap((tab) =>
+      tab.groups
+        .filter((group) => group.commands !== undefined)
+        .map((group) => ({ where: `${application}/${tab.id}/${group.label}`, commands: group.commands ?? [] })),
+    ),
+  );
+
+  it('in all three presentations', () => {
+    expect(authored.flatMap(({ where, commands }) => orderFindings(where, commands))).toEqual([]);
+  });
+
+  it('on data that is DISCRIMINATING — a survivor with a command either side of it', () => {
+    // Without this the two refusals below could pass over groups whose survivors happen to be
+    // declared first or last, where a blanket rule and the declared order coincide.
+    expect(
+      authored.filter(({ commands }) => interleavesSurvivors(commands)).map(({ where }) => where),
+    ).toContain('word/home/Font');
+  });
+});
+
+describe('the order rule can reject', () => {
+  const authored = ribbonApplicationNames.flatMap((application) =>
+    ribbonCensus[application].flatMap((tab) =>
+      tab.groups.map((group) => ({ where: `${application}/${tab.id}/${group.label}`, commands: group.commands ?? [] })),
+    ),
+  );
+
+  it('refuses survivors drawn first — the row unit 2 shipped', () => {
+    const findings = authored.flatMap(({ where, commands }) => orderFindings(where, commands, survivorsFirst));
+    expect(findings.some((finding) => finding.startsWith('word/home/Font presents') && finding.includes('when full'))).toBe(true);
+  });
+
+  it('refuses survivors drawn last — the row d01cf93 tried and reverted', () => {
+    const findings = authored.flatMap(({ where, commands }) => orderFindings(where, commands, survivorsLast));
+    expect(findings.some((finding) => finding.startsWith('word/home/Font presents') && finding.includes('when full'))).toBe(true);
+  });
+
+  it('refuses a presenter that forgets to move the survivors out when collapsed', () => {
+    const neverSplits: Presenter = (_presentation, commands) => commands;
+    const findings = authored.flatMap(({ where, commands }) => orderFindings(where, commands, neverSplits));
+    expect(findings.some((finding) => finding.includes('when collapsed'))).toBe(true);
+    expect(findings.some((finding) => finding.includes('when full'))).toBe(false);
+  });
+
+  it('reads interleaving correctly on hand-made groups', () => {
+    const c = (id: string, essential = false): RibbonCommand => ({ id: `word.home.x.${id}`, label: id, essential });
+    expect(interleavesSurvivors([c('a'), c('b', true), c('c')])).toBe(true);
+    expect(interleavesSurvivors([c('a', true), c('b')])).toBe(false);
+    expect(interleavesSurvivors([c('a'), c('b', true)])).toBe(false);
+    expect(interleavesSurvivors([c('a'), c('b')])).toBe(false);
+  });
+});
+
+// ── the survivor slot is the census's to claim ───────────────────────────────
+
+/** Every place an assembly source writes a literal `slot="essential"`. */
+function essentialClaimsIn(source: string): number {
+  return [...source.matchAll(/\bslot\s*=\s*["']essential["']/g)].length;
+}
+
+describe('no host claims the survivor slot', () => {
+  it('reads a claim the way markup writes one, and nothing else', () => {
+    expect(essentialClaimsIn('<mjx-split-button\n  slot="essential"')).toBe(1);
+    expect(essentialClaimsIn("<x slot='essential'>")).toBe(1);
+    expect(essentialClaimsIn('<x slot="dialog-launcher">')).toBe(0);
+    expect(essentialClaimsIn("slot=${command.essential === true ? 'essential' : nothing}")).toBe(0);
+  });
+
+  for (const file of assemblySources) {
+    it(`${file.name} leaves survivors to the census`, () => {
+      expect(
+        essentialClaimsIn(file.source),
+        `${file.name} writes slot="essential" on an override. Survivors are declared in ` +
+          'dev/ribbons/census.ts, and every override is a control richer than a button — the ' +
+          'Paste split buttons claimed the slot until unit 2b, in all six of these files.',
+      ).toBe(0);
+    });
+  }
 });

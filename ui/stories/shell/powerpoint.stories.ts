@@ -196,7 +196,6 @@ function ribbon(): TemplateResult {
               )}
             </mjx-combo-box>`,
             'powerpoint.home.clipboard.paste': html`<mjx-split-button
-              slot="essential"
               label="Paste"
               icon="clipboard-paste"
               size="large"

@@ -66,6 +66,7 @@ const contextualStory = { title: 'Ribbon/Ribbon', name: 'Contextual Tab Sets' } 
 const statesStory = { title: 'Ribbon/Ribbon', name: 'Ribbon States' } as const;
 const simplifiedStory = { title: 'Ribbon/Ribbon', name: 'The Simplified Form' } as const;
 const worstCaseStory = { title: 'Ribbon/Word TabHome', name: 'The Worst Case' } as const;
+const wordHomeStory = { title: 'Ribbons/Word', name: 'Home' } as const;
 
 /** Open a story by title and name, failing with the name rather than with `undefined`. */
 async function open(
@@ -168,9 +169,12 @@ const readRibbon = `() => {
       const triggerStyle = getComputedStyle(trigger);
       const panelStyle = getComputedStyle(panel);
       const children = [...group.children];
-      const panelCommands = children.filter((child) => {
+      // Every command the group holds, survivors included. Until unit 2b this counted only the
+      // children with no slot, so a survivor lost at narrow width would not have been counted as
+      // lost — and demotionRules' rule 4 says this gate counts every command at all three widths.
+      const allCommands = children.filter((child) => {
         const slot = child.getAttribute('slot');
-        return slot === null || slot === '';
+        return slot === null || slot === '' || slot === 'essential';
       });
       return {
         label: group.getAttribute('label') ?? '',
@@ -181,9 +185,9 @@ const readRibbon = `() => {
         panelDisplay: panelStyle.display,
         densityStep: boxStyle.getPropertyValue('--mjx-density-step').trim(),
         triggerMinBlock: Number.parseFloat(triggerStyle.minBlockSize),
-        commands: panelCommands.length,
+        commands: allCommands.length,
         essential: children.filter((child) => child.getAttribute('slot') === 'essential').length,
-        renderedCommands: panelCommands.filter((command) => {
+        renderedCommands: allCommands.filter((command) => {
           const rect = command.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
         }).length,
@@ -890,6 +894,429 @@ test.describe('the ribbon’s three states', () => {
         !spec.restoreVisible,
       );
     }
+  });
+});
+
+// ── where a survivor draws ───────────────────────────────────────────────────
+
+interface PlacedRect {
+  x: number;
+  y: number;
+  right: number;
+  bottom: number;
+  drawn: boolean;
+}
+
+interface GroupPlacement {
+  label: string;
+  presentation: string;
+  /** Each declared command's label, in declared order. */
+  declared: string[];
+  /** Declared indices of the commands that declare `slot="essential"`. */
+  essential: number[];
+  /** Declared indices of what the survivor slot really holds, in its order. */
+  survivors: number[];
+  /** Declared indices of what the panel slot really holds, in its order. */
+  panel: number[];
+  rects: PlacedRect[];
+  trigger: PlacedRect;
+}
+
+/**
+ * Where every command of every selected group really is: which slot holds it, in which order, and
+ * where it was drawn.
+ *
+ * ⚠ The slots are read out of the shadow root and the indices out of the light DOM, so a group that
+ * assigned a command to no slot at all would show up as a declared index missing from both lists —
+ * which the equalities below turn into a failure naming the group.
+ */
+const readPlacement = `() => {
+  const groups = [...document.querySelectorAll('mjx-ribbon-group')].filter(
+    (group) => group.closest('mjx-ribbon-tab[selected]') !== null,
+  );
+  const rectOf = (element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, right: rect.right, bottom: rect.bottom, drawn: rect.width > 0 && rect.height > 0 };
+  };
+  return groups.map((group) => {
+    const root = group.shadowRoot;
+    const survivorSlot = root.querySelector('.essential slot');
+    const panelSlot = root.querySelector('.commands slot');
+    const trigger = root.querySelector('.trigger');
+    const box = root.querySelector('.group');
+    if (!survivorSlot || !panelSlot || !trigger || !box) throw new Error('a group lost a slot, its trigger or its box');
+    const declared = [...group.children].filter((child) => {
+      const slot = child.getAttribute('slot');
+      return slot === null || slot === '' || slot === 'essential';
+    });
+    return {
+      label: group.getAttribute('label') ?? '',
+      presentation: getComputedStyle(box).getPropertyValue('${groupPresentationProperty}').trim(),
+      declared: declared.map((child) => child.getAttribute('label') ?? child.tagName.toLowerCase()),
+      essential: declared.flatMap((child, index) => (child.getAttribute('slot') === 'essential' ? [index] : [])),
+      survivors: survivorSlot.assignedElements().map((element) => declared.indexOf(element)),
+      panel: panelSlot.assignedElements().map((element) => declared.indexOf(element)),
+      rects: declared.map(rectOf),
+      trigger: rectOf(trigger),
+    };
+  });
+}`;
+
+async function readPlacements(page: Page): Promise<GroupPlacement[]> {
+  return page.evaluate(
+    (source) => (new Function(`return ${source}`)() as () => unknown)() as never,
+    readPlacement,
+  );
+}
+
+/**
+ * Which declared command of the named group holds focus, or -1 when focus is anywhere else —
+ * including the group's own trigger and dialog launcher.
+ *
+ * Walks up from the deepest focused element through every shadow host, because a command's focus
+ * stop is inside its own shadow root and a picker's may be two roots deep.
+ */
+const focusedCommandIndex = `(label) => {
+  let element = document.activeElement;
+  while (element && element.shadowRoot && element.shadowRoot.activeElement) {
+    element = element.shadowRoot.activeElement;
+  }
+  const group = [...document.querySelectorAll('mjx-ribbon-tab[selected] mjx-ribbon-group')].find(
+    (candidate) => candidate.getAttribute('label') === label,
+  );
+  if (!group) throw new Error('no selected group labelled ' + label);
+  const declared = [...group.children].filter((child) => {
+    const slot = child.getAttribute('slot');
+    return slot === null || slot === '' || slot === 'essential';
+  });
+  let node = element;
+  while (node) {
+    if (node.parentElement === group) return declared.indexOf(node);
+    if (node.parentElement) {
+      node = node.parentElement;
+      continue;
+    }
+    const root = node.getRootNode();
+    node = root instanceof ShadowRoot ? root.host : null;
+  }
+  return -1;
+}`;
+
+async function focusedIndex(page: Page, label: string): Promise<number> {
+  return page.evaluate(
+    ({ source, group }) => (new Function(`return ${source}`)() as (value: string) => number)(group),
+    { source: focusedCommandIndex, group: label },
+  );
+}
+
+/**
+ * Press Tab until focus leaves the group's commands, and return the commands it visited, each once.
+ *
+ * Consecutive repeats are collapsed because a picker or a split button is more than one tab stop and
+ * is still one command; a command visited, left and visited again is **not** collapsed, and would
+ * fail the equality as it should.
+ */
+async function tabWalk(page: Page, label: string, limit: number): Promise<number[]> {
+  const visited: number[] = [];
+  for (let step = 0; step < limit; step += 1) {
+    await page.keyboard.press('Tab');
+    const index = await focusedIndex(page, label);
+    if (index === -1) break;
+    if (visited[visited.length - 1] !== index) visited.push(index);
+  }
+  return visited;
+}
+
+/** Whether `later` reads after `earlier` in a column-flow grid: further across, or lower in the same column. */
+function readsAfter(earlier: PlacedRect, later: PlacedRect): boolean {
+  if (later.x > earlier.x + 1) return true;
+  return Math.abs(later.x - earlier.x) <= 1 && later.y > earlier.y;
+}
+
+const range = (length: number): number[] => Array.from({ length }, (_, index) => index);
+
+test.describe('where a survivor draws — declared order, not a blanket rule', () => {
+  test('the fixture is DISCRIMINATING: a survivor has a command declared on each side of it', async ({
+    page,
+  }) => {
+    // Without this, every order assertion below could pass over groups whose survivors happen to be
+    // declared first or last — exactly where a blanket rule and the declared order agree.
+    await open(page, wordHomeStory);
+    await setContainerWidth(page, 1440);
+    const placements = await readPlacements(page);
+    const interleaved = placements.filter((group) => {
+      const first = group.essential[0];
+      const last = group.essential[group.essential.length - 1];
+      return first !== undefined && last !== undefined && first > 0 && last < group.declared.length - 1;
+    });
+    expect(interleaved.map((group) => group.label)).toEqual(
+      expect.arrayContaining(['Font', 'Paragraph']),
+    );
+  });
+
+  for (const story of [wordHomeStory, worstCaseStory]) {
+    test(`${story.title} · ${story.name}: expanded, every command draws in declared order and the survivor row is empty`, async ({
+      page,
+    }) => {
+      await open(page, story);
+      await setContainerWidth(page, 1440);
+      const placements = await readPlacements(page);
+      expect(placements.length).toBeGreaterThan(3);
+      for (const group of placements) {
+        expect(group.presentation, `${group.label} at 1440px`).not.toBe('collapsed');
+        expect(group.survivors, `${group.label} has a survivor row while expanded`).toEqual([]);
+        expect(
+          group.panel,
+          `${group.label} presents its commands out of declared order (${group.declared.join(', ')})`,
+        ).toEqual(range(group.declared.length));
+        // Each drawn command against the previous DRAWN one, not the adjacent one: comparing adjacent
+        // pairs and skipping any pair with an undrawn member let a single undrawn command hide an
+        // inversion across it. And a group that draws fewer than two of its commands would compare
+        // nothing at all, so it fails here rather than passing quietly.
+        const drawn = group.rects.flatMap((rect, index) => (rect.drawn ? [{ rect, index }] : []));
+        if (group.declared.length >= 2) {
+          expect(
+            drawn.length,
+            `${group.label} draws ${String(drawn.length)} of its ${String(group.declared.length)} ` +
+              'commands while expanded, so its order cannot be compared',
+          ).toBeGreaterThanOrEqual(2);
+        }
+        for (let position = 1; position < drawn.length; position += 1) {
+          const earlier = drawn[position - 1];
+          const later = drawn[position];
+          if (earlier === undefined || later === undefined) continue;
+          expect(
+            readsAfter(earlier.rect, later.rect),
+            `${group.label}: ${group.declared[later.index] ?? ''} draws before ` +
+              `${group.declared[earlier.index] ?? ''}`,
+          ).toBe(true);
+        }
+      }
+    });
+
+    test(`${story.title} · ${story.name}: collapsed, the row holds exactly the declared survivors and the popup the rest`, async ({
+      page,
+    }) => {
+      await open(page, story);
+      await setContainerWidth(page, 390);
+      const placements = await readPlacements(page);
+      expect(placements.some((group) => group.essential.length > 0)).toBe(true);
+      for (const group of placements) {
+        expect(group.presentation, `${group.label} at 390px`).toBe('collapsed');
+        expect(group.survivors, `${group.label}'s survivor row`).toEqual(group.essential);
+        expect(group.panel, `${group.label}'s popup`).toEqual(
+          range(group.declared.length).filter((index) => !group.essential.includes(index)),
+        );
+        let previous = group.trigger;
+        for (const index of group.survivors) {
+          const rect = group.rects[index];
+          expect(rect?.drawn, `${group.label}: survivor ${group.declared[index] ?? ''} is not drawn`).toBe(true);
+          if (rect === undefined) continue;
+          // Beside the trigger, on its row, and after the one before it.
+          expect(rect.x, `${group.label}: ${group.declared[index] ?? ''} is not after its predecessor`).toBeGreaterThanOrEqual(previous.right - 1);
+          expect(rect.y < group.trigger.bottom && rect.bottom > group.trigger.y).toBe(true);
+          previous = rect;
+        }
+        for (const index of group.panel) {
+          expect(
+            group.rects[index]?.drawn,
+            `${group.label}: ${group.declared[index] ?? ''} is drawn although the popup is closed`,
+          ).toBe(false);
+        }
+      }
+
+      // Opened, the popup draws every other command and the survivors do not move into it.
+      await page.evaluate(() => {
+        for (const group of document.querySelectorAll('mjx-ribbon-tab[selected] mjx-ribbon-group')) {
+          group.setAttribute('open', '');
+        }
+      });
+      await settle(page);
+      for (const group of await readPlacements(page)) {
+        expect(group.survivors, `${group.label}'s survivors moved when it opened`).toEqual(group.essential);
+        for (const index of [...group.survivors, ...group.panel]) {
+          expect(group.rects[index]?.drawn, `${group.label}: ${group.declared[index] ?? ''} is not drawn open`).toBe(true);
+        }
+      }
+    });
+  }
+
+  test('a tab that was hidden, selected by a person at a phone width, arrives already collapsed and correctly slotted', async ({
+    page,
+  }) => {
+    // The path every later unit's audit walks: thirty-seven more tabs, switched at 390px. File's
+    // groups were connected inside a `display: none` tab panel while the ribbon was wide, so the
+    // only thing that can put their survivors in the row is the probe reporting when the tab
+    // becomes rendered. Selecting by clicking — not by setting `selected` — so the picker, the tab
+    // button and `selectTab` are all in the path a person takes.
+    await open(page, wordHomeStory);
+    await setContainerWidth(page, 390);
+    expect(
+      (await read(page)).stripPresentation,
+      'the test clicks the picker, so it must be what the ribbon presents at 390px',
+    ).toBe('picker');
+
+    const selectByClicking = async (tabId: string): Promise<void> => {
+      await page.locator('mjx-ribbon .strip > .picker').click();
+      await settle(page);
+      await page.locator(`mjx-ribbon .tab[data-tab="${tabId}"]`).click();
+      await settle(page);
+      expect(
+        await page.evaluate(() => document.querySelector('mjx-ribbon')?.getAttribute('selected')),
+        `clicking the ${tabId} tab did not select it`,
+      ).toBe(tabId);
+    };
+
+    const expectCollapsedAndSlotted = async (where: string): Promise<GroupPlacement[]> => {
+      const placements = await readPlacements(page);
+      expect(placements.length, `${where}: no selected groups`).toBeGreaterThan(0);
+      for (const group of placements) {
+        expect(group.presentation, `${where}: ${group.label}`).toBe('collapsed');
+        expect(
+          group.survivors,
+          `${where}: ${group.label}'s survivor slot is not its declared essentials. A tab selected ` +
+            'at a narrow width that keeps the placement it was connected with has lost its survivors.',
+        ).toEqual(group.essential);
+        expect(group.panel, `${where}: ${group.label}'s popup`).toEqual(
+          range(group.declared.length).filter((index) => !group.essential.includes(index)),
+        );
+      }
+      return placements;
+    };
+
+    await selectByClicking('file');
+    const file = await expectCollapsedAndSlotted('File at 390px');
+    const save = file.find((group) => group.label === 'Save');
+    expect(save, 'File has no Save group').toBeDefined();
+    expect(save?.survivors.map((index) => save.declared[index])).toEqual(['AutoSave']);
+    expect(
+      file.filter((group) => group.label !== 'Save').every((group) => group.survivors.length === 0),
+      'a File group other than Save holds a survivor',
+    ).toBe(true);
+
+    await selectByClicking('home');
+    const home = await expectCollapsedAndSlotted('Home again at 390px');
+    for (const label of ['Font', 'Paragraph']) {
+      const group = home.find((entry) => entry.label === label);
+      expect(group, `Home has no ${label} group`).toBeDefined();
+      expect(group?.essential.length, `${label} declares no survivor, so this checks nothing`).toBeGreaterThan(0);
+      expect(group?.survivors, `${label} lost its survivors on the way back`).toEqual(group?.essential);
+    }
+  });
+
+  test('widening an open collapsed group puts every command back in order and closes the popup', async ({
+    page,
+  }) => {
+    await open(page, wordHomeStory);
+    await setContainerWidth(page, 390);
+    const fontTrigger = page.locator('mjx-ribbon-tab[selected] mjx-ribbon-group[label="Font"] .trigger');
+    await fontTrigger.click();
+    await settle(page);
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('mjx-ribbon-tab[selected] mjx-ribbon-group[label="Font"]')?.hasAttribute('open'),
+      ),
+      'clicking the trigger did not open the popup, so nothing below is about an open group',
+    ).toBe(true);
+
+    await setContainerWidth(page, 1440);
+    await settle(page);
+    const wide = (await readPlacements(page)).find((group) => group.label === 'Font');
+    expect(wide, 'no Font group at 1440px').toBeDefined();
+    if (wide === undefined) return;
+    expect(wide.presentation).not.toBe('collapsed');
+    expect(wide.survivors, 'Font kept a survivor row after widening').toEqual([]);
+    expect(wide.panel, 'Font’s commands are not back in declared order').toEqual(
+      range(wide.declared.length),
+    );
+    for (const [index, rect] of wide.rects.entries()) {
+      expect(rect.drawn, `${wide.declared[index] ?? ''} is not drawn after widening`).toBe(true);
+    }
+
+    // **The contract, stated where it is checked:** a group whose presentation stops being a popup
+    // closes itself — `open` removed, the trigger reporting collapsed — and it does so without
+    // moving focus. The part a person would feel is the trap: an open group traps Tab, so a group
+    // left open at a desktop width would pull the keyboard back into Font whenever it tried to
+    // leave. Shift+Tab from Font's first command must leave Font.
+    const state = await page.evaluate(() => {
+      const group = document.querySelector('mjx-ribbon-tab[selected] mjx-ribbon-group[label="Font"]');
+      const trigger = group?.shadowRoot?.querySelector('.trigger');
+      return {
+        open: group?.hasAttribute('open') ?? null,
+        expanded: trigger?.getAttribute('aria-expanded') ?? null,
+        triggerDisplay: trigger instanceof HTMLElement ? getComputedStyle(trigger).display : null,
+      };
+    });
+    expect(state, 'Font is still open at 1440px, where it has no popup to be open').toEqual({
+      open: false,
+      expanded: 'false',
+      triggerDisplay: 'none',
+    });
+    await page.evaluate(() => {
+      const group = document.querySelector('mjx-ribbon-tab[selected] mjx-ribbon-group[label="Font"]');
+      const first = group?.children[0];
+      if (!(first instanceof HTMLElement)) throw new Error('Font has no first command');
+      first.focus();
+    });
+    expect(await focusedIndex(page, 'Font'), 'focus did not land on Font’s first command').toBe(0);
+    await page.keyboard.press('Shift+Tab');
+    await settle(page);
+    expect(
+      await focusedIndex(page, 'Font'),
+      'Shift+Tab from Font’s first command stayed inside Font: the trap outlived the popup.',
+    ).toBe(-1);
+
+    // And back: the collapsed invariant holds again.
+    await setContainerWidth(page, 390);
+    await settle(page);
+    const narrow = (await readPlacements(page)).find((group) => group.label === 'Font');
+    expect(narrow?.presentation).toBe('collapsed');
+    expect(narrow?.survivors).toEqual(narrow?.essential);
+    expect(narrow?.panel).toEqual(
+      range(narrow?.declared.length ?? 0).filter((index) => !(narrow?.essential ?? []).includes(index)),
+    );
+  });
+
+  test('focus walks the commands in the order they draw, expanded and collapsed', async ({ page }) => {
+    await open(page, wordHomeStory);
+    const label = 'Paragraph';
+
+    // Expanded: every command, in declared order — the survivors included, where they stand.
+    await setContainerWidth(page, 1440);
+    const expanded = (await readPlacements(page)).find((group) => group.label === label);
+    expect(expanded, `no ${label} group`).toBeDefined();
+    if (expanded === undefined) return;
+    await page.evaluate((name) => {
+      const group = [...document.querySelectorAll('mjx-ribbon-tab[selected] mjx-ribbon-group')].find(
+        (candidate) => candidate.getAttribute('label') === name,
+      );
+      const first = group?.children[0];
+      if (!(first instanceof HTMLElement)) throw new Error('no first command');
+      first.focus();
+    }, label);
+    expect(await focusedIndex(page, label), 'focus did not land on the first command').toBe(0);
+    const walked = await tabWalk(page, label, expanded.declared.length * 3);
+    expect(
+      [0, ...walked],
+      `Tab visits ${label}'s commands in a different order from the one they draw in. A keyboard ` +
+        'and a pointer must meet the same group — WCAG 2.4.3.',
+    ).toEqual(range(expanded.declared.length));
+
+    // Collapsed and closed: the trigger, then the survivors in declared order, then out.
+    await setContainerWidth(page, 390);
+    const collapsed = (await readPlacements(page)).find((group) => group.label === label);
+    expect(collapsed?.essential.length).toBeGreaterThan(0);
+    await page.evaluate((name) => {
+      const group = [...document.querySelectorAll('mjx-ribbon-tab[selected] mjx-ribbon-group')].find(
+        (candidate) => candidate.getAttribute('label') === name,
+      );
+      const trigger = group?.shadowRoot?.querySelector('.trigger');
+      if (!(trigger instanceof HTMLElement)) throw new Error('no trigger');
+      trigger.focus();
+    }, label);
+    expect(await tabWalk(page, label, (collapsed?.declared.length ?? 0) * 3)).toEqual(
+      collapsed?.essential ?? [],
+    );
   });
 });
 

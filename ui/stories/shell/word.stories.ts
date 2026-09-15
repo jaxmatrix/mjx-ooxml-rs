@@ -240,7 +240,6 @@ function ribbon(): TemplateResult {
               )}
             </mjx-combo-box>`,
             'word.home.clipboard.paste': html`<mjx-split-button
-              slot="essential"
               label="Paste"
               icon="clipboard-paste"
               size="large"

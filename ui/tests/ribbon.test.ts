@@ -11,12 +11,15 @@ import {
   groupPresentations,
   groupPriorities,
   groupPriorityNames,
+  placeGroupCommands,
+  presentedCommandOrder,
   ribbonCss,
   ribbonGroupCss,
   ribbonStates,
   ribbonStateNames,
   tabStripPickerAtOrBelow,
   tabStripPresentationAt,
+  survivorPlacement,
   tabTones,
   type GroupPresentation,
 } from '../src/ribbon/ribbon-model.ts';
@@ -109,14 +112,112 @@ describe('the Word TabHome specimen', () => {
     }
   });
 
-  it('demotes nothing that opens a popup', () => {
-    // Rule 1 of `demotionRules`, checked on the specimen's own declarations: a toggle and a
-    // one-shot verb qualify; nothing here is a split button, whose whole shape is a menu.
-    for (const group of wordTabHomeGroups) {
-      for (const command of group.named.filter((entry) => entry.essential === true)) {
-        expect(command.icon, `${command.label} is essential and has no icon`).toBeDefined();
-      }
+  it('declares Font’s and Paragraph’s survivors between other commands, so the order gate can fail', () => {
+    // The browser gate asserts the worst case presents its commands in declared order. That is only
+    // evidence if a survivors-first or survivors-last row would present them differently — which it
+    // would not have before unit 2b, when the specimen listed its survivors first.
+    for (const label of ['Font', 'Paragraph']) {
+      const group = wordTabHomeGroups.find((entry) => entry.label === label);
+      expect(group, `the specimen has no ${label} group`).toBeDefined();
+      const named = group?.named ?? [];
+      expect(named[0]?.essential, `${label}'s first named command is a survivor`).not.toBe(true);
+      const all = group === undefined ? [] : specimenCommands(group);
+      expect(all.at(-1)?.essential, `${label}'s last command is a survivor`).not.toBe(true);
+      expect(named.some((command) => command.essential === true)).toBe(true);
     }
+  });
+
+  it('demotes nothing that opens a popup, by the census’s judgement of what Office draws', () => {
+    // Rule 1 of `demotionRules` is judged on the shape *Office* draws, which a specimen of generic
+    // buttons cannot express. `dev/ribbons/census.ts` records that judgement for Word's Home tab:
+    // Paste, Find and Underline are split buttons there. This specimen follows it, and says so by
+    // name, because a specimen that kept Find while the census refused it is exactly how the two
+    // drifted before.
+    const splitButtonsInWord = ['Paste', 'Find', 'Underline'];
+    const essential = wordTabHomeGroups.flatMap((group) =>
+      group.named.filter((entry) => entry.essential === true),
+    );
+    expect(essential.length, 'the specimen declares no survivor at all').toBeGreaterThan(0);
+    for (const command of essential) {
+      expect(command.icon, `${command.label} is essential and has no icon`).toBeDefined();
+      expect(
+        splitButtonsInWord,
+        `${command.label} is essential in the specimen and is a split button in Word`,
+      ).not.toContain(command.label);
+    }
+  });
+});
+
+// ── where a survivor draws ───────────────────────────────────────────────────
+
+describe('where a survivor draws', () => {
+  const commands = [
+    { name: 'grow', essential: false },
+    { name: 'bold', essential: true },
+    { name: 'strike', essential: false },
+    { name: 'italic', essential: true },
+    { name: 'highlight', essential: false },
+  ] as const;
+  const isEssential = (command: (typeof commands)[number]): boolean => command.essential;
+  const names = (list: readonly (typeof commands)[number][]): string[] => list.map((c) => c.name);
+
+  it('keeps every command in the panel, in declared order, whenever the panel is part of the strip', () => {
+    for (const presentation of ['full', 'reduced'] as const) {
+      const placement = placeGroupCommands(presentation, commands, isEssential);
+      expect(placement.survivors, `${presentation} has a survivor row`).toEqual([]);
+      expect(names(placement.panel)).toEqual(['grow', 'bold', 'strike', 'italic', 'highlight']);
+    }
+  });
+
+  it('moves the survivors beside the trigger when collapsed, keeping both halves in declared order', () => {
+    const placement = placeGroupCommands('collapsed', commands, isEssential);
+    expect(names(placement.survivors)).toEqual(['bold', 'italic']);
+    expect(names(placement.panel)).toEqual(['grow', 'strike', 'highlight']);
+    expect(names(presentedCommandOrder('collapsed', commands, isEssential))).toEqual([
+      'bold',
+      'italic',
+      'grow',
+      'strike',
+      'highlight',
+    ]);
+  });
+
+  it('splits exactly where the presentation table says the panel is a popup', () => {
+    for (const presentation of groupPresentationOrder) {
+      const placement = placeGroupCommands(presentation, commands, isEssential);
+      expect(placement.survivors.length > 0, presentation).toBe(
+        groupPresentations[presentation].panelIsPopup,
+      );
+      // Nothing is ever removed: the two halves together are every command, once.
+      expect([...names(placement.survivors), ...names(placement.panel)].sort()).toEqual(
+        names(commands).sort(),
+      );
+    }
+  });
+
+  it('draws the survivor row only in the collapsed presentation, and never as display:none', () => {
+    const css = groupPresentationCss();
+    expect(css).toContain('--mjx-group-essential-display: flex;');
+    expect(css).toContain('--mjx-group-essential-display: contents;');
+    expect(css).not.toContain('--mjx-group-essential-display: none;');
+    expect(declarationsOf(ribbonGroupCss, '.essential')).toContain(
+      'display: var(--mjx-group-essential-display, contents);',
+    );
+  });
+
+  it('states the decision, its mechanism and what it rejected', () => {
+    for (const field of [
+      survivorPlacement.rule,
+      survivorPlacement.because,
+      survivorPlacement.mechanism,
+      survivorPlacement.checkedBy,
+    ]) {
+      expect(field.trim()).not.toBe('');
+    }
+    expect(survivorPlacement.rejected.length).toBeGreaterThanOrEqual(3);
+    expect(survivorPlacement.rejected.some((entry) => entry.alternative.includes('d01cf93'))).toBe(
+      true,
+    );
   });
 });
 

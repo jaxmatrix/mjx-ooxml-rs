@@ -426,10 +426,12 @@ export const iconRequests: readonly IconRequest[] = [
   // **20 alone, for every row but one.** A command icon is drawn at 20; only `size="large"` asks
   // for 24, and the single large command this unit adds is PowerPoint's New Slide. Nothing here is
   // a toggle, which is the other half of the rule: `text-bold`, `text-italic`, `text-underline`
-  // and the three alignment marks already carry both variants from the rows above, and the
-  // essential ceiling of three per group means no group can declare a fourth toggle — so
-  // Strikethrough, Justify, Show/Hide and Excel's three vertical alignments are drawn as icon
-  // buttons and need the resting drawing only. `dev/ribbons/census.ts` records that at length.
+  // and the three alignment marks already carry both variants from the rows above. Unit 2 drew
+  // Strikethrough, Subscript, Superscript, Justify, Show/Hide and Excel's three vertical alignments
+  // as icon buttons, because a group could not declare a fourth toggle; **unit 2b made each of them
+  // a toggle** — a survivor is now declared rather than inferred from being a state — and so each
+  // row below that names one of them requests `filled` too, together with Excel's Wrap Text, which
+  // Office also draws pressed. `dev/ribbons/census.ts` records which of them survive a collapse.
   //
   // **Seven commands on this tab carry no icon**, and the rule is unit 1's: a near-miss is worse
   // than nothing, because a person acts on a glyph. They are PowerPoint's *Text Shadow*, Excel's
@@ -468,20 +470,20 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'text-strikethrough',
     sizes: [20],
-    variants: ['regular'],
-    why: "Strikethrough, in Word and PowerPoint. ⚠ **Regular only, and that is a consequence rather than an oversight.** Strikethrough is a state in Office and would be a `<mjx-toggle-button>` here, but `essentialCommandLimit` is 3 and Bold, Italic and Underline have already taken the group's three essential slots — so it is drawn as an icon button and never renders filled. `dev/ribbons/census.ts` records the finding where a reader will meet it.",
+    variants: ['regular', 'filled'],
+    why: "Strikethrough, in Word and PowerPoint. **Both variants**, because it is a toggle: Office draws it pressed on struck-through text. Until unit 2b it was an icon button drawing `regular` alone, because a group could not declare a fourth toggle after Bold, Italic and Underline; a survivor is declared now, and a state command is simply a toggle.",
   },
   {
     name: 'text-subscript',
     sizes: [20],
-    variants: ['regular'],
-    why: "Subscript, on Word's Font group. Regular only, for the reason `text-strikethrough` gives.",
+    variants: ['regular', 'filled'],
+    why: "Subscript, on Word's Font group. Both variants, for the reason `text-strikethrough` gives.",
   },
   {
     name: 'text-superscript',
     sizes: [20],
-    variants: ['regular'],
-    why: 'Superscript, beside it. The pair is drawn as a pair for the same reason the font-size pair is: neither is legible except against the other.',
+    variants: ['regular', 'filled'],
+    why: 'Superscript, beside it. The pair is drawn as a pair for the same reason the font-size pair is: neither is legible except against the other. Both variants, as a toggle.',
   },
   {
     name: 'text-effects',
@@ -540,14 +542,14 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'text-paragraph',
     sizes: [20],
-    variants: ['regular'],
-    why: "Show/Hide ¶, on Word's Paragraph group. The pilcrow, which is the command, the glyph and the thing it reveals all at once.",
+    variants: ['regular', 'filled'],
+    why: "Show/Hide ¶, on Word's Paragraph group. The pilcrow, which is the command, the glyph and the thing it reveals all at once. Both variants: Office draws it pressed while formatting marks are showing.",
   },
   {
     name: 'text-align-justify',
     sizes: [20],
-    variants: ['regular'],
-    why: "Justify, in Word and PowerPoint — the fourth member of an alignment radio group whose other three are toggles. Regular only: see `text-strikethrough` on why a group cannot declare a fourth essential command, and `dev/ribbons/census.ts` on what that costs here.",
+    variants: ['regular', 'filled'],
+    why: "Justify, in Word and PowerPoint — the fourth member of an alignment radio group. **Both variants**: it is a toggle like the other three, so a justified paragraph reads as justified. It is the one alignment a collapsed group does not keep; see `dev/ribbons/census.ts`.",
   },
   {
     name: 'text-line-spacing',
@@ -624,20 +626,20 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'align-center-vertical',
     sizes: [20],
-    variants: ['regular'],
-    why: "Align Text on PowerPoint's Paragraph group and Middle Align on Excel's Alignment group. Vertical alignment, which every application in this unit has and none of them names the same way.",
+    variants: ['regular', 'filled'],
+    why: "Align Text on PowerPoint's Paragraph group and Middle Align on Excel's Alignment group. Vertical alignment, which every application in this unit has and none of them names the same way. `filled` is for Middle Align, which is a toggle; Align Text opens a menu and draws `regular` alone.",
   },
   {
     name: 'align-top',
     sizes: [20],
-    variants: ['regular'],
-    why: "Top Align, on Excel's Alignment group — the first of the three vertical alignments Excel puts above the three horizontal ones. Icon buttons rather than toggles: the group's three essential slots are already spent on Left, Centre and Right.",
+    variants: ['regular', 'filled'],
+    why: "Top Align, on Excel's Alignment group — the first of the three vertical alignments Excel puts above the three horizontal ones. Both variants: all three are toggles, which unit 2 could not draw because the group's essential slots were spent on Left, Centre and Right.",
   },
   {
     name: 'align-bottom',
     sizes: [20],
-    variants: ['regular'],
-    why: 'Bottom Align, the third of them.',
+    variants: ['regular', 'filled'],
+    why: 'Bottom Align, the third of them, and the one drawn pressed at rest: an unformatted Excel cell is bottom-aligned.',
   },
   {
     name: 'diagram',
@@ -649,7 +651,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'shapes',
     sizes: [20],
     variants: ['regular'],
-    why: "Shapes, the first command of PowerPoint's Drawing group and the one that survives its collapse. Three overlapping outlines, which is what the gallery underneath it contains.",
+    why: "Shapes, the first command of PowerPoint's Drawing group. Three overlapping outlines, which is what the gallery underneath it contains.",
   },
   {
     name: 'layer',
@@ -660,8 +662,8 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'text-wrap',
     sizes: [20],
-    variants: ['regular'],
-    why: "Wrap Text, on Excel's Alignment group — replacing an `arrow-down-right`, which is a return arrow and reads as *indent* or *go to the next cell*. Text turning a corner inside a box is the command.",
+    variants: ['regular', 'filled'],
+    why: "Wrap Text, on Excel's Alignment group — replacing an `arrow-down-right`, which is a return arrow and reads as *indent* or *go to the next cell*. Text turning a corner inside a box is the command. Both variants: Office draws Wrap Text pressed on a wrapping cell, so it is a toggle.",
   },
   {
     name: 'table-cells-merge',

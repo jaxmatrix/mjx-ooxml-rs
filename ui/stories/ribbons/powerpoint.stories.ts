@@ -93,7 +93,6 @@ const bindings: ControlOverrides = {
     ${copyCounts.map((count) => html`<mjx-option value=${count} label=${count}></mjx-option>`)}
   </mjx-combo-box>`,
   'powerpoint.home.clipboard.paste': html`<mjx-split-button
-    slot="essential"
     label="Paste"
     icon="clipboard-paste"
     size="large"
@@ -188,19 +187,23 @@ export const File: Story = { render: () => ribbon('file') };
 /**
  * **Home** — six groups, and the ribbon programme's unit 2. See `Ribbons/Word → Home` for the two
  * rules that shape every Home tab: most of it is drawn icon-only because Office draws it that way,
- * and only three commands per group can draw pressed. What is PowerPoint's own:
+ * and every state draws pressed while only a declared three per group survive a collapse. What is
+ * PowerPoint's own:
  *
  * 1. **Slides arrives with this unit** — New Slide, Layout, Reset, Section — declared in the census
  *    since unit 0 and rendered by nothing, which meant this catalogue's PowerPoint had no way to
  *    add a slide. New Slide is the only `size="large"` command unit 2 adds anywhere.
  * 2. **Drawing is the census's largest Home group at 63 controls and draws six commands.** Sixty
  *    three is the shapes gallery's whole catalogue plus three effect menus and Arrange's fourteen
- *    entries; the face is Shapes, Arrange, the style gallery and the three shape formats. Shapes is
- *    the group's survivor, because a collapsed Drawing group has room for one verb.
+ *    entries; the face is Shapes, Arrange, the style gallery and the three shape formats. **It keeps
+ *    no survivor**: all six open a gallery or a menu, and unit 2's survivor, Shapes, put a gallery
+ *    inside the collapsed popup. Slides and Editing keep none for the same reason.
  * 3. **Arrange is drawn with `layer` now, not `slide-layout`** — which was the *Layout* command's
  *    icon, one group to the left, on a button that means something else entirely.
- * 4. **Text Shadow carries no icon**, so it is the one labelled button in a row of glyphs. Fluent
- *    draws no shadowed letter, and both candidates already name other commands in this subset.
+ * 4. **Text Shadow carries no icon**, so it is the one labelled toggle in a row of glyphs. Fluent
+ *    draws no shadowed letter, and both candidates already name other commands in this subset. It
+ *    draws pressed on shadowed text, as Strikethrough and Justify now do too, and it can never be a
+ *    survivor: a survivor has no room for a label.
  */
 export const Home: Story = { render: () => ribbon('home') };
 

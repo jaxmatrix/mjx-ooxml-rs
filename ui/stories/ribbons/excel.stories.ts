@@ -66,7 +66,6 @@ type Story = StoryObj;
 /** The catalogue's own bindings. See `Ribbons/Word` on why these are not the shell's. */
 const bindings: ControlOverrides = {
   'excel.home.clipboard.paste': html`<mjx-split-button
-    slot="essential"
     label="Paste"
     icon="clipboard-paste"
     size="large"
@@ -180,9 +179,13 @@ export const File: Story = { render: () => ribbon('file') };
  *    label and no icon, and `dev/ribbons/census.ts` says so at length — including that the census
  *    marks Excel's *Analyze Data* out of scope two rows away, which is the best evidence available
  *    that this is not that.
- * 3. **Alignment is eleven commands and three of them can draw pressed.** Left, Centre and Right
- *    take the group's essential slots; Top, Middle and Bottom are states in Office and are drawn as
- *    icon buttons here. That is the ceiling described in `Ribbons/Word → Home`, at its sharpest.
+ * 3. **Alignment is eleven commands and seven of them draw pressed.** Top, Middle and Bottom Align,
+ *    Wrap Text, and Left, Centre and Right are all toggles — Bottom and Centre pressed, because an
+ *    unformatted cell is bottom-aligned. Until unit 2b only three could be, which is where the
+ *    ceiling described in `Ribbons/Word → Home` was sharpest. Left, Centre and Right are the
+ *    survivors, and they draw on the second row where Office draws them, not ahead of Top Align.
+ *    Clipboard, Number, Styles, Cells and Editing keep no survivor: every candidate opens a menu —
+ *    AutoSum included, which is a split button in Office.
  * 4. **Underline arrived with this unit.** The migrated shell set had Bold and Italic alone, which
  *    made Excel the one application whose Font group could not underline a cell.
  * 5. **Three commands in Number carry no icon** — Comma Style, Increase Decimal, Decrease Decimal.
