@@ -78,19 +78,25 @@
  * **Greyscale** followed Black and White, PowerPoint's eighth and last view tab authored: the same two groups and
  * eleven commands from the same two functions, under this tab's ids and with its own exclusive set.
  *
- * No tab is a placeholder any more: Greyscale was the last.
+ * No core or view tab is a placeholder any more: Greyscale was the last.
+ *
+ * **Six contextual tabs in four sets are declared, and every one is a placeholder**: Table Design and Layout, Picture
+ * Format, Shape Format, and Chart Design and Format. `dev/ribbons/census.ts` carries their groups and no commands;
+ * `powerpointContextualSets` draws them, one set or all.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
 
 import { html, type TemplateResult } from 'lit';
 
-import { powerpointRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
-import { stubTab } from '../shell/shell-parts.ts';
+import { powerpointRibbonContextualSets, powerpointRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
 import {
   censusGroup,
+  contextualSetsFor,
+  placeholderTab,
   tab,
   tabsFor,
+  type ContextualSetOptions,
   type TabOptions,
 } from './ribbon-parts.ts';
 
@@ -695,11 +701,32 @@ export function powerpointTabs(
   );
 }
 
-/** The contextual tab sets the shell declares today. Unit 11's work — see `wordContextualSets`. */
-export function powerpointContextualSets(): TemplateResult {
-  return html`
-    <mjx-contextual-tab-set label="Picture Tools">
-      ${stubTab('picture-format', 'Format', 'Crop', 'cut')}
-    </mjx-contextual-tab-set>
-  `;
+// ── the contextual tabs ──────────────────────────────────────────────────────
+
+/** Which function builds which contextual tab. **Every entry is `placeholderTab` today** — see Word's. */
+const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
+  'table-design': () => placeholderTab(entry('table-design')),
+  'table-layout': () => placeholderTab(entry('table-layout')),
+  'picture-format': () => placeholderTab(entry('picture-format')),
+  'shape-format': () => placeholderTab(entry('shape-format')),
+  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-format': () => placeholderTab(entry('chart-format')),
+};
+
+/**
+ * **PowerPoint's contextual tab sets**, from the census. See `wordContextualSets`: `Ribbons/PowerPoint` draws every
+ * built set, and `Shell/PowerPoint` names `picture-tools` alone, the set its deck's selection shows.
+ */
+export function powerpointContextualSets(options: ContextualSetOptions = {}): TemplateResult {
+  return html`${contextualSetsFor(
+    powerpointRibbonContextualSets,
+    (declared) => {
+      const build = contextualBuilders[declared.id];
+      if (build === undefined) {
+        throw new Error(`stories/ribbons/powerpoint.ts has no builder for the '${declared.id}' contextual tab`);
+      }
+      return build(options);
+    },
+    options,
+  )}`;
 }

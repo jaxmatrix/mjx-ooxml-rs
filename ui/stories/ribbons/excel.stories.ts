@@ -42,7 +42,10 @@ import { excelSheetViews, viewMenus } from './view-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View, Print Preview and Background Removal** are authored; the rest are placeholders at the census's own priorities. See
+ * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
+ * Print Preview and Background Removal. **The five contextual tabs are placeholders** at the census's own
+ * priorities: Table Design, Picture Format, Shape Format, Chart Design and Format. Every story draws all four
+ * contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -61,8 +64,10 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View, Print Preview and Background Removal are authored; the rest are placeholders carrying the census’s ' +
+          'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
+          'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
+          'Review, View, Print Preview and Background Removal. The contextual tabs of the four common sets — Table ' +
+          'Design, Picture Format, Shape Format, Chart Design and Format — are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -888,3 +893,38 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
  *    launchers.
  */
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
+
+/**
+ * **Table Design** — Table Tools' one tab in Excel, a contextual placeholder until its unit authors it. See
+ * `Ribbons/Word → Table Design` for what to look at on a contextual story.
+ *
+ * ⚠ **Excel's Table Tools is its own census set**, `TabSetTableToolsExcel`, and it has **no Layout tab**: a worksheet
+ * table's rows and columns are the sheet's. Five groups are declared: Properties, Tools, External Table Data, Table
+ * Style Options and Table Styles, with the last two primary.
+ */
+export const TableDesign: Story = { render: () => ribbon('table-design') };
+
+/**
+ * **Picture Format** — a placeholder. Word's six groups under Excel's counts: Adjust, Picture Styles, Accessibility,
+ * Arrange, Size and Image Play.
+ */
+export const PictureFormat: Story = { render: () => ribbon('picture-format') };
+
+/**
+ * **Shape Format** — a placeholder. Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange
+ * and Size. Excel's has no Text group.
+ */
+export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
+
+/**
+ * **Chart Design** — a placeholder. Five groups: Chart Layouts, Chart Styles, Data, Type and Location. Location is
+ * Excel's alone, because only a workbook can move a chart to a sheet of its own; Chart Styles is primary here and
+ * secondary in Word, because Excel's census counts three controls where Word's counts two.
+ */
+export const ChartDesign: Story = { render: () => ribbon('chart-design') };
+
+/**
+ * **Format** — Chart Tools' second tab, a placeholder. Seven groups: Current Selection, Insert Shapes, Shape Styles,
+ * WordArt Styles, Accessibility, Arrange and Size.
+ */
+export const ChartFormat: Story = { render: () => ribbon('chart-format') };

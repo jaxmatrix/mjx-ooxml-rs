@@ -40,17 +40,24 @@
  *     commands, the sheet as it will print. It opens no menu, binds one checkbox (Show Margins) in
  *     `Ribbons/Excel` alone, and draws its groups in Office's order rather than the census's.
  *
+ * No core or view tab is a placeholder any more. **Five contextual tabs in four sets are declared, and every one is
+ * a placeholder**: Table Design (Excel's own `TabSetTableToolsExcel`, with no Layout tab), Picture Format, Shape
+ * Format, and Chart Design and Format. `dev/ribbons/census.ts` carries their groups and no commands;
+ * `excelContextualSets` draws them, one set or all.
+ *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
 
 import { html, type TemplateResult } from 'lit';
 
-import { excelRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
-import { stubTab } from '../shell/shell-parts.ts';
+import { excelRibbonContextualSets, excelRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
 import {
   censusGroup,
+  contextualSetsFor,
+  placeholderTab,
   tab,
   tabsFor,
+  type ContextualSetOptions,
   type TabOptions,
 } from './ribbon-parts.ts';
 
@@ -445,11 +452,34 @@ export function excelTabs(
   );
 }
 
-/** The contextual tab sets the shell declares today. Unit 11's work — see `wordContextualSets`. */
-export function excelContextualSets(): TemplateResult {
-  return html`
-    <mjx-contextual-tab-set label="Table Tools">
-      ${stubTab('table-design', 'Design', 'Table Styles', 'table')}
-    </mjx-contextual-tab-set>
-  `;
+// ── the contextual tabs ──────────────────────────────────────────────────────
+
+/**
+ * Which function builds which contextual tab. **Every entry is `placeholderTab` today** — see Word's. Five, not six:
+ * Excel's Table Tools has no Layout tab.
+ */
+const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
+  'table-design': () => placeholderTab(entry('table-design')),
+  'picture-format': () => placeholderTab(entry('picture-format')),
+  'shape-format': () => placeholderTab(entry('shape-format')),
+  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-format': () => placeholderTab(entry('chart-format')),
+};
+
+/**
+ * **Excel's contextual tab sets**, from the census. See `wordContextualSets`: `Ribbons/Excel` draws every built set,
+ * and `Shell/Excel` names `table-tools` alone, the set its workbook's selection shows.
+ */
+export function excelContextualSets(options: ContextualSetOptions = {}): TemplateResult {
+  return html`${contextualSetsFor(
+    excelRibbonContextualSets,
+    (declared) => {
+      const build = contextualBuilders[declared.id];
+      if (build === undefined) {
+        throw new Error(`stories/ribbons/excel.ts has no builder for the '${declared.id}' contextual tab`);
+      }
+      return build(options);
+    },
+    options,
+  )}`;
 }

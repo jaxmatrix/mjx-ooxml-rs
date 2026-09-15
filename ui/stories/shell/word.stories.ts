@@ -813,7 +813,7 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${wordContextualSets()}
+        ${wordContextualSets({ sets: ['table-tools'] })}
       </mjx-ribbon>
     `,
   );

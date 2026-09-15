@@ -666,7 +666,7 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${excelContextualSets()}
+        ${excelContextualSets({ sets: ['table-tools'] })}
       </mjx-ribbon>
     `,
   );

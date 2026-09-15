@@ -190,29 +190,6 @@ export function group(
 }
 
 /**
- * A tab whose only content is one group holding one large button.
- *
- * ⚠ **This is no longer how a core tab is stubbed, and it must not become one again.** The ribbon
- * programme's unit 0 replaced every core-tab stub with `stories/ribbons/ribbon-parts.ts`'s
- * `placeholderTab`, which builds its group from `dev/ribbons/census.ts` and therefore carries the
- * **priority the census declares** rather than the `standard` hard-coded below — so a tab that will
- * hold a `primary` group when its unit lands does not collapse earlier today than it will then.
- *
- * What still uses this is the **contextual tab sets**, which are `TabSet*` rows in the census rather
- * than core tabs and are the ribbon programme's unit 11. Until that lands there is no census entry
- * to build them from, and inventing one would be doing unit 11's work badly.
- */
-export function stubTab(id: string, label: string, command: string, icon: string): TemplateResult {
-  return html`
-    <mjx-ribbon-tab tab-id=${id} label=${label}>
-      <mjx-ribbon-group label=${label} priority="standard">
-        <mjx-button label=${command} icon=${icon} size="large"></mjx-button>
-      </mjx-ribbon-group>
-    </mjx-ribbon-tab>
-  `;
-}
-
-/**
  * **How wide a field is when it is in a ribbon**, and this is a shell decision rather than a
  * component one.
  *

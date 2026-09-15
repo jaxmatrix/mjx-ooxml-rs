@@ -114,9 +114,62 @@
  * Black and White** followed, PowerPoint's seventh view tab authored, its Colour Mode and Close groups written once
  * as functions of the colour-mode tab it shares with Greyscale; see the *commands the colour modes show* section.
  * **PowerPoint's Greyscale** followed, PowerPoint's eighth and last view tab authored, calling the same two
- * functions; see that section's *PowerPoint's Greyscale* part. It was the last placeholder, so every in-scope tab
- * of the three applications now carries its commands. `commands` stays optional rather than required, because an
- * empty array would claim a tab had been authored and found to hold nothing.
+ * functions; see that section's *PowerPoint's Greyscale* part. It was the last core or view placeholder, so every
+ * in-scope core and view tab of the three applications now carries its commands. **The contextual tabs carry none
+ * yet**: see *The contextual tab sets* below, which declares their groups so each can be authored one tab of one
+ * application at a time. `commands` stays optional rather than required, because an empty array would claim a tab
+ * had been authored and found to hold nothing.
+ *
+ * ## The contextual tab sets
+ *
+ * A contextual tab is one Office shows only while something is selected — a table, a picture, a shape, a chart —
+ * under a coloured band naming its **set**. The census writes them as rows whose `tab_set` is a `TabSet*` id rather
+ * than `None (Core Tab)`, and a set is the unit Office publishes: `TabSetTableTools` is what appears, and its two tabs
+ * are what it contains. So the model is a set holding tabs (`RibbonContextualSetEntry`), each tab an ordinary
+ * `RibbonTabEntry` whose `source` is `{ kind: 'contextual', tabSet, tab }` and whose `appearance` is `contextual`.
+ * `<mjx-contextual-tab-set>` is the same shape, which is why the rendering is a loop.
+ *
+ * **Only the four common sets are built, and that is the user's decision (2026-09-15)**:
+ *
+ * | Set | Word | PowerPoint | Excel |
+ * |---|---|---|---|
+ * | Table Tools | Table Design, Layout | Table Design, Layout | Table Design (`TabSetTableToolsExcel`) |
+ * | Picture Tools | Picture Format | Picture Format | Picture Format |
+ * | Drawing Tools | Shape Format | Shape Format | Shape Format |
+ * | Chart Tools | Chart Design, Format | Chart Design, Format | Chart Design, Format |
+ *
+ * Every other in-scope `TabSet*` is recorded in `unbuiltContextualSets` with that reason, and
+ * `tests/ribbons.test.ts` holds the declared tabs and the record together to the census as a plain equality, so a
+ * set is either built or written down and there is no third state.
+ *
+ * ⚠ **Four things about the transcription, recorded rather than smoothed over:**
+ *
+ * 1. **Chart Tools is three generations in the census, and two tabs are built.** The set carries
+ *    `TabChartToolsDesign`, `TabChartToolsFormat` and `TabChartToolsLayout` — Office 2007–2010's three chart tabs —
+ *    beside `TabChartToolsDesignNew` and `TabChartToolsFormatNew`, which are Office 2013's Chart Design and Format.
+ *    The user's decision names Chart Design and Format, so the two `New` tabs are declared and the three older ones
+ *    are recorded in the set's own `unbuiltTabs` with their own reason. (The older Design tab is a subset of the new
+ *    one; the older Layout tab's axes, labels and analysis groups moved into Office 2013's on-chart buttons.)
+ * 2. **The group labels are Microsoft 365's, because the inventory names none of these groups** and several ids read
+ *    wrongly on their own: `GroupTableLayout` sits on Word's *Table Design* tab and is its Table Style Options
+ *    (`GUESS:` from the counts and the order), `GroupPictureTools` is Picture Format's Adjust, and
+ *    `GroupTextStylesTable` is PowerPoint's WordArt Styles. `GroupAltText` is *Accessibility*, `GroupShapes` and
+ *    `GroupShapesChart` are *Insert Shapes*, and `GroupTextbox` is *Text*. **`GroupImagePlay` is the one whose
+ *    Office label is unknown**, so it is derived from the id (*Image Play*) — `GUESS:` that it is the animated-image
+ *    play control, one control, drawn by Microsoft 365 only for a moving picture.
+ * 3. **Office's tab labels are used, and two of them are ambiguous on purpose**: Table Tools' second tab and Chart
+ *    Tools' second tab are both *Layout* and *Format* in Microsoft 365, and Word's core tab strip already has a
+ *    *Layout*. `<mjx-ribbon>` announces a contextual tab with its set's name — *Layout, Table Tools* — which is what
+ *    disambiguates them, so the labels are Office's rather than invented. The kebab ids are distinct.
+ * 4. **The priorities follow the rubric**, and the one place it bites is the census's small counts: Word's and
+ *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
+ *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
+ *
+ * **No contextual tab carries commands.** Each per-tab unit authors one tab of one application, exactly as the view
+ * tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at the priority declared
+ * here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
+ * the one set its document's selection would show (Word's and Excel's Table Tools, PowerPoint's Picture Tools),
+ * because Office never shows four sets at once.
  *
  * ## Node-importable
  *
@@ -144,10 +197,13 @@ export type RibbonApplication = (typeof ribbonApplicationNames)[number];
  * into its default strip would be showing a ribbon Office never shows, so `<app>Tabs()` takes a
  * parameter and the shells ask for `always` alone. The catalogue still gives each of them a story,
  * because a tab nobody can look at cannot be audited.
+ *
+ * **`contextual` is the third**: a tab Office shows only while its object is selected, under its set's band. It is
+ * never in `<app>RibbonTabs`; it lives in a `RibbonContextualSetEntry`, and a host draws its sets separately.
  */
-export const tabAppearanceNames = ['always', 'view'] as const;
+export const tabAppearanceNames = ['always', 'view', 'contextual'] as const;
 
-/** One of the two. */
+/** One of the three. */
 export type TabAppearance = (typeof tabAppearanceNames)[number];
 
 /**
@@ -227,13 +283,20 @@ export interface RibbonGroupEntry {
  * ordinary ribbon tab** rather than a backstage surface, so its *groups* are the backstage
  * *destinations* — Info, Open (`TabRecent`), Save, Print, Share, Export (`TabPublish`), Help — and
  * a group entry's `id` therefore names a census tab rather than a census group. The discriminant
- * is what lets one test assert a genuine equality for both.
+ * is what lets one test assert a genuine equality for all three shapes.
+ *
+ * The third is a **contextual** tab: a census tab inside a `TabSet*`. The set is part of the address even though no
+ * contextual tab id repeats across sets within one application today, because a group's identity is only checkable
+ * against rows whose two columns *both* agree: a tab moved to the wrong set would otherwise pass. The instrument test
+ * in `tests/ribbons.test.ts` watches exactly that refusal fire.
  */
 export type RibbonTabSource =
   /** One core tab. A group entry's `id` is a census group id inside it. */
   | { readonly kind: 'core'; readonly tab: string }
   /** The File tab. A group entry's `id` is a backstage census *tab* id. */
-  | { readonly kind: 'backstage' };
+  | { readonly kind: 'backstage' }
+  /** One contextual tab of one set. A group entry's `id` is a census group id inside it. */
+  | { readonly kind: 'contextual'; readonly tabSet: string; readonly tab: string };
 
 /** One tab of one application's ribbon. */
 export interface RibbonTabEntry {
@@ -246,6 +309,41 @@ export interface RibbonTabEntry {
   readonly groups: readonly RibbonGroupEntry[];
 }
 
+/** One census tab of a set that is deliberately not declared, and why. */
+export interface UnbuiltContextualTab {
+  /** The census's tab id — `TabChartToolsLayout`. */
+  readonly tab: string;
+  readonly reason: string;
+}
+
+/**
+ * **One contextual tab set that is built** — its band and the tabs under it, in Office's order.
+ *
+ * `tabs` is what `<mjx-contextual-tab-set>` wraps. `unbuiltTabs` is every other in-scope census tab of the same
+ * set, each with its reason, so the set is accounted for tab by tab: see the *contextual tab sets* section of this
+ * file's header on why Chart Tools has three.
+ */
+export interface RibbonContextualSetEntry {
+  /** Kebab case, and what a host names when it draws only some sets — `table-tools`. */
+  readonly id: string;
+  /** The census's set id — `TabSetTableTools`. Every tab's `source.tabSet` is this. */
+  readonly tabSet: string;
+  /** What the band over the set's tabs says, in English — *Table Tools*. */
+  readonly label: string;
+  readonly tabs: readonly RibbonTabEntry[];
+  readonly unbuiltTabs: readonly UnbuiltContextualTab[];
+}
+
+/** **One in-scope contextual set that is not built**, with every in-scope census tab it carries. */
+export interface UnbuiltContextualSet {
+  /** The census's set id — `TabSetSmartArtTools`. */
+  readonly tabSet: string;
+  /** Its name in English, for a reader of the record. */
+  readonly label: string;
+  /** Every census tab of the set the census marks in scope. */
+  readonly tabs: readonly string[];
+  readonly reason: string;
+}
 /**
  * The two kinds of page that assemble a ribbon and bind its commands: the `Ribbons/*` catalogue and
  * the `Shell/*` assemblies.
@@ -274,6 +372,8 @@ export const ribbonCensusSource = {
   file: 'docs/client-platform/data/command-surface.tsv',
   coreTabSet: 'None (Core Tab)',
   backstageTabSet: 'None (Backstage View)',
+  /** What every contextual set's `tab_set` starts with. */
+  contextualTabSetPrefix: 'TabSet',
   /** The census's spelling of each application's name, which is not the kebab id. */
   app: { word: 'Word', powerpoint: 'PowerPoint', excel: 'Excel' },
 } as const;
@@ -6475,18 +6575,488 @@ export const ribbonCensus: Readonly<Record<RibbonApplication, readonly RibbonTab
   excel: excelRibbonTabs,
 };
 
+// ── the contextual tab sets ──────────────────────────────────────────────────
+//
+// See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
+// the census's `TabSet*` rows with Microsoft 365's labels, and no commands. Every other in-scope set is recorded
+// below them, with its reason, and `tests/ribbons.test.ts` holds the two together to the census.
+
+/** **Why every other in-scope contextual set is not built.** Stated once, so every record carries the same words. */
+export const unbuiltContextualSetReason =
+  'Only the four common sets (Table, Picture, Drawing, Chart) are built; decided by the user, 2026-09-15.';
+
+/** Why Chart Tools' three older tabs are not built beside the two that are. See the header's item 1. */
+export const legacyChartTabReason =
+  'Office 2007–2010’s chart tab, which Office 2013 replaced with TabChartToolsDesignNew and ' +
+  'TabChartToolsFormatNew; only Chart Design and Format are built, decided by the user, 2026-09-15.';
+
+/** Chart Tools' three older tabs, which the census carries for all three applications. */
+const legacyChartTabs: readonly UnbuiltContextualTab[] = [
+  { tab: 'TabChartToolsDesign', reason: legacyChartTabReason },
+  { tab: 'TabChartToolsFormat', reason: legacyChartTabReason },
+  { tab: 'TabChartToolsLayout', reason: legacyChartTabReason },
+];
+
+export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
+  {
+    id: 'table-tools',
+    tabSet: 'TabSetTableTools',
+    label: 'Table Tools',
+    tabs: [
+      {
+        id: 'table-design',
+        label: 'Table Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsDesign' },
+        groups: [
+          { id: 'GroupTableLayout', label: 'Table Style Options', priority: 'standard', controls: 13, inScope: true },
+          { id: 'GroupTableStylesWord', label: 'Table Styles', priority: 'primary', controls: 6, inScope: true },
+          { id: 'GroupTableBorders', label: 'Borders', priority: 'primary', controls: 13, inScope: true },
+        ],
+      },
+      {
+        id: 'table-layout',
+        label: 'Layout',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsLayout' },
+        groups: [
+          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 7, inScope: true },
+          { id: 'GroupTableDraw', label: 'Draw', priority: 'ancillary', controls: 2, inScope: true },
+          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 10, inScope: true },
+          { id: 'GroupTableMerge', label: 'Merge', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 9, inScope: true },
+          { id: 'GroupTableAlignment', label: 'Alignment', priority: 'primary', controls: 21, inScope: true },
+          { id: 'GroupTableData', label: 'Data', priority: 'standard', controls: 4, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'picture-tools',
+    tabSet: 'TabSetPictureTools',
+    label: 'Picture Tools',
+    tabs: [
+      {
+        id: 'picture-format',
+        label: 'Picture Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
+        groups: [
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 29, inScope: true },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'drawing-tools',
+    tabSet: 'TabSetDrawingTools',
+    label: 'Drawing Tools',
+    tabs: [
+      {
+        id: 'shape-format',
+        label: 'Shape Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetDrawingTools', tab: 'TabDrawingToolsFormat' },
+        groups: [
+          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 12, inScope: true },
+          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 37, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true },
+          { id: 'GroupTextbox', label: 'Text', priority: 'standard', controls: 5, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'chart-tools',
+    tabSet: 'TabSetChartTools',
+    label: 'Chart Tools',
+    tabs: [
+      {
+        id: 'chart-design',
+        label: 'Chart Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
+        groups: [
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true },
+          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
+        ],
+      },
+      {
+        id: 'chart-format',
+        label: 'Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsFormatNew' },
+        groups: [
+          { id: 'GroupChartCurrentSelection', label: 'Current Selection', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupShapesChart', label: 'Insert Shapes', priority: 'ancillary', controls: 2, inScope: true },
+          { id: 'GroupChartShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 35, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: legacyChartTabs,
+  },
+];
+
+export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
+  {
+    id: 'table-tools',
+    tabSet: 'TabSetTableTools',
+    label: 'Table Tools',
+    tabs: [
+      {
+        id: 'table-design',
+        label: 'Table Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsDesign' },
+        groups: [
+          { id: 'GroupTableStyleOptionsPowerPoint', label: 'Table Style Options', priority: 'standard', controls: 6, inScope: true },
+          { id: 'GroupTableStylesPowerPoint', label: 'Table Styles', priority: 'primary', controls: 33, inScope: true },
+          { id: 'GroupTextStylesTable', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
+          { id: 'GroupDrawBorders', label: 'Draw Borders', priority: 'standard', controls: 6, inScope: true },
+        ],
+      },
+      {
+        id: 'table-layout',
+        label: 'Layout',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsLayout' },
+        groups: [
+          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 5, inScope: true },
+          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 8, inScope: true },
+          { id: 'GroupMerge', label: 'Merge', priority: 'secondary', controls: 2, inScope: true },
+          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 4, inScope: true },
+          { id: 'GroupAlignment', label: 'Alignment', priority: 'primary', controls: 12, inScope: true },
+          { id: 'GroupTableSize', label: 'Table Size', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'picture-tools',
+    tabSet: 'TabSetPictureTools',
+    label: 'Picture Tools',
+    tabs: [
+      {
+        id: 'picture-format',
+        label: 'Picture Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
+        groups: [
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 31, inScope: true },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 30, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'drawing-tools',
+    tabSet: 'TabSetDrawingTools',
+    label: 'Drawing Tools',
+    tabs: [
+      {
+        id: 'shape-format',
+        label: 'Shape Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetDrawingTools', tab: 'TabDrawingToolsFormat' },
+        groups: [
+          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 13, inScope: true },
+          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 40, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'chart-tools',
+    tabSet: 'TabSetChartTools',
+    label: 'Chart Tools',
+    tabs: [
+      {
+        id: 'chart-design',
+        label: 'Chart Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
+        groups: [
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'secondary', controls: 2, inScope: true },
+          { id: 'GroupChartData', label: 'Data', priority: 'standard', controls: 6, inScope: true },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
+        ],
+      },
+      {
+        id: 'chart-format',
+        label: 'Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsFormatNew' },
+        groups: [
+          { id: 'GroupChartCurrentSelection', label: 'Current Selection', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupShapesChart', label: 'Insert Shapes', priority: 'ancillary', controls: 2, inScope: true },
+          { id: 'GroupChartShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 38, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: legacyChartTabs,
+  },
+];
+
+/**
+ * ⚠ **Excel's Table Tools is a different census set**, `TabSetTableToolsExcel`, with one tab, `TabTableToolsDesignExcel`:
+ * a worksheet table has no Layout tab, because its rows and columns are the sheet's.
+ */
+export const excelRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
+  {
+    id: 'table-tools',
+    tabSet: 'TabSetTableToolsExcel',
+    label: 'Table Tools',
+    tabs: [
+      {
+        id: 'table-design',
+        label: 'Table Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetTableToolsExcel', tab: 'TabTableToolsDesignExcel' },
+        groups: [
+          { id: 'GroupTableProperties', label: 'Properties', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupTableTools', label: 'Tools', priority: 'standard', controls: 4, inScope: true },
+          { id: 'GroupTableExternalData', label: 'External Table Data', priority: 'secondary', controls: 13, inScope: true },
+          { id: 'GroupTableStyleOptions', label: 'Table Style Options', priority: 'primary', controls: 7, inScope: true },
+          { id: 'GroupTableStylesExcel', label: 'Table Styles', priority: 'primary', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'picture-tools',
+    tabSet: 'TabSetPictureTools',
+    label: 'Picture Tools',
+    tabs: [
+      {
+        id: 'picture-format',
+        label: 'Picture Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
+        groups: [
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 30, inScope: true },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 47, inScope: true },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'drawing-tools',
+    tabSet: 'TabSetDrawingTools',
+    label: 'Drawing Tools',
+    tabs: [
+      {
+        id: 'shape-format',
+        label: 'Shape Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetDrawingTools', tab: 'TabDrawingToolsFormat' },
+        groups: [
+          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 12, inScope: true },
+          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 37, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 47, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: [],
+  },
+  {
+    id: 'chart-tools',
+    tabSet: 'TabSetChartTools',
+    label: 'Chart Tools',
+    tabs: [
+      {
+        id: 'chart-design',
+        label: 'Chart Design',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
+        groups: [
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'primary', controls: 3, inScope: true },
+          { id: 'GroupChartData', label: 'Data', priority: 'secondary', controls: 2, inScope: true },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupChartLocation', label: 'Location', priority: 'ancillary', controls: 1, inScope: true },
+        ],
+      },
+      {
+        id: 'chart-format',
+        label: 'Format',
+        appearance: 'contextual',
+        source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsFormatNew' },
+        groups: [
+          { id: 'GroupChartCurrentSelection', label: 'Current Selection', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupShapesChart', label: 'Insert Shapes', priority: 'ancillary', controls: 2, inScope: true },
+          { id: 'GroupChartShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 35, inScope: true },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 47, inScope: true },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+        ],
+      },
+    ],
+    unbuiltTabs: legacyChartTabs,
+  },
+];
+
+/** Every application's built contextual sets, in the order a host draws them. */
+export const ribbonContextualSets: Readonly<Record<RibbonApplication, readonly RibbonContextualSetEntry[]>> = {
+  word: wordRibbonContextualSets,
+  powerpoint: powerpointRibbonContextualSets,
+  excel: excelRibbonContextualSets,
+};
+
+/** One unbuilt set, with the user's reason. */
+function unbuilt(tabSet: string, label: string, tabs: readonly string[]): UnbuiltContextualSet {
+  return { tabSet, label, tabs, reason: unbuiltContextualSetReason };
+}
+
+/**
+ * **Every in-scope contextual set that is not built, per application**, with every in-scope census tab it carries.
+ *
+ * Transcribed from the census exactly as the built sets are, and held to it by the same test: the declared tabs,
+ * each built set's `unbuiltTabs` and these records together must be every in-scope `TabSet*` tab, each exactly once.
+ * Excel's `TabSetPowerQueryEdit` is absent because the census marks every one of its rows out of scope, and Word's
+ * `TabSetInkTools` is present because one of its rows is in scope. The labels are Office's names for the sets, for a
+ * reader; nothing reads them. The two `(classic)` sets are separate census sets, Office 2007's picture and drawing
+ * tabs for a document in compatibility mode, and the decision covers them like any other.
+ */
+export const unbuiltContextualSets: Readonly<Record<RibbonApplication, readonly UnbuiltContextualSet[]>> = {
+  word: [
+    unbuilt('TabSet3DModelTools', '3D Model Tools', ['Tab3DModelToolsFormat']),
+    unbuilt('TabSetDiagramTools', 'Diagram Tools', ['TabDiagramToolsFormatClassic']),
+    unbuilt('TabSetDrawingToolsClassic', 'Drawing Tools (classic)', ['TabDrawingToolsFormatClassic']),
+    unbuilt('TabSetEquationTools', 'Equation Tools', ['TabEquationToolsDesign']),
+    unbuilt('TabSetHeaderAndFooterTools', 'Header & Footer Tools', ['TabHeaderAndFooterToolsDesign']),
+    unbuilt('TabSetInkTools', 'Ink Tools', ['TabInkToolsPens']),
+    unbuilt('TabSetLearningTools', 'Learning Tools', ['TabLearningTools']),
+    unbuilt('TabSetOrganizationChartTools', 'Organization Chart Tools', ['TabOrganizationChartToolsFormat']),
+    unbuilt('TabSetPictureToolsClassic', 'Picture Tools (classic)', ['TabPictureToolsFormatClassic']),
+    unbuilt('TabSetSmartArtTools', 'SmartArt Tools', ['TabSmartArtToolsDesign', 'TabSmartArtToolsFormat']),
+    unbuilt('TabSetSVGTools', 'Graphics Tools', ['TabGraphicsToolsFormat']),
+    unbuilt('TabSetTextBoxTools', 'Text Box Tools', ['TabTextBoxToolsFormat']),
+    unbuilt('TabSetWordArtTools', 'WordArt Tools', ['TabWordArtToolsFormat']),
+  ],
+  powerpoint: [
+    unbuilt('TabSet3DModelTools', '3D Model Tools', ['Tab3DModelToolsFormat']),
+    unbuilt('TabSetAccessibleAuthoring', 'Accessibility', ['TabAccessibleAuthoring']),
+    unbuilt('TabSetAudioTools', 'Audio Tools', ['TabAudioToolsFormat', 'TabAudioToolsEdit']),
+    unbuilt('TabSetCameoTools', 'Cameo Tools', ['TabDesignCameo']),
+    unbuilt('TabSetCDAudioTools', 'CD Audio Tools', ['TabCDAudioToolsOptions']),
+    unbuilt('TabSetEquationTools', 'Equation Tools', ['TabEquationToolsDesign']),
+    unbuilt('TabSetInkTools', 'Ink Tools', ['TabInkToolsPens']),
+    unbuilt('TabSetInteractiveIndexTools', 'Zoom Tools', ['TabInteractiveIndexToolsFormat']),
+    unbuilt('TabSetMovieTools', 'Movie Tools', ['TabMovieToolsOptions']),
+    unbuilt('TabSetSmartArtTools', 'SmartArt Tools', ['TabSmartArtToolsDesign', 'TabSmartArtToolsFormat']),
+    unbuilt('TabSetSoundTools', 'Sound Tools', ['TabSoundToolsOptions']),
+    unbuilt('TabSetSVGTools', 'Graphics Tools', ['TabGraphicsToolsFormat']),
+    unbuilt('TabSetVideoTools', 'Video Tools', ['TabVideoToolsDesign', 'TabVideoToolsEdit']),
+  ],
+  excel: [
+    unbuilt('TabSet3DModelTools', '3D Model Tools', ['Tab3DModelToolsFormat']),
+    unbuilt('TabSetAccessibleAuthoring', 'Accessibility', ['TabAccessibleAuthoring']),
+    unbuilt('TabSetBIVisualTools', 'BI Visual Tools', ['TabBIVisualTools']),
+    unbuilt('TabSetEquationTools', 'Equation Tools', ['TabEquationToolsDesign']),
+    unbuilt('TabSetHeaderAndFooterTools', 'Header & Footer Tools', ['TabHeaderAndFooterToolsDesign']),
+    unbuilt('TabSetInkTools', 'Ink Tools', ['TabInkToolsPens']),
+    unbuilt('TabSetPivotChartTools', 'PivotChart Tools', [
+      'TabPivotChartToolsAnalyze',
+      'TabChartToolsDesignPivotChart',
+      'TabChartToolsFormatPivotChart',
+      'TabPivotChartToolsDesign',
+      'TabPivotChartToolsLayout',
+      'TabPivotChartToolsFormat',
+    ]),
+    unbuilt('TabSetPivotTableTools', 'PivotTable Tools', [
+      'TabPivotTableToolsOptions',
+      'TabPivotTableToolsDesign',
+      'TabPivotTableToolsDesignDeprecated',
+    ]),
+    unbuilt('TabSetSlicerTools', 'Slicer Tools', ['TabSlicerDesign']),
+    unbuilt('TabSetSmartArtTools', 'SmartArt Tools', ['TabSmartArtToolsDesign', 'TabSmartArtToolsFormat']),
+    unbuilt('TabSetSparkline', 'Sparkline Tools', ['TabSparklineDesign']),
+    unbuilt('TabSetSVGTools', 'Graphics Tools', ['TabGraphicsToolsFormat']),
+    unbuilt('TabSetTimeSlicerTools', 'Timeline Tools', ['TabTimeSlicerDesign']),
+  ],
+};
+
 // ── reading it ───────────────────────────────────────────────────────────────
 
 /**
- * One tab, by application and kebab id.
+ * **Every tab one application declares**: its core, view and File tabs in Office's order, then each built
+ * contextual set's tabs in set order. For the gates that hold every tab to one rule, and for `ribbonTab`.
+ */
+export function everyRibbonTab(application: RibbonApplication): readonly RibbonTabEntry[] {
+  return [
+    ...ribbonCensus[application],
+    ...ribbonContextualSets[application].flatMap((set) => set.tabs),
+  ];
+}
+
+/**
+ * One tab, by application and kebab id — a contextual tab included, since a tab id is unique across both.
  *
  * @throws {Error} when the tab is not declared — a module asking for a tab that is not in the
  * census has a typo, and a silent `undefined` would become an empty ribbon nobody could explain.
  */
 export function ribbonTab(application: RibbonApplication, id: string): RibbonTabEntry {
-  const entry = ribbonCensus[application].find((tab) => tab.id === id);
+  const entry = everyRibbonTab(application).find((tab) => tab.id === id);
   if (entry === undefined) {
     throw new Error(`${application} declares no '${id}' tab in dev/ribbons/census.ts`);
+  }
+  return entry;
+}
+
+/**
+ * One built contextual set, by application and kebab id.
+ *
+ * @throws {Error} for the same reason `ribbonTab` does: a host naming a set that is not built has a typo, or is
+ * asking for one of the sets `unbuiltContextualSets` records.
+ */
+export function ribbonContextualSet(application: RibbonApplication, id: string): RibbonContextualSetEntry {
+  const entry = ribbonContextualSets[application].find((set) => set.id === id);
+  if (entry === undefined) {
+    throw new Error(`${application} declares no built '${id}' contextual set in dev/ribbons/census.ts`);
   }
   return entry;
 }
@@ -6528,10 +7098,10 @@ export function essentialCommands(group: RibbonGroupEntry): readonly RibbonComma
   return (group.commands ?? []).filter((command) => command.essential === true);
 }
 
-/** Every command declared anywhere in the census, for the gates that sweep all of them. */
+/** Every command declared anywhere in the census, contextual tabs included, for the gates that sweep all of them. */
 export function everyRibbonCommand(): readonly RibbonCommand[] {
   return ribbonApplicationNames.flatMap((application) =>
-    ribbonCensus[application].flatMap((tab) =>
+    everyRibbonTab(application).flatMap((tab) =>
       tab.groups.flatMap((group) => group.commands ?? []),
     ),
   );

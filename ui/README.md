@@ -1324,8 +1324,8 @@ glyph besides. Back To Colour View leaves the view.
 **One tab of one application, and PowerPoint's eighth and last view tab authored**, after Black and White. Two groups
 and eleven commands, in Office's order, which is also the census's: Colour Mode and Close. It is `TabGrayscale`, the
 tab Office shows while the deck is previewed in greyscale. The tab chooses how the **selected object** is drawn in
-that preview, and changes no slide's colours. **It was the last placeholder**: every in-scope tab of the three
-applications is now authored.
+that preview, and changes no slide's colours. **It was the last core or view placeholder**: every in-scope core and
+view tab of the three applications is now authored. The contextual tabs follow; see *The contextual tab sets*.
 
 **It writes nothing of its own.** Its two census rows call `colourModeSettingCommands('greyscale')` and
 `colourModeCloseCommands('greyscale')`, and `powerpointGreyscaleTab` places them. Every label, size, glyph, priority
@@ -1344,6 +1344,69 @@ is drawn:
 - **The start.** `GUESS:` that Office starts a new shape on Automatic in greyscale as it does in black and white.
 - **The shared setting.** If Office keeps one `bwMode` per shape, a setting pressed here would show on Black and White
   too. The two sets are independent here.
+
+### The contextual tab sets (the four common sets)
+
+**Declared, not authored.** A contextual tab is one Office shows only while something is selected, under a coloured
+band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
+modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
+`RibbonContextualSetEntry` in `dev/ribbons/census.ts`: a kebab id, the census set id, an English band label and its
+tabs. Each tab is an ordinary `RibbonTabEntry` with `appearance: 'contextual'` and
+`source: { kind: 'contextual', tabSet, tab }`, and **its groups are transcribed with no commands**, so each tab can be
+authored one tab of one application at a time, exactly as the view tabs were.
+
+**Only the four common sets are built; the user decided that on 2026-09-15.**
+
+| Set | Word | PowerPoint | Excel |
+|---|---|---|---|
+| Table Tools | Table Design (3 groups), Layout (7) | Table Design (4), Layout (7) | Table Design (5), from `TabSetTableToolsExcel` |
+| Picture Tools | Picture Format (6) | Picture Format (6) | Picture Format (6) |
+| Drawing Tools | Shape Format (7) | Shape Format (6) | Shape Format (6) |
+| Chart Tools | Chart Design (4), Format (7) | Chart Design (4), Format (7) | Chart Design (5), Format (7) |
+
+Every other in-scope set is recorded in `unbuiltContextualSets` with that reason: thirteen per application, among
+them SmartArt, Equation, Ink, 3D Model, Graphics (SVG), Header & Footer, Audio and Video, PivotTable and PivotChart.
+`tests/ribbons.test.ts` holds the model three ways:
+
+- **Group identity.** Each declared contextual tab's groups and counts must equal the census's in-scope rows for its
+  set *and* tab, through the same `groupIdentityFindings` every core tab goes through.
+- **Coverage.** Every in-scope `TabSet*` tab must be accounted for exactly once: declared, recorded in its built
+  set's `unbuiltTabs`, or recorded in an unbuilt set. A set dropped from the record fails, and so do a tab recorded
+  twice and a record of a tab the census does not carry.
+- **The decision itself.** The built sets and their tab labels are pinned to the table above.
+
+Each refusal is watched firing on a doctored entry, including the right tab id in the wrong set. The rubric, the
+placeholder priority and the id checks now sweep contextual tabs too.
+
+**Rendering.** `contextualSetsFor` in `stories/ribbons/ribbon-parts.ts` draws each set as the
+`<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
+`sets` list, and each contextual tab goes through a `contextualBuilders` entry that is `placeholderTab` today.
+
+- **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
+  `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
+- **`Shell/*` names the one set its document's selection shows**: Table Tools in Word and Excel, Picture Tools in
+  PowerPoint, which are the sets the stubs drew.
+
+`stubTab` is gone. **A per-tab unit** declares the tab's commands in the census, replaces its one `contextualBuilders`
+line with a `<app><Tab>Tab` function, and binds and documents it as every earlier tab unit did.
+
+⚠ **Four readings, recorded in `dev/ribbons/census.ts`'s header:**
+
+- **Chart Tools is three generations in the census.** `TabChartToolsDesignNew` and `TabChartToolsFormatNew`
+  (Office 2013+) are built. `TabChartToolsDesign`, `TabChartToolsFormat` and `TabChartToolsLayout` (Office
+  2007–2010) are recorded in the set's `unbuiltTabs` with their own reason.
+- **The group labels are Microsoft 365's**, because the inventory names none of these groups and several ids read
+  wrongly on their own. `GroupTableLayout` is Word's Table Style Options (`GUESS:`), `GroupPictureTools` is Adjust
+  and `GroupTextStylesTable` is WordArt Styles. `GroupImagePlay` is the one label derived from its id, *Image Play*.
+- **Two contextual tabs are labelled *Layout* and *Format***, as Office labels them. The accessible name carries the
+  set (*Layout, Table Tools*), which is what tells them apart from the core Layout tab.
+- **The rubric binds small counts.** Word's and PowerPoint's Chart Styles and Excel's Chart Data count 2, so they are
+  `secondary`.
+
+⚠ **What the menu gate will meet.** `appearanceOfCommand` in `tests/ribbons.test.ts` answers `contextual` for a
+contextual tab's command, and `surfaceFindings` treats that like `always`: a menu declared for a contextual command is
+required of both hosts. A shell draws only one set, so the first unit that declares a menu on a set its shell does
+not draw must decide whether that shell draws the set or the gate learns which sets each host draws.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

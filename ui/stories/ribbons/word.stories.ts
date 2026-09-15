@@ -48,10 +48,15 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining, Print Preview and Background Removal** are real. Every other tab is a placeholder — one group carrying the tab's name,
- * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
- * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
- * right and every tab present, so each later unit is a small diff rather than a new file.
+ * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
+ * View, Outlining, Print Preview and Background Removal. **The six contextual tabs are placeholders** — Table Design
+ * and Layout, Picture Format, Shape Format, Chart Design and Format — each one group carrying the tab's name, at the
+ * priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is the shape unit 0 gave
+ * every core tab: the census transcribed, the ladder already right and every tab present, so each later unit is a
+ * small diff rather than a new file.
+ *
+ * **Every story draws all four contextual sets**, as every story draws the view tabs, so a contextual tab can be
+ * reached from any story; Office shows one set at a time, and `Shell/Word` draws Table Tools alone.
  *
  * The placeholder button says *Not yet authored* rather than naming a plausible command, for the
  * reason `dev/word-tab-home.ts` gives about its own filler: a made-up command name is a worse lie
@@ -77,9 +82,11 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Outlining, Print Preview and Background Removal are authored; the rest are placeholders carrying the census’s own ' +
-          'priorities.',
+          'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
+          'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
+          'Mailings, Review, View, Outlining, Print Preview and Background Removal. The contextual tabs of the four ' +
+          'common sets — Table Design, Layout, Picture Format, Shape Format, Chart Design and Format — are ' +
+          'placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -1097,3 +1104,51 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
  *    dialog launchers.
  */
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
+
+/**
+ * **Table Design** — Table Tools' first tab, a contextual placeholder until its unit authors it.
+ *
+ * What to look at, on all six contextual stories:
+ *
+ * 1. **The band.** The strip draws *Table Tools* over this tab and Layout, in the contextual tone, after every core
+ *    tab; the tab's accessible name is *Table Design, Table Tools*.
+ * 2. **The placeholder collapses at the census's priority.** Its one group is drawn `primary`, because Table Styles
+ *    and Borders are declared primary, so the tab gives way as late as it will once authored.
+ * 3. **Three groups are declared**: Table Style Options, Table Styles and Borders. The first is `GroupTableLayout`
+ *    in the census, a misleading id on this tab; `dev/ribbons/census.ts` records the reading.
+ */
+export const TableDesign: Story = { render: () => ribbon('table-design') };
+
+/**
+ * **Layout** — Table Tools' second tab, a placeholder. Seven groups are declared: Table, Draw, Rows & Columns, Merge,
+ * Cell Size, Alignment and Data, with Rows & Columns and Alignment primary. Its label is Office's *Layout*, the same
+ * as the core Layout tab's; the band and the accessible name *Layout, Table Tools* are what tell them apart.
+ */
+export const TableLayout: Story = { render: () => ribbon('table-layout') };
+
+/**
+ * **Picture Format** — Picture Tools' one tab, a placeholder. Six groups are declared: Adjust, Picture Styles,
+ * Accessibility, Arrange, Size and Image Play, with Adjust and Picture Styles primary. Image Play is the one label
+ * derived from its id, because Office's name for it is unknown.
+ */
+export const PictureFormat: Story = { render: () => ribbon('picture-format') };
+
+/**
+ * **Shape Format** — Drawing Tools' one tab, a placeholder. Seven groups are declared: Insert Shapes, Shape Styles,
+ * WordArt Styles, Text, Accessibility, Arrange and Size, with Shape Styles primary. Text is Word's alone.
+ */
+export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
+
+/**
+ * **Chart Design** — Chart Tools' first tab, a placeholder. Four groups are declared: Chart Layouts, Chart Styles,
+ * Data and Type, with Chart Layouts primary. This is the census's `TabChartToolsDesignNew`; the three older chart
+ * tabs the census also carries are recorded as unbuilt.
+ */
+export const ChartDesign: Story = { render: () => ribbon('chart-design') };
+
+/**
+ * **Format** — Chart Tools' second tab, a placeholder. Seven groups are declared: Current Selection, Insert Shapes,
+ * Shape Styles, WordArt Styles, Accessibility, Arrange and Size, with Shape Styles primary. The accessible name
+ * *Format, Chart Tools* is what tells it from the other Format tabs Office has.
+ */
+export const ChartFormat: Story = { render: () => ribbon('chart-format') };

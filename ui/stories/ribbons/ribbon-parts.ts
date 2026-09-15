@@ -38,6 +38,7 @@ import {
   ribbonGroup,
   strongestPriority,
   type RibbonCommand,
+  type RibbonContextualSetEntry,
   type RibbonSurfaceHost,
   type RibbonTabEntry,
 } from '../../dev/ribbons/census.ts';
@@ -321,8 +322,12 @@ export function commandMenu(
 /**
  * A tab whose unit has not landed yet: one group carrying the tab's name, and one honest button.
  *
+ * **Every core and view tab has landed; the contextual tabs of the four common sets are what still draw
+ * through this**, each until its own unit authors it.
+ *
  * ⚠ **The priority is the census's, not a constant**, and that is the whole point of the
- * placeholder being built from the entry rather than from a `stubTab(id, label, …)` call. A tab
+ * placeholder being built from the entry rather than from a tab id and a label alone — which is what the
+ * contextual sets were drawn with until they had census entries. A tab
  * that will hold a `primary` group when unit *N* authors it must not collapse earlier today than
  * it will then, or the collapse ladder a reviewer is looking at is a property of the scaffold
  * rather than of the ribbon. `strongestPriority` is what reads it.
@@ -353,4 +358,43 @@ export function tabsFor(
   return tabs
     .filter((entry) => options.includeViewTabs === true || entry.appearance === 'always')
     .map(build);
+}
+
+/**
+ * What every `<app>ContextualSets()` function takes: a host's bindings, and **which built sets to draw**.
+ *
+ * `sets` names set ids (`table-tools`). Omitted, every built set is drawn, which is what `Ribbons/*` asks for so
+ * each contextual tab has a story; a shell names the one set its document's selection would show, because Office
+ * never shows four at once.
+ */
+export interface ContextualSetOptions extends TabOptions {
+  readonly sets?: readonly string[];
+}
+
+/**
+ * **An application's contextual sets**, each as the `<mjx-contextual-tab-set>` its census entry describes, in the
+ * census's order.
+ *
+ * The band's label is the census's, never an argument, for `censusGroup`'s reason. A `sets` entry that names no
+ * built set throws, for `ribbonTab`'s: a shell asking for a set that is not there has a typo, and a silently
+ * missing band is a ribbon nobody could explain.
+ */
+export function contextualSetsFor(
+  sets: readonly RibbonContextualSetEntry[],
+  build: (entry: RibbonTabEntry) => TemplateResult,
+  options: { readonly sets?: readonly string[] } = {},
+): TemplateResult[] {
+  const wanted = options.sets;
+  if (wanted !== undefined) {
+    const unknown = wanted.filter((id) => !sets.some((set) => set.id === id));
+    if (unknown.length > 0) {
+      throw new Error(`no built contextual set is called ${unknown.map((id) => `'${id}'`).join(', ')}`);
+    }
+  }
+  return sets
+    .filter((set) => wanted === undefined || wanted.includes(set.id))
+    .map(
+      (set) =>
+        html`<mjx-contextual-tab-set label=${set.label}>${set.tabs.map(build)}</mjx-contextual-tab-set>`,
+    );
 }

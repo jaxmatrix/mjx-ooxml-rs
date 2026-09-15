@@ -6,18 +6,25 @@ import {
   commandSurfaceId,
   essentialCommands,
   everyRibbonCommand,
+  everyRibbonTab,
+  legacyChartTabReason,
   ribbonApplicationNames,
   ribbonCensus,
   ribbonCensusSource,
+  ribbonContextualSets,
   ribbonSurfaceHostNames,
   strongestPriority,
   tabAppearanceNames,
+  unbuiltContextualSetReason,
+  unbuiltContextualSets,
   type RibbonApplication,
   type RibbonCommand,
+  type RibbonContextualSetEntry,
   type RibbonGroupEntry,
   type RibbonSurfaceHost,
   type RibbonTabEntry,
   type TabAppearance,
+  type UnbuiltContextualSet,
 } from '../dev/ribbons/census.ts';
 import { controlSizes, type ControlSize } from '../src/controls/control-states.ts';
 import { iconRequests } from '../src/icons/manifest.ts';
@@ -77,16 +84,25 @@ function census(): readonly CensusRow[] {
 
 const rows = census();
 
+/** Every tab of every application — core, view, File and contextual — for the gates that hold all of them to one rule. */
+const everyTabByApplication: Readonly<Record<RibbonApplication, readonly RibbonTabEntry[]>> = {
+  word: everyRibbonTab('word'),
+  powerpoint: everyRibbonTab('powerpoint'),
+  excel: everyRibbonTab('excel'),
+};
+
 /** `GroupFont 43` strings for one tab of one application, sorted. */
 function expectedGroups(application: RibbonApplication, tab: RibbonTabEntry): string[] {
   const app = ribbonCensusSource.app[application];
   const source = tab.source;
-  if (source.kind === 'core') {
+  if (source.kind === 'core' || source.kind === 'contextual') {
+    // A contextual tab is addressed by its set *and* its tab: a row is only this tab's when both columns agree.
+    const tabSet = source.kind === 'core' ? ribbonCensusSource.coreTabSet : source.tabSet;
     return rows
       .filter(
         (row) =>
           row.app === app &&
-          row.tabSet === ribbonCensusSource.coreTabSet &&
+          row.tabSet === tabSet &&
           row.tab === source.tab &&
           row.inScope,
       )
@@ -106,6 +122,27 @@ function expectedGroups(application: RibbonApplication, tab: RibbonTabEntry): st
   return [...byTab].map(([id, controls]) => `${id} ${String(controls)}`).sort();
 }
 
+/**
+ * **What is wrong with one tab's group identity against the census** — a core, File or contextual tab alike.
+ *
+ * A pure function so `the contextual rules can reject` can watch it refuse a doctored entry: a contextual tab is
+ * addressed by its set and its tab, and a rule only ever shown a real tab might be matching nothing.
+ */
+export function groupIdentityFindings(application: RibbonApplication, tab: RibbonTabEntry): string[] {
+  const expected = expectedGroups(application, tab);
+  if (expected.length === 0) {
+    return [`the census has no in-scope rows for ${application}/${tab.id}, which cannot be right`];
+  }
+  const declared = tab.groups.map((group) => `${group.id} ${String(group.controls)}`).sort();
+  if (declared.join('\n') === expected.join('\n')) return [];
+  return [
+    `dev/ribbons/census.ts has drifted from ${ribbonCensusSource.file} for ${application}/${tab.id}: it ` +
+      `declares [${declared.join(', ')}] and the census has [${expected.join(', ')}]. The declaration is a ` +
+      'transcription and the TSV is the source; a ribbon whose groups are no longer Office’s groups is a ' +
+      'ribbon somebody invented.',
+  ];
+}
+
 describe('the ribbon census', () => {
   it('has rows at all, which is the assertion every other one here rests on', () => {
     expect(rows.length, `${ribbonCensusSource.file} parsed to nothing`).toBeGreaterThan(1000);
@@ -115,26 +152,12 @@ describe('the ribbon census', () => {
     ).toBe(true);
   });
 
+  // Every tab, contextual tabs included: a contextual tab's groups are held to its `TabSet*` rows exactly as a core
+  // tab's are held to its `None (Core Tab)` rows.
   for (const application of ribbonApplicationNames) {
-    for (const tab of ribbonCensus[application]) {
+    for (const tab of everyRibbonTab(application)) {
       it(`${application}/${tab.id} names exactly the groups the census marks in scope`, () => {
-        const expected = expectedGroups(application, tab);
-        expect(
-          expected.length,
-          `the census has no in-scope rows for ${application}/${tab.id}, which cannot be right`,
-        ).toBeGreaterThan(0);
-
-        const declared = tab.groups
-          .map((group) => `${group.id} ${String(group.controls)}`)
-          .sort();
-
-        expect(
-          declared,
-          `dev/ribbons/census.ts has drifted from ${ribbonCensusSource.file} for ` +
-            `${application}/${tab.id}. The declaration is a transcription and the TSV is the ` +
-            'source; a ribbon whose groups are no longer Office’s groups is a ribbon somebody ' +
-            'invented.',
-        ).toEqual(expected);
+        expect(groupIdentityFindings(application, tab)).toEqual([]);
       });
     }
   }
@@ -157,7 +180,7 @@ describe('the ribbon census', () => {
    */
   it('declares each group’s census count as data, and nothing renders that many', () => {
     const withCommands = ribbonApplicationNames.flatMap((application) =>
-      ribbonCensus[application].flatMap((tab) =>
+      everyRibbonTab(application).flatMap((tab) =>
         tab.groups.filter((group) => group.commands !== undefined),
       ),
     );
@@ -174,13 +197,22 @@ describe('the ribbon census', () => {
 
   it('gives every tab a kebab id and a real label, and distinct ids within an application', () => {
     for (const application of ribbonApplicationNames) {
-      const ids = ribbonCensus[application].map((tab) => tab.id);
+      const ids = everyRibbonTab(application).map((tab) => tab.id);
       expect(new Set(ids).size, `${application} declares a tab id twice`).toBe(ids.length);
-      for (const tab of ribbonCensus[application]) {
+      for (const tab of everyRibbonTab(application)) {
         expect(tab.id, `${application}/${tab.id} is not kebab case`).toMatch(/^[a-z][a-z0-9-]*$/);
         expect(tab.label.trim(), `${application}/${tab.id} has no label`).not.toBe('');
         expect(tabAppearanceNames).toContain(tab.appearance);
         expect(tab.groups.length, `${application}/${tab.id} has no groups`).toBeGreaterThan(0);
+      }
+      const sets = ribbonContextualSets[application];
+      expect(new Set(sets.map((set) => set.id)).size, `${application} declares a contextual set id twice`).toBe(
+        sets.length,
+      );
+      for (const set of sets) {
+        expect(set.id, `${application}/${set.id} is not kebab case`).toMatch(/^[a-z][a-z0-9-]*$/);
+        expect(set.label.trim(), `${application}/${set.id} has no label`).not.toBe('');
+        expect(set.tabs.length, `${application}/${set.id} has no tabs`).toBeGreaterThan(0);
       }
     }
   });
@@ -198,7 +230,7 @@ describe('the ribbon census', () => {
             .map((row) => row.tab),
         ),
       ].sort();
-      const declared = ribbonCensus[application]
+      const declared = everyRibbonTab(application)
         .filter((tab) => tab.source.kind === 'core')
         .map((tab) => (tab.source.kind === 'core' ? tab.source.tab : ''))
         .sort();
@@ -208,6 +240,272 @@ describe('the ribbon census', () => {
           'precisely so this can be a plain equality and there is no gap to keep a ledger of.',
       ).toEqual(fromCensus);
     }
+  });
+});
+
+// ── the contextual tab sets ──────────────────────────────────────────────────
+
+/** The census's in-scope `TabSet*` tabs for one application, as sorted `<set> <tab>` strings. */
+function contextualTabsInCensus(application: RibbonApplication): string[] {
+  const app = ribbonCensusSource.app[application];
+  return [
+    ...new Set(
+      rows
+        .filter(
+          (row) =>
+            row.app === app && row.tabSet.startsWith(ribbonCensusSource.contextualTabSetPrefix) && row.inScope,
+        )
+        .map((row) => `${row.tabSet} ${row.tab}`),
+    ),
+  ].sort();
+}
+
+/**
+ * **What is wrong with one application's contextual sets, against the census.**
+ *
+ * The user's decision builds four sets, so most of the census's contextual tabs are *not* declared, and a gate that
+ * checked only the declared ones would accept a set quietly dropped or never considered. So every in-scope `TabSet*`
+ * tab is accounted for **exactly once** — declared under a built set, recorded in that set's `unbuiltTabs`, or
+ * recorded in an unbuilt set — and six things are refused:
+ *
+ * 1. an in-scope census tab that is neither built nor recorded;
+ * 2. a tab accounted for twice, in any combination of the three places;
+ * 3. a declared or recorded tab the census carries no in-scope rows for;
+ * 4. a built tab whose `source` is not contextual, or names a set other than the one it is declared under;
+ * 5. a built tab whose appearance is not `contextual`;
+ * 6. a record with no reason.
+ */
+export function contextualCoverageFindings(
+  application: RibbonApplication,
+  built: readonly RibbonContextualSetEntry[],
+  unbuilt: readonly UnbuiltContextualSet[],
+): string[] {
+  const findings: string[] = [];
+  const accounted: string[] = [];
+  for (const set of built) {
+    for (const tab of set.tabs) {
+      if (tab.appearance !== 'contextual') {
+        findings.push(`${application}/${tab.id} is declared in ${set.tabSet} and its appearance is ${tab.appearance}.`);
+      }
+      if (tab.source.kind !== 'contextual') {
+        findings.push(`${application}/${tab.id} is declared in ${set.tabSet} and its source is ${tab.source.kind}.`);
+        continue;
+      }
+      if (tab.source.tabSet !== set.tabSet) {
+        findings.push(
+          `${application}/${tab.id} is declared in ${set.tabSet} and its source names ${tab.source.tabSet}.`,
+        );
+      }
+      accounted.push(`${tab.source.tabSet} ${tab.source.tab}`);
+    }
+    for (const record of set.unbuiltTabs) {
+      if (record.reason.trim() === '') {
+        findings.push(`${application}: ${set.tabSet} ${record.tab} is recorded as unbuilt with no reason.`);
+      }
+      accounted.push(`${set.tabSet} ${record.tab}`);
+    }
+  }
+  for (const set of unbuilt) {
+    if (set.reason.trim() === '') findings.push(`${application}: ${set.tabSet} is recorded as unbuilt with no reason.`);
+    for (const tab of set.tabs) accounted.push(`${set.tabSet} ${tab}`);
+  }
+  const inCensus = contextualTabsInCensus(application);
+  const counts = new Map<string, number>();
+  for (const key of accounted) counts.set(key, (counts.get(key) ?? 0) + 1);
+  for (const [key, count] of counts) {
+    if (count > 1) {
+      findings.push(`${application}: ${key} is accounted for ${String(count)} times. A tab is built or recorded, once.`);
+    }
+    if (!inCensus.includes(key)) {
+      findings.push(`${application}: ${key} has no in-scope rows in ${ribbonCensusSource.file}.`);
+    }
+  }
+  for (const key of inCensus) {
+    if (!counts.has(key)) {
+      findings.push(`${application}: ${key} is in scope in the census and is neither built nor recorded as unbuilt.`);
+    }
+  }
+  return findings;
+}
+
+describe('the contextual tab sets', () => {
+  it('reads contextual rows at all, or every comparison below is empty against empty', () => {
+    for (const application of ribbonApplicationNames) {
+      expect(contextualTabsInCensus(application).length, application).toBeGreaterThan(15);
+    }
+  });
+
+  for (const application of ribbonApplicationNames) {
+    it(`${application} builds or records every in-scope contextual tab the census carries, each exactly once`, () => {
+      expect(
+        contextualCoverageFindings(application, ribbonContextualSets[application], unbuiltContextualSets[application]),
+      ).toEqual([]);
+    });
+  }
+
+  it('builds exactly the four common sets the user decided on, with exactly their tabs', () => {
+    const built = Object.fromEntries(
+      ribbonApplicationNames.map((application) => [
+        application,
+        ribbonContextualSets[application].map(
+          (set) => `${set.label}: ${set.tabs.map((tab) => tab.label).join(', ')}`,
+        ),
+      ]),
+    );
+    const four = [
+      'Table Tools: Table Design, Layout',
+      'Picture Tools: Picture Format',
+      'Drawing Tools: Shape Format',
+      'Chart Tools: Chart Design, Format',
+    ];
+    expect(built).toEqual({
+      word: four,
+      powerpoint: four,
+      excel: ['Table Tools: Table Design', ...four.slice(1)],
+    });
+  });
+
+  it('addresses each built tab to the census tab the decision names', () => {
+    const sources = Object.fromEntries(
+      ribbonApplicationNames.map((application) => [
+        application,
+        ribbonContextualSets[application].flatMap((set) =>
+          set.tabs.map((tab) =>
+            tab.source.kind === 'contextual' ? `${tab.id} ${tab.source.tabSet} ${tab.source.tab}` : tab.id,
+          ),
+        ),
+      ]),
+    );
+    const common = [
+      'picture-format TabSetPictureTools TabPictureToolsFormat',
+      'shape-format TabSetDrawingTools TabDrawingToolsFormat',
+      'chart-design TabSetChartTools TabChartToolsDesignNew',
+      'chart-format TabSetChartTools TabChartToolsFormatNew',
+    ];
+    const tables = [
+      'table-design TabSetTableTools TabTableToolsDesign',
+      'table-layout TabSetTableTools TabTableToolsLayout',
+    ];
+    expect(sources).toEqual({
+      word: [...tables, ...common],
+      powerpoint: [...tables, ...common],
+      excel: ['table-design TabSetTableToolsExcel TabTableToolsDesignExcel', ...common],
+    });
+  });
+
+  it('records every unbuilt set with the user’s reason, and only Chart Tools’ three older tabs with another', () => {
+    expect(unbuiltContextualSetReason).toBe(
+      'Only the four common sets (Table, Picture, Drawing, Chart) are built; decided by the user, 2026-09-15.',
+    );
+    for (const application of ribbonApplicationNames) {
+      expect(unbuiltContextualSets[application].length, application).toBeGreaterThan(10);
+      for (const set of unbuiltContextualSets[application]) {
+        expect(set.reason, `${application}/${set.tabSet}`).toBe(unbuiltContextualSetReason);
+      }
+      const inBuiltSets = ribbonContextualSets[application].flatMap((set) =>
+        set.unbuiltTabs.map((record) => `${set.tabSet} ${record.tab} ${record.reason === legacyChartTabReason ? 'legacy' : record.reason}`),
+      );
+      expect(inBuiltSets, application).toEqual([
+        'TabSetChartTools TabChartToolsDesign legacy',
+        'TabSetChartTools TabChartToolsFormat legacy',
+        'TabSetChartTools TabChartToolsLayout legacy',
+      ]);
+    }
+  });
+
+  it('keeps contextual tabs out of the core strip, and core tabs out of the sets', () => {
+    for (const application of ribbonApplicationNames) {
+      for (const tab of ribbonCensus[application]) {
+        expect(tab.appearance, `${application}/${tab.id}`).not.toBe('contextual');
+        expect(tab.source.kind, `${application}/${tab.id}`).not.toBe('contextual');
+      }
+    }
+  });
+});
+
+describe('the contextual rules can reject', () => {
+  const word = ribbonContextualSets.word;
+  const unbuiltWord = unbuiltContextualSets.word;
+  const tableDesign = everyRibbonTab('word').find((tab) => tab.id === 'table-design');
+  const pictureFormat = everyRibbonTab('word').find((tab) => tab.id === 'picture-format');
+
+  it('starts from green: the real entries pass both rules', () => {
+    expect(tableDesign).toBeDefined();
+    expect(pictureFormat).toBeDefined();
+    expect(contextualCoverageFindings('word', word, unbuiltWord)).toEqual([]);
+    if (tableDesign !== undefined) expect(groupIdentityFindings('word', tableDesign)).toEqual([]);
+  });
+
+  it('refuses a contextual tab that has lost a group, or is held to another application’s rows', () => {
+    if (tableDesign === undefined) throw new Error('word declares no table-design tab');
+    expect(groupIdentityFindings('word', { ...tableDesign, groups: tableDesign.groups.slice(1) })).toEqual([
+      expect.stringContaining('has drifted'),
+    ]);
+    // PowerPoint's Table Design has the same set and tab ids and different groups.
+    expect(groupIdentityFindings('powerpoint', tableDesign)).toEqual([expect.stringContaining('has drifted')]);
+  });
+
+  it('refuses the right tab id in the wrong set, which a rule matching on the tab alone would accept', () => {
+    if (pictureFormat === undefined) throw new Error('word declares no picture-format tab');
+    const moved: RibbonTabEntry = {
+      ...pictureFormat,
+      source: { kind: 'contextual', tabSet: 'TabSetPictureToolsClassic', tab: 'TabPictureToolsFormat' },
+    };
+    expect(groupIdentityFindings('word', moved)).toEqual([expect.stringContaining('no in-scope rows')]);
+  });
+
+  it('refuses a set that is neither built nor recorded', () => {
+    const findings = contextualCoverageFindings('word', word, unbuiltWord.slice(1));
+    expect(findings).toEqual([
+      expect.stringContaining('TabSet3DModelTools Tab3DModelToolsFormat is in scope in the census and is neither built'),
+    ]);
+  });
+
+  it('refuses a built tab recorded as unbuilt too', () => {
+    const twice: UnbuiltContextualSet = {
+      tabSet: 'TabSetTableTools',
+      label: 'Table Tools',
+      tabs: ['TabTableToolsDesign'],
+      reason: unbuiltContextualSetReason,
+    };
+    expect(contextualCoverageFindings('word', word, [...unbuiltWord, twice])).toEqual([
+      expect.stringContaining('TabSetTableTools TabTableToolsDesign is accounted for 2 times'),
+    ]);
+  });
+
+  it('refuses a record of a tab the census does not carry in scope', () => {
+    // Excel's Power Query editor is in the census, and every one of its rows is out of scope.
+    const outOfScope: UnbuiltContextualSet = {
+      tabSet: 'TabSetPowerQueryEdit',
+      label: 'Power Query',
+      tabs: ['TabPowerQueryQueryEdit'],
+      reason: unbuiltContextualSetReason,
+    };
+    expect(
+      contextualCoverageFindings('excel', ribbonContextualSets.excel, [...unbuiltContextualSets.excel, outOfScope]),
+    ).toEqual([expect.stringContaining('TabSetPowerQueryEdit TabPowerQueryQueryEdit has no in-scope rows')]);
+  });
+
+  it('refuses a built tab declared under a set its source does not name, or with the wrong appearance', () => {
+    const [tableTools, ...rest] = word;
+    if (tableTools === undefined) throw new Error('word builds no sets');
+    expect(contextualCoverageFindings('word', [{ ...tableTools, tabSet: 'TabSetTableToolsExcel' }, ...rest], unbuiltWord)).toEqual([
+      expect.stringContaining('is declared in TabSetTableToolsExcel and its source names TabSetTableTools'),
+      expect.stringContaining('is declared in TabSetTableToolsExcel and its source names TabSetTableTools'),
+    ]);
+    const [first, ...others] = tableTools.tabs;
+    if (first === undefined) throw new Error('word table-tools has no tabs');
+    expect(
+      contextualCoverageFindings('word', [{ ...tableTools, tabs: [{ ...first, appearance: 'always' }, ...others] }, ...rest], unbuiltWord),
+    ).toEqual([expect.stringContaining('its appearance is always')]);
+  });
+
+  it('refuses a record with no reason', () => {
+    const [firstSet, ...others] = unbuiltWord;
+    if (firstSet === undefined) throw new Error('word records no unbuilt sets');
+    expect(contextualCoverageFindings('word', word, [{ ...firstSet, reason: ' ' }, ...others])).toEqual([
+      expect.stringContaining('recorded as unbuilt with no reason'),
+    ]);
   });
 });
 
@@ -252,7 +550,7 @@ export function rubricFindings(tab: RibbonTabEntry): string[] {
 describe('the priority rubric', () => {
   it('is followed by every tab of every application', () => {
     const findings = ribbonApplicationNames.flatMap((application) =>
-      ribbonCensus[application].flatMap((tab) =>
+      everyRibbonTab(application).flatMap((tab) =>
         rubricFindings(tab).map((finding) => `${application}/${finding}`),
       ),
     );
@@ -261,7 +559,7 @@ describe('the priority rubric', () => {
 
   it('uses only priorities the ribbon model declares', () => {
     for (const application of ribbonApplicationNames) {
-      for (const tab of ribbonCensus[application]) {
+      for (const tab of everyRibbonTab(application)) {
         for (const group of tab.groups) {
           expect(groupPriorityNames).toContain(group.priority);
         }
@@ -271,7 +569,7 @@ describe('the priority rubric', () => {
 
   it('gives every tab at least one primary or standard group, so a whole tab cannot give way at once', () => {
     for (const application of ribbonApplicationNames) {
-      for (const tab of ribbonCensus[application]) {
+      for (const tab of everyRibbonTab(application)) {
         expect(
           tab.groups.some(
             (group) => group.priority === 'primary' || group.priority === 'standard',
@@ -287,7 +585,7 @@ describe('the priority rubric', () => {
     // The property `placeholderTab` rests on: a tab that will hold a primary group when its unit
     // lands must not collapse earlier today than it will then.
     for (const application of ribbonApplicationNames) {
-      for (const tab of ribbonCensus[application]) {
+      for (const tab of everyRibbonTab(application)) {
         const strongest = strongestPriority(tab);
         const index = groupPriorityNames.indexOf(strongest);
         for (const group of tab.groups) {
@@ -810,7 +1108,7 @@ export function exclusiveSetFindings(
 }
 
 describe('every exclusive set starts with exactly one member pressed, or at most one where it may hold none', () => {
-  const sets = exclusiveSetsIn(ribbonCensus);
+  const sets = exclusiveSetsIn(everyTabByApplication);
 
   it('finds the sets Office holds one of, or it is checking nothing', () => {
     expect(
@@ -889,7 +1187,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
   });
 
   it('holds every set in the census to the rule', () => {
-    expect(exclusiveSetFindings(ribbonCensus)).toEqual([]);
+    expect(exclusiveSetFindings(everyTabByApplication)).toEqual([]);
   });
 });
 
@@ -1166,7 +1464,7 @@ export function survivorFindings(
 
 describe('the demotion ceiling', () => {
   const authored = ribbonApplicationNames.flatMap((application) =>
-    ribbonCensus[application].flatMap((tab) =>
+    everyRibbonTab(application).flatMap((tab) =>
       tab.groups
         .filter((group) => group.commands !== undefined)
         .map((group) => ({ where: `${application}/${tab.id}/${group.label}`, group })),
@@ -1311,7 +1609,7 @@ const survivorsLast: Presenter = (_presentation, commands, isEssential) => [
 
 describe('every authored group presents its commands in the order it declares them', () => {
   const authored = ribbonApplicationNames.flatMap((application) =>
-    ribbonCensus[application].flatMap((tab) =>
+    everyRibbonTab(application).flatMap((tab) =>
       tab.groups
         .filter((group) => group.commands !== undefined)
         .map((group) => ({ where: `${application}/${tab.id}/${group.label}`, commands: group.commands ?? [] })),
@@ -1333,7 +1631,7 @@ describe('every authored group presents its commands in the order it declares th
 
 describe('the order rule can reject', () => {
   const authored = ribbonApplicationNames.flatMap((application) =>
-    ribbonCensus[application].flatMap((tab) =>
+    everyRibbonTab(application).flatMap((tab) =>
       tab.groups.map((group) => ({ where: `${application}/${tab.id}/${group.label}`, commands: group.commands ?? [] })),
     ),
   );
@@ -1402,7 +1700,7 @@ export function appearanceOfCommand(command: string): TabAppearance {
   const [application, tabId] = command.split('.');
   const known = ribbonApplicationNames.find((name) => name === application);
   if (known === undefined) return 'always';
-  return ribbonCensus[known].find((entry) => entry.id === tabId)?.appearance ?? 'always';
+  return everyRibbonTab(known).find((entry) => entry.id === tabId)?.appearance ?? 'always';
 }
 
 /** One host's assembly source, and which application and host it is. */

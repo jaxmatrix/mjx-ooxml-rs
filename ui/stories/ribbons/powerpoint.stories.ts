@@ -73,7 +73,11 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **All nineteen are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
+ * **Six more stories are the contextual tabs, and every one is a placeholder** at the census's own priorities: Table
+ * Design and Layout, Picture Format, Shape Format, Chart Design and Format. Every story draws all four contextual
+ * sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone.
+ *
+ * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
  * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
  * differences rather than three tabs.
  */
@@ -92,9 +96,10 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. All nineteen are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale.',
+          'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
+          'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
+          'Greyscale. The contextual tabs of the four common sets — Table Design, Layout, Picture Format, Shape ' +
+          'Format, Chart Design and Format — are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -1401,3 +1406,42 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
  *    launchers.
  */
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
+
+/**
+ * **Table Design** — Table Tools' first tab, a contextual placeholder until its unit authors it. See
+ * `Ribbons/Word → Table Design` for what to look at on a contextual story. Four groups are declared: Table Style
+ * Options, Table Styles, WordArt Styles and Draw Borders, with Table Styles primary. WordArt Styles is the census's
+ * `GroupTextStylesTable`.
+ */
+export const TableDesign: Story = { render: () => ribbon('table-design') };
+
+/**
+ * **Layout** — Table Tools' second tab, a placeholder. Seven groups: Table, Rows & Columns, Merge, Cell Size,
+ * Alignment, Table Size and Arrange. PowerPoint's has no Draw or Data group and does have Table Size and Arrange,
+ * because a slide table is a shape on a canvas rather than a run of text.
+ */
+export const TableLayout: Story = { render: () => ribbon('table-layout') };
+
+/**
+ * **Picture Format** — a placeholder. Six groups: Adjust, Picture Styles, Accessibility, Arrange, Size and Image
+ * Play, with Adjust and Picture Styles primary.
+ */
+export const PictureFormat: Story = { render: () => ribbon('picture-format') };
+
+/**
+ * **Shape Format** — a placeholder. Six groups: Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange
+ * and Size, with Shape Styles primary.
+ */
+export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
+
+/**
+ * **Chart Design** — a placeholder. Four groups: Chart Layouts, Chart Styles, Data and Type, with Chart Layouts
+ * primary.
+ */
+export const ChartDesign: Story = { render: () => ribbon('chart-design') };
+
+/**
+ * **Format** — Chart Tools' second tab, a placeholder. Seven groups: Current Selection, Insert Shapes, Shape Styles,
+ * WordArt Styles, Accessibility, Arrange and Size.
+ */
+export const ChartFormat: Story = { render: () => ribbon('chart-format') };

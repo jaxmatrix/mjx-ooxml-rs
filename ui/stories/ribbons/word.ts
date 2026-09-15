@@ -57,9 +57,16 @@
  * the two marking pencils and the two ways out. It binds nothing and opens no menu; its census lists are
  * functions of the application, so PowerPoint's and Excel's units reuse them.
  *
- * **No Word tab is a placeholder any more.** Each was `placeholderTab` until its unit — one group carrying the
- * tab's name, at the priority the census declares, holding one honest button — and each unit replaced one
- * with a small diff against a file that already had the right shape.
+ * **No core or view tab of Word's is a placeholder any more.** Each was `placeholderTab` until its unit — one group
+ * carrying the tab's name, at the priority the census declares, holding one honest button — and each unit replaced
+ * one with a small diff against a file that already had the right shape.
+ *
+ * ## The contextual tabs
+ *
+ * **Six contextual tabs in four sets are declared and every one is a placeholder**: Table Design and Layout (Table
+ * Tools), Picture Format (Picture Tools), Shape Format (Drawing Tools), and Chart Design and Format (Chart Tools).
+ * `dev/ribbons/census.ts` carries their groups and no commands, so each can be authored one tab at a time with the
+ * same small diff; `wordContextualSets` draws them. Every other in-scope set is recorded there as unbuilt.
  *
  * ## The three view tabs
  *
@@ -74,12 +81,14 @@
 
 import { html, type TemplateResult } from 'lit';
 
-import { ribbonTab, wordRibbonTabs } from '../../dev/ribbons/census.ts';
-import { stubTab } from '../shell/shell-parts.ts';
+import { ribbonTab, wordRibbonContextualSets, wordRibbonTabs } from '../../dev/ribbons/census.ts';
 import {
   censusGroup,
+  contextualSetsFor,
+  placeholderTab,
   tab,
   tabsFor,
+  type ContextualSetOptions,
   type TabOptions,
 } from './ribbon-parts.ts';
 
@@ -515,19 +524,40 @@ export function wordTabs(
   );
 }
 
+// ── the contextual tabs ──────────────────────────────────────────────────────
+
 /**
- * The contextual tab sets the shell declares today.
+ * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * ⚠ Still `stubTab`, deliberately. Contextual sets are `TabSet*` rows in the census rather than
- * core tabs, they are **unit 11** of the ribbon programme, and the whole point of unit 0 is that
- * the nine shells look exactly as they did. Replacing these with placeholders built from a census
- * entry that does not exist yet would be inventing the thing unit 11 is for.
+ * **Every entry is `placeholderTab` today**: the four common sets are declared in `dev/ribbons/census.ts` with
+ * their groups and no commands, and each tab's unit replaces its one line here with a `word<Tab>Tab` function.
  */
-export function wordContextualSets(): TemplateResult {
-  return html`
-    <mjx-contextual-tab-set label="Table Tools">
-      ${stubTab('table-design', 'Design', 'Table Styles', 'table')}
-      ${stubTab('table-layout', 'Layout', 'Merge Cells', 'add')}
-    </mjx-contextual-tab-set>
-  `;
+const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
+  'table-design': () => placeholderTab(entry('table-design')),
+  'table-layout': () => placeholderTab(entry('table-layout')),
+  'picture-format': () => placeholderTab(entry('picture-format')),
+  'shape-format': () => placeholderTab(entry('shape-format')),
+  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-format': () => placeholderTab(entry('chart-format')),
+};
+
+/**
+ * **Word's contextual tab sets** — Table Tools, Picture Tools, Drawing Tools and Chart Tools, from the census.
+ *
+ * Omit `sets` and every built set is drawn, which is what `Ribbons/Word` does so each contextual tab has a story;
+ * `Shell/Word` names `table-tools` alone, the set its document's selection shows. Every other in-scope set is
+ * recorded in `unbuiltContextualSets` rather than drawn: only the four common sets are built, by the user's decision.
+ */
+export function wordContextualSets(options: ContextualSetOptions = {}): TemplateResult {
+  return html`${contextualSetsFor(
+    wordRibbonContextualSets,
+    (declared) => {
+      const build = contextualBuilders[declared.id];
+      if (build === undefined) {
+        throw new Error(`stories/ribbons/word.ts has no builder for the '${declared.id}' contextual tab`);
+      }
+      return build(options);
+    },
+    options,
+  )}`;
 }

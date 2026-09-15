@@ -705,7 +705,7 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${powerpointContextualSets()}
+        ${powerpointContextualSets({ sets: ['picture-tools'] })}
       </mjx-ribbon>
     `,
   );
