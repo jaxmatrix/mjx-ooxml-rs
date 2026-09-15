@@ -7,14 +7,83 @@ use json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-// The audit-id rosters of the 2026-09-15 renderer audits: prefix and the highest number issued.
-const AUDIT_ROSTERS: [(&str, u32); 4] = [("P", 45), ("X", 27), ("W", 45), ("C", 17)];
+// The audit-id rosters of the 2026-09-15 renderer audits: prefix, the highest number issued, and the format audited.
+const AUDIT_ROSTERS: [(&str, u32, &str); 4] = [
+    ("P", 45, "pptx"),
+    ("X", 27, "xlsx"),
+    ("W", 45, "docx"),
+    ("C", 17, "shared"),
+];
 
+// The renderer-completion epic's (MJXOFF-295) RC label to ticket pairs; RC24 also owns sub-ticket MJXOFF-211.
+const TICKET_ROSTER: [(&str, &str); 48] = [
+    ("RC00", "MJXOFF-296"),
+    ("RC01", "MJXOFF-297"),
+    ("RC47", "MJXOFF-298"),
+    ("RC02", "MJXOFF-299"),
+    ("RC03", "MJXOFF-300"),
+    ("RC04", "MJXOFF-243"),
+    ("RC05", "MJXOFF-301"),
+    ("RC06", "MJXOFF-302"),
+    ("RC07", "MJXOFF-303"),
+    ("RC08", "MJXOFF-304"),
+    ("RC09", "MJXOFF-255"),
+    ("RC10", "MJXOFF-305"),
+    ("RC11", "MJXOFF-306"),
+    ("RC12", "MJXOFF-307"),
+    ("RC13", "MJXOFF-308"),
+    ("RC14", "MJXOFF-309"),
+    ("RC15", "MJXOFF-310"),
+    ("RC16", "MJXOFF-311"),
+    ("RC17", "MJXOFF-312"),
+    ("RC18", "MJXOFF-313"),
+    ("RC20", "MJXOFF-314"),
+    ("RC21", "MJXOFF-315"),
+    ("RC22", "MJXOFF-316"),
+    ("RC23", "MJXOFF-317"),
+    ("RC24", "MJXOFF-318"),
+    ("RC24", "MJXOFF-211"),
+    ("RC25", "MJXOFF-319"),
+    ("RC26", "MJXOFF-320"),
+    ("RC27", "MJXOFF-259"),
+    ("RC28", "MJXOFF-321"),
+    ("RC29", "MJXOFF-322"),
+    ("RC30", "MJXOFF-323"),
+    ("RC31", "MJXOFF-324"),
+    ("RC32", "MJXOFF-325"),
+    ("RC33", "MJXOFF-326"),
+    ("RC34", "MJXOFF-327"),
+    ("RC35", "MJXOFF-328"),
+    ("RC36", "MJXOFF-329"),
+    ("RC37", "MJXOFF-330"),
+    ("RC38", "MJXOFF-331"),
+    ("RC39", "MJXOFF-332"),
+    ("RC40", "MJXOFF-333"),
+    ("RC41", "MJXOFF-334"),
+    ("RC42", "MJXOFF-335"),
+    ("RC43", "MJXOFF-258"),
+    ("RC44", "MJXOFF-336"),
+    ("RC45", "MJXOFF-337"),
+    ("RC46", "MJXOFF-338"),
+];
+
+// The only decisions that may take a row out of scope.
+const OUT_OF_SCOPE_DECISIONS: [&str; 2] = ["D24.4", "D21.7"];
+
+// The one ticket whose rows may be `working`: RC46, the render-tier acceptance.
+const WORKING_RC: &str = "RC46";
+
+const AUDIT_STATES: [&str; 3] = ["gap", "working", "out-of-scope"];
 const FORMATS: [&str; 4] = ["pptx", "xlsx", "docx", "shared"];
 const STAGES: [&str; 4] = ["model", "layout", "scene", "paint"];
 
-// A floor that says the parser is still reading rows, not the exact corpus size.
+// The stage only a picture row carries, and the paint API that marks a row as drawing a picture.
+const DECODE_STAGE: &str = "decode";
+const PICTURE_PAINT_API: &str = "ImageSource";
+
+// Floors that say a parser is still reading rows, not the exact corpus sizes.
 const MINIMUM_ROWS: usize = 100;
+const MINIMUM_LEDGER_ROWS: usize = 100;
 
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -55,10 +124,53 @@ fn row_id(row: &Value) -> String {
     }
 }
 
-fn is_ticket(candidate: &str) -> bool {
-    candidate
-        .strip_prefix("MJXOFF-")
-        .is_some_and(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()))
+fn is_roster_ticket(candidate: &str) -> bool {
+    TICKET_ROSTER.iter().any(|(_, ticket)| *ticket == candidate)
+}
+
+// The parity ledger's row ids, parsed out of the constructor calls in `CAPABILITIES` rather than restated here.
+fn ledger_row_ids() -> BTreeSet<String> {
+    let path = repository_root().join("xtask/src/ledger/rows.rs");
+    let source = std::fs::read_to_string(&path).expect("the ledger rows are committed");
+    let (_, body) = source
+        .split_once("pub(crate) const CAPABILITIES")
+        .expect("rows.rs declares CAPABILITIES");
+    let (body, _) = body
+        .split_once("\n];")
+        .expect("CAPABILITIES closes with `];` at the start of a line");
+    // A row written as a struct literal would be invisible to the constructor scan.
+    assert!(
+        !body.contains("Capability {"),
+        "a ledger row is written as a struct literal; this reader only sees constructor calls"
+    );
+    let mut ids = BTreeSet::new();
+    for constructor in ["rendered(", "behaviour(", "excluded("] {
+        for (at, _) in body.match_indices(constructor) {
+            if body[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|before| before.is_alphanumeric() || before == '_')
+            {
+                continue;
+            }
+            let id = body[at + constructor.len()..]
+                .trim_start()
+                .strip_prefix('"')
+                .and_then(|rest| rest.split_once('"'))
+                .map(|(id, _)| id)
+                .unwrap_or_else(|| panic!("a `{constructor}` call does not open with a string id"));
+            assert!(
+                ids.insert(id.to_owned()),
+                "ledger row `{id}` is declared twice"
+            );
+        }
+    }
+    assert!(
+        ids.len() >= MINIMUM_LEDGER_ROWS,
+        "only {} ledger row id(s) were read; the reader has stopped matching",
+        ids.len()
+    );
+    ids
 }
 
 #[test]
@@ -66,31 +178,34 @@ fn every_row_has_an_owning_ticket_or_an_out_of_scope_reason() {
     let document = checklist();
     let rows = rows_of(&document);
     let mut failures = Vec::new();
-    let (mut owned, mut excluded) = (0, 0);
     for row in rows {
-        let owner = text(row, "owner");
+        let (owner, rc) = (text(row, "owner"), text(row, "rc"));
         let out_of_scope = row.get("out_of_scope");
         let decision = out_of_scope.map_or("", |value| text(value, "decision"));
         let reason = out_of_scope.map_or("", |value| text(value, "reason"));
-        match (owner.is_empty(), out_of_scope.is_some()) {
-            (false, false) if is_ticket(owner) => owned += 1,
-            (false, false) => failures.push(format!(
-                "{}: owner {owner:?} is not an MJXOFF id",
-                row_id(row)
+        let problem = match (owner.is_empty(), out_of_scope.is_some()) {
+            (false, false) if TICKET_ROSTER.contains(&(rc, owner)) => None,
+            (false, false) if is_roster_ticket(owner) => Some(format!(
+                "rc {rc:?} is not the epic's label for owner {owner}"
             )),
-            (true, true) if !decision.is_empty() && !reason.is_empty() => excluded += 1,
-            (true, true) => failures.push(format!(
-                "{}: out_of_scope needs a decision and a reason",
-                row_id(row)
+            (false, false) => Some(format!("owner {owner:?} is not a ticket of the epic")),
+            (true, true) if !rc.is_empty() => {
+                Some(format!("is out of scope but carries rc {rc:?}"))
+            }
+            (true, true) if decision.is_empty() || reason.is_empty() => {
+                Some("out_of_scope needs a decision and a reason".to_owned())
+            }
+            (true, true) if !OUT_OF_SCOPE_DECISIONS.contains(&decision) => Some(format!(
+                "out-of-scope decision {decision:?} is not one of {OUT_OF_SCOPE_DECISIONS:?}"
             )),
-            (false, true) => failures.push(format!(
-                "{}: has both an owner and an out-of-scope reason",
-                row_id(row)
-            )),
-            (true, false) => failures.push(format!(
-                "{}: has neither an owning ticket nor an out-of-scope reason",
-                row_id(row)
-            )),
+            (true, true) => None,
+            (false, true) => Some("has both an owner and an out-of-scope reason".to_owned()),
+            (true, false) => {
+                Some("has neither an owning ticket nor an out-of-scope reason".to_owned())
+            }
+        };
+        if let Some(problem) = problem {
+            failures.push(format!("{}: {problem}", row_id(row)));
         }
     }
     assert!(
@@ -99,9 +214,55 @@ fn every_row_has_an_owning_ticket_or_an_out_of_scope_reason() {
         failures.len(),
         failures.join("\n")
     );
-    println!(
-        "{} rows: {owned} owned, {excluded} out of scope",
-        rows.len()
+    for format in FORMATS {
+        let count = |state: &str| {
+            rows.iter()
+                .filter(|row| text(row, "format") == format && text(row, "audit_state") == state)
+                .count()
+        };
+        println!(
+            "{format}: {} gap, {} working, {} out of scope",
+            count("gap"),
+            count("working"),
+            count("out-of-scope")
+        );
+    }
+}
+
+#[test]
+fn audit_state_agrees_with_ownership() {
+    let document = checklist();
+    let rows = rows_of(&document);
+    let mut failures = Vec::new();
+    for row in rows {
+        let state = text(row, "audit_state");
+        let excluded = row.get("out_of_scope").is_some();
+        let problem = if !AUDIT_STATES.contains(&state) {
+            Some(format!(
+                "audit_state {state:?} is not one of {AUDIT_STATES:?}"
+            ))
+        } else if (state == "out-of-scope") != excluded {
+            Some(format!(
+                "audit_state {state:?} disagrees with out_of_scope being {}",
+                if excluded { "present" } else { "absent" }
+            ))
+        } else if state == "working" && text(row, "rc") != WORKING_RC {
+            Some(format!(
+                "is `working` but owned by {:?}; only {WORKING_RC} rows may be",
+                text(row, "rc")
+            ))
+        } else {
+            None
+        };
+        if let Some(problem) = problem {
+            failures.push(format!("{}: {problem}", row_id(row)));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} row(s) with an inconsistent audit_state:\n{}",
+        failures.len(),
+        failures.join("\n")
     );
 }
 
@@ -113,23 +274,39 @@ fn no_stage_owner_is_blank() {
     let mut failures = Vec::new();
     let mut checked = 0;
     for row in rows {
-        for stage in STAGES {
-            let Some(owner) = row.get("stages").and_then(|stages| stages.get(stage)) else {
+        let stages = row.get("stages");
+        let paint_api = stages
+            .and_then(|stages| stages.get("paint"))
+            .map_or("", |paint| text(paint, "api"));
+        let has_decode = stages.and_then(|stages| stages.get(DECODE_STAGE)).is_some();
+        if paint_api.contains(PICTURE_PAINT_API) && !has_decode {
+            failures.push(format!(
+                "{}: paints through {PICTURE_PAINT_API} but names no `{DECODE_STAGE}` stage",
+                row_id(row)
+            ));
+        }
+        for stage in STAGES.iter().chain(has_decode.then_some(&DECODE_STAGE)) {
+            let Some(owner) = stages.and_then(|stages| stages.get(stage)) else {
                 failures.push(format!("{}: stage `{stage}` is missing", row_id(row)));
                 continue;
             };
             checked += 1;
             let krate = text(owner, "crate");
             let api = text(owner, "api");
+            let created_by = text(owner, "created_by");
             let problem = match krate {
                 "" => Some("names no crate".to_owned()),
-                "none" if !is_ticket(text(owner, "created_by")) => {
-                    Some("is `none` but names no MJXOFF ticket in `created_by`".to_owned())
-                }
+                "none" if !is_roster_ticket(created_by) => Some(format!(
+                    "is `none` but `created_by` {created_by:?} is not a ticket of the epic"
+                )),
                 "not-applicable" if text(owner, "why").is_empty() => {
                     Some("is `not-applicable` but says nothing in `why`".to_owned())
                 }
                 "none" | "not-applicable" => None,
+                // A crate is one directory name, so `..` or a separator cannot reach a manifest outside crates/.
+                _ if krate.contains(['/', '\\']) || krate == ".." || krate == "." => Some(format!(
+                    "names `{krate}`, which is not a single path segment"
+                )),
                 _ if !root.join("crates").join(krate).join("Cargo.toml").is_file() => Some(
                     format!("names `{krate}`, which is not a crate under crates/"),
                 ),
@@ -159,20 +336,32 @@ fn every_audit_id_is_referenced_by_a_row() {
     let rows = rows_of(&document);
     let roster: BTreeSet<String> = AUDIT_ROSTERS
         .iter()
-        .flat_map(|(prefix, highest)| {
+        .flat_map(|(prefix, highest, _)| {
             (1..=*highest).map(move |number| format!("{prefix}{number:02}"))
         })
         .collect();
     let mut referenced = BTreeSet::new();
     let mut unknown = Vec::new();
     for row in rows {
+        let format = text(row, "format");
         for id in row.get("audit").and_then(Value::array).unwrap_or(&[]) {
             let id = id.string().unwrap_or("").to_owned();
-            if roster.contains(&id) {
-                referenced.insert(id);
-            } else {
+            if !roster.contains(&id) {
                 unknown.push(format!("{}: `{id}` is in no audit roster", row_id(row)));
+                continue;
             }
+            // A format row cites its own audit; a shared row may cite any of the four.
+            let audited = AUDIT_ROSTERS
+                .iter()
+                .find(|(prefix, _, _)| id.starts_with(prefix))
+                .map_or("", |(_, _, audited)| *audited);
+            if format != "shared" && audited != format {
+                unknown.push(format!(
+                    "{}: `{id}` is from the {audited} audit, not the {format} one",
+                    row_id(row)
+                ));
+            }
+            referenced.insert(id);
         }
     }
     let unplaced: Vec<&String> = roster.difference(&referenced).collect();
@@ -194,6 +383,7 @@ fn every_audit_id_is_referenced_by_a_row() {
 fn every_row_is_well_formed() {
     let document = checklist();
     let rows = rows_of(&document);
+    let ledger_ids = ledger_row_ids();
     let mut ids = BTreeSet::new();
     let mut failures = Vec::new();
     for row in rows {
@@ -210,11 +400,14 @@ fn every_row_is_well_formed() {
         if text(row, "feature").is_empty() {
             failures.push(format!("{id}: states no feature"));
         }
-        if row
-            .get("ledger")
-            .is_some_and(|ledger| ledger.string().is_some_and(|l| l.trim().is_empty()))
-        {
-            failures.push(format!("{id}: ledger is an empty string; write null"));
+        // `get` reads a null ledger as absent, which is the spelling for a row with no ledger row.
+        match row.get("ledger").map(Value::string) {
+            None => {}
+            Some(Some(ledger)) if ledger_ids.contains(ledger) => {}
+            Some(Some(ledger)) => failures.push(format!(
+                "{id}: ledger {ledger:?} is not a row of xtask/src/ledger/rows.rs"
+            )),
+            Some(None) => failures.push(format!("{id}: ledger is neither a string nor null")),
         }
     }
     assert!(
