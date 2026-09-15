@@ -73,7 +73,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master and Notes Master** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master and Black and White** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -93,7 +93,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master and Notes Master are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master and Black and White are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -1296,7 +1296,36 @@ export const HandoutMaster: Story = { render: () => ribbon('handout-master') };
  */
 export const NotesMaster: Story = { render: () => ribbon('notes-master') };
 
-/** A view tab: Office shows it only while a deck is being previewed in black and white. */
+/**
+ * **Black and White**: how the selected object prints on a black-and-white printer. A view tab Office shows only while
+ * the deck is previewed in black and white, which View's *Black and White* opens. Authored after Notes Master, one tab
+ * of one application, and PowerPoint's seventh view tab. Two groups: Colour Mode and Close. What to look at, least
+ * certain first:
+ *
+ * 1. ⚠ **Colour Mode is ten toggles in one exclusive set, not a gallery.** Automatic starts pressed. Press Black: it
+ *    fills and Automatic releases. Press Black again: it stays. Tab to Inverse Greyscale and press Space: the same,
+ *    by keyboard. Judge whether a row of toggles reads as *choose one setting for this object*. Office greys the ten
+ *    with nothing selected and highlights none for a mixed selection. Here one always holds. `GUESS:` Automatic as
+ *    the start.
+ * 2. ⚠ **Five settings carry no glyph and are small**: Automatic, Grey with White Fill, Black with Greyscale Fill,
+ *    Black with White Fill, Black and White. Office draws coloured swatches for them. A one-tint glyph has no grey,
+ *    and a pressed toggle draws Fluent's *filled* drawing, which would change a fill's meaning. Check that the small
+ *    labels are readable in their columns and that Office's order survives: Automatic, three large, five small,
+ *    Don't Show.
+ * 3. ⚠ **Four large labels wrap unmeasured**: Light Greyscale, Inverse Greyscale, Don't Show and Back To Colour View
+ *    (*Back To* over *Colour View*). Look for a clipped third line. `GUESS:` that each fits, by comparison with Word's
+ *    Close Outline View.
+ * 4. **Glyphs to judge**, all `GUESS:`: Greyscale's struck palette (View's Greyscale, now at 24), Light Greyscale's
+ *    sun (new), Inverse Greyscale's half-dark circle (Word's Switch Modes), Don't Show's struck eye (Excel's Hide),
+ *    and Back To Colour View's cross in a square, every view tab's close. Toggles fill while pressed.
+ * 5. **The group is labelled Colour Mode**, the census's label, where Office writes *Change Selected Object*. Office's
+ *    *Grayscale*, *Gray* and *Color* are spelt Greyscale, Grey and Colour.
+ * 6. **The set is this tab's own.** Press White here, then open `View`: its Colour/Greyscale set has not changed.
+ *    When `Greyscale` is authored, its set will be separate from this one too.
+ * 7. **No survivor.** Drag narrow: Close collapses first, then Colour Mode, and each collapses to a trigger with
+ *    nothing beside it.
+ * 8. **Not in `Shell/PowerPoint`**: the shell's strip has no Black and White tab.
+ */
 export const BlackAndWhite: Story = { render: () => ribbon('black-and-white') };
 
 /** A view tab, and the census's `TabGrayscale` under this catalogue's spelling. */

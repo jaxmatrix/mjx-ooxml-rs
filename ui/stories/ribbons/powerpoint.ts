@@ -71,6 +71,10 @@
  * printed notes page. Edit Theme, Background and Close are Slide Master's functions under this tab's ids; Page Setup's
  * two menus and Placeholders' six checkboxes are its own.
  *
+ * **Black and White** followed Notes Master, PowerPoint's seventh view tab authored: two groups and eleven commands,
+ * how the selected object prints in black and white. Colour Mode's ten toggles are one exclusive set and Close is one
+ * button, both from the census's colour-mode functions, which Greyscale shares. It binds nothing and opens no menu.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -599,11 +603,30 @@ export function powerpointNotesMasterTab(options: TabOptions = {}): TemplateResu
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointBlackAndWhiteTab(): TemplateResult {
-  return placeholderTab(entry('black-and-white'));
+/**
+ * Black and White: Colour Mode, Close — PowerPoint's seventh view tab authored, in **Office's** order, which is also
+ * the census's.
+ *
+ * ⚠ **A view tab: Office shows it only while the deck is previewed in black and white**, so `powerpointTabs()` leaves
+ * it out unless `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks. `dev/ribbons/census.ts` records every
+ * disagreement.
+ *
+ * **Both groups are the colour-mode tabs' shared functions** under this tab's ids, which Greyscale calls too.
+ * **Colour Mode is ten toggles in one exclusive set**, Automatic pressed, and Close is one button. **Nothing is bound
+ * by a host**: every command is the generic toggle or button. **No launcher, no menu, no survivor.**
+ */
+export function powerpointBlackAndWhiteTab(options: TabOptions = {}): TemplateResult {
+  const blackAndWhite = entry('black-and-white');
+  const controls = options.controls ?? {};
+  return tab(
+    blackAndWhite.id,
+    blackAndWhite.label,
+    censusGroup(blackAndWhite, 'GroupColorModeSetting', {}, controls),
+    censusGroup(blackAndWhite, 'GroupColorModeClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointGreyscaleTab(): TemplateResult {
   return placeholderTab(entry('greyscale'));

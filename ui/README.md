@@ -729,7 +729,8 @@ the Switch Windows list's shape.
 - **The census's spelling is drawn**: Colour/Greyscale, Colour and Greyscale, where Office writes Color and
   Grayscale.
 - **Greyscale, Black and White and the three masters open view tabs in Office**; here the colour modes are one
-  set that Colour releases, and the masters are plain buttons.
+  set that Colour releases, and the masters are plain buttons. The tabs they open are their own stories; see
+  *PowerPoint's Black and White*.
 - **Outline View, Notes Master and Notes are small where Office draws them large**, because Fluent draws their
   glyphs at 20 alone.
 - **Office greys Arrange All, Cascade and Move Split** in some states; all are drawn available.
@@ -1266,6 +1267,56 @@ refuses; Background holds a menu and a checkbox; Close leaves the view.
 - **No glyph is new.** Notes Page Orientation draws `orientation` and Slide Size `slide-size`; the shared groups draw
   Slide Master's `style-guide`, `color`, `text-font`, `square-shadow`, `color-background` and `dismiss-square`. The
   seven checkboxes carry none.
+
+### PowerPoint's Black and White
+
+**One tab of one application, and PowerPoint's seventh view tab authored**, after Notes Master. Two groups and eleven
+commands, in Office's order, which is also the census's: Colour Mode and Close. It is `TabBlackAndWhite`, the tab
+Office shows while the deck is previewed as a black-and-white printer would print it. The tab chooses how the
+**selected object** is drawn in that preview, and changes no slide's colours.
+
+**Both groups are written once, as functions of the colour-mode tab**: `colourModeSettingCommands` and
+`colourModeCloseCommands` in `dev/ribbons/census.ts`. The census's Greyscale row (`TabGrayscale`) is the same two
+groups with the same labels, priorities and counts, so its unit adds `commands:` to two rows and a tab function.
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does, and **binds nothing**: every command is the generic
+toggle or button, so there is no binding and no menu to write.
+
+- **Ten toggles in one exclusive set**, `powerpoint.black-and-white.colour-mode`, Automatic pressed: Automatic,
+  Greyscale, Light Greyscale, Inverse Greyscale, Grey with White Fill, Black with Greyscale Fill, Black with White
+  Fill, Black, White and Don't Show. `tests/ribbons.test.ts` lists the set and its start.
+- **One button**: Back To Colour View.
+- No menu, no gallery, no field, no checkbox, no split button, no dialog launcher.
+
+**Why toggles and not a gallery.** Office draws a row of labelled buttons, with no scroll arrows, expander or popup
+grid. The census counts 10, one per setting, where a gallery would be one control. The choice has one current value
+that another press replaces, which is what `exclusive` holds. And a gallery's items preview a result, which here
+would be colour swatches the subset cannot draw.
+
+**No survivors.** Colour Mode is an exclusive set, which rule 1 refuses, as on View. Five of its members carry no
+glyph besides. Back To Colour View leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The group is labelled *Colour Mode***, the census's label, where Office writes *Change Selected Object*.
+  Office's *Grayscale*, *Gray* and *Back To Color View* are spelt Greyscale, Grey and Back To Colour View. The
+  counts agree: 10 and 1.
+- **Automatic starts pressed, and the set always holds one.** Office reflects the selection: it greys the ten with
+  nothing selected and highlights none for a mixed selection. `GUESS:` Automatic and the greying. A second press
+  keeps the setting (`GUESS:`), so the set does not allow none.
+- **This tab's set and Greyscale's are separate.** `GUESS:` that Office keeps the two settings apart. The ten map
+  to DrawingML's `ST_BlackWhiteMode` without `clr` (`GUESS:`, from memory), one `bwMode` per shape, so a
+  document-backed host might show one choice on both tabs.
+- **Five settings are small where Office draws all ten large**, because they carry no glyph: Automatic, Grey with
+  White Fill, Black with Greyscale Fill, Black with White Fill, Black and White. A glyph is one tint from a token, so
+  it has no grey, and its ink turns light in the dark theme. A pressed toggle draws Fluent's *filled* drawing, which
+  on a fill-named command changes the meaning. Office draws coloured swatches, which the subset refuses. Automatic is
+  a rule, not a look, and Fluent's *auto* glyphs are a camera flash and a translation.
+- **Greyscale, Light Greyscale, Inverse Greyscale, Don't Show and Back To Colour View are large, unmeasured.**
+  `GUESS:` each label wraps into two lines, by comparison with Word's Close Outline View.
+- **One glyph is new**, `brightness-high` (Light Greyscale, a sun). Reused: `color-off` (View's Greyscale, gaining a
+  24), `dark-theme` (Word's and Excel's Switch Modes, for Inverse Greyscale), `eye-off` (Excel's Hide, gaining a 24
+  and the filled drawing, for Don't Show), and `dismiss-square` (every view tab's close). Every glyph is `GUESS:`.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

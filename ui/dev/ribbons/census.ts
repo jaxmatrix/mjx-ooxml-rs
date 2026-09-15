@@ -110,7 +110,10 @@
  * see that section's *PowerPoint's Slide Master Home* part. **PowerPoint's Handout Master** followed, PowerPoint's
  * fifth view tab authored, calling Slide Master's Edit Theme, Background and Close functions; see that section's
  * *PowerPoint's Handout Master* part. **PowerPoint's Notes Master** followed, PowerPoint's sixth view tab
- * authored, calling the same three functions; see that section's *PowerPoint's Notes Master* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * authored, calling the same three functions; see that section's *PowerPoint's Notes Master* part. **PowerPoint's
+ * Black and White** followed, PowerPoint's seventh view tab authored, its Colour Mode and Close groups written once
+ * as functions of the colour-mode tab it shares with Greyscale; see the *commands the colour modes show* section.
+ * Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -3452,7 +3455,8 @@ const wordViewNightMode: readonly RibbonCommand[] = [
 //    commands are **Colour**, **Greyscale** and **Black and White**.
 // 2. **Greyscale and Black and White open view tabs in Office** (`TabGrayscale`, `TabBlackAndWhite`), whose
 //    *Back To Color View* returns the deck to colour. Here the three are one set and pressing Colour releases
-//    the other two; the two view tabs stay their own placeholder stories. `GUESS:` that Office draws Colour
+//    the other two; the two view tabs are their own stories (Black and White authored in *the commands the
+//    colour modes show*, Greyscale a placeholder until its unit). `GUESS:` that Office draws Colour
 //    pressed while the deck is in colour.
 // 3. **Slide Master, Handout Master and Notes Master open view tabs too**, and Office leaves them by *Close
 //    Master View*. They are buttons here, because nothing on this tab takes them back.
@@ -5438,6 +5442,167 @@ const powerpointNotesMasterPlaceholders: readonly RibbonCommand[] = [
   { id: 'powerpoint.notes-master.placeholders.page-number', label: 'Page Number', toggle: true, pressed: true },
 ];
 
+// ── the commands the colour modes show ───────────────────────────────────────
+//
+// ## PowerPoint's Black and White
+//
+// The unit after Notes Master, one tab of one application: **PowerPoint's `TabBlackAndWhite`**, both in-scope
+// groups and eleven commands, and PowerPoint's seventh view tab authored. Office shows it only while the deck is
+// previewed in black and white, which View's *Black and White* opens. The slides are drawn as they would print on a
+// black-and-white printer, and this tab chooses how the **selected object** is drawn in that preview. *Back To
+// Colour View* takes the deck back to colour. It is a view-only tab: nothing on it changes a slide's colours.
+//
+// ## Two groups written once, for two colour modes
+//
+// **`GroupColorModeSetting` and `GroupColorModeClose` are the same two rows, with the same labels, priorities and
+// counts (10 and 1), on `TabBlackAndWhite` and `TabGrayscale`**, and Office draws the same eleven commands on both.
+// So they are `colourModeSettingCommands` and `colourModeCloseCommands`, functions of the colour-mode tab, exactly
+// as the master views' shared groups are functions of the master tab. **Black and White's entry calls them first**;
+// the Greyscale unit adds `commands:` to its own two rows with `'greyscale'` and writes no second declaration.
+// Every id is `powerpoint.<tab>.<group>.<command>`, so a host binds each tab's controls apart, and each tab's
+// settings are **their own exclusive set**, `powerpoint.<tab>.colour-mode`, looked up in its own tab.
+//
+// ## The shape: large toggles in one exclusive set, not a gallery
+//
+// **Ten toggles and one exclusive set, Automatic pressed.** The brief offered two shapes, and the toggles win for
+// four reasons:
+//
+// - **Office draws buttons, not a gallery.** The ten are a row of labelled commands on the ribbon's face, with no
+//   scroll arrows, no *More* expander and no popup grid, which are what `<mjx-gallery>` draws.
+// - **The census counts 10, one per setting.** A gallery is one control that draws ten items, so it would count
+//   1. The toggles draw the count exactly.
+// - **The choice is exclusive and has a current value.** Office highlights the setting the selection carries, one
+//   of ten, and pressing another replaces it. That is what `exclusive` holds (see `src/controls/exclusive-set.ts`),
+//   and each toggle keeps `aria-pressed`, one tab stop per setting, as every other set on the ribbon does.
+// - **A gallery's items are pictures of the result.** Every gallery in this subset previews what a press produces
+//   (themes, transitions, animations). A picture of *grey outline on a white fill* needs a colour swatch, which the
+//   subset refuses (see *every glyph* below). A gallery of ten labelled but pictureless items is a menu drawn as a
+//   strip.
+//
+// `GUESS:` that the settings map one to one onto DrawingML's `ST_BlackWhiteMode` (the `bwMode` attribute on a
+// shape's properties, read by `mjx-dml`): `auto`, `gray`, `ltGray`, `invGray`, `grayWhite`, `blackGray`,
+// `blackWhite`, `black`, `white` and `hidden`, which is the type's eleven values without `clr`. From memory of
+// ECMA-376 Part 1, not read from `References/`.
+//
+// **One button**, Back To Colour View. **No menu, no field, no checkbox, no split button, no dialog launcher**,
+// and nothing a host binds: every command is the generic toggle or button `renderCommand` draws.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Office labels the group *Change Selected Object*; the census labels it *Colour Mode*.** The census wins,
+//    as it does for every label. The brief names both.
+// 2. **The census's spelling wins over Office's**, as on View (that part's disagreement 1). Office writes
+//    *Grayscale*, *Gray* and *Back To Color View*. So the commands are **Greyscale**, **Light Greyscale**,
+//    **Inverse Greyscale**, **Grey with White Fill**, **Black with Greyscale Fill** and **Back To Colour View**.
+//    `GUESS:` Office's capitals (*Back To*, lower-case *with*), from memory.
+// 3. **The counts agree**: Colour Mode counts 10 and draws 10; Close counts 1 and draws 1. Nothing is padded or
+//    left out.
+// 4. **Office's set reflects a selection; this one always holds one.** With nothing selected, Office greys the ten
+//    (`GUESS:`), and with a selection whose objects carry different settings it highlights none. Here the set
+//    starts on **Automatic**, the setting a new shape carries, and always holds exactly one, because the census
+//    gate requires one pressed and `disabled` is loop 2's. `GUESS:` Automatic.
+// 5. **A second press keeps the setting.** The set does not declare `exclusiveAllowsNone`: pressing Black while
+//    Black holds leaves the object black, as pressing Normal on View leaves the deck in Normal. `GUESS:`.
+// 6. **The two colour-mode tabs are two sets here.** `GUESS:` that Office keeps the black-and-white setting and
+//    the greyscale setting of an object apart. If the file holds one `bwMode` per shape, as `mjx-dml` reads it,
+//    Office may show one tab's choice on the other, and a document-backed host would press the same member on
+//    both. This catalogue draws two independent sets, because a set is looked up in its own tab.
+// 7. **Ten commands and one row.** Office draws all ten large. Five are `small` here, for the reasons under
+//    *Sizes*, so the row is three large toggles between small columns, and Office's order is kept.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Colour Mode**: none. It is an exclusive set: a press is taken back only by pressing another member, which
+//   rule 1 does not allow, as for View's sets. Five members carry no glyph besides, which fails rule 3.
+// - **Close**: none. Back To Colour View leaves the view and takes the tab with it, and it is the only command.
+//
+// ## Sizes, and every glyph
+//
+// A command is `large` where Office draws it large **and** it has an honest glyph **and** its label wraps inside
+// `largeControlWidthUnits`. **Greyscale, Light Greyscale, Inverse Greyscale and Don't Show are large**: two tokens,
+// no word longer than *Greyscale* and *Inverse*, and every line shorter than *Outline View*, which fits on Word's
+// Close Outline View. **Back To Colour View is large** for the same reason: it wraps as *Back To* over *Colour View*,
+// eleven letters, one fewer than *Outline View*. `GUESS:` both, unmeasured. Every glyph is `GUESS:`:
+//
+// - **Greyscale draws `color-off`**, View's Greyscale: the palette struck through, the colour taken out. It gains a
+//   24.
+// - **Light Greyscale draws `brightness-high`**, new: a sun with long rays, greyscale lightened. Not
+//   `weather-sunny`, which reads as weather.
+// - **Inverse Greyscale draws `dark-theme`**, Word's and Excel's Switch Modes: a circle half dark, light and dark
+//   exchanged. Never on one ribbon with Word's or Excel's. Not `circle-half-fill`, which View's *Black and White*
+//   draws on this same ribbon.
+// - **Don't Show draws `eye-off`**, Excel's Hide: an eye struck through, the object not drawn. It gains a 24 and
+//   the filled drawing, because it is a toggle here.
+// - **Back To Colour View draws `dismiss-square`**, the verb every view tab's close draws: leaving a view. Not
+//   `color`, which View's *Colour* toggle and Edit Theme's *Colours* draw.
+//
+// **Five commands carry no glyph, and say why.** **Automatic** is a rule, not a look (each object's kind decides
+// how it is drawn), and Fluent's *auto* glyphs are a camera flash (`flash-auto`) and a translation
+// (`translate-auto`); `sparkle` reads as *the computer will decide* in Copilot's sense. **Grey with White Fill,
+// Black with Greyscale Fill, Black with White Fill, Black and White** name the colours an object's line and fill
+// print in, and no glyph in this subset can say that honestly, for two reasons. A glyph is drawn in **one tint from
+// a token**, so it has ink and paper but no grey, and its ink is light in the dark theme, so a *black* square would
+// draw white. And a toggle draws Fluent's **filled** drawing while it holds, so on a command whose meaning *is* its
+// fill, pressing it would change what it says: `square` for Black with White Fill would become Black's solid square
+// the moment it held. Office draws coloured shape swatches here, and the subset refuses `_color` drawings. All five
+// are `small`, because a large button without a glyph is a label in a tall box.
+
+/** A colour-mode view: the two tabs whose Colour Mode and Close groups are one declaration. */
+type ColourModeTab = 'black-and-white' | 'greyscale';
+
+/**
+ * `GroupColorModeSetting`, labelled **Colour Mode** (Office's *Change Selected Object*), on either colour-mode tab:
+ * Automatic, Greyscale, Light Greyscale, Inverse Greyscale, Grey with White Fill, Black with Greyscale Fill, Black
+ * with White Fill, Black, White and Don't Show. See disagreements 1, 2 and 4 to 7.
+ *
+ * **Ten toggles and one exclusive set**, `powerpoint.<tab>.colour-mode`, Automatic pressed. Each sets how the selected
+ * object is drawn in this colour mode.
+ *
+ * **No survivor**: an exclusive set, and five members carry no glyph.
+ */
+function colourModeSettingCommands(tab: ColourModeTab): readonly RibbonCommand[] {
+  const setting = `powerpoint.${tab}.colour-mode`;
+  return [
+    { id: `${setting}.automatic`, label: 'Automatic', toggle: true, pressed: true, exclusive: setting },
+    { id: `${setting}.greyscale`, label: 'Greyscale', icon: 'color-off', size: 'large', toggle: true, exclusive: setting },
+    {
+      id: `${setting}.light-greyscale`,
+      label: 'Light Greyscale',
+      icon: 'brightness-high',
+      size: 'large',
+      toggle: true,
+      exclusive: setting,
+    },
+    {
+      id: `${setting}.inverse-greyscale`,
+      label: 'Inverse Greyscale',
+      icon: 'dark-theme',
+      size: 'large',
+      toggle: true,
+      exclusive: setting,
+    },
+    { id: `${setting}.grey-with-white-fill`, label: 'Grey with White Fill', toggle: true, exclusive: setting },
+    { id: `${setting}.black-with-greyscale-fill`, label: 'Black with Greyscale Fill', toggle: true, exclusive: setting },
+    { id: `${setting}.black-with-white-fill`, label: 'Black with White Fill', toggle: true, exclusive: setting },
+    { id: `${setting}.black`, label: 'Black', toggle: true, exclusive: setting },
+    { id: `${setting}.white`, label: 'White', toggle: true, exclusive: setting },
+    { id: `${setting}.dont-show`, label: "Don't Show", icon: 'eye-off', size: 'large', toggle: true, exclusive: setting },
+  ];
+}
+
+/**
+ * `GroupColorModeClose`, labelled **Close**, on either colour-mode tab: Back To Colour View, large. See disagreement 2.
+ *
+ * **No survivor**: it leaves the view, and it is the only command.
+ */
+function colourModeCloseCommands(tab: ColourModeTab): readonly RibbonCommand[] {
+  return [
+    { id: `powerpoint.${tab}.close.back-to-colour-view`, label: 'Back To Colour View', icon: 'dismiss-square', size: 'large' },
+  ];
+}
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -6067,8 +6232,8 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabBlackAndWhite' },
     groups: [
-      { id: 'GroupColorModeSetting', label: 'Colour Mode', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupColorModeClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupColorModeSetting', label: 'Colour Mode', priority: 'primary', controls: 10, inScope: true, commands: colourModeSettingCommands('black-and-white') },
+      { id: 'GroupColorModeClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: colourModeCloseCommands('black-and-white') },
     ],
   },
   {

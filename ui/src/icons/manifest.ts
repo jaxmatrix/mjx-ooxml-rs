@@ -1671,7 +1671,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dark-theme',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`. **Since Excel's View unit, also Excel's Switch Modes**, in the Night Mode group read as Word's.",
+    why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`. **Since Excel's View unit, also Excel's Switch Modes**, in the Night Mode group read as Word's. **Since PowerPoint's Black and White unit, also Colour Mode's Inverse Greyscale**, a large toggle: light and dark exchanged. Never on one ribbon with Word's or Excel's, and not `circle-half-fill`, which View's Black and White draws on PowerPoint's. `GUESS:`.",
+  },
+  {
+    name: 'brightness-high',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Light Greyscale, the large toggle in PowerPoint's Black and White Colour Mode group (and Greyscale's, the same shared group): a sun with long rays, greyscale lightened. Not `weather-sunny`, which reads as weather, nor `color-off`, which Greyscale beside it draws. `GUESS:`.",
   },
   // ── View (PowerPoint's View) ──────────────────────────────────────────────
   //
@@ -1735,9 +1741,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'color-off',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Greyscale, the small toggle in PowerPoint's View Colour/Greyscale group: the Colour palette struck through, the colour taken out. `GUESS:`.",
+    why: "Greyscale, the small toggle in PowerPoint's View Colour/Greyscale group: the Colour palette struck through, the colour taken out. `GUESS:`. **Since PowerPoint's Black and White unit, also Colour Mode's Greyscale**, a large toggle in the colour-mode tabs' exclusive set, so the 24 too: the same palette with its colour taken out.",
   },
   {
     name: 'circle-half-fill',
@@ -1833,9 +1839,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'eye-off',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Hide, small, in Excel's View Window group: an eye struck through, the window put out of sight. Unhide draws `eye`. `GUESS:`.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Hide, small, in Excel's View Window group: an eye struck through, the window put out of sight. Unhide draws `eye`. `GUESS:`. **Since PowerPoint's Black and White unit, also Colour Mode's Don't Show**, a large toggle in an exclusive set, so the 24 and the filled drawing too: the object not drawn in this colour mode.",
   },
   {
     name: 'arrow-bidirectional-up-down',
@@ -2005,7 +2011,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dismiss-square',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command. **Since PowerPoint's Slide Master unit, also Close Master View**, large: the same verb, leaving a view. **Since PowerPoint's Handout Master unit, also Handout Master's Close Master View**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Close Master View**, the same shared group.",
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command. **Since PowerPoint's Slide Master unit, also Close Master View**, large: the same verb, leaving a view. **Since PowerPoint's Handout Master unit, also Handout Master's Close Master View**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Close Master View**, the same shared group. **Since PowerPoint's Black and White unit, also Back To Colour View**, large, in the colour-mode tabs' shared Close group: the same verb, leaving a view. Not `color`, which View's Colour draws.",
   },
   // ── Print Preview (Word's) ────────────────────────────────────────────────
   //
