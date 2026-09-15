@@ -456,7 +456,7 @@
       },
       "owner": "MJXOFF-321",
       "rc": "RC28",
-      "ledger": "diagram-layout"
+      "ledger": "diagram-parts-pptx"
     },
     {
       "id": "pptx-ole-snapshot",
@@ -2364,7 +2364,7 @@
       },
       "owner": "MJXOFF-337",
       "rc": "RC45",
-      "ledger": "diagram-parts"
+      "ledger": "diagram-parts-docx"
     },
     {
       "id": "docx-incremental-reflow",

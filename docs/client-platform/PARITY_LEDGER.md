@@ -45,22 +45,22 @@ From `OFFICE_FEATURE_INVENTORY.md` §7, and enforced rather than quoted:
 
 * `crates/mjx-layout-xlsx/tests/the_format_language_is_evaluated.rs`
 
-**38 of the rows below are `not-started`**, which is the default and is what a capability becomes when the suites do not reach it. That number going *down* because a row was deleted rather than covered would be the one way this document could lie about progress, so the rows are a fixed partition of the inventory and are removed only when the inventory removes them.
+**39 of the rows below are `not-started`**, which is the default and is what a capability becomes when the suites do not reach it. That number going *down* because a row was deleted rather than covered would be the one way this document could lie about progress, so the rows are a fixed partition of the inventory and are removed only when the inventory removes them.
 
 ## The counts
 
 | State | Rows |
 |---|---:|
 | `implemented` | 21 |
-| `partial` | 83 |
-| `preserved-not-rendered` | 41 |
-| `not-started` | 38 |
+| `partial` | 85 |
+| `preserved-not-rendered` | 39 |
+| `not-started` | 39 |
 | `out-of-scope` | 13 |
-| **total** | **196** |
+| **total** | **197** |
 
 ## Where the denominators come from
 
-**The row count is not a census.** There are 196 rows because that is how this ledger partitions `OFFICE_FEATURE_INVENTORY.md` — a reading of §2 to §6, written by hand in `xtask/src/ledger/rows.rs`. Dividing anything by it produces a fraction of a reading. It is **not** independent of the numerator: the same file decides which rows exist and which suites each one names, so a coarser partition would raise the implemented share without a line of code changing.
+**The row count is not a census.** There are 197 rows because that is how this ledger partitions `OFFICE_FEATURE_INVENTORY.md` — a reading of §2 to §6, written by hand in `xtask/src/ledger/rows.rs`. Dividing anything by it produces a fraction of a reading. It is **not** independent of the numerator: the same file decides which rows exist and which suites each one names, so a coarser partition would raise the implemented share without a line of code changing.
 
 The two figures below **are** independent. Each is summed by the generator from a committed derivation with its own regeneration script, neither of which knows this ledger exists — but neither is a denominator the rows divide into, and no percentage in this document is taken against them. They are here to say how large the subject is.
 
@@ -173,6 +173,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `z-order-and-placement` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-pptx`) |
 | `text-in-a-shape` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-geometry`, `mjx-layout-pptx`) |
 | `picture-anchoring-xlsx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-xlsx`) |
+| `picture-anchoring-docx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`) |
 | `real-documents-reach-pixels` | `mjx-reference-pack: a_real_deck_reaches_pixels::the_ink_lands_where_the_fragments_said_it_would` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures; and a test-local geometry provider, standing in for library code carrying each shape's declared outline |
 | `real-documents-reach-pixels` | `mjx-reference-pack: a_real_worksheet_reaches_pixels::the_ink_lands_where_the_fragments_said_it_would` draws it only through a test-supplied image source (`NoImages` or a test-local `ImageSource`), standing in for decoded pictures; and a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `chart-series-geometry` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-chart`) |
@@ -184,6 +185,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `charts-docx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-chart`) |
 | `diagram-layout` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-chart`) |
 | `math-typesetting` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`) |
+| `table-model-docx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`) |
 | `table-styles-pptx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-pptx`) |
 | `table-merging` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-pptx`) |
 | `table-grid-solving` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`) |
@@ -325,7 +327,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `picture-pixels-pptx` | A picture on a slide shows its decoded pixels | `preserved-not-rendered` | `mjx-pptx: images` | 9 | 21 | — |
 | `image-decoding` | Image decoding — picture bytes to pixels, with a byte ceiling and typed errors | `not-started` | **none** | 0 | 0 | — |
 | `picture-anchoring-xlsx` | Worksheet drawing anchors — one-cell, two-cell and absolute | `partial` | `mjx-dml: spreadsheet_drawing_model`<br>`mjx-sml: anchor_geometry`<br>`mjx-layout-xlsx: three_anchor_modes_move_differently` | 32 | 121 | — |
-| `picture-anchoring-docx` | Word drawing anchors — inline and floating placement | `preserved-not-rendered` | `mjx-docx: drawing_placement` | 10 | 33 | — |
+| `picture-anchoring-docx` | Word drawing anchors — inline and floating placement | `partial` | `mjx-docx: drawing_placement`<br>`mjx-layout-docx: text_wraps_around_a_float` | 22 | 68 | 3 / 1 / 6 |
 | `picture-cropping` | Cropping, including crop-to-shape and aspect fill | `not-started` | **none** | 0 | 0 | — |
 | `picture-corrections` | Corrections and colour — brightness, contrast, saturation, recolour, artistic effects | `not-started` | **none** | 0 | 0 | — |
 | `real-documents-reach-pixels` | Real documents of all three formats reaching pixels with their own pictures, theme and outlines | `partial` | `mjx-reference-pack: a_real_deck_reaches_pixels::the_ink_lands_where_the_fragments_said_it_would`<br>`mjx-reference-pack: a_real_worksheet_reaches_pixels::the_ink_lands_where_the_fragments_said_it_would` | 2 | 10 | — |
@@ -349,7 +351,8 @@ Each of these has evidence that asserts something, and none of it proves the cap
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `diagram-parts` | The four-part diagram model — data, layout, style, colours | `preserved-not-rendered` | `mjx-pptx: diagrams`<br>`mjx-pptx: diagram_read_back` | 14 | 40 | — |
+| `diagram-parts-pptx` | PowerPoint SmartArt — the four diagram parts, data, layout, style and colours, and the cached drawing a slide shows | `preserved-not-rendered` | `mjx-pptx: diagrams`<br>`mjx-pptx: diagram_read_back` | 14 | 40 | — |
+| `diagram-parts-docx` | Word SmartArt and embedded-object previews — the diagram parts and the fallback drawing a document shows | `not-started` | **none** | 0 | 0 | — |
 | `diagram-layout` | Diagram layout — a hierarchy solved into boxes | `partial` | `mjx-layout-chart: a_hierarchy_is_laid_out` | 10 | 29 | 4 / 1 / 3 |
 | `diagram-layout-catalogue` | The ~200 published layouts across eight categories, and their algorithm evaluation | `not-started` | **none** | 0 | 0 | — |
 
@@ -365,7 +368,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `table-model-pptx` | PowerPoint table structure — rows, columns, cells, insertion and deletion | `implemented` | `mjx-dml: table_model`<br>`mjx-pptx: tables`<br>`mjx-pptx: table_structure`<br>`mjx-reference-pack: a_real_deck_reaches_pixels::a_deck_of_tables_reaches_pixels_with_its_cells_intact`<br>`mjx-reference-pack: a_real_deck_reaches_pixels::the_ink_lands_where_the_fragments_said_it_would` | 79 | 241 | — |
-| `table-model-docx` | Word table structure — rows, columns, cells, insertion and deletion | `preserved-not-rendered` | `mjx-docx: tables` | 17 | 72 | — |
+| `table-model-docx` | Word table structure — rows, columns, cells, insertion and deletion | `partial` | `mjx-docx: tables`<br>`mjx-layout-docx: a_table_grid_is_solved` | 27 | 97 | 4 / 2 / 5 |
 | `table-styles-pptx` | PowerPoint table styles and the six conditional-formatting bands | `partial` | `mjx-dml: table_style`<br>`mjx-pptx: table_styles`<br>`mjx-pptx: table_effective`<br>`mjx-layout-pptx: the_ladder_is_consumed` | 49 | 134 | — |
 | `table-styles-docx` | Word table styles and conditional formatting, read once per table | `preserved-not-rendered` | `mjx-docx: table_formatting` | 9 | 31 | — |
 | `table-merging` | Merged and split cells, and the walk that must not be naive | `partial` | `mjx-pptx: table_merging`<br>`mjx-layout-pptx: merged_cells_are_not_a_naive_walk` | 25 | 54 | — |

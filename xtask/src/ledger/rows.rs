@@ -836,7 +836,10 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "picture-anchoring-docx",
         Section::SharedPictures,
         "Word drawing anchors — inline and floating placement",
-        &["crates/mjx-docx/tests/drawing_placement.rs"],
+        &[
+            "crates/mjx-docx/tests/drawing_placement.rs",
+            "crates/mjx-layout-docx/tests/text_wraps_around_a_float.rs",
+        ],
     ),
     rendered(
         "picture-cropping",
@@ -958,13 +961,19 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     // §3.6 · SmartArt and diagrams
     // ─────────────────────────────────────────────────────────────────────────────────────────
     rendered(
-        "diagram-parts",
+        "diagram-parts-pptx",
         Section::SharedDiagrams,
-        "The four-part diagram model — data, layout, style, colours",
+        "PowerPoint SmartArt — the four diagram parts, data, layout, style and colours, and the cached drawing a slide shows",
         &[
             "crates/mjx-pptx/tests/diagrams.rs",
             "crates/mjx-pptx/tests/diagram_read_back.rs",
         ],
+    ),
+    rendered(
+        "diagram-parts-docx",
+        Section::SharedDiagrams,
+        "Word SmartArt and embedded-object previews — the diagram parts and the fallback drawing a document shows",
+        &[],
     ),
     rendered(
         "diagram-layout",
@@ -1015,7 +1024,10 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "table-model-docx",
         Section::SharedTables,
         "Word table structure — rows, columns, cells, insertion and deletion",
-        &["crates/mjx-docx/tests/tables.rs"],
+        &[
+            "crates/mjx-docx/tests/tables.rs",
+            "crates/mjx-layout-docx/tests/a_table_grid_is_solved.rs",
+        ],
     ),
     rendered(
         "table-styles-pptx",

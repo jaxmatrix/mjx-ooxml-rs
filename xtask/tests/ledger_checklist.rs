@@ -105,22 +105,31 @@ fn ledger_rows() -> BTreeMap<String, LedgerRow> {
     rows
 }
 
-// Every checklist row as (id, format, ledger id or None).
-fn checklist_rows() -> Vec<(String, String, Option<String>)> {
+// One checklist row: its id, format, audit state and the ledger row it names.
+struct ChecklistRow {
+    id: String,
+    format: String,
+    audit_state: String,
+    ledger: Option<String>,
+}
+
+// Every checklist row.
+fn checklist_rows() -> Vec<ChecklistRow> {
     let document = json::parse(&read("docs/client-platform/data/features.json"))
         .expect("the feature checklist is valid JSON");
-    let rows: Vec<(String, String, Option<String>)> = document
+    let rows: Vec<ChecklistRow> = document
         .get("features")
         .and_then(Value::array)
         .expect("the checklist has a `features` array")
         .iter()
         .map(|row| {
             let field = |key: &str| row.get(key).and_then(Value::string).map(str::to_owned);
-            (
-                field("id").unwrap_or_default(),
-                field("format").unwrap_or_default(),
-                field("ledger"),
-            )
+            ChecklistRow {
+                id: field("id").unwrap_or_default(),
+                format: field("format").unwrap_or_default(),
+                audit_state: field("audit_state").unwrap_or_default(),
+                ledger: field("ledger"),
+            }
         })
         .collect();
     assert!(
@@ -195,7 +204,10 @@ fn the_checklist_and_the_ledger_name_each_other() {
     let checklist = checklist_rows();
     let mut failures = Vec::new();
     let mut named = BTreeSet::new();
-    for (id, _, target) in &checklist {
+    for ChecklistRow {
+        id, ledger: target, ..
+    } in &checklist
+    {
         if let Some(target) = target {
             if !ledger.contains_key(target) {
                 failures.push(format!(
@@ -225,10 +237,10 @@ fn the_checklist_and_the_ledger_name_each_other() {
 fn every_rendered_ledger_row_is_split_per_format() {
     let ledger = ledger_rows();
     let mut named_by: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for (_, format, target) in checklist_rows() {
-        if let Some(target) = target {
-            if APPLICATION_FORMATS.contains(&format.as_str()) {
-                named_by.entry(target).or_default().insert(format);
+    for row in checklist_rows() {
+        if let Some(target) = row.ledger {
+            if APPLICATION_FORMATS.contains(&row.format.as_str()) {
+                named_by.entry(target).or_default().insert(row.format);
             }
         }
     }
@@ -248,6 +260,15 @@ fn every_rendered_ledger_row_is_split_per_format() {
         if cited.len() > 1 {
             failures.push(format!("`{id}` cites suites of {cited:?}"));
         }
+        // Where both a naming format and a cited format exist, they are the same format.
+        if let Some(named) = named_by.get(id) {
+            let named: BTreeSet<&str> = named.iter().map(String::as_str).collect();
+            if !cited.is_empty() && !named.is_empty() && named != cited {
+                failures.push(format!(
+                    "`{id}` is named by checklist rows of {named:?} and cites suites of {cited:?}"
+                ));
+            }
+        }
     }
     assert!(
         failures.is_empty(),
@@ -264,8 +285,8 @@ fn no_word_row_reads_implemented_without_a_rendering_tier_suite() {
     let states = ledger_states();
     let mut word: BTreeSet<String> = checklist_rows()
         .into_iter()
-        .filter(|(_, format, _)| format == "docx")
-        .filter_map(|(_, _, target)| target)
+        .filter(|row| row.format == "docx")
+        .filter_map(|row| row.ledger)
         .collect();
     word.extend(ledger.keys().filter(|id| id.starts_with("word-")).cloned());
     let mut failures = Vec::new();
@@ -300,7 +321,7 @@ fn no_checklist_named_row_reads_implemented_without_drawing_evidence() {
     let states = ledger_states();
     let named: BTreeSet<String> = checklist_rows()
         .into_iter()
-        .filter_map(|(_, _, target)| target)
+        .filter_map(|row| row.ledger)
         .collect();
     let mut failures = Vec::new();
     for id in &named {
@@ -322,6 +343,36 @@ fn no_checklist_named_row_reads_implemented_without_drawing_evidence() {
     assert!(
         failures.is_empty(),
         "{} checklist-named row(s) overstated:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// A checklist row's audit state bounds the state of the ledger row it names: `gap` is never `implemented`, and `working` is `implemented` or `partial`.
+#[test]
+fn the_checklist_state_bounds_the_ledger_state() {
+    let states = ledger_states();
+    let mut failures = Vec::new();
+    for row in checklist_rows() {
+        let Some(target) = &row.ledger else { continue };
+        let Some(state) = states.get(target) else {
+            continue;
+        };
+        let allowed = match row.audit_state.as_str() {
+            "gap" => state != "implemented",
+            "working" => state == "implemented" || state == "partial",
+            _ => true,
+        };
+        if !allowed {
+            failures.push(format!(
+                "checklist row `{}` is `{}` and names `{target}`, which reads `{state}`",
+                row.id, row.audit_state
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} checklist state(s) disagree with the ledger:\n{}",
         failures.len(),
         failures.join("\n")
     );
