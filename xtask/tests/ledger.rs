@@ -187,18 +187,21 @@ fn every_excluded_surface_is_a_row_with_its_reason() {
         "excluded-external-publishing",
         "excluded-help-and-community",
         "excluded-mail-merge",
-        "excluded-ink",
     ] {
         assert!(
             committed.contains(row),
             "the committed ledger has no `{row}` row"
         );
     }
-    // The two flagged for revisiting say so, so a later reader can reopen the decision.
+    // Mail merge is the exclusion flagged for revisiting; ink was the other, and the checklist now owns it.
     assert_eq!(
         committed.matches("**flagged for revisiting.**").count(),
-        2,
-        "mail merge and ink are the two exclusions the inventory flags for revisiting"
+        1,
+        "mail merge is the one exclusion the inventory flags for revisiting"
+    );
+    assert!(
+        !committed.contains("`excluded-ink`"),
+        "ink is owned by the renderer checklist (RC45) and is no longer an exclusion"
     );
 }
 
@@ -236,7 +239,7 @@ fn the_largest_gaps_are_rows_rather_than_omissions() {
         std::fs::read_to_string(workspace_root().join(LEDGER)).expect("the committed ledger");
     for row in [
         "word-reaches-pixels",
-        "pptx-animation-and-timing",
+        "image-decoding",
         "excel-sparklines",
         "excel-gridlines",
         "input-and-ime",

@@ -40,15 +40,28 @@ pub(crate) const STAND_INS: &[(Double, &[&str])] = &[
         Double::NoImages,
         &[
             "picture-insertion",
+            "picture-pixels-pptx",
+            "image-decoding",
             "picture-cropping",
             "picture-corrections",
+            "word-pictures",
+            "excel-pictures",
             "pptx-reaches-pixels",
             "excel-reaches-pixels",
         ],
     ),
     (
         Double::TestTheme,
-        &["themes", "colour-resolution", "excel-reaches-pixels"],
+        &[
+            "themes-pptx",
+            "themes-xlsx",
+            "themes-docx",
+            "colour-resolution",
+            "colour-resolution-pptx",
+            "colour-resolution-xlsx",
+            "colour-resolution-docx",
+            "excel-reaches-pixels",
+        ],
     ),
     (
         Double::TestGeometry,
@@ -230,6 +243,9 @@ const fn excluded(
 }
 
 /// Every row of the parity ledger.
+///
+/// A row whose capability is drawn differently by each application is split per format, with the
+/// format as the suffix of its identifier; the unsuffixed row, where one remains, is the shared half.
 pub(crate) const CAPABILITIES: &[Capability] = &[
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §2 · Excluded by decision. Rows rather than silent omissions, so a later reader can reopen
@@ -302,28 +318,51 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
          external; excluded from the first pass because it is self-contained enough to add later \
          without disturbing anything",
     ),
-    excluded(
-        "excluded-ink",
-        Section::Excluded,
-        "Ink — `TabDrawInk`, 32–52 controls per application",
-        "**flagged for revisiting.** Ink is a genuine document feature stored in the file and a \
-         stylus is first-class on the mobile target; the markup is already preserved \
-         (`crates/mjx-pptx/tests/ink.rs`) and nothing lays it out or draws it",
-    ),
+    // Ink was excluded here until MJXOFF-297: the renderer-completion checklist owns it (RC45,
+    // decision D24.3), so it is three rendered rows under the applications, `ink-pptx`,
+    // `ink-xlsx` and `ink-docx`.
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §3.1 · Text and typography
     // ─────────────────────────────────────────────────────────────────────────────────────────
     rendered(
         "run-formatting",
         Section::SharedText,
-        "Run formatting — family, size, colour, bold, italic, underline, strikethrough, caps",
+        "Text decorations in the shared display-list vocabulary — underline, strikethrough, double strike, highlight, baseline offset",
+        &[],
+    ),
+    rendered(
+        "run-formatting-pptx",
+        Section::SharedText,
+        "PowerPoint run formatting — family, size, bold, italic, underline, strikethrough, caps",
         &[
             "crates/mjx-dml/tests/character_model.rs",
             "crates/mjx-pptx/tests/text_formatting.rs",
-            "crates/mjx-docx/tests/run_properties.rs",
             "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
+        ],
+    ),
+    rendered(
+        "run-formatting-docx",
+        Section::SharedText,
+        "Word run formatting — family, size, bold, italic, caps, small caps, raised and lowered text",
+        &[
+            "crates/mjx-docx/tests/run_properties.rs",
             "crates/mjx-layout-docx/tests/a_document_becomes_fragments.rs",
         ],
+    ),
+    rendered(
+        "run-colour-pptx",
+        Section::SharedText,
+        "A PowerPoint run drawn at pixels in its own resolved colour, rather than black",
+        &[
+            "crates/mjx-pptx/tests/text_formatting.rs",
+            "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
+        ],
+    ),
+    rendered(
+        "run-colour-docx",
+        Section::SharedText,
+        "A Word run drawn at pixels in its own colour, highlight and shading",
+        &["crates/mjx-docx/tests/run_properties.rs"],
     ),
     rendered(
         "text-shaping",
@@ -366,6 +405,18 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
+        "font-resolution-pptx",
+        Section::SharedText,
+        "PowerPoint font slots — East Asian, complex-script and symbol runs, and a deck's embedded fonts",
+        &[],
+    ),
+    rendered(
+        "font-resolution-docx",
+        Section::SharedText,
+        "Word font slots — the slot a script and a hint choose, and complex-script size and style",
+        &["crates/mjx-docx/tests/run_properties.rs"],
+    ),
+    rendered(
         "glyph-rasterisation",
         Section::SharedText,
         "Glyph rasterisation and the atlas",
@@ -387,36 +438,60 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &["crates/mjx-text/tests/a_subset_is_a_font.rs"],
     ),
     rendered(
-        "text-measurement",
+        "text-measurement-pptx",
         Section::SharedText,
-        "Character spacing, scaling, kerning and position — the measures a line is composed from",
+        "PowerPoint character spacing, kerning, caps and baseline position — the measures a line is composed from",
         &[
             "crates/mjx-dml/tests/text_measures.rs",
             "crates/mjx-layout/tests/text_composition.rs",
         ],
     ),
     rendered(
-        "text-effects",
+        "text-measurement-docx",
         Section::SharedText,
-        "Text effects — shadow, glow, reflection, bevel",
+        "Word character spacing, horizontal scale and kerning, and the line width they change",
         &[
-            "crates/mjx-dml/tests/effect_model.rs",
-            "crates/mjx-scene-pptx/tests/every_effect_reaches_the_root.rs",
+            "crates/mjx-docx/tests/run_properties.rs",
+            "crates/mjx-layout/tests/text_composition.rs",
         ],
     ),
     rendered(
-        "east-asian-typography",
+        "text-effects-pptx",
         Section::SharedText,
-        "East Asian typography — ruby, vertical text, `kinsoku` line-break rules",
+        "PowerPoint text effects — text outline, gradient text fill, shadow, glow, reflection",
+        &["crates/mjx-dml/tests/effect_model.rs"],
+    ),
+    rendered(
+        "text-effects-docx",
+        Section::SharedText,
+        "Word text effects — Word 2010 `w14` effects and legacy emboss, imprint, outline and shadow",
+        &["crates/mjx-docx/tests/run_properties.rs"],
+    ),
+    rendered(
+        "east-asian-typography-pptx",
+        Section::SharedText,
+        "PowerPoint East Asian typography — vertical, Mongolian vertical and stacked text",
+        &[],
+    ),
+    rendered(
+        "east-asian-typography-docx",
+        Section::SharedText,
+        "Word East Asian typography — ruby, the document grid, `kinsoku` line-break rules, fit-text",
         &[],
     ),
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §3.2 · Paragraphs
     // ─────────────────────────────────────────────────────────────────────────────────────────
     rendered(
-        "paragraph-alignment",
+        "paragraph-alignment-pptx",
         Section::SharedParagraphs,
-        "Alignment and justification, including the positions a justified line resolves to",
+        "PowerPoint justified and distributed paragraphs spreading their lines",
+        &[],
+    ),
+    rendered(
+        "paragraph-alignment-docx",
+        Section::SharedParagraphs,
+        "Word alignment and justification, including kashida and the positions a justified line resolves to",
         &["crates/mjx-layout-docx/tests/a_justified_line_has_positions.rs"],
     ),
     rendered(
@@ -429,12 +504,17 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
-        "bullets-and-numbering",
+        "bullets-and-numbering-pptx",
         Section::SharedParagraphs,
-        "Bullets and multilevel numbered lists, with restart and continuation",
+        "PowerPoint bullets and automatic numbering — character, picture and non-Latin schemes, in their own colour",
+        &["crates/mjx-layout-pptx/tests/bullets_and_indent_levels.rs"],
+    ),
+    rendered(
+        "bullets-and-numbering-docx",
+        Section::SharedParagraphs,
+        "Word bullets and multilevel numbered lists, with restart and continuation",
         &[
             "crates/mjx-layout-docx/tests/a_list_composes_its_marker.rs",
-            "crates/mjx-layout-pptx/tests/bullets_and_indent_levels.rs",
             "crates/mjx-docx/tests/numbering.rs",
         ],
     ),
@@ -454,7 +534,11 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "paragraph-hierarchy",
         Section::SharedParagraphs,
         "Paragraph and list level hierarchy in a shape's text body",
-        &["crates/mjx-pptx/tests/paragraph_hierarchy.rs"],
+        &[
+            "crates/mjx-pptx/tests/paragraph_hierarchy.rs",
+            "crates/mjx-layout-pptx/tests/bullets_and_indent_levels.rs",
+            "crates/mjx-layout-pptx/tests/the_ladder_is_consumed.rs",
+        ],
     ),
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §3.3 · Drawing and shapes
@@ -504,6 +588,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-dml/tests/fill_model.rs",
             "crates/mjx-pptx/tests/fill.rs",
+            "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
             "crates/mjx-paint/tests/the_tables_are_tables.rs",
         ],
     ),
@@ -529,12 +614,36 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     rendered(
         "colour-resolution",
         Section::SharedDrawing,
-        "Colour resolution — scheme colours and the transform chain",
+        "Colour resolution — scheme colours, the transform chain, and an opacity that survives it once",
         &[
             "crates/mjx-dml/tests/color_model.rs",
             "crates/mjx-dml/tests/resolve_model.rs",
-            "crates/mjx-scene-xlsx/tests/the_alpha_survives.rs",
+            "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
         ],
+    ),
+    rendered(
+        "colour-resolution-pptx",
+        Section::SharedDrawing,
+        "PowerPoint colour resolution — the theme, the colour map and a slide's own override, from every surface",
+        &[
+            "crates/mjx-pptx/tests/surfaces.rs",
+            "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
+        ],
+    ),
+    rendered(
+        "colour-resolution-xlsx",
+        Section::SharedDrawing,
+        "SpreadsheetML colour resolution — the indexed palette, system colours, and theme positions with no caller-supplied theme",
+        &[
+            "crates/mjx-sml/tests/style_resources.rs",
+            "crates/mjx-scene-xlsx/tests/a_real_sheet_resolves.rs",
+        ],
+    ),
+    rendered(
+        "colour-resolution-docx",
+        Section::SharedDrawing,
+        "Word colour resolution — automatic colour, and theme colours with their tint and shade",
+        &["crates/mjx-docx/tests/effective.rs"],
     ),
     rendered(
         "three-dimensional-shapes",
@@ -552,6 +661,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-dml/tests/style_model.rs",
             "crates/mjx-pptx/tests/shape_list_style.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+            "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
         ],
     ),
     rendered(
@@ -572,6 +683,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-pptx/tests/placement.rs",
             "crates/mjx-pptx/tests/transform.rs",
+            "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
         ],
     ),
     rendered(
@@ -590,7 +703,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "WordArt — `TabSetWordArtTools`, and the text-warp preset geometries",
         &[],
     ),
-    rendered(
+    // Snapping is an editing affordance around a shape, not markup, so nothing is failing to draw it.
+    behaviour(
         "snapping-and-guides",
         Section::SharedDrawing,
         "Snapping, alignment guides and the editing affordances around a shape",
@@ -609,15 +723,35 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
-        "picture-anchoring",
+        "picture-pixels-pptx",
         Section::SharedPictures,
-        "The anchoring models — inline, floating, one-cell, two-cell, absolute",
+        "A picture on a slide shows its decoded pixels",
+        &[
+            "crates/mjx-pptx/tests/images.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        ],
+    ),
+    rendered(
+        "image-decoding",
+        Section::SharedPictures,
+        "Image decoding — picture bytes to pixels, with a byte ceiling and typed errors",
+        &[],
+    ),
+    rendered(
+        "picture-anchoring-xlsx",
+        Section::SharedPictures,
+        "Worksheet drawing anchors — one-cell, two-cell and absolute",
         &[
             "crates/mjx-dml/tests/spreadsheet_drawing_model.rs",
             "crates/mjx-sml/tests/anchor_geometry.rs",
             "crates/mjx-layout-xlsx/tests/three_anchor_modes_move_differently.rs",
-            "crates/mjx-docx/tests/drawing_placement.rs",
         ],
+    ),
+    rendered(
+        "picture-anchoring-docx",
+        Section::SharedPictures,
+        "Word drawing anchors — inline and floating placement",
+        &["crates/mjx-docx/tests/drawing_placement.rs"],
     ),
     rendered(
         "picture-cropping",
@@ -682,7 +816,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-layout-chart/tests/the_document_palette_wins.rs",
         ],
     ),
-    rendered(
+    // The workbook behind a chart is data a chart reads, not markup anything draws.
+    behaviour(
         "chart-embedded-workbook",
         Section::SharedCharts,
         "The embedded workbook that backs the data, and its external-data alternative",
@@ -699,14 +834,30 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &["crates/mjx-chart/tests/unmodelled_plot_types.rs"],
     ),
     rendered(
-        "chart-in-three-formats",
+        "charts-pptx",
         Section::SharedCharts,
-        "A chart reached through PowerPoint's, Word's and Excel's box models",
+        "A chart on a slide, reached through PowerPoint's box model",
+        &[
+            "crates/mjx-layout-chart/tests/fragments_reach_the_tree.rs",
+            "crates/mjx-pptx/tests/charts.rs",
+        ],
+    ),
+    rendered(
+        "charts-xlsx",
+        Section::SharedCharts,
+        "A chart on a worksheet, reached through Excel's box model",
+        &[
+            "crates/mjx-layout-chart/tests/fragments_reach_the_tree.rs",
+            "crates/mjx-xlsx/tests/charts.rs",
+        ],
+    ),
+    rendered(
+        "charts-docx",
+        Section::SharedCharts,
+        "A chart in a document, inline or in a table cell or header, reached through Word's box model",
         &[
             "crates/mjx-layout-chart/tests/fragments_reach_the_tree.rs",
             "crates/mjx-docx/tests/charts.rs",
-            "crates/mjx-xlsx/tests/charts.rs",
-            "crates/mjx-pptx/tests/charts.rs",
         ],
     ),
     // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -755,25 +906,38 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     // §3.8 · Tables
     // ─────────────────────────────────────────────────────────────────────────────────────────
     rendered(
-        "table-model",
+        "table-model-pptx",
         Section::SharedTables,
-        "Table structure — rows, columns, cells, insertion and deletion",
+        "PowerPoint table structure — rows, columns, cells, insertion and deletion",
         &[
             "crates/mjx-dml/tests/table_model.rs",
             "crates/mjx-pptx/tests/tables.rs",
             "crates/mjx-pptx/tests/table_structure.rs",
-            "crates/mjx-docx/tests/tables.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
         ],
     ),
     rendered(
-        "table-styles",
+        "table-model-docx",
         Section::SharedTables,
-        "Table styles and the six conditional-formatting bands",
+        "Word table structure — rows, columns, cells, insertion and deletion",
+        &["crates/mjx-docx/tests/tables.rs"],
+    ),
+    rendered(
+        "table-styles-pptx",
+        Section::SharedTables,
+        "PowerPoint table styles and the six conditional-formatting bands",
         &[
             "crates/mjx-dml/tests/table_style.rs",
             "crates/mjx-pptx/tests/table_styles.rs",
             "crates/mjx-pptx/tests/table_effective.rs",
+            "crates/mjx-layout-pptx/tests/the_ladder_is_consumed.rs",
         ],
+    ),
+    rendered(
+        "table-styles-docx",
+        Section::SharedTables,
+        "Word table styles and conditional formatting, read once per table",
+        &["crates/mjx-docx/tests/table_formatting.rs"],
     ),
     rendered(
         "table-merging",
@@ -797,12 +961,11 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &["crates/mjx-layout-docx/tests/a_table_splits_across_a_page.rs"],
     ),
     rendered(
-        "table-borders",
+        "table-borders-pptx",
         Section::SharedTables,
-        "Cell borders and shading, with the resolution precedence between them",
+        "PowerPoint cell borders, the table background and cell text, with the resolution precedence between them",
         &[
             "crates/mjx-pptx/tests/table_formatting.rs",
-            "crates/mjx-docx/tests/table_formatting.rs",
             "crates/mjx-layout-pptx/tests/a_cell_border_is_a_band_that_covers_pixels.rs",
         ],
     ),
@@ -822,43 +985,83 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     // §3.9 · Cross-cutting document surfaces
     // ─────────────────────────────────────────────────────────────────────────────────────────
     rendered(
-        "themes",
+        "themes-pptx",
         Section::SharedDocument,
-        "Themes — colour schemes, font schemes, effect schemes",
+        "PowerPoint themes — colour, font and effect schemes reaching every shape",
         &[
             "crates/mjx-dml/tests/theme_model.rs",
             "crates/mjx-pptx/tests/theme.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+            "crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs",
         ],
     ),
     rendered(
-        "styles-and-inheritance",
+        "themes-xlsx",
         Section::SharedDocument,
-        "Styles, style sets, and every inheritance ladder a property resolves through",
+        "Excel themes — a workbook's theme colours resolving without the caller supplying the theme",
         &[
-            "crates/mjx-docx/tests/styles.rs",
-            "crates/mjx-docx/tests/effective.rs",
+            "crates/mjx-sml/tests/theme_index.rs",
+            "crates/mjx-scene-xlsx/tests/a_real_sheet_resolves.rs",
+        ],
+    ),
+    rendered(
+        "themes-docx",
+        Section::SharedDocument,
+        "Word themes — theme colours and theme fonts, resolved before a value reaches the box model",
+        &["crates/mjx-docx/tests/effective.rs"],
+    ),
+    rendered(
+        "styles-and-inheritance-pptx",
+        Section::SharedDocument,
+        "PowerPoint inheritance — the seven-tier text ladder and the transform ladder",
+        &[
             "crates/mjx-pptx/tests/text_inheritance.rs",
             "crates/mjx-pptx/tests/transform_inheritance.rs",
             "crates/mjx-layout-pptx/tests/the_ladder_is_consumed.rs",
+        ],
+    ),
+    rendered(
+        "styles-and-inheritance-docx",
+        Section::SharedDocument,
+        "Word styles, style sets, and the paragraph and run ladders",
+        &[
+            "crates/mjx-docx/tests/styles.rs",
+            "crates/mjx-docx/tests/effective.rs",
             "crates/mjx-layout-docx/tests/the_ladder_is_consumed.rs",
+        ],
+    ),
+    rendered(
+        "styles-and-inheritance-xlsx",
+        Section::SharedDocument,
+        "Excel cell styles — the `xf` ladder a cell's format resolves through",
+        &[
+            "crates/mjx-sml/tests/effective_cell_format.rs",
             "crates/mjx-layout-xlsx/tests/the_ladder_is_consumed.rs",
         ],
     ),
     rendered(
-        "comments",
+        "comments-pptx",
         Section::SharedDocument,
-        "Comments, both legacy and threaded",
-        &[
-            "crates/mjx-docx/tests/annotations.rs",
-            "crates/mjx-xlsx/tests/comments.rs",
-        ],
+        "PowerPoint comments, and the markers a slide shows for them",
+        &[],
     ),
     rendered(
-        "hyperlinks",
+        "comments-docx",
         Section::SharedDocument,
-        "Hyperlinks, and the relationships that carry their targets",
+        "Word comments, and the ranges and balloons a document shows for them",
+        &["crates/mjx-docx/tests/annotations.rs"],
+    ),
+    rendered(
+        "hyperlinks-pptx",
+        Section::SharedDocument,
+        "PowerPoint hyperlinks, their relationships, and the theme hyperlink colour their text draws in",
+        &["crates/mjx-pptx/tests/hyperlinks.rs"],
+    ),
+    rendered(
+        "hyperlinks-xlsx",
+        Section::SharedDocument,
+        "Excel hyperlinks, their relationships, and the style a hyperlinked cell draws in",
         &[
-            "crates/mjx-pptx/tests/hyperlinks.rs",
             "crates/mjx-sml/tests/worksheet_hyperlinks.rs",
             "crates/mjx-xlsx/tests/hyperlinks.rs",
         ],
@@ -911,7 +1114,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-layout-chart/tests/no_panic_on_a_layout_path.rs",
         ],
     ),
-    rendered(
+    // Package metadata is read and written, and nothing on a page draws it.
+    behaviour(
         "document-properties",
         Section::SharedDocument,
         "Document properties and metadata",
@@ -926,13 +1130,13 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-render-oracle/tests/the_pdf_tiers_work_on_our_own_exports.rs",
         ],
     ),
-    rendered(
+    behaviour(
         "find-and-replace",
         Section::SharedDocument,
         "Find and replace, including formatting and wildcards",
         &[],
     ),
-    rendered(
+    behaviour(
         "spelling-and-grammar",
         Section::SharedDocument,
         "Spell check, grammar, and the proofing language settings",
@@ -950,14 +1154,12 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "Document protection, encryption and digital signatures",
         &[],
     ),
-    rendered(
+    // The printed result of each format is its own rendered row; this is the command surface.
+    behaviour(
         "print-and-page-setup",
         Section::SharedDocument,
-        "Print and page setup, across the three applications",
-        &[
-            "crates/mjx-layout-xlsx/tests/print_layout_paginates.rs",
-            "crates/mjx-sml/tests/print_and_sheet_kinds.rs",
-        ],
+        "Print and page setup commands, across the three applications",
+        &[],
     ),
     // ─────────────────────────────────────────────────────────────────────────────────────────
     // §4.1 · Word
@@ -982,6 +1184,12 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
+        "word-page-borders",
+        Section::Word,
+        "Page borders, with art borders drawn as the placeholder",
+        &[],
+    ),
+    rendered(
         "word-columns",
         Section::Word,
         "Multiple columns, and the balance at a continuous break",
@@ -997,10 +1205,34 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
+        "word-header-blocks",
+        Section::Word,
+        "Headers, footers and notes laid out as blocks, so a table in a header stays a table",
+        &["crates/mjx-docx/tests/headers.rs"],
+    ),
+    rendered(
         "word-floating-objects",
         Section::Word,
         "Floating objects and text wrapping — `square`, `tight`, `through`, `topAndBottom`, behind, in front",
         &["crates/mjx-layout-docx/tests/text_wraps_around_a_float.rs"],
+    ),
+    rendered(
+        "word-pictures",
+        Section::Word,
+        "Inline and floating pictures drawn, cropped",
+        &["crates/mjx-docx/tests/drawing_placement.rs"],
+    ),
+    rendered(
+        "word-text-decoration",
+        Section::Word,
+        "Underline, strikethrough, double strike and highlight drawn under and through a Word run",
+        &["crates/mjx-docx/tests/run_properties.rs"],
+    ),
+    rendered(
+        "word-table-painting",
+        Section::Word,
+        "Table cells drawing their fills and border bands, with border conflict resolution",
+        &["crates/mjx-docx/tests/table_formatting.rs"],
     ),
     rendered(
         "word-footnotes-and-endnotes",
@@ -1015,7 +1247,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     rendered(
         "word-fields",
         Section::Word,
-        "Fields — the 90+ types, their computation, and the fixed point an update reaches",
+        "Fields — twelve keywords computed (`PAGE`, `NUMPAGES`, `SECTIONPAGES`, `PAGEREF`, `REF`, `SEQ`, `QUOTE`, and `DATE`/`TIME`/`PRINTDATE`/`SAVEDATE`/`CREATEDATE`), every other kind shown from its cached result, and the fixed point an update reaches",
         &[
             "crates/mjx-docx/tests/fields.rs",
             "crates/mjx-layout-docx/tests/a_field_fixed_point_terminates.rs",
@@ -1046,6 +1278,21 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-docx/tests/content_model.rs",
         ],
     ),
+    rendered(
+        "vml-legacy-docx",
+        Section::Word,
+        "VML in a document — shapes, text boxes, horizontal rules and watermarks",
+        &[
+            "crates/mjx-vml/tests/drawing.rs",
+            "crates/mjx-docx/tests/headers.rs",
+        ],
+    ),
+    rendered(
+        "ink-docx",
+        Section::Word,
+        "Ink drawn in a document",
+        &[],
+    ),
     behaviour(
         "word-resumable-layout",
         Section::Word,
@@ -1068,13 +1315,14 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "Drop caps, text frames and watermarks",
         &[],
     ),
-    rendered(
+    // Generating the entries is an editing command; the cached result draws as ordinary paragraphs.
+    behaviour(
         "word-toc-and-index",
         Section::Word,
         "Tables of contents, indexes, tables of authorities and captions, as generated content",
         &[],
     ),
-    rendered(
+    behaviour(
         "word-outline-and-master-documents",
         Section::Word,
         "Outline view and master documents — `TabOutlining`",
@@ -1147,19 +1395,39 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     rendered(
         "excel-cell-formatting",
         Section::Excel,
-        "The effective cell format — the `xf` chain, fills, fonts and alignment",
+        "The effective cell format — the `xf` chain, pattern and gradient fills, and alignment",
         &[
             "crates/mjx-sml/tests/effective_cell_format.rs",
             "crates/mjx-sml/tests/style_resources.rs",
             "crates/mjx-xlsx/tests/effective_format.rs",
             "crates/mjx-scene-xlsx/tests/a_red_negative_reaches_the_paint_table.rs",
+            "crates/mjx-scene-xlsx/tests/the_alpha_survives.rs",
+            "crates/mjx-scene-xlsx/tests/the_public_surface_is_reachable.rs",
         ],
+    ),
+    rendered(
+        "excel-rich-text",
+        Section::Excel,
+        "Rich-text runs in a cell, each with its own font, size, weight, slant and colour",
+        &["crates/mjx-sml/tests/shared_strings_fidelity.rs"],
+    ),
+    rendered(
+        "excel-font-decorations",
+        Section::Excel,
+        "Underline (including double accounting), strikethrough, superscript and subscript drawn in a cell",
+        &["crates/mjx-sml/tests/style_resources.rs"],
     ),
     rendered(
         "excel-print-layout",
         Section::Excel,
         "Print layout — page breaks, print areas, repeated rows and scaling",
         &["crates/mjx-layout-xlsx/tests/print_layout_paginates.rs"],
+    ),
+    rendered(
+        "excel-printed-headers-and-footers",
+        Section::Excel,
+        "Printed header and footer text, and printed gridlines and headings, on a worksheet page",
+        &["crates/mjx-sml/tests/print_and_sheet_kinds.rs"],
     ),
     rendered(
         "excel-tables-and-filters",
@@ -1173,6 +1441,15 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
+        "excel-table-style-banding",
+        Section::Excel,
+        "Worksheet and pivot table styles — banding, header and total rows drawn",
+        &[
+            "crates/mjx-sml/tests/worksheet_tables.rs",
+            "crates/mjx-xlsx/tests/worksheet_tables.rs",
+        ],
+    ),
+    rendered(
         "excel-drawings",
         Section::Excel,
         "Cell drawings and worksheet objects",
@@ -1180,6 +1457,51 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
             "crates/mjx-sml/tests/worksheet_objects.rs",
             "crates/mjx-xlsx/tests/worksheet_drawings.rs",
         ],
+    ),
+    rendered(
+        "excel-pictures",
+        Section::Excel,
+        "Pictures on a worksheet drawn cropped and transformed, and a sheet background picture tiled",
+        &[
+            "crates/mjx-xlsx/tests/worksheet_drawings.rs",
+            "crates/mjx-layout-xlsx/tests/three_anchor_modes_move_differently.rs",
+        ],
+    ),
+    rendered(
+        "excel-chartsheets",
+        Section::Excel,
+        "A chartsheet rendered as one chart filling its page",
+        &["crates/mjx-xlsx/tests/print_and_sheet_kinds.rs"],
+    ),
+    rendered(
+        "excel-sheet-view-flags",
+        Section::Excel,
+        "Sheet-view flags — right-to-left sheets, `showZeros`, and the initial `zoomScale`",
+        &["crates/mjx-sml/tests/worksheet_spine.rs"],
+    ),
+    rendered(
+        "excel-comment-indicators",
+        Section::Excel,
+        "Comments and notes, and the indicator a commented cell shows",
+        &["crates/mjx-xlsx/tests/comments.rs"],
+    ),
+    rendered(
+        "excel-outline-symbols",
+        Section::Excel,
+        "Outline symbols, row and column headers, and the frozen-pane divider",
+        &["crates/mjx-sml/tests/sheet_grid.rs"],
+    ),
+    rendered(
+        "vml-legacy-xlsx",
+        Section::Excel,
+        "Legacy drawings on a worksheet — form controls, comment shapes, OLE previews",
+        &["crates/mjx-xlsx/tests/comments.rs"],
+    ),
+    rendered(
+        "ink-xlsx",
+        Section::Excel,
+        "Ink drawn on a worksheet",
+        &[],
     ),
     rendered(
         "excel-reaches-pixels",
@@ -1212,13 +1534,14 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "Sparklines — `x14:sparklineGroups`, preserved in an `extLst` and unmodelled",
         &[],
     ),
-    rendered(
+    // The pivot engine is a command surface; a pivot table's cached cells draw as ordinary cells.
+    behaviour(
         "excel-pivot-tables",
         Section::Excel,
         "Pivot tables and pivot charts — `TabSetPivotTableTools`, 570 controls across the two",
         &[],
     ),
-    rendered(
+    behaviour(
         "excel-data-tools",
         Section::Excel,
         "Data tools — text to columns, flash fill, remove duplicates, what-if analysis",
@@ -1239,12 +1562,24 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
     rendered(
         "pptx-master-and-layout",
         Section::PowerPoint,
-        "The master, layout, notes and handout hierarchy, and placeholder inheritance",
+        "Placeholder inheritance through the master, layout, notes and handout hierarchy — what a slide inherits, not what the master draws",
         &[
             "crates/mjx-pptx/tests/layouts.rs",
             "crates/mjx-pptx/tests/surfaces.rs",
             "crates/mjx-layout-pptx/tests/the_ladder_is_consumed.rs",
         ],
+    ),
+    rendered(
+        "pptx-master-and-layout-shapes",
+        Section::PowerPoint,
+        "Layout and master shapes drawn beneath the slide, as `showMasterSp` allows",
+        &["crates/mjx-pptx/tests/surfaces.rs"],
+    ),
+    rendered(
+        "pptx-slide-backgrounds",
+        Section::PowerPoint,
+        "A slide, layout or master background painted behind the slide",
+        &[],
     ),
     rendered(
         "pptx-autofit",
@@ -1310,25 +1645,33 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         ],
     ),
     rendered(
-        "vml-legacy",
+        "vml-legacy-pptx",
         Section::PowerPoint,
-        "VML — the legacy drawing markup, with shape-level references",
+        "VML on a slide — the legacy drawing markup, with shape-level references",
         &[
             "crates/mjx-vml/tests/drawing.rs",
             "crates/mjx-pptx/tests/vml.rs",
         ],
     ),
     rendered(
+        "ink-pptx",
+        Section::PowerPoint,
+        "Ink drawn on a slide",
+        &["crates/mjx-pptx/tests/ink.rs"],
+    ),
+    excluded(
         "pptx-animation-and-timing",
         Section::PowerPoint,
         "Animation and timing — `p:timing`, the trigger tree, and the runtime that evaluates it",
-        &[],
+        "a slideshow runtime, not a static render: it is its own programme, epic MJXOFF-348, and \
+         the renderer-completion checklist excludes it under decision D24.4",
     ),
-    rendered(
+    excluded(
         "pptx-transitions",
         Section::PowerPoint,
         "Transitions — ~48 types with their effect options and advance rules",
-        &[],
+        "a slideshow runtime, not a static render: it is its own programme, epic MJXOFF-348, and \
+         the renderer-completion checklist excludes it under decision D24.4",
     ),
     behaviour(
         "pptx-slide-show",
@@ -1336,7 +1679,8 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         "Slide show — presenter view, rehearsed timings, custom shows, hidden slides",
         &[],
     ),
-    rendered(
+    // Sections and the sorter organise slides and morph is a transition, so none of it is drawn on a slide.
+    behaviour(
         "pptx-sections-and-morph",
         Section::PowerPoint,
         "Sections, slide sorter, zoom links and morph",

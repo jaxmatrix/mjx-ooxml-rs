@@ -7,6 +7,9 @@
 //! It is also where the **nineteen-value pattern table** is exercised end to end: `pattern_preset`
 //! is a translation between two vocabularies that are not the same list, and a table nobody calls
 //! for seventeen of its arms is a table nobody has checked.
+//!
+//! MJX-LEDGER-LIMITATION: SpreadsheetML's `darkTrellis` and `lightTrellis` translate to the one
+//! DrawingML trellis, so a cell filled with either draws the same hatch.
 
 mod support;
 
