@@ -40,6 +40,9 @@
  * the tab that changes how a deck is looked at and never the deck. Three of its groups are exclusive sets,
  * and Switch Windows is its one menu.
  *
+ * **Slide Show** followed the three View tabs, one tab of one application again: four groups and fourteen
+ * commands, the tab that plays the deck. Three of its commands open menus, and Hide Slide survives a collapse.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -320,11 +323,35 @@ export function powerpointViewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointSlideShowTab(): TemplateResult {
-  return placeholderTab(entry('slide-show'));
+/**
+ * Slide Show: Start Slide Show, Rehearse, Set Up, Monitors, in **Office's** order.
+ *
+ * ⚠ **Rehearse is second here and third in the census's declaration**, where Microsoft 365 draws Rehearse with
+ * Coach right after Custom Slide Show. `GUESS:` that position, and the command itself, since the census counts
+ * one control and names none; `dev/ribbons/census.ts` records both. Office's **Captions & Subtitles**
+ * (`GroupLiveSubtitles`) is out of scope in the census and is not drawn.
+ *
+ * **Eight of the tab's fourteen commands are bound by the host**: Present Online and Custom Slide Show are
+ * dropdowns and Record is a split button, all three over `stories/ribbons/slide-show-menus.ts`; Monitor is a
+ * field; Play Narrations, Use Timings, Show Media Controls and Use Presenter View are checkboxes. Hide Slide is
+ * the generic toggle.
+ *
+ * **No dialog launchers**, because Office puts none here. **One survivor**, Hide Slide, in Set Up.
+ */
+export function powerpointSlideShowTab(options: TabOptions = {}): TemplateResult {
+  const slideShow = entry('slide-show');
+  const controls = options.controls ?? {};
+  return tab(
+    slideShow.id,
+    slideShow.label,
+    censusGroup(slideShow, 'GroupSlideShowStart', {}, controls),
+    censusGroup(slideShow, 'GroupRehearse', {}, controls),
+    censusGroup(slideShow, 'GroupSlideShowSetup', {}, controls),
+    censusGroup(slideShow, 'GroupMonitors', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointRecordingTab(): TemplateResult {
   return placeholderTab(entry('recording'));

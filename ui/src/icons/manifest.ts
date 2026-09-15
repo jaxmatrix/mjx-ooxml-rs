@@ -344,9 +344,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'presenter',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Present Online, on Word's and PowerPoint's Share group. A figure beside a screen, which is what the command does and what Office draws for it.",
+    why: "Present Online, on Word's and PowerPoint's Share group. A figure beside a screen, which is what the command does and what Office draws for it. **Since PowerPoint's Slide Show unit, also Present Online** in Start Slide Show, the same command, large, so 24 as well.",
   },
   {
     name: 'slide-multiple',
@@ -1827,6 +1827,60 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular', 'filled'],
     why: "Synchronous Scrolling, the small toggle in Excel's View Window group: an arrow up and down, scrolling. Not `arrow-sync`, AutoSave's, which is why Word's Synchronous Scrolling carries none. `GUESS:`.",
+  },
+  // ── Slide Show (PowerPoint's) ─────────────────────────────────────────────
+  //
+  // PowerPoint's Slide Show tab, the only application with one. The View tabs' sizing: **20 and 24 for a large
+  // command, and `filled` for the toggle.** Every command here is large. `presenter` above gained a command and a
+  // 24 drawing rather than a row here. The reasoning for every glyph is the *commands Slide Show shows* section
+  // of `dev/ribbons/census.ts`.
+  {
+    name: 'slide-multiple-arrow-right',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "From Beginning, the large button in PowerPoint's Slide Show Start Slide Show group: stacked slides with an arrow forward, the whole deck played through. Not `previous`, Mailings' First Record. `GUESS:`.",
+  },
+  {
+    name: 'slide-play',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "From Current Slide, the large button in PowerPoint's Slide Show Start Slide Show group: one slide with a play mark, this slide played. `GUESS:`.",
+  },
+  {
+    name: 'slide-text-multiple',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Custom Slide Show, the large dropdown in PowerPoint's Slide Show Start Slide Show group: slides stacked, a chosen part of the deck. Not `slide-multiple`, File's Publish Slides. `GUESS:`.",
+  },
+  {
+    name: 'person-voice',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Rehearse with Coach, the large button in PowerPoint's Slide Show Rehearse group: a figure speaking, which is what Speaker Coach listens to. `GUESS:`, as the command is.",
+  },
+  {
+    name: 'slide-settings',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Set Up Slide Show, the large button in PowerPoint's Slide Show Set Up group, which opens its dialog: a slide with a cog. `GUESS:`.",
+  },
+  {
+    name: 'slide-hide',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Hide Slide, the large toggle in PowerPoint's Slide Show Set Up group, and a survivor: a slide in a dashed outline, the picture Office's thumbnail rail draws for a hidden slide. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'timer',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Rehearse Timings, the large button in PowerPoint's Slide Show Set Up group: a stopwatch, the timer the rehearsal runs. `GUESS:`.",
+  },
+  {
+    name: 'slide-record',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Record, the large split button in PowerPoint's Slide Show Set Up group: a slide with the record mark. Not `record`, Insert's Screen Recording, which records the screen rather than the slides. `GUESS:`.",
   },
 ];
 

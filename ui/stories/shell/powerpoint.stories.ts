@@ -67,6 +67,7 @@ import {
   startingAnimation,
 } from '../ribbons/mailings-animations-data-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import { slideShowMenus, slideShowMonitors } from '../ribbons/slide-show-menus.ts';
 import { viewMenus } from '../ribbons/view-menus.ts';
 import {
   advanceAfterTimes,
@@ -611,6 +612,41 @@ function ribbon(): TemplateResult {
               size="large"
               data-opens="shell-powerpoint-view-window-switch-windows"
             ></mjx-button>`,
+            // PowerPoint's Slide Show. Present Online and Custom Slide Show are dropdowns and Record a split
+            // button, all opening their menus from `stories/ribbons/slide-show-menus.ts`, with `data-opens`
+            // `commandSurfaceId('shell', <this key>)`. Monitor is a field over `slideShowMonitors`, and the
+            // four checkboxes are ticked as the census declares. Hide Slide is the generic toggle.
+            'powerpoint.slide-show.start-slide-show.present-online': html`<mjx-button
+              label="Present Online"
+              icon="presenter"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-start-slide-show-present-online"
+            ></mjx-button>`,
+            'powerpoint.slide-show.start-slide-show.custom-slide-show': html`<mjx-button
+              label="Custom Slide Show"
+              icon="slide-text-multiple"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-start-slide-show-custom-slide-show"
+            ></mjx-button>`,
+            'powerpoint.slide-show.set-up.record': html`<mjx-split-button
+              label="Record"
+              icon="slide-record"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-set-up-record"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.slide-show.set-up.play-narrations': html`<mjx-checkbox id="ppt-slide-show-play-narrations" label="Play Narrations" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.set-up.use-timings': html`<mjx-checkbox id="ppt-slide-show-use-timings" label="Use Timings" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.set-up.show-media-controls': html`<mjx-checkbox id="ppt-slide-show-show-media-controls" label="Show Media Controls" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.monitors.monitor': html`<mjx-dropdown
+              id="ppt-slide-show-monitor"
+              label="Monitor"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${slideShowMonitors.map((monitor) => html`<mjx-option value=${monitor.value} label=${monitor.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'powerpoint.slide-show.monitors.use-presenter-view': html`<mjx-checkbox id="ppt-slide-show-use-presenter-view" label="Use Presenter View" checked="true"></mjx-checkbox>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -862,7 +898,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
       ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
-      ${viewMenus('powerpoint', 'shell')}
+      ${viewMenus('powerpoint', 'shell')} ${slideShowMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

@@ -770,6 +770,37 @@ Scrolling pass rule 1 and fail rule 2 on their glyphs.
 - **The Sheet View dropdown, the four Show checkboxes and Debug carry no icon**: a field draws its value, a
   checkbox its tick box, and Debug has no described behaviour for a glyph to show.
 
+### PowerPoint's Slide Show
+
+**One tab of one application, and the only application with the tab**, after the three View tabs. Four groups
+and fourteen commands, drawn in Office's order: Start Slide Show, Rehearse, Set Up, Monitors. The tab plays the
+deck and says how it is played.
+
+- **Buttons**: From Beginning, From Current Slide, Rehearse with Coach, Set Up Slide Show and Rehearse Timings.
+- **A toggle**: Hide Slide, unpressed.
+- **Two dropdowns and a split button** over `stories/ribbons/slide-show-menus.ts`: Present Online and Custom
+  Slide Show; Record, whose arrow holds From Current Slide…, From Beginning… and a *Clear* section of four.
+- **One field a host binds**: Monitor, reading *Automatic*, over `slideShowMonitors`.
+- **Checkboxes a host binds**: Play Narrations, Use Timings, Show Media Controls and Use Presenter View, all
+  ticked.
+- **No exclusive set, no split toggle, no gallery, no dialog launcher.**
+
+**Survivor**: Hide Slide, in Set Up. One press, one undo, a dashed slide no other command draws. From Beginning
+and From Current Slide take over the screen, which no undo takes back.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Rehearse is drawn second**, where Microsoft 365 draws Rehearse with Coach; the census declares it after Set
+  Up, counts one control and names none, so the command is `GUESS:` too.
+- **Captions & Subtitles is out of scope**: the census's `GroupLiveSubtitles` row is `in_scope = 0`.
+- **The three menus are from memory** of PowerPoint 2016 and Microsoft 365: Present Online's Office Presentation
+  Service and Skype for Business, Custom Slide Show's Custom Shows… alone (the deck has saved no custom show),
+  and Record's wording. Monitor's *Primary Monitor* stands for a display name, which is the machine's data.
+- **Office greys Rehearse with Coach offline and Show Media Controls in a deck with no media.** Both are drawn
+  available.
+- **Every glyph is judged from Fluent's drawings.** Present Online shares File's `presenter`.
+- **Monitor and the four checkboxes carry no icon**: a field draws its value, a checkbox its tick box.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

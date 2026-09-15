@@ -53,6 +53,7 @@ import {
 } from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 import { reviewMenus } from './review-menus.ts';
+import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
 import { viewMenus } from './view-menus.ts';
 
 /**
@@ -69,7 +70,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Review and View** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Review and View** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -89,7 +90,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Review and View are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Review and View are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -504,6 +505,41 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-view-window-switch-windows"
   ></mjx-button>`,
+  // Slide Show. Present Online and Custom Slide Show are dropdowns and Record a split button, all opening
+  // their menus from `stories/ribbons/slide-show-menus.ts`, with `data-opens` `commandSurfaceId('ribbons',
+  // <this key>)`. Monitor is a field over `slideShowMonitors`, and the four checkboxes are ticked as the census
+  // declares. Hide Slide is the generic toggle.
+  'powerpoint.slide-show.start-slide-show.present-online': html`<mjx-button
+    label="Present Online"
+    icon="presenter"
+    size="large"
+    data-opens="ribbons-powerpoint-slide-show-start-slide-show-present-online"
+  ></mjx-button>`,
+  'powerpoint.slide-show.start-slide-show.custom-slide-show': html`<mjx-button
+    label="Custom Slide Show"
+    icon="slide-text-multiple"
+    size="large"
+    data-opens="ribbons-powerpoint-slide-show-start-slide-show-custom-slide-show"
+  ></mjx-button>`,
+  'powerpoint.slide-show.set-up.record': html`<mjx-split-button
+    label="Record"
+    icon="slide-record"
+    size="large"
+    data-opens="ribbons-powerpoint-slide-show-set-up-record"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.slide-show.set-up.play-narrations': html`<mjx-checkbox id="ribbons-powerpoint-slide-show-play-narrations" label="Play Narrations" checked="true"></mjx-checkbox>`,
+  'powerpoint.slide-show.set-up.use-timings': html`<mjx-checkbox id="ribbons-powerpoint-slide-show-use-timings" label="Use Timings" checked="true"></mjx-checkbox>`,
+  'powerpoint.slide-show.set-up.show-media-controls': html`<mjx-checkbox id="ribbons-powerpoint-slide-show-show-media-controls" label="Show Media Controls" checked="true"></mjx-checkbox>`,
+  'powerpoint.slide-show.monitors.monitor': html`<mjx-dropdown
+    id="ribbons-powerpoint-slide-show-monitor"
+    label="Monitor"
+    value="automatic"
+    style=${ribbonColourFieldStyle}
+  >
+    ${slideShowMonitors.map((monitor) => html`<mjx-option value=${monitor.value} label=${monitor.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'powerpoint.slide-show.monitors.use-presenter-view': html`<mjx-checkbox id="ribbons-powerpoint-slide-show-use-presenter-view" label="Use Presenter View" checked="true"></mjx-checkbox>`,
 };
 
 /**
@@ -531,7 +567,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
-    ${viewMenus('powerpoint', 'ribbons')}
+    ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -693,7 +729,33 @@ export const Transitions: Story = { render: () => ribbon('transitions') };
  */
 export const Animations: Story = { render: () => ribbon('animations') };
 
-/** Unit 10. */
+/**
+ * **Slide Show**: the tab that plays the deck and says how it is played. Authored after the three View tabs,
+ * one tab of one application. Four groups: Start Slide Show, Rehearse, Set Up and Monitors. What to look at,
+ * least certain first:
+ *
+ * 1. ⚠ **Rehearse is `GUESS:` from end to end.** The census names the group, counts one control and names
+ *    none, and declares it after Set Up. It is drawn second, as one large Rehearse with Coach (a figure
+ *    speaking), where Microsoft 365 draws it. It opens nothing here.
+ * 2. ⚠ **The three menus are from memory.** Present Online: Office Presentation Service, Skype for Business.
+ *    Custom Slide Show: Custom Shows… alone, because the deck has saved none. Record's arrow: From Current
+ *    Slide…, From Beginning…, then a *Clear* section of four. Press Record's face and nothing opens; press its
+ *    arrow and the menu does.
+ * 3. ⚠ **Hide Slide is the tab's only survivor.** Drag narrow until Set Up collapses: Hide Slide (large, a
+ *    dashed slide) stays beside the trigger, and Set Up Slide Show, Rehearse Timings, Record and the three
+ *    checkboxes open from it. Press Hide Slide and it draws pressed with a filled glyph. `GUESS:` that the
+ *    dashed slide reads with no label.
+ * 4. **Glyphs to judge**, all `GUESS:`: From Beginning's stacked slides with an arrow against From Current
+ *    Slide's one slide with a play mark, Present Online's presenter (File's), Custom Slide Show's stacked
+ *    slides, Set Up Slide Show's slide with a cog, Rehearse Timings' stopwatch and Record's slide with a record
+ *    mark.
+ * 5. **Monitors is a field and a checkbox.** Monitor reads *Automatic* and lists Automatic and Primary Monitor;
+ *    Use Presenter View is ticked.
+ * 6. **Set Up's three checkboxes are ticked**: Play Narrations, Use Timings, Show Media Controls, as a new deck
+ *    has them. Tick one and it unticks.
+ * 7. **Captions & Subtitles is not drawn**: the census marks it out of scope. No dialog launchers, no
+ *    exclusive set.
+ */
 export const SlideShow: Story = { render: () => ribbon('slide-show') };
 
 /** Unit 10. */

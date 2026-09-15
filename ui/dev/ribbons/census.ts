@@ -92,7 +92,8 @@
  * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. **Word's View**
  * followed, one tab of one application again; see the *commands View shows* section. **PowerPoint's View**
  * followed it, in that section's *PowerPoint's View* part, and **Excel's View** followed that, in its *Excel's View*
- * part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * part. **PowerPoint's Slide Show** followed the three View tabs, one tab of one application again; see the
+ * *commands Slide Show shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -3804,6 +3805,153 @@ const excelViewDebug: readonly RibbonCommand[] = [
   { id: 'excel.view.debug.debug', label: 'Debug' },
 ];
 
+// ── the commands Slide Show shows ────────────────────────────────────────────
+//
+// The ribbon programme's unit after the three View tabs: **PowerPoint's Slide Show tab**, all four in-scope
+// groups and fourteen commands, one tab of one application. It is PowerPoint's alone: neither Word nor Excel
+// has a Slide Show tab, so nothing here is a candidate for sharing, and `stories/ribbons/slide-show-menus.ts`
+// renders nothing for either.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// The tab plays the deck and says how it is played. **Buttons**: From Beginning, From Current Slide,
+// Rehearse with Coach, Set Up Slide Show and Rehearse Timings, each of which starts a show, a rehearsal or a
+// dialog. **One toggle**, Hide Slide, drawn pressed while the current slide is hidden; it starts unpressed,
+// because the catalogue's deck hides nothing. **Two dropdowns a host binds**, Present Online and Custom Slide
+// Show, and **one split button a host binds**, Record, whose face records from the current slide and whose
+// arrow chooses where to start and what to clear. All three open menus in
+// `stories/ribbons/slide-show-menus.ts`. **One field a host binds**, Monitor, over `slideShowMonitors`.
+// **Checkboxes a host binds**: Play Narrations, Use Timings, Show Media Controls and Use Presenter View, all
+// ticked, as a new deck in Office has them. **No exclusive set, no split toggle, no gallery, no dialog
+// launcher**: Office puts no launcher on this tab, and nothing on it holds one of several states.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Rehearse is drawn second, between Start Slide Show and Set Up.** The declaration puts it third, after
+//    Set Up. Microsoft 365 draws Rehearse with Coach right after Custom Slide Show, so `powerpointSlideShowTab`
+//    draws Start Slide Show, Rehearse, Set Up, Monitors. `GUESS:` that position, from memory of Microsoft 365.
+// 2. **Rehearse's one command is Rehearse with Coach**, Speaker Coach's door. The census names
+//    `GroupRehearse`, counts one control and names none. `GUESS:` the command and its label. It is not
+//    Rehearse Timings, which Office keeps in Set Up.
+// 3. **Captions & Subtitles is out of scope.** The census's row is `GroupLiveSubtitles`, ten controls,
+//    `in_scope = 0` (Office's Always Use Subtitles and Subtitle Settings), so it has no declaration here and
+//    is not drawn.
+// 4. **Record is Microsoft 365's face**, a large split button labelled *Record*. PowerPoint 2016 labelled it
+//    *Record Slide Show*. Its arrow holds From Current Slide…, From Beginning… and Office's *Clear* submenu,
+//    flattened into a labelled section as every earlier unit flattened one. `GUESS:` the entries' wording.
+// 5. **Present Online lists Office Presentation Service and Skype for Business**, PowerPoint 2016's two.
+//    Office shows the second only where the Skype for Business client is installed, and Microsoft 365 has
+//    been retiring both services. `GUESS:` that both are still what the dropdown lists.
+// 6. **Custom Slide Show lists Custom Shows… alone.** Office lists every custom show the deck has saved above
+//    it; the catalogue's deck has saved none, which is Excel's Sheet View argument.
+// 7. **Monitor lists Automatic and Primary Monitor.** Office lists Automatic and then every attached display
+//    by name, and a display name is this machine's data rather than Office's vocabulary, which is the printer
+//    list's argument. `GUESS:` *Primary Monitor* as the one display.
+// 8. **The census's counts are larger than the faces**, and nothing is padded: Start Slide Show is 9 and draws
+//    four; Set Up is 16 and draws seven. Rehearse is 1 and Monitors is 2, and each draws exactly that many.
+// 9. **Office greys Rehearse with Coach while offline, and Show Media Controls in a deck with no media.** Both
+//    are drawn available, because `disabled` is loop 2's.
+//
+// ## Survivors: Hide Slide, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Hide Slide survives.** One press hides the current slide from the show, and a second press or an undo
+//   takes it back, the standard Bold passes. `slide-hide` is a slide drawn in a dashed outline, the picture
+//   Office itself uses for a hidden slide in the thumbnail rail, and no other command's glyph in this subset.
+//   Set Up Slide Show, Rehearse Timings and Record stay in the popup, so it is never empty. `GUESS:` rule 2.
+// - **From Beginning and From Current Slide** take over the whole screen until the show ends, which no undo
+//   takes back: rule 1, the reason Reading View does not survive on View.
+// - **Present Online and Custom Slide Show** are menus, **Record** is a split button, and **Set Up Slide Show**
+//   opens a dialog: rule 1. **Rehearse Timings** starts a timed rehearsal that takes over the screen.
+// - **Rehearse with Coach** opens Speaker Coach's rehearsal, and it is its group's only command, so a survivor
+//   would leave the popup empty.
+// - **Monitor** is a field and the four checkboxes are checkboxes a host binds, which the gate refuses.
+//
+// ## Sizes, and every glyph
+//
+// Word's View rule: `large` where Office draws it large **and** Fluent draws its glyph at 24. Every button, the
+// toggle, both dropdowns and the split button are large, as Office draws them; the checkboxes and the field
+// have no size to choose.
+//
+// **Every command on the tab's face carries a glyph except Monitor and the four checkboxes**: a field draws its
+// value and a checkbox its tick box. Every glyph below is `GUESS:`, judged from Fluent's drawings rather than
+// from a build this project can cite:
+//
+// - **From Beginning draws `slide-multiple-arrow-right`**, stacked slides with an arrow forward: the whole deck,
+//   played through. **From Current Slide draws `slide-play`**, one slide with a play mark: this slide, played.
+//   The two differ in exactly what the commands differ in. Not `previous`, which is Mailings' First Record.
+// - **Present Online draws `presenter`**, File's Present Online, because it is the same command; a 24 drawing
+//   is added, since it is large here.
+// - **Custom Slide Show draws `slide-text-multiple`**, slides stacked, some of the deck chosen. Not
+//   `slide-multiple`, which is File's Publish Slides.
+// - **Rehearse with Coach draws `person-voice`**, a figure speaking, which is what Speaker Coach listens to.
+// - **Set Up Slide Show draws `slide-settings`**, a slide with a cog: the show's settings.
+// - **Hide Slide draws `slide-hide`**; see the survivors above.
+// - **Rehearse Timings draws `timer`**, a stopwatch, which is the timer Office's rehearsal toolbar runs.
+// - **Record draws `slide-record`**, a slide with the record mark. Not `record`, which is Insert's Screen
+//   Recording and records the screen rather than the slides.
+
+/**
+ * PowerPoint's `GroupSlideShowStart`, labelled **Start Slide Show**: From Beginning, From Current Slide, Present
+ * Online and Custom Slide Show, all large.
+ *
+ * **From Beginning** (F5) plays the deck from its first slide and **From Current Slide** (Shift+F5) from the one
+ * selected. **Present Online and Custom Slide Show are dropdowns** a host binds; see disagreements 5 and 6.
+ *
+ * **No survivor**: two commands take over the screen, and two are menus.
+ */
+const powerpointSlideShowStart: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-show.start-slide-show.from-beginning', label: 'From Beginning', icon: 'slide-multiple-arrow-right', size: 'large' },
+  { id: 'powerpoint.slide-show.start-slide-show.from-current-slide', label: 'From Current Slide', icon: 'slide-play', size: 'large' },
+  { id: 'powerpoint.slide-show.start-slide-show.present-online', label: 'Present Online', icon: 'presenter', size: 'large' },
+  { id: 'powerpoint.slide-show.start-slide-show.custom-slide-show', label: 'Custom Slide Show', icon: 'slide-text-multiple', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupRehearse`, labelled **Rehearse**: Rehearse with Coach, large. `GUESS:` the command and the
+ * group's position; see disagreements 1 and 2.
+ *
+ * **No survivor**: it opens a rehearsal, and it is the only command.
+ */
+const powerpointSlideShowRehearse: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-show.rehearse.rehearse-with-coach', label: 'Rehearse with Coach', icon: 'person-voice', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupSlideShowSetup`, labelled **Set Up**: Set Up Slide Show, Hide Slide, Rehearse Timings and
+ * Record large, then Play Narrations, Use Timings and Show Media Controls in a column.
+ *
+ * **Set Up Slide Show** opens its dialog. **Hide Slide is a toggle**, unpressed. **Rehearse Timings** starts a
+ * rehearsal that records each slide's time. **Record is a split button** a host binds; see disagreement 4.
+ * **The three checkboxes** are toggles a host binds as `<mjx-checkbox>`, all ticked.
+ *
+ * **Survivor: Hide Slide.** One press, one undo, a glyph no other command has.
+ */
+const powerpointSlideShowSetUp: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-show.set-up.set-up-slide-show', label: 'Set Up Slide Show', icon: 'slide-settings', size: 'large' },
+  { id: 'powerpoint.slide-show.set-up.hide-slide', label: 'Hide Slide', icon: 'slide-hide', size: 'large', toggle: true, essential: true },
+  { id: 'powerpoint.slide-show.set-up.rehearse-timings', label: 'Rehearse Timings', icon: 'timer', size: 'large' },
+  { id: 'powerpoint.slide-show.set-up.record', label: 'Record', icon: 'slide-record', size: 'large' },
+  { id: 'powerpoint.slide-show.set-up.play-narrations', label: 'Play Narrations', toggle: true, pressed: true },
+  { id: 'powerpoint.slide-show.set-up.use-timings', label: 'Use Timings', toggle: true, pressed: true },
+  { id: 'powerpoint.slide-show.set-up.show-media-controls', label: 'Show Media Controls', toggle: true, pressed: true },
+];
+
+/**
+ * PowerPoint's `GroupMonitors`, labelled **Monitors**: the Monitor field over Automatic and Primary Monitor, then
+ * Use Presenter View.
+ *
+ * **Monitor is a dropdown field** a host binds, reading *Automatic*; see disagreement 7. **Use Presenter View is
+ * a toggle a host binds as `<mjx-checkbox>`**, ticked, as Office has it since PowerPoint 2013.
+ *
+ * **No survivor**: a field and a checkbox.
+ */
+const powerpointSlideShowMonitors: readonly RibbonCommand[] = [
+  { id: 'powerpoint.slide-show.monitors.monitor', label: 'Monitor' },
+  { id: 'powerpoint.slide-show.monitors.use-presenter-view', label: 'Use Presenter View', toggle: true, pressed: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -4316,10 +4464,10 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabSlideShow' },
     groups: [
-      { id: 'GroupSlideShowStart', label: 'Start Slide Show', priority: 'primary', controls: 9, inScope: true },
-      { id: 'GroupSlideShowSetup', label: 'Set Up', priority: 'primary', controls: 16, inScope: true },
-      { id: 'GroupRehearse', label: 'Rehearse', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupMonitors', label: 'Monitors', priority: 'secondary', controls: 2, inScope: true },
+      { id: 'GroupSlideShowStart', label: 'Start Slide Show', priority: 'primary', controls: 9, inScope: true, commands: powerpointSlideShowStart },
+      { id: 'GroupSlideShowSetup', label: 'Set Up', priority: 'primary', controls: 16, inScope: true, commands: powerpointSlideShowSetUp },
+      { id: 'GroupRehearse', label: 'Rehearse', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointSlideShowRehearse },
+      { id: 'GroupMonitors', label: 'Monitors', priority: 'secondary', controls: 2, inScope: true, commands: powerpointSlideShowMonitors },
     ],
   },
   {
