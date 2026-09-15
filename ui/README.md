@@ -664,8 +664,8 @@ Translate is the only face that matches, and one shared button is not worth a fu
 
 ### Word's View
 
-**One tab of one application**, after the three Review tabs; PowerPoint's and Excel's View tabs are still
-placeholders. Seven groups and twenty-five commands, drawn in Office's order: Document Views, Modes, Page
+**One tab of one application**, after the three Review tabs; PowerPoint's View followed, and Excel's is still
+a placeholder. Seven groups and twenty-five commands, drawn in Office's order: Document Views, Modes, Page
 Movement, Show, Zoom, Window, Night Mode. The tab changes how a document is looked at and never the
 document, so almost nothing on it opens anything.
 
@@ -696,6 +696,40 @@ document, which is the Mailings record-navigator standard.
   Scrolling and Reset Window Position carry no icon.**
 - `GUESS:` **pressing the member of a set that holds does nothing.** Office's Pen, pressed again, opens its
   options.
+
+### PowerPoint's View
+
+**The second View tab, one application again**, to Word's pattern. Seven groups and twenty-four commands, in
+the census's order, which is Office's for the six groups Office draws: Presentation Views, Master Views,
+Show, Zoom, Colour/Greyscale, Window, View Direction. Nothing is declared once with Word's: Zoom and Window
+share census ids and not faces. The glyphs of the four commands the two tabs share are shared, and so is
+the Switch Windows list's shape.
+
+- **Three exclusive sets**: the five presentation views (Normal pressed); Colour (pressed), Greyscale and
+  Black and White; Left-to-Right (pressed) and Right-to-Left.
+- **A plain toggle**: Notes, unpressed, because the shell's status bar reads *Notes: Hidden*.
+- **Checkboxes a host binds**: Ruler (ticked, as the shell's slide context menu shows it), Gridlines, Guides.
+- **One dropdown**: Switch Windows, over `stories/ribbons/view-menus.ts`.
+- **Buttons**: the three masters, Zoom, Fit to Window, New Window, Arrange All, Cascade and Move Split.
+- **One dialog launcher**, *Grid Settings*, on Show. **No field, no gallery, no split button**: nothing here is
+  a state with a menu behind it.
+
+**Survivor**: Fit to Window, in Zoom. One press, no deck changed, a glyph no other command has.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **View Direction is the census's alone**: three controls, none described. It is drawn as Left-to-Right and
+  Right-to-Left, last, as the group Office adds for right-to-left editing. All of that is `GUESS:`. Macros is
+  out of scope.
+- **The census's spelling is drawn**: Colour/Greyscale, Colour and Greyscale, where Office writes Color and
+  Grayscale.
+- **Greyscale, Black and White and the three masters open view tabs in Office**; here the colour modes are one
+  set that Colour releases, and the masters are plain buttons.
+- **Outline View, Notes Master and Notes are small where Office draws them large**, because Fluent draws their
+  glyphs at 20 alone.
+- **Office greys Arrange All, Cascade and Move Split** in some states; all are drawn available.
+- **Every command carries a glyph but the three checkboxes**, and every glyph is judged from Fluent's
+  drawings. Zoom's `zoom-in` disagrees with Word's Zoom, which carries none.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

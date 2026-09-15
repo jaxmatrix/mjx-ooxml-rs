@@ -90,7 +90,8 @@
  * section. Unit 8 authored **Word's Review** alone, the first unit narrowed to one tab of one application;
  * see the *commands Review shows* section. **PowerPoint's Review** and **Excel's Review** followed, one tab of
  * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. **Word's View**
- * followed, one tab of one application again; see the *commands View shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * followed, one tab of one application again; see the *commands View shows* section. **PowerPoint's View**
+ * followed it, in that section's *PowerPoint's View* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -3126,8 +3127,8 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 // ── the commands View shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit after the three Review tabs: **Word's View tab**, all seven in-scope groups,
-// under the one-tab-one-application rule. PowerPoint's and Excel's View tabs are still placeholders, and
-// nothing below is written as a function of the application. Zoom and Window carry the same census ids in
+// under the one-tab-one-application rule. PowerPoint's View followed in the *PowerPoint's View* part below,
+// Excel's is still a placeholder, and nothing here is written as a function of the application. Zoom and Window carry the same census ids in
 // all three, and whether any of them is one declaration is their own units' question.
 //
 // ## The shapes, decided by what Office's popup is
@@ -3352,6 +3353,223 @@ const wordViewWindow: readonly RibbonCommand[] = [
  */
 const wordViewNightMode: readonly RibbonCommand[] = [
   { id: 'word.view.night-mode.switch-modes', label: 'Switch Modes', icon: 'dark-theme', size: 'large', toggle: true },
+];
+
+// ── PowerPoint's View ────────────────────────────────────────────────────────
+//
+// **PowerPoint's View tab**, the second View tab, one tab of one application again and to Word's pattern:
+// all seven in-scope groups, twenty-four commands. Excel's View tab is still a placeholder. **Nothing is
+// declared once with Word's.** Zoom and Window carry the same census ids in both, and their faces differ:
+// PowerPoint's Zoom is two commands where Word's is five, and its Window has Cascade and Move Split where
+// Word's has Split and the side-by-side comparison. A function of the application would be two
+// declarations behind one name. What *is* shared is glyphs (Reading View, Outline View, New Window, Switch
+// Windows) and the Switch Windows menu's shape in `stories/ribbons/view-menus.ts`.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Toggles in three exclusive sets**, because PowerPoint holds exactly one member of each:
+//
+// - `powerpoint.view.presentation-views`: Normal (pressed), Outline View, Slide Sorter, Notes Page, Reading View.
+// - `powerpoint.view.colour-greyscale`: Colour (pressed), Greyscale, Black and White.
+// - `powerpoint.view.view-direction`: Left-to-Right (pressed), Right-to-Left. See disagreement 4.
+//
+// **One plain toggle**, Notes, which shows the notes pane under the slide and hides it again. It starts
+// unpressed, because the assembled shell's status bar reads *Notes: Hidden*. **Checkboxes a host binds**:
+// Ruler, Gridlines and Guides, which Office draws as three ticks. **One dropdown**, Switch Windows, over a menu
+// in `stories/ribbons/view-menus.ts`. **Buttons**: Slide Master, Handout Master, Notes Master, Zoom (a
+// dialog), Fit to Window, New Window, Arrange All, Cascade and Move Split. **One dialog launcher**, on Show,
+// where Office opens its Grid and Guides dialog; `powerpointViewTab` names it *Grid Settings*. `GUESS:` the
+// name. **No field, no gallery, no split button**: nothing on this tab is a state with a menu behind it, so
+// the split toggle Word's and PowerPoint's Review tabs use has no candidate here.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The census's spelling wins over Office's.** Office writes *Color/Grayscale*, *Color* and *Grayscale*;
+//    the census labels the group *Colour/Greyscale*, and this catalogue's own view tab is *Greyscale*. So the
+//    commands are **Colour**, **Greyscale** and **Black and White**.
+// 2. **Greyscale and Black and White open view tabs in Office** (`TabGrayscale`, `TabBlackAndWhite`), whose
+//    *Back To Color View* returns the deck to colour. Here the three are one set and pressing Colour releases
+//    the other two; the two view tabs stay their own placeholder stories. `GUESS:` that Office draws Colour
+//    pressed while the deck is in colour.
+// 3. **Slide Master, Handout Master and Notes Master open view tabs too**, and Office leaves them by *Close
+//    Master View*. They are buttons here, because nothing on this tab takes them back.
+// 4. **View Direction is the census's alone.** The census names `GroupViewDirection`, counts three controls
+//    and describes none, and no Microsoft 365 build this project can cite shows it on an ordinary View tab.
+//    `GUESS:` that it is the group Office adds while a right-to-left editing language is enabled, holding
+//    **Left-to-Right** and **Right-to-Left**, which flip which side the window's panes sit on; that the two are
+//    one exclusive set; that Left-to-Right starts pressed; and both labels. It is drawn last, where the
+//    declaration puts it, because nothing says where Office puts it.
+// 5. **Macros** (`GroupMacros`, one control) is out of scope in the census and is not drawn.
+// 6. **The census's counts are larger than three faces**, and nothing is padded: Show is 5 and draws four
+//    commands and a launcher; Colour/Greyscale is 4 and draws three; Window is 6 and draws five; View Direction
+//    is 3 and draws two.
+// 7. **Office greys Arrange All and Cascade with one window open, and Move Split outside Normal view.** All
+//    three are drawn available, because `disabled` is loop 2's.
+// 8. **Ruler starts ticked**, following the shell's own slide context menu, which shows Ruler checked, where a
+//    new deck in Office starts with it off. `GUESS:`, and the same call Word's Navigation Pane makes.
+//
+// ## Survivors: Fit to Window, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Fit to Window survives.** One press fits the slide to the window and changes no deck, which is the
+//   standard Word's zoom presets pass. `page-fit` is a landscape frame inside fit corners, no other command's
+//   glyph in this subset, and the slide-shaped sibling of Word's One Page. Zoom stays in the popup, so the
+//   popup is never empty. `GUESS:` rule 2.
+// - **Zoom** opens a dialog: rule 1.
+// - **Presentation Views, Colour/Greyscale and View Direction** are exclusive sets. A press is taken back only
+//   by pressing another member, which rule 1 does not allow; Reading View also takes over the window, and
+//   Greyscale and Black and White open tabs.
+// - **Master Views** each open a view tab: rule 1.
+// - **Show**: Ruler, Gridlines and Guides are checkboxes a host binds, which the gate refuses. **Notes passes
+//   rule 1 and fails rule 2**: `panel-bottom` says *a pane at the foot of a window*, not *notes*, once the label
+//   is gone. It is on the status bar at every width besides.
+// - **Window**: New Window opens a window, Arrange All and Cascade rearrange every window, Move Split arms a
+//   keyboard mode the arrow keys and Enter end, and Switch Windows is a menu.
+//
+// ## Sizes, and every glyph
+//
+// Word's rule: `large` where Office draws it large **and** Fluent draws its glyph at 24 **and** the label wraps
+// inside `largeControlWidthUnits`. **Normal, Slide Sorter, Notes Page, Reading View, Slide Master, Handout
+// Master, Zoom, Fit to Window, New Window and Switch Windows** are large. **Outline View, Notes Master and
+// Notes are small where Office draws them large**, because Fluent draws `list-bar-tree-offset`, `notepad-edit`
+// and `panel-bottom` at 20 alone. The colour modes, the view directions, Arrange All, Cascade and Move Split
+// are small, as Office draws them.
+//
+// **Every command on the tab's face carries a glyph except Ruler, Gridlines and Guides**, which are
+// checkboxes and draw a tick box rather than an icon. Every glyph below is `GUESS:`, judged from Fluent's
+// drawings rather than from a build this project can cite:
+//
+// - **Normal draws `panel-left`**, a window with a narrow pane at its left: the thumbnails beside the slide,
+//   which is Normal view. Not `panel-left-text`, Word's Reviewing Pane, nor `slide-layout`, Layout's.
+// - **Outline View draws `list-bar-tree-offset`**, Word's Outline, because it is the same view: headings a
+//   level deeper each.
+// - **Slide Sorter draws `slide-grid`**, slides in a grid, which is the view.
+// - **Notes Page draws `notepad`**, a page of lines. **Notes Master draws `notepad-edit`**, the same page with a
+//   pencil, as **Slide Master draws `slide-text-edit`**, a slide with a pencil: a master is that kind of page,
+//   edited. **Handout Master draws `document-one-page-multiple`**, pages stacked. Word refused it for Multiple
+//   Pages because it reads as *copies*, and copies to hand out are what a handout is.
+// - **Reading View draws `book-open`**, Word's Read Mode, because it is the same picture for the same idea.
+// - **Notes draws `panel-bottom`**, the notes pane at the slide's foot. Not `note`, which is Excel's Notes.
+// - **Zoom draws `zoom-in`**, a magnifier. Word's Zoom carries none, because `zoom-in` reads *Zoom In*; no Zoom
+//   In command is in this subset, and a label-only Zoom beside a glyph-led Fit to Window reads as a gap. A
+//   disagreement with Word's unit, which this unit does not reopen.
+// - **Fit to Window draws `page-fit`**; see the survivors above.
+// - **Colour draws `color`**, the palette Word's Design Colours draws, because both are colour. **Greyscale
+//   draws `color-off`**, that palette struck through: the colour taken out. **Black and White draws
+//   `circle-half-fill`**, a circle half black and half white, and not Word's Switch Modes' `dark-theme`, which
+//   halves the other way.
+// - **New Window and Switch Windows** draw Word's `window-new` and `window-multiple`.
+// - **Arrange All draws `layout-column-two`**, two windows side by side, which is how PowerPoint tiles them.
+//   Word's Arrange All carries none because it sits beside Split; PowerPoint's Window has no Split. Move
+//   Split's panes are inside one window, and a reader could still take the glyph for a split. **Cascade draws
+//   `stack`**, squares offset down a diagonal, the nearest glyph to Switch Windows' overlap on this tab.
+//   **Move Split draws `arrow-move`**, the four arrows whose keys move the split bars.
+// - **Left-to-Right and Right-to-Left draw `text-direction-horizontal-ltr` and `text-direction-horizontal-rtl`**,
+//   a letter and an arrow each way.
+
+/**
+ * PowerPoint's Presentation Views: Normal, Outline View, Slide Sorter, Notes Page and Reading View.
+ *
+ * **Five toggles and one exclusive set, Normal pressed**, because a deck opens in Normal and PowerPoint is in
+ * exactly one view at a time. All large but Outline View, whose glyph Fluent draws at 20 alone. See this
+ * section's header for every glyph.
+ *
+ * **No survivor**: an exclusive set, which a second press does not take back.
+ */
+const powerpointViewPresentationViews: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.presentation-views.normal', label: 'Normal', icon: 'panel-left', size: 'large', toggle: true, pressed: true, exclusive: 'powerpoint.view.presentation-views' },
+  { id: 'powerpoint.view.presentation-views.outline-view', label: 'Outline View', icon: 'list-bar-tree-offset', toggle: true, exclusive: 'powerpoint.view.presentation-views' },
+  { id: 'powerpoint.view.presentation-views.slide-sorter', label: 'Slide Sorter', icon: 'slide-grid', size: 'large', toggle: true, exclusive: 'powerpoint.view.presentation-views' },
+  { id: 'powerpoint.view.presentation-views.notes-page', label: 'Notes Page', icon: 'notepad', size: 'large', toggle: true, exclusive: 'powerpoint.view.presentation-views' },
+  { id: 'powerpoint.view.presentation-views.reading-view', label: 'Reading View', icon: 'book-open', size: 'large', toggle: true, exclusive: 'powerpoint.view.presentation-views' },
+];
+
+/**
+ * PowerPoint's Master Views: Slide Master, Handout Master and Notes Master.
+ *
+ * **Three buttons**, each opening its view tab; see disagreement 3. Slide Master and Handout Master are large,
+ * Notes Master small because `notepad-edit` has no 24 drawing.
+ *
+ * **No survivor**: each opens a tab.
+ */
+const powerpointViewMasterViews: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.master-views.slide-master', label: 'Slide Master', icon: 'slide-text-edit', size: 'large' },
+  { id: 'powerpoint.view.master-views.handout-master', label: 'Handout Master', icon: 'document-one-page-multiple', size: 'large' },
+  { id: 'powerpoint.view.master-views.notes-master', label: 'Notes Master', icon: 'notepad-edit' },
+];
+
+/**
+ * PowerPoint's `GroupViewShowHide`, labelled **Show**: Ruler, Gridlines, Guides, then Notes.
+ *
+ * **Ruler, Gridlines and Guides are toggles drawn as checkboxes**, bound by each host as `<mjx-checkbox>`;
+ * Ruler starts ticked (disagreement 8). **Notes is a plain toggle drawing `panel-bottom`**, starting
+ * unpressed, small because the glyph has no 24 drawing. The group's dialog launcher is `powerpointViewTab`'s.
+ *
+ * **No survivor**: three checkboxes, and Notes fails rule 2.
+ */
+const powerpointViewShow: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.show.ruler', label: 'Ruler', toggle: true, pressed: true },
+  { id: 'powerpoint.view.show.gridlines', label: 'Gridlines', toggle: true },
+  { id: 'powerpoint.view.show.guides', label: 'Guides', toggle: true },
+  { id: 'powerpoint.view.show.notes', label: 'Notes', icon: 'panel-bottom', toggle: true },
+];
+
+/**
+ * PowerPoint's Zoom group: Zoom and Fit to Window, both large.
+ *
+ * **Zoom draws `zoom-in`** and opens the Zoom dialog. **Fit to Window draws `page-fit`** and fits the slide to
+ * the window in one press.
+ *
+ * **Survivor: Fit to Window.** One press, no deck changed, a glyph no other command has.
+ */
+const powerpointViewZoom: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.zoom.zoom', label: 'Zoom', icon: 'zoom-in', size: 'large' },
+  { id: 'powerpoint.view.zoom.fit-to-window', label: 'Fit to Window', icon: 'page-fit', size: 'large', essential: true },
+];
+
+/**
+ * PowerPoint's `GroupColorGrayscale`, labelled **Colour/Greyscale**: Colour, Greyscale and Black and White,
+ * small, in a column.
+ *
+ * **Three toggles and one exclusive set, Colour pressed.** See disagreements 1 and 2.
+ *
+ * **No survivor**: an exclusive set, and two of its members open tabs.
+ */
+const powerpointViewColourGreyscale: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.colour-greyscale.colour', label: 'Colour', icon: 'color', toggle: true, pressed: true, exclusive: 'powerpoint.view.colour-greyscale' },
+  { id: 'powerpoint.view.colour-greyscale.greyscale', label: 'Greyscale', icon: 'color-off', toggle: true, exclusive: 'powerpoint.view.colour-greyscale' },
+  { id: 'powerpoint.view.colour-greyscale.black-and-white', label: 'Black and White', icon: 'circle-half-fill', toggle: true, exclusive: 'powerpoint.view.colour-greyscale' },
+];
+
+/**
+ * PowerPoint's Window group: New Window large, Arrange All, Cascade and Move Split in a column, then Switch
+ * Windows large.
+ *
+ * **New Window** opens a second window on the same deck. **Arrange All** tiles every open PowerPoint window side
+ * by side, and **Cascade** overlaps them down a diagonal. **Move Split** lets the arrow keys move the bars
+ * between Normal view's panes. **Switch Windows is a dropdown** a host binds, listing every open window.
+ *
+ * **No survivor**: see this section's header.
+ */
+const powerpointViewWindow: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.window.new-window', label: 'New Window', icon: 'window-new', size: 'large' },
+  { id: 'powerpoint.view.window.arrange-all', label: 'Arrange All', icon: 'layout-column-two' },
+  { id: 'powerpoint.view.window.cascade', label: 'Cascade', icon: 'stack' },
+  { id: 'powerpoint.view.window.move-split', label: 'Move Split', icon: 'arrow-move' },
+  { id: 'powerpoint.view.window.switch-windows', label: 'Switch Windows', icon: 'window-multiple', size: 'large' },
+];
+
+/**
+ * PowerPoint's View Direction: Left-to-Right and Right-to-Left. `GUESS:` the whole group; see disagreement 4.
+ *
+ * **Two toggles and one exclusive set, Left-to-Right pressed**, small.
+ *
+ * **No survivor**: an exclusive set, which a second press does not take back.
+ */
+const powerpointViewViewDirection: readonly RibbonCommand[] = [
+  { id: 'powerpoint.view.view-direction.left-to-right', label: 'Left-to-Right', icon: 'text-direction-horizontal-ltr', toggle: true, pressed: true, exclusive: 'powerpoint.view.view-direction' },
+  { id: 'powerpoint.view.view-direction.right-to-left', label: 'Right-to-Left', icon: 'text-direction-horizontal-rtl', toggle: true, exclusive: 'powerpoint.view.view-direction' },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -3911,13 +4129,13 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabView' },
     groups: [
-      { id: 'GroupPresentationViews', label: 'Presentation Views', priority: 'primary', controls: 5, inScope: true },
-      { id: 'GroupMasterViews', label: 'Master Views', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupZoom', label: 'Zoom', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupColorGrayscale', label: 'Colour/Greyscale', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupViewDirection', label: 'View Direction', priority: 'standard', controls: 3, inScope: true },
+      { id: 'GroupPresentationViews', label: 'Presentation Views', priority: 'primary', controls: 5, inScope: true, commands: powerpointViewPresentationViews },
+      { id: 'GroupMasterViews', label: 'Master Views', priority: 'standard', controls: 3, inScope: true, commands: powerpointViewMasterViews },
+      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 5, inScope: true, commands: powerpointViewShow },
+      { id: 'GroupZoom', label: 'Zoom', priority: 'secondary', controls: 2, inScope: true, commands: powerpointViewZoom },
+      { id: 'GroupColorGrayscale', label: 'Colour/Greyscale', priority: 'standard', controls: 4, inScope: true, commands: powerpointViewColourGreyscale },
+      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 6, inScope: true, commands: powerpointViewWindow },
+      { id: 'GroupViewDirection', label: 'View Direction', priority: 'standard', controls: 3, inScope: true, commands: powerpointViewViewDirection },
     ],
   },
   {

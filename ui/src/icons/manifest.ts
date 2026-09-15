@@ -1036,8 +1036,8 @@ export const iconRequests: readonly IconRequest[] = [
   {
     name: 'color',
     sizes: [20, 24],
-    variants: ['regular'],
-    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing.",
+    variants: ['regular', 'filled'],
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`.",
   },
   {
     name: 'text-font',
@@ -1578,7 +1578,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'book-open',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Read Mode, the large toggle on Word's View tab: an open book, Office's own picture for the reading view. `GUESS:`.",
+    why: "Read Mode, the large toggle on Word's View tab: an open book, Office's own picture for the reading view. `GUESS:`. **Since PowerPoint's View unit, also Reading View**, the large toggle in Presentation Views: the same picture for the same idea.",
   },
   {
     name: 'document-one-page',
@@ -1590,7 +1590,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'list-bar-tree-offset',
     sizes: [20],
     variants: ['regular', 'filled'],
-    why: "Outline, the small toggle in Word's View Document Views group: bars stepping one level deeper each, the heading hierarchy the view shows. Not `text-bullet-list-tree`, which is Multilevel List. `GUESS:`.",
+    why: "Outline, the small toggle in Word's View Document Views group: bars stepping one level deeper each, the heading hierarchy the view shows. Not `text-bullet-list-tree`, which is Multilevel List. `GUESS:`. **Since PowerPoint's View unit, also Outline View**, small there too, because Fluent draws no 24.",
   },
   {
     name: 'drafts',
@@ -1632,7 +1632,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'window-new',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "New Window, the large button in Word's View Window group: a window with an arrow leaving it, a second window on the same document.",
+    why: "New Window, the large button in Word's View Window group: a window with an arrow leaving it, a second window on the same document. **Since PowerPoint's View unit, also PowerPoint's New Window**, large, the same command.",
   },
   {
     name: 'split-horizontal',
@@ -1650,13 +1650,115 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'window-multiple',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Switch Windows, the large dropdown in Word's View Window group: windows overlapping, one of which to bring forward. `GUESS:`.",
+    why: "Switch Windows, the large dropdown in Word's View Window group: windows overlapping, one of which to bring forward. `GUESS:`. **Since PowerPoint's View unit, also PowerPoint's Switch Windows**, large, the same dropdown.",
   },
   {
     name: 'dark-theme',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
     why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`.",
+  },
+  // ── View (PowerPoint's View) ──────────────────────────────────────────────
+  //
+  // PowerPoint's View tab, one application under the one-tab-one-application rule. The same sizing as Word's
+  // View: **20 for a small command, 20 and 24 for a large one, and `filled` for every toggle.** `book-open`,
+  // `list-bar-tree-offset`, `window-new`, `window-multiple` and `color` above gained a command rather than a
+  // row here. The reasoning for every glyph is the *PowerPoint's View* part of `dev/ribbons/census.ts`.
+  {
+    name: 'panel-left',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Normal, the large toggle in PowerPoint's View Presentation Views group, pressed in a new deck: a window with a narrow pane at its left, the thumbnails beside the slide. Not `panel-left-text`, Word's Reviewing Pane. `GUESS:`.",
+  },
+  {
+    name: 'slide-grid',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Slide Sorter, the large toggle in PowerPoint's View Presentation Views group: slides in a grid. `GUESS:`.",
+  },
+  {
+    name: 'notepad',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Notes Page, the large toggle in PowerPoint's View Presentation Views group: a page of lines. Not `note`, Excel's Notes. `GUESS:`.",
+  },
+  {
+    name: 'slide-text-edit',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Slide Master, the large button in PowerPoint's View Master Views group: a slide with a pencil, the slide's layout edited. It opens a tab rather than holding a state, so regular alone. `GUESS:`.",
+  },
+  {
+    name: 'document-one-page-multiple',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Handout Master, the large button in PowerPoint's View Master Views group: pages stacked, copies to hand out. Word refused it for Multiple Pages for that reading. `GUESS:`.",
+  },
+  {
+    name: 'notepad-edit',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Notes Master, in PowerPoint's View Master Views group: Notes Page's page with a pencil. Fluent draws it at 20 alone, so the command is small where Office draws it large. `GUESS:`.",
+  },
+  {
+    name: 'panel-bottom',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Notes, the toggle in PowerPoint's View Show group: a window with a pane at its foot, where the notes pane opens. Fluent draws it at 20 alone, so the command is small. `GUESS:`.",
+  },
+  {
+    name: 'zoom-in',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`.",
+  },
+  {
+    name: 'page-fit',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Fit to Window, the large button in PowerPoint's View Zoom group, and a survivor: a landscape frame inside fit corners, the slide fitted to the window. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'color-off',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Greyscale, the small toggle in PowerPoint's View Colour/Greyscale group: the Colour palette struck through, the colour taken out. `GUESS:`.",
+  },
+  {
+    name: 'circle-half-fill',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Black and White, the small toggle in PowerPoint's View Colour/Greyscale group: a circle half black and half white. Not `dark-theme`, Word's Switch Modes. `GUESS:`.",
+  },
+  {
+    name: 'layout-column-two',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Arrange All, in PowerPoint's View Window group: two windows side by side, as PowerPoint tiles them. `GUESS:`.",
+  },
+  {
+    name: 'stack',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Cascade, in PowerPoint's View Window group: squares offset down a diagonal, windows cascaded. `GUESS:`.",
+  },
+  {
+    name: 'arrow-move',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Move Split, in PowerPoint's View Window group: four arrows, the keys that move the split bars between panes. `GUESS:`.",
+  },
+  {
+    name: 'text-direction-horizontal-ltr',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Left-to-Right, the small toggle in PowerPoint's View Direction group, pressed: a letter and an arrow pointing right. `GUESS:`, as the whole group is.",
+  },
+  {
+    name: 'text-direction-horizontal-rtl',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Right-to-Left, the small toggle in PowerPoint's View Direction group: a letter and an arrow pointing left. `GUESS:`, as the whole group is.",
   },
 ];
 

@@ -67,6 +67,7 @@ import {
   startingAnimation,
 } from '../ribbons/mailings-animations-data-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import { viewMenus } from '../ribbons/view-menus.ts';
 import {
   advanceAfterTimes,
   animationDelays,
@@ -598,6 +599,18 @@ function ribbon(): TemplateResult {
               data-opens="shell-powerpoint-review-ink-hide-ink"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // PowerPoint's View. Show's three are checkboxes, Ruler ticked because this shell's slide
+            // context menu shows it checked. Switch Windows opens its menu from
+            // `stories/ribbons/view-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.view.show.ruler': html`<mjx-checkbox id="ppt-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+            'powerpoint.view.show.gridlines': html`<mjx-checkbox id="ppt-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+            'powerpoint.view.show.guides': html`<mjx-checkbox id="ppt-view-guides" label="Guides"></mjx-checkbox>`,
+            'powerpoint.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-powerpoint-view-window-switch-windows"
+            ></mjx-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -849,6 +862,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
       ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
+      ${viewMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

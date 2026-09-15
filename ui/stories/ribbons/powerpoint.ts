@@ -36,6 +36,10 @@
  * **Review** followed Word's, one tab of one application: seven groups and nineteen commands, the tab
  * where a deck is read by somebody else. Every menu on it carries Office's whole list.
  *
+ * **View** followed Word's View, one tab of one application again: seven groups and twenty-four commands,
+ * the tab that changes how a deck is looked at and never the deck. Three of its groups are exclusive sets,
+ * and Switch Windows is its one menu.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -285,6 +289,37 @@ export function powerpointReviewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
+/**
+ * View: Presentation Views, Master Views, Show, Zoom, Colour/Greyscale, Window, View Direction, in the
+ * census's order, which is Office's for the six groups Office draws.
+ *
+ * ⚠ **View Direction is the census's alone**: no Microsoft 365 build this project can cite draws it on an
+ * ordinary View tab, so its contents, its position last and its labels are `GUESS:`; `dev/ribbons/census.ts`
+ * records the reading. Office's **Macros** is out of scope in the census and is not drawn.
+ *
+ * **Four of the tab's twenty-four commands are bound by the host**: Ruler, Gridlines and Guides are
+ * checkboxes, and Switch Windows is a dropdown over `stories/ribbons/view-menus.ts`. Everything else is the
+ * generic toggle or button, including the three exclusive sets.
+ *
+ * **One dialog launcher, on Show**, where Office opens Grid and Guides. `GUESS:` its name. **One survivor**,
+ * Fit to Window, in Zoom.
+ */
+export function powerpointViewTab(options: TabOptions = {}): TemplateResult {
+  const view = entry('view');
+  const controls = options.controls ?? {};
+  return tab(
+    view.id,
+    view.label,
+    censusGroup(view, 'GroupPresentationViews', {}, controls),
+    censusGroup(view, 'GroupMasterViews', {}, controls),
+    censusGroup(view, 'GroupViewShowHide', { launcher: 'Grid Settings' }, controls),
+    censusGroup(view, 'GroupZoom', {}, controls),
+    censusGroup(view, 'GroupColorGrayscale', {}, controls),
+    censusGroup(view, 'GroupWindow', {}, controls),
+    censusGroup(view, 'GroupViewDirection', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideShowTab(): TemplateResult {
@@ -293,10 +328,6 @@ export function powerpointSlideShowTab(): TemplateResult {
 
 export function powerpointRecordingTab(): TemplateResult {
   return placeholderTab(entry('recording'));
-}
-
-export function powerpointViewTab(): TemplateResult {
-  return placeholderTab(entry('view'));
 }
 
 export function powerpointSlideMasterTab(): TemplateResult {

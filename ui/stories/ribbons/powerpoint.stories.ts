@@ -53,6 +53,7 @@ import {
 } from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 import { reviewMenus } from './review-menus.ts';
+import { viewMenus } from './view-menus.ts';
 
 /**
  * **PowerPoint's ribbon, tab by tab** — the same functions `Shell/PowerPoint` composes.
@@ -68,7 +69,7 @@ import { reviewMenus } from './review-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations and Review** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Review and View** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -88,7 +89,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations and Review are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Review and View are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -491,6 +492,18 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-powerpoint-review-ink-hide-ink"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // View (PowerPoint's). Show's three are checkboxes, Ruler ticked as the census declares. Switch Windows
+  // opens its menu from `stories/ribbons/view-menus.ts`, and `data-opens` is
+  // `commandSurfaceId('ribbons', <this key>)`. The three exclusive sets are the generic toggles.
+  'powerpoint.view.show.ruler': html`<mjx-checkbox id="ribbons-powerpoint-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+  'powerpoint.view.show.gridlines': html`<mjx-checkbox id="ribbons-powerpoint-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+  'powerpoint.view.show.guides': html`<mjx-checkbox id="ribbons-powerpoint-view-guides" label="Guides"></mjx-checkbox>`,
+  'powerpoint.view.window.switch-windows': html`<mjx-button
+    label="Switch Windows"
+    icon="window-multiple"
+    size="large"
+    data-opens="ribbons-powerpoint-view-window-switch-windows"
+  ></mjx-button>`,
 };
 
 /**
@@ -518,6 +531,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
+    ${viewMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -716,7 +730,35 @@ export const Recording: Story = { render: () => ribbon('recording') };
  */
 export const Review: Story = { render: () => ribbon('review') };
 
-/** Unit 9. */
+/**
+ * **View**: how a deck is looked at, never the deck itself. Authored after Word's View, one tab of one
+ * application. Seven groups: Presentation Views, Master Views, Show, Zoom, Colour/Greyscale, Window and View
+ * Direction. What to look at, least certain first:
+ *
+ * 1. ⚠ **View Direction is `GUESS:` from end to end.** The census names the group and counts three controls,
+ *    nothing more. It is drawn last as Left-to-Right (pressed) and Right-to-Left, small, with a letter and an
+ *    arrow each way, as the group Office adds for right-to-left editing. Press Right-to-Left and
+ *    Left-to-Right releases.
+ * 2. ⚠ **Three exclusive sets, each independent.** Normal starts pressed: press Slide Sorter and Normal
+ *    releases; press Slide Sorter again and it stays. Colour (pressed), Greyscale and Black and White do the
+ *    same, and pressing Greyscale leaves the presentation view alone. Tab to a view and press Space: the same,
+ *    by keyboard.
+ * 3. ⚠ **Fit to Window is the tab's only survivor.** Drag narrow until Zoom collapses: Fit to Window (large, a
+ *    landscape frame in fit corners) stays beside the trigger, and Zoom opens from it. `GUESS:` that the
+ *    glyph reads with no label.
+ * 4. **Glyphs to judge**, all `GUESS:`: Normal's window with a left pane, Outline View's stepped bars (Word's
+ *    Outline), Slide Sorter's grid, Notes Page's notepad, Reading View's open book (Word's Read Mode), Slide
+ *    Master's slide with a pencil, Handout Master's stacked pages, Notes Master's notepad with a pencil, Notes'
+ *    bottom pane, Zoom's magnifier, Colour's palette, Greyscale's struck palette, Black and White's half
+ *    circle, Arrange All's two columns, Cascade's stack and Move Split's four arrows. Toggles fill while pressed.
+ * 5. **Three commands are small where Office draws them large**: Outline View, Notes Master and Notes, whose
+ *    glyphs Fluent draws at 20 alone. Colour/Greyscale is spelt as the census spells it.
+ * 6. **Show is three checkboxes, a toggle and the launcher.** Ruler ticked, Gridlines and Guides unticked;
+ *    tick one and it ticks. Notes draws pressed when pressed. The launcher at Show's corner is *Grid
+ *    Settings*, `GUESS:` its name.
+ * 7. **Switch Windows is the tab's only menu**: one window, *1 Where the time went*, checked. Slide Master,
+ *    Handout Master, Notes Master, Arrange All, Cascade and Move Split are plain buttons that open nothing.
+ */
 export const View: Story = { render: () => ribbon('view') };
 
 /** Unit 10, and a view tab: Office shows it only in Slide Master view. */
