@@ -94,7 +94,14 @@
  * `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` and `chartTypeCommands`, and its menus and gallery
  * are in `stories/ribbons/chart-tools-menus.ts`, all written for PowerPoint's and Excel's Chart Design to reuse; Change
  * Chart Type opens Excel's Insert → Charts lists. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table
- * Tools. **The last, Chart Tools' Format, is a placeholder** until its own unit.
+ * Tools.
+ *
+ * **Chart Tools' Format is authored**, the sixth and last: seven groups and twenty-five commands, which part of a chart
+ * is selected and how to format or reset it, a shape over the chart, how the part is styled, how its text is dressed,
+ * and how the chart is described, placed and sized. It calls Shape Format's code (`insertShapesCommands` for a chart,
+ * `shapeStylesCommands`, `wordArtStylesCommands`, `arrangeCommands`, `sizeCommands` and
+ * `stories/ribbons/drawing-tools-menus.ts`) and adds a chart's own Current Selection group and lists, in the census and
+ * `stories/ribbons/chart-tools-menus.ts`. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table Tools.
  *
  * ## The three view tabs
  *
@@ -113,7 +120,6 @@ import { ribbonTab, wordRibbonContextualSets, wordRibbonTabs } from '../../dev/r
 import {
   censusGroup,
   contextualSetsFor,
-  placeholderTab,
   tab,
   tabsFor,
   type ContextualSetOptions,
@@ -713,11 +719,46 @@ export function wordChartDesignTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
+ * Chart Tools' Format: Current Selection, Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange, Size —
+ * Word's sixth contextual tab authored and the fifteenth of all, in **Office's** order, which is also the census's. It
+ * sits under the *Chart Tools* band, and its accessible name, *Format, Chart Tools*, is what tells it from Shape Format.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a chart is selected.** `Ribbons/Word` draws every contextual set and
+ * binds it; **`Shell/Word` draws Table Tools alone**, so it binds none of this tab and renders none of its menus.
+ * `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Twenty-one of the tab's twenty-five commands are bound by the host**: the Chart Elements field; Shapes, Change
+ * Shape, Shape Effects, Text Effects, Position, Wrap Text, Align, Group and Rotate, dropdowns; Bring Forward and Send
+ * Backward, split buttons; the Theme Styles and Quick Styles galleries, the first with Other Theme Fills under it;
+ * Shape Fill, Shape Outline, Text Fill and Text Outline, colour pickers; Height and Width, measure fields. Every menu is
+ * in `stories/ribbons/chart-tools-menus.ts`. Format Selection and Reset to Match Style are plain buttons, and Alt Text
+ * and Selection Pane generic toggles.
+ *
+ * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, Layout on Size.
+ * **No survivor.**
+ */
+export function wordChartFormatTab(options: TabOptions = {}): TemplateResult {
+  const chartFormat = entry('chart-format');
+  const controls = options.controls ?? {};
+  return tab(
+    chartFormat.id,
+    chartFormat.label,
+    censusGroup(chartFormat, 'GroupChartCurrentSelection', {}, controls),
+    censusGroup(chartFormat, 'GroupShapesChart', {}, controls),
+    censusGroup(chartFormat, 'GroupChartShapeStyles', { launcher: 'Format Shape' }, controls),
+    censusGroup(chartFormat, 'GroupWordArtStyles', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(chartFormat, 'GroupAltText', {}, controls),
+    censusGroup(chartFormat, 'GroupArrange', {}, controls),
+    censusGroup(chartFormat, 'GroupSize', { launcher: 'Layout' }, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Table Design, Table Layout, Picture Format, Shape Format and Chart Design are authored; Chart Tools' Format is
- * `placeholderTab` today.** The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each
- * tab's unit replaces its one line here with a `word<Tab>Tab` function, as the five authored tabs' units did.
+ * **All six are authored**: Table Design, Table Layout, Picture Format, Shape Format, Chart Design and Chart Tools'
+ * Format. The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaced
+ * its one `placeholderTab` line here with a `word<Tab>Tab` function.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,
@@ -725,7 +766,7 @@ const contextualBuilders: Readonly<Record<string, (options: TabOptions) => Templ
   'picture-format': wordPictureFormatTab,
   'shape-format': wordShapeFormatTab,
   'chart-design': wordChartDesignTab,
-  'chart-format': () => placeholderTab(entry('chart-format')),
+  'chart-format': wordChartFormatTab,
 };
 
 /**

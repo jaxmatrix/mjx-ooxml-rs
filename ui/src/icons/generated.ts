@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 651 glyphs, 246102 bytes of path data, subset from the
+ * 652 glyphs, 246506 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -2623,10 +2623,14 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 24 24',
     paths: ['M18.25 3C17 3 16 4 16 5.25v5.92q.72-.17 1.5-.17V5.25a.75.75 0 0 1 1.5 0v5.92q.8.2 1.5.56V5.25C20.5 4 19.5 3 18.25 3M14 9.25v2.77q-.86.54-1.5 1.33v-4.1a.75.75 0 0 0-1.5 0v9.5q.01.36.25.56.27.9.76 1.68l-.26.01c-1.24 0-2.25-1-2.25-2.25v-9.5a2.25 2.25 0 1 1 4.5 0m-11 4a2.25 2.25 0 1 1 4.5 0v5.5a2.25 2.25 0 1 1-4.5 0zm3 0a.75.75 0 0 0-1.5 0v5.5a.75.75 0 0 0 1.5 0zm17 4.25a5.5 5.5 0 1 0-11 0 5.5 5.5 0 0 0 11 0m-5 .5v2.5a.5.5 0 1 1-1 0V18h-2.5a.5.5 0 0 1 0-1H17v-2.5a.5.5 0 1 1 1 0V17h2.5a.5.5 0 0 1 0 1z'],
   },
+  'mjx-fluent:data-bar-vertical-edit-20-regular': {
+    viewBox: '0 0 20 20',
+    paths: ['M15.81 10.55a1.87 1.87 0 1 1 2.64 2.64l-4.82 4.83a2 2 0 0 1-1.03.58l-1.5.37a.9.9 0 0 1-1.07-1.07l.37-1.5q.16-.6.58-1.02zM5 9a2 2 0 0 1 2 2v4a2 2 0 1 1-4 0v-4c0-1.1.9-2 2-2m5-3a2 2 0 0 1 2 2v4.94l-1 1V8a1 1 0 1 0-2 0v7q.02.59.52.88l-.09.28-.17.7A2 2 0 0 1 8 15V8c0-1.1.9-2 2-2m-5 4a1 1 0 0 0-1 1v4a1 1 0 1 0 2 0v-4a1 1 0 0 0-1-1m10-7a2 2 0 0 1 2 2v4q-.52.03-1 .23V5a1 1 0 1 0-2 0v5.94l-1 1V5c0-1.1.9-2 2-2'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 651;
+export const subsetGlyphCount = 652;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -2635,7 +2639,7 @@ export const subsetGlyphCount = 651;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 246102;
+export const subsetPathBytes = 246506;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

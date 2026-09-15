@@ -50,7 +50,15 @@ import {
   shapeStyleGalleryItems,
   wordShapeMeasures,
 } from './drawing-tools-menus.ts';
-import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
+import {
+  chartOutlineEntryOptions,
+  chartSelectionOptions,
+  chartStyleGalleryItems,
+  chartTextFillEntryOptions,
+  chartTextOutlineEntryOptions,
+  chartToolsMenus,
+  wordChartMeasures,
+} from './chart-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
 import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-styles-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
@@ -67,11 +75,11 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * ## What is authored and what is not
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
- * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design, Table Tools'
- * Layout, Picture Format, Shape Format and Chart Design are authored**, the first five. **The last is a placeholder** —
- * Chart Tools' Format — one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
- * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
- * right and every tab present, so each later unit is a small diff rather than a new file.
+ * View, Outlining, Print Preview and Background Removal. **All six contextual tabs are authored**: Table Design, Table
+ * Tools' Layout, Picture Format, Shape Format, Chart Design and Chart Tools' Format. Each was a placeholder until its
+ * unit — one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding one button
+ * that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already right and every
+ * tab present, so each later unit is a small diff rather than a new file.
  *
  * **Every story draws all four contextual sets**, as every story draws the view tabs, so a contextual tab can be
  * reached from any story; Office shows one set at a time, and `Shell/Word` draws Table Tools alone.
@@ -82,8 +90,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
- * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format, Shape Format and Chart Design tabs'
- * menus open,
+ * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format, Shape Format, Chart Design and Chart
+ * Format tabs' menus open,
  * the pickers open, the
  * galleries preview — and no document changes, because command dispatch is loop 2.
  */
@@ -105,8 +113,8 @@ const meta: Meta = {
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
           'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
-          'four common sets, Table Design, Layout, Picture Format, Shape Format and Chart Design are authored; Chart ' +
-          'Tools’ Format is a placeholder carrying the census’s own priorities.',
+          'four common sets, all six are authored: Table Design, Layout, Picture Format, Shape Format, Chart Design ' +
+          'and Chart Tools’ Format.',
       },
     },
     mjx: conventions,
@@ -1236,6 +1244,178 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-word-chart-design-type-change-chart-type"
   ></mjx-button>`,
+  // Chart Format (a contextual tab, in Chart Tools). `Shell/Word` draws Table Tools alone, so these twenty-one bindings
+  // and the Chart Format half of `chartToolsMenus('word', …)` are written here and nowhere else. The Chart Elements
+  // field's options, a chart's Shapes and Change Shape, the entry options that differ from Shape Format's and the
+  // starting measures are `stories/ribbons/chart-tools-menus.ts`'s; the Theme Styles gallery, Other Theme Fills, Shape
+  // Effects and Shape Fill's entries `stories/ribbons/drawing-tools-menus.ts`'; the WordArt gallery
+  // `stories/ribbons/wordart-styles-menus.ts`'; the four pickers and both galleries' pictures read this document's
+  // palette. Format Selection and Reset to Match Style are the generic button, and Alt Text and Selection Pane the
+  // generic toggle; none is bound.
+  'word.chart-format.current-selection.chart-elements': html`<mjx-dropdown
+    id="ribbons-word-chart-format-chart-elements"
+    label="Chart Elements"
+    value="chart-area"
+    style=${ribbonFieldStyle}
+  >
+    ${chartSelectionOptions()}
+  </mjx-dropdown>`,
+  'word.chart-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-word-chart-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'word.chart-format.insert-shapes.change-shape': html`<mjx-button
+    label="Change Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-word-chart-format-insert-shapes-change-shape"
+  ></mjx-button>`,
+  'word.chart-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-word-chart-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-word-chart-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'word.chart-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-word-chart-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="theme:background1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.chart-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-word-chart-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="theme:text1/lighter80"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(chartOutlineEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.chart-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-word-chart-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'word.chart-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-word-chart-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'word.chart-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-word-chart-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:text1/lighter40"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Fill', fillEntries(chartTextFillEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.chart-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-word-chart-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Outline', outlineEntries(chartTextOutlineEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.chart-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-word-chart-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'word.chart-format.arrange.position': html`<mjx-button
+    label="Position"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-position"
+  ></mjx-button>`,
+  'word.chart-format.arrange.wrap-text': html`<mjx-button
+    label="Wrap Text"
+    icon="text-position-square"
+    size="large"
+    data-opens="ribbons-word-chart-format-arrange-wrap-text"
+  ></mjx-button>`,
+  'word.chart-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.chart-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.chart-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-align"
+  ></mjx-button>`,
+  'word.chart-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-group"
+  ></mjx-button>`,
+  'word.chart-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-word-chart-format-arrange-rotate"
+  ></mjx-button>`,
+  'word.chart-format.size.height': html`<mjx-measure-input
+    id="ribbons-word-chart-format-height"
+    label="Height"
+    value=${wordChartMeasures.height}
+    unit="cm"
+    step=${wordChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.chart-format.size.width': html`<mjx-measure-input
+    id="ribbons-word-chart-format-width"
+    label="Width"
+    value=${wordChartMeasures.width}
+    unit="cm"
+    step=${wordChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1842,8 +2022,42 @@ export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 
 /**
- * **Format** — Chart Tools' second tab, a placeholder. Seven groups are declared: Current Selection, Insert Shapes,
- * Shape Styles, WordArt Styles, Accessibility, Arrange and Size, with Shape Styles primary. The accessible name
- * *Format, Chart Tools* is what tells it from the other Format tabs Office has.
+ * **Chart Format**: which part of a chart in the document is selected and how to format or reset it, a shape drawn over
+ * the chart, how that part is filled, outlined and given effects, how its text is dressed, how the chart is described,
+ * where it sits among the text, and its size. Chart Tools' second tab, and Word's sixth contextual tab authored; Office
+ * shows it only while a chart is selected, and its accessible name, *Format, Chart Tools*, is what tells it from Shape
+ * Format. Seven groups: Current Selection, Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange and
+ * Size. **It is Word's Shape Format wherever a chart behaves as a shape**, so `ShapeFormat` covers the Theme Styles
+ * pictures, Other Theme Fills, Shape Effects and Text Effects; and Arrange is `PictureFormat`'s. What to look at here,
+ * least certain first:
+ *
+ * 1. ⚠ **Chart Elements**, the field at the head of Current Selection, starts on *Chart Area* and lists the ten parts of
+ *    the Clustered Column Word inserts **alphabetically, as Office does**: Chart Area, Chart Title, Horizontal (Category)
+ *    Axis, Legend, Plot Area, Series "Series 1" to "Series 3", Vertical (Value) Axis, Vertical (Value) Axis Major
+ *    Gridlines. The series come before the vertical axis, where the brief lists them last. Check the field is wide
+ *    enough for the longest name. `GUESS:` the order and every label.
+ * 2. ⚠ **Reset to Match Style's glyph is the weakest on the tab**: PowerPoint's Reset loop, which says *reset* without
+ *    *to the chart's style*. Judge it beside **Format Selection**'s new column chart with a pencil. Both are plain small
+ *    buttons, drawn available.
+ * 3. ⚠ **Shape Outline has no Sketched ▸ and no Arrows ▸**, where Shape Format's has both, and starts on *Text 1, Lighter
+ *    80%*, the nearest swatch to a new chart's light grey border. **Shape Fill** starts on *Background 1* (white) with
+ *    More Fill Colours…, Picture…, Gradient ▸ and Texture ▸. `GUESS:` both starts and both omissions.
+ * 4. ⚠ **Text Fill and Text Outline are Word's Shape Format's**: Text Fill starts on *Text 1, Lighter 40%* (a chart's
+ *    grey text) with More Fill Colours… and Gradient ▸; Text Outline on none, with More Outline Colours…, Weight ▸ and
+ *    Dashes ▸. **Text Effects keeps Transform**, which Office may grey on chart text. `GUESS:` all of it.
+ * 5. **Shapes** opens the whole shape gallery with **no New Drawing Canvas and no Action Buttons**; **Change Shape**, small,
+ *    opens Change Shape's list, **drawn available** where Office greys it until a shape inside the chart is selected. It
+ *    draws Edit Shape's glyph. No Draw Text Box, Edit Points or Merge Shapes.
+ * 6. **Height 8.89 cm and Width 15.24 cm**, the 3.5 × 6 inch chart Word inserts, stepping by 0.01. `GUESS:` both.
+ * 7. **Arrange is Word's Shape Format's eight**: Position small with no glyph, Wrap Text large, Bring Forward and Send
+ *    Backward split buttons, Selection Pane with no glyph, Align with **Align to Margin ticked**, Group and Rotate.
+ * 8. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', **Layout** at
+ *    Size's. `GUESS:` all three; none on Current Selection.
+ * 9. **Alt Text** is a large toggle, unpressed.
+ * 10. **No survivor anywhere.** Drag narrow: Insert Shapes (`ancillary`) gives way first, then Accessibility
+ *     (`secondary`), then Current Selection, WordArt Styles, Arrange and Size (`standard`), and Shape Styles (`primary`)
+ *     last; each collapses to a trigger with nothing beside it.
+ * 11. **Not in `Shell/Word`**, which draws Table Tools: there is no Chart Tools band there and none of these menus is on
+ *     that page.
  */
 export const ChartFormat: Story = { render: () => ribbon('chart-format') };

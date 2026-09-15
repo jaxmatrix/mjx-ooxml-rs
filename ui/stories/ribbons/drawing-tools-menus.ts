@@ -172,8 +172,11 @@ export function shapeGallerySections(
   ];
 }
 
-/** One run of menu sections, one entry per shape. */
-function shapeSectionEntries(sections: readonly ShapeGallerySection[]): TemplateResult[] {
+/**
+ * One run of menu sections, one entry per shape. Exported for `stories/ribbons/chart-tools-menus.ts`, whose chart
+ * gallery is these sections less the ones a chart cannot hold.
+ */
+export function shapeSectionEntries(sections: readonly ShapeGallerySection[]): TemplateResult[] {
   return sections.map((group) => section(group.section, ...group.shapes.map((shape) => item(shape))));
 }
 

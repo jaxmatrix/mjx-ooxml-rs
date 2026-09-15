@@ -1,6 +1,7 @@
 /**
- * **The menus and the gallery the Chart Design tab opens**, written once for all three applications: Word's,
- * PowerPoint's and Excel's Chart Design all call them. Change Chart Type reads Excel's Insert → Charts
+ * **The menus and the gallery the Chart Design tab opens, and the lists Chart Format adds to Shape Format's**, written
+ * once for all three applications: Word's, PowerPoint's and Excel's Chart Design and Chart Format all call them. Change
+ * Chart Type reads Excel's Insert → Charts
  * lists (`stories/ribbons/insert-menus.ts`' `columnBarChartEntries()` and the seven beside it), so a chart family Office
  * offers on two tabs is written once.
  *
@@ -24,6 +25,23 @@
  *   opens a dialog and has no list either.
  * - **Type**: `changeChartTypeEntries()`, the eight chart families as submenus, each Insert's own list.
  *
+ * ## Shaped for three Chart Format tabs
+ *
+ * **Chart Format is Shape Format's tab with a chart's Current Selection in front**, so it reads
+ * `stories/ribbons/drawing-tools-menus.ts`' lists wherever a chart behaves as a shape (the shape styles and Other Theme
+ * Fills, Shape Effects, Shape Fill's entries), `wordart-styles-menus.ts`' gallery and Text Effects, and
+ * `design-layout-menus.ts`' Arrange lists. **Only what a chart changes is written here**, each a function of nothing or
+ * of the application:
+ *
+ * - **Current Selection**: `chartSelectionElements`, the parts of the chart Office inserts, and
+ *   `chartSelectionOptions()`, the Chart Elements field's options.
+ * - **Insert Shapes**: `chartShapeGallerySections(application, purpose)`, the shape gallery less what a chart cannot
+ *   hold, over it `chartShapesEntries(application)` and `chartChangeShapeEntries(application)`.
+ * - **Shape Styles**: `chartOutlineEntryOptions(application)`, Shape Outline's entries less Sketched and Arrows.
+ * - **WordArt Styles**: `chartTextFillEntryOptions(application)` and `chartTextOutlineEntryOptions(application)`, each
+ *   application's own Shape Format text entries.
+ * - **Size**: `wordChartMeasures`, the chart Word inserts.
+ *
  * `GUESS:` every label, order, check and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * US spelling the census's wins (*Colours*, *Colourful*, *Centred*), as it does across the catalogue.
  *
@@ -44,6 +62,24 @@ import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 
 import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
 import type { ThemeColorPalette, ThemeColorSlot } from '../../src/pickers/picker-model.ts';
+import type { FillEntryOptions, OutlineEntryOptions } from './colour-picker-entries.ts';
+import {
+  alignEntries,
+  bringForwardEntries,
+  groupEntries,
+  positionEntries,
+  rotateEntries,
+  sendBackwardEntries,
+  wrapTextEntries,
+} from './design-layout-menus.ts';
+import {
+  otherThemeFillEntries,
+  shapeEffectsEntries,
+  shapeGallerySections,
+  shapeOutlineEntryOptions,
+  shapeSectionEntries,
+  type ShapeGallerySection,
+} from './drawing-tools-menus.ts';
 import {
   columnBarChartEntries,
   comboChartEntries,
@@ -56,7 +92,7 @@ import {
 } from './insert-menus.ts';
 import { paletteSlotColour, spacingStep } from './palette-art.ts';
 import { commandMenu } from './ribbon-parts.ts';
-import { submenu } from './wordart-styles-menus.ts';
+import { submenu, wordArtTextEffectsEntries } from './wordart-styles-menus.ts';
 
 // ── the entries ──────────────────────────────────────────────────────────────
 
@@ -426,12 +462,155 @@ export function changeChartTypeEntries(): TemplateResult[] {
   ];
 }
 
+// ── Format: Current Selection ────────────────────────────────────────────────
+
+/** One part of a chart the Chart Elements field can select: its value, and Office's name for it. */
+export interface ChartSelectionElement {
+  readonly value: string;
+  readonly label: string;
+}
+
+/**
+ * **The Chart Elements field's entries**, for the Clustered Column all three applications insert: every part that chart
+ * carries (`chartElements`' starts: a title, a legend, both axes and the major horizontal gridlines, which Office names
+ * after the vertical axis they mark), the chart and plot areas, and each of its three series, **in Office's alphabetical
+ * order**, which puts the series before the vertical axis. A host starts the field on `chart-area`, what a click on the
+ * chart's edge selects. No individual data point is listed: Office adds one only once a point is selected.
+ * `GUESS:` the order, every label and the three series.
+ */
+export const chartSelectionElements: readonly ChartSelectionElement[] = [
+  { value: 'chart-area', label: 'Chart Area' },
+  { value: 'chart-title', label: 'Chart Title' },
+  { value: 'horizontal-category-axis', label: 'Horizontal (Category) Axis' },
+  { value: 'legend', label: 'Legend' },
+  { value: 'plot-area', label: 'Plot Area' },
+  { value: 'series-1', label: 'Series "Series 1"' },
+  { value: 'series-2', label: 'Series "Series 2"' },
+  { value: 'series-3', label: 'Series "Series 3"' },
+  { value: 'vertical-value-axis', label: 'Vertical (Value) Axis' },
+  { value: 'vertical-value-axis-major-gridlines', label: 'Vertical (Value) Axis Major Gridlines' },
+];
+
+/** **The Chart Elements field's options**, one `<mjx-option>` per `chartSelectionElements` entry, which a host slots. */
+export function chartSelectionOptions(): TemplateResult[] {
+  return chartSelectionElements.map(
+    (element) => html`<mjx-option value=${element.value} label=${element.label}></mjx-option>`,
+  );
+}
+
+// ── Format: Insert Shapes ────────────────────────────────────────────────────
+
+/**
+ * **The shape gallery a chart offers**: `shapeGallerySections(application, purpose)` less **Action Buttons**, which run
+ * a slide show a chart does not. A chart's Shapes also has no **New Drawing Canvas** under the gallery, because a canvas
+ * cannot sit inside a chart; that entry is not a section, so it is left out by `chartShapesEntries` not calling
+ * `insertShapesEntries`. `GUESS:` both omissions.
+ */
+export function chartShapeGallerySections(
+  application: RibbonApplication,
+  purpose: 'insert' | 'change',
+): readonly ShapeGallerySection[] {
+  return shapeGallerySections(application, purpose).filter((group) => group.section !== 'Action Buttons');
+}
+
+/** **A chart's Shapes, as a menu**: every section `chartShapeGallerySections(application, 'insert')` gives. */
+export function chartShapesEntries(application: RibbonApplication): TemplateResult[] {
+  return shapeSectionEntries(chartShapeGallerySections(application, 'insert'));
+}
+
+/**
+ * **A chart's Change Shape**: every section `chartShapeGallerySections(application, 'change')` gives, which changes a
+ * shape already drawn inside the chart. Office greys the command until one is selected; a host draws it available, so
+ * the list can be judged.
+ */
+export function chartChangeShapeEntries(application: RibbonApplication): TemplateResult[] {
+  return shapeSectionEntries(chartShapeGallerySections(application, 'change'));
+}
+
+// ── Format: Shape Styles and WordArt Styles ──────────────────────────────────
+
+/**
+ * **What sits beneath a chart part's Shape Outline**: Shape Format's (`shapeOutlineEntryOptions`) **less Sketched and
+ * Arrows**. A chart element's border is not a hand-drawn line and has no ends, and the census counts Shape Styles two
+ * fewer on every Chart Format than on the same application's Shape Format. Shape Fill's entries are Shape Format's
+ * unchanged, so a host calls `shapeFillEntryOptions`. `GUESS:` both omissions.
+ */
+export function chartOutlineEntryOptions(application: RibbonApplication): OutlineEntryOptions {
+  return { ...shapeOutlineEntryOptions(application), sketched: false, arrows: false };
+}
+
+/**
+ * **What sits beneath a chart's Text Fill**: the application's own Shape Format Text Fill entries, because the census
+ * counts WordArt Styles the same on the two tabs in each application (Word and Excel 30, PowerPoint 33). **Word's**:
+ * More Fill Colours… and Gradient ▸. **PowerPoint's**: More Fill Colours…, Eyedropper, Picture…, Gradient ▸, Texture ▸.
+ * **Excel's**: PowerPoint's less the Eyedropper. `GUESS:` the reading, and every entry.
+ */
+export function chartTextFillEntryOptions(application: RibbonApplication): FillEntryOptions {
+  if (application === 'word') return { moreColours: 'More Fill Colours…', gradient: true };
+  return {
+    moreColours: 'More Fill Colours…',
+    eyedropper: application === 'powerpoint',
+    picture: true,
+    gradient: true,
+    texture: true,
+  };
+}
+
+/**
+ * **What sits beneath a chart's Text Outline**, by `chartTextFillEntryOptions`' reading. **Word's**: More Outline
+ * Colours…, Weight ▸ and Dashes ▸. **PowerPoint's**: More Outline Colours…, Eyedropper, Weight ▸, Sketched ▸, Dashes ▸.
+ * **Excel's**: PowerPoint's less the Eyedropper. `GUESS:` the reading, and every entry.
+ */
+export function chartTextOutlineEntryOptions(application: RibbonApplication): OutlineEntryOptions {
+  if (application === 'word') return { moreColours: 'More Outline Colours…', weight: true, dashes: true };
+  return {
+    moreColours: 'More Outline Colours…',
+    eyedropper: application === 'powerpoint',
+    weight: true,
+    sketched: true,
+    dashes: true,
+  };
+}
+
+// ── Format: Size ─────────────────────────────────────────────────────────────
+
+/**
+ * **The height and width a Word host starts a chart's Size fields on**, in centimetres: the chart Word inserts, 3.5
+ * inches high and 6 wide (`wp:extent` 3200400 × 5486400 EMU), stepping by 0.01 cm. `GUESS:` both numbers and the step.
+ */
+export const wordChartMeasures = { height: '8.89', width: '15.24', step: '0.01' } as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
- * Word's five menus. **Chart Layouts' two**: Add Chart Element and Quick Layout. **Chart Styles' one**: Change Colours.
- * **Data's one**: Edit Data's arrow. **Type's one**: Change Chart Type. The Chart Styles gallery is in-ribbon, and
- * Switch Row/Column, Select Data and Refresh Data are plain buttons.
+ * Word's twelve Chart Format menus. **Insert Shapes' two**: Shapes and Change Shape, over a chart's gallery. **Shape
+ * Styles' two**: Other Theme Fills, which the Theme Styles gallery's footer opens and whose id is therefore the
+ * gallery's, and Shape Effects. **WordArt Styles' one**: Text Effects. **Arrange's seven**, over
+ * `stories/ribbons/design-layout-menus.ts`' Word lists, as Word's Shape Format. The Chart Elements field is a field, and
+ * every other command a picker, a gallery, a toggle or a plain button.
+ */
+function wordChartFormatMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'word.chart-format.insert-shapes.shapes', 'Shapes', ...chartShapesEntries('word'))}
+    ${commandMenu(host, 'word.chart-format.insert-shapes.change-shape', 'Change Shape', ...chartChangeShapeEntries('word'))}
+    ${commandMenu(host, 'word.chart-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
+    ${commandMenu(host, 'word.chart-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
+    ${commandMenu(host, 'word.chart-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'word.chart-format.arrange.position', 'Position', ...positionEntries())}
+    ${commandMenu(host, 'word.chart-format.arrange.wrap-text', 'Wrap Text', ...wrapTextEntries())}
+    ${commandMenu(host, 'word.chart-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('word'))}
+    ${commandMenu(host, 'word.chart-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('word'))}
+    ${commandMenu(host, 'word.chart-format.arrange.align', 'Align', ...alignEntries('word'))}
+    ${commandMenu(host, 'word.chart-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'word.chart-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+  `;
+}
+
+/**
+ * Word's seventeen menus: **Chart Design's five**, then `wordChartFormatMenus`' twelve. Chart Design: **Chart Layouts'
+ * two**, Add Chart Element and Quick Layout; **Chart Styles' one**, Change Colours; **Data's one**, Edit Data's arrow;
+ * **Type's one**, Change Chart Type. The Chart Styles gallery is in-ribbon, and Switch Row/Column, Select Data and
+ * Refresh Data are plain buttons.
  */
 function wordChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
@@ -440,6 +619,7 @@ function wordChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
     ${commandMenu(host, 'word.chart-design.chart-styles.change-colours', 'Change Colours', ...changeColoursEntries())}
     ${commandMenu(host, 'word.chart-design.data.edit-data', 'Edit Data', ...editDataEntries())}
     ${commandMenu(host, 'word.chart-design.type.change-chart-type', 'Change Chart Type', ...changeChartTypeEntries())}
+    ${wordChartFormatMenus(host)}
   `;
 }
 
@@ -474,8 +654,9 @@ function excelChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Chart Design tab opens, with ids for one host's page. **All three are authored**: Word's
- * and PowerPoint's five, Excel's four.
+ * Every menu one application's Chart Tools tabs open, with ids for one host's page. **Every Chart Design is authored**:
+ * Word's and PowerPoint's five, Excel's four. **Of the three Chart Formats, Word's is authored**, twelve menus;
+ * PowerPoint's and Excel's add theirs in their own units.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Chart Tools **and** binds its
  * commands: `Ribbons/Word`, `Ribbons/PowerPoint` and `Ribbons/Excel`. `Shell/Word` and `Shell/Excel` draw Table Tools
