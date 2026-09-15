@@ -267,6 +267,30 @@ Office's *state with a menu* (Track Changes, Show Comments, Hide Ink, Eraser). T
 and Arrow Down never moves the state. Without `toggle`, `pressed` is ignored and nothing is announced.
 `Controls/Split Button → The Toggle Mode` shows it in isolation.
 
+### One of a set
+
+Some toggles hold one at a time in Office: Word's five views, its two page movements, and the Draw tab's
+ink tools. `exclusive="<set>"` makes a toggle, or a split button's toggle face, one of such a set:
+
+```html
+<mjx-toggle-button exclusive="word.view.document-views" label="Print Layout" pressed></mjx-toggle-button>
+<mjx-toggle-button exclusive="word.view.document-views" label="Web Layout"></mjx-toggle-button>
+<mjx-split-button toggle exclusive="word.draw.write.tools" label="Eraser"></mjx-split-button>
+```
+
+- **Pressing a member releases every other member that holds**, looked up in its nearest `<mjx-ribbon-tab>`,
+  else its `<mjx-ribbon>`, else its root node. So three ribbons on one docs page stay independent, and a
+  collapsed group's survivor and its popup are one set.
+- **Pressing the member that holds keeps it**, and reports nothing, so one member always holds.
+- **Attributes move first, then each member that moved emits `mjx-change`**: the released ones with
+  `pressed: 'false'`, then the pressed one.
+- **They stay toggle buttons**, with `aria-pressed`, not radios. A radio group is one tab stop, and a
+  ribbon's set spans a split button and a collapsed group's two slots.
+
+The census declares the set (`RibbonCommand.exclusive`), `renderCommand` writes it onto the generic toggle,
+and a host binding writes it by hand. `tests/ribbons.test.ts` holds each set to exactly one member pressed
+and each binding to the census. `src/controls/exclusive-set.ts` records the alternatives rejected.
+
 ### One state table, read by the stylesheet and by both gates
 
 `src/controls/control-states.ts` is the whole design. Ten states, each naming *scheme members* —
@@ -450,9 +474,9 @@ written once, in `stories/ribbons/draw-menus.ts`, under the same gate as Insert'
 gesture, which is the reason unit 3 refused Text Box. Ruler and Draw with Touch pass the rules, but
 each is its group's only command.
 
-⚠ **The tools draw pressed and do not release each other.** `<mjx-toggle-button>` has no notion of a
-sibling, so pressing Pen leaves Select Objects pressed, where Office holds one tool at a time. That
-is a component gap in the same sense as the dropdown announcement above: no binding can fix it.
+**The five tools are one exclusive set**, as in Office, which holds one tool at a time. Pressing Pen
+releases Select Objects, and pressing the tool that holds keeps it. Word's and PowerPoint's Eraser is a
+split button whose face is one of the five. See *One of a set* under the ribbon archetypes.
 
 ### Design and Layout: galleries, dropdowns and fields (unit 5 of the ribbon programme)
 
@@ -646,7 +670,8 @@ Movement, Show, Zoom, Window, Night Mode. The tab changes how a document is look
 document, so almost nothing on it opens anything.
 
 - **Toggles**: the five views (Print Layout pressed), Focus, Vertical (pressed) and Side to Side, View Side by
-  Side, Synchronous Scrolling and Switch Modes.
+  Side, Synchronous Scrolling and Switch Modes. **The five views are one exclusive set, and Vertical and Side
+  to Side are another**, so each holds exactly one member, as in Office.
 - **Checkboxes a host binds**: Ruler, Gridlines and Navigation Pane (ticked, because the shell draws the pane).
 - **One dropdown**: Switch Windows, over `stories/ribbons/view-menus.ts`, which lists every open window.
 - **No field, no gallery, no dialog launcher.**
@@ -656,8 +681,6 @@ document, which is the Mailings record-navigator standard.
 
 ⚠ **What is not Office's shape, or is `GUESS:`.**
 
-- **The views, and Vertical and Side to Side, do not release each other.** Office holds exactly one of each
-  set; `<mjx-toggle-button>` knows no siblings, which is the Draw tab's gap on two more groups.
 - **Page Movement is drawn third**, where Microsoft 365 draws it; the census declares it sixth. Night Mode is
   last because nothing says where Office puts it. Macros and SharePoint are out of scope.
 - **Three group labels are the census's, not Microsoft 365's**: Document Views is Office's *Views*, Modes is
@@ -665,12 +688,14 @@ document, which is the Mailings record-navigator standard.
 - **Split is a plain button**, because Office relabels it Remove Split. Office greys Synchronous Scrolling
   and Reset Window Position until View Side by Side is on; both are drawn available.
 - **Switch Windows lists one window, *Method notes***, the catalogue's own document, not a real file name.
-- **Read Mode's book, Print Layout's page, Web Layout's globe, Focus's corners, the three zoom glyphs, Split,
-  View Side by Side, Switch Windows and Switch Modes** are judged from Fluent's drawings, not from a build
-  this project can cite.
-- **Outline, Draft, Vertical, Side to Side, Ruler, Gridlines, Navigation Pane, Zoom, Multiple Pages, Arrange
-  All, Synchronous Scrolling and Reset Window Position carry no icon.** Outline's natural glyph is already
-  Multilevel List's.
+- **Read Mode's book, Print Layout's page, Web Layout's globe, Outline's stepped bars, Draft's lines with a
+  pencil, Focus's corners, the three zoom glyphs, Split, View Side by Side, Switch Windows and Switch Modes**
+  are judged from Fluent's drawings, not from a build this project can cite. Outline does not use the nearer
+  `text-bullet-list-tree`, because that is Multilevel List's.
+- **Vertical, Side to Side, Ruler, Gridlines, Navigation Pane, Zoom, Multiple Pages, Arrange All, Synchronous
+  Scrolling and Reset Window Position carry no icon.**
+- `GUESS:` **pressing the member of a set that holds does nothing.** Office's Pen, pressed again, opens its
+  options.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

@@ -708,6 +708,276 @@ describe('the split toggle rule can reject', () => {
   });
 });
 
+// ── exclusive sets ───────────────────────────────────────────────────────────
+
+/** One member of an exclusive set, with where it is declared. */
+export interface ExclusiveSetMember {
+  readonly application: string;
+  readonly tab: string;
+  readonly command: RibbonCommand;
+}
+
+/** Every exclusive set a census declares, by name, with its members in declared order. */
+export function exclusiveSetsIn(
+  census: Readonly<Partial<Record<RibbonApplication, readonly RibbonTabEntry[]>>>,
+): Map<string, ExclusiveSetMember[]> {
+  const sets = new Map<string, ExclusiveSetMember[]>();
+  for (const [application, tabs] of Object.entries(census)) {
+    for (const tab of tabs) {
+      for (const group of tab.groups) {
+        for (const command of group.commands ?? []) {
+          if (command.exclusive === undefined) continue;
+          const members = sets.get(command.exclusive) ?? [];
+          members.push({ application, tab: tab.id, command });
+          sets.set(command.exclusive, members);
+        }
+      }
+    }
+  }
+  return sets;
+}
+
+/**
+ * **What is wrong with a census's exclusive sets.**
+ *
+ * `src/controls/exclusive-set.ts` keeps one member pressed once somebody presses one, and cannot supply the
+ * first: a set that starts with nothing pressed draws a ribbon where Word is in no view, and a set that
+ * starts with two draws the defect this mechanism removed. So **exactly one member starts pressed**. Every
+ * member must be a toggle, because a button has no position to release, and every member must live in one
+ * tab of one application, because the coordinator looks the set up in the pressed member's tab and a
+ * member elsewhere would never be released. A set of one is a toggle that cannot be released at all.
+ */
+export function exclusiveSetFindings(
+  census: Readonly<Partial<Record<RibbonApplication, readonly RibbonTabEntry[]>>>,
+): string[] {
+  const findings: string[] = [];
+  for (const [set, members] of exclusiveSetsIn(census)) {
+    const places = new Set(members.map((member) => `${member.application} ${member.tab}`));
+    if (places.size > 1) {
+      findings.push(
+        `${set} has members in ${[...places].sort().join(' and ')}. A set is looked up in the pressed ` +
+          "member's tab, so a member elsewhere is never released.",
+      );
+    }
+    if (members.length < 2) {
+      findings.push(`${set} has one member, which could never be released. Drop \`exclusive\` from it.`);
+    }
+    for (const { command } of members) {
+      if (command.toggle !== true) {
+        findings.push(`${command.id} is in ${set} and is not a toggle, so it holds no position to release.`);
+      }
+    }
+    const pressed = members.filter((member) => member.command.pressed === true).map((member) => member.command.id);
+    if (pressed.length !== 1) {
+      findings.push(
+        `${set} starts with ${String(pressed.length)} members pressed (${pressed.join(', ') || 'none'}). ` +
+          'Office holds exactly one, so exactly one must start pressed.',
+      );
+    }
+  }
+  return findings;
+}
+
+describe('every exclusive set starts with exactly one member pressed', () => {
+  const sets = exclusiveSetsIn(ribbonCensus);
+
+  it('finds the sets Office holds one of, or it is checking nothing', () => {
+    expect(
+      Object.fromEntries([...sets].map(([set, members]) => [set, members.map((member) => member.command.label)])),
+    ).toEqual({
+      'word.draw.write.tools': ['Select Objects', 'Lasso Select', 'Pen', 'Highlighter', 'Eraser'],
+      'powerpoint.draw.write.tools': ['Select Objects', 'Lasso Select', 'Pen', 'Highlighter', 'Eraser'],
+      'excel.draw.write.tools': ['Select Objects', 'Lasso Select', 'Pen', 'Highlighter', 'Eraser'],
+      'word.view.document-views': ['Read Mode', 'Print Layout', 'Web Layout', 'Outline', 'Draft'],
+      'word.view.page-movement': ['Vertical', 'Side to Side'],
+    });
+  });
+
+  it('starts each on the member a new document or a fresh tab is in', () => {
+    const starting = Object.fromEntries(
+      [...sets].map(([set, members]) => [
+        set,
+        members.filter((member) => member.command.pressed === true).map((member) => member.command.label),
+      ]),
+    );
+    expect(starting).toEqual({
+      'word.draw.write.tools': ['Select Objects'],
+      'powerpoint.draw.write.tools': ['Select Objects'],
+      'excel.draw.write.tools': ['Select Objects'],
+      'word.view.document-views': ['Print Layout'],
+      'word.view.page-movement': ['Vertical'],
+    });
+  });
+
+  it('holds every set in the census to the rule', () => {
+    expect(exclusiveSetFindings(ribbonCensus)).toEqual([]);
+  });
+});
+
+describe('the exclusive set rule can reject', () => {
+  const tabOf = (id: string, commands: readonly RibbonCommand[]): RibbonTabEntry => ({
+    id,
+    label: id,
+    appearance: 'always',
+    source: { kind: 'core', tab: 'TabFixture' },
+    groups: [{ id: 'GroupFixture', label: 'Fixture', priority: 'standard', controls: commands.length, inScope: true, commands }],
+  });
+  const member = (label: string, extra: Partial<RibbonCommand> = {}): RibbonCommand => ({
+    id: `word.fixture.group.${label}`,
+    label,
+    toggle: true,
+    exclusive: 'word.fixture.set',
+    ...extra,
+  });
+
+  it('accepts a set of toggles in one tab with one pressed', () => {
+    expect(exclusiveSetFindings({ word: [tabOf('view', [member('a', { pressed: true }), member('b')])] })).toEqual([]);
+  });
+
+  it('refuses a set that starts with none pressed, or with two', () => {
+    expect(exclusiveSetFindings({ word: [tabOf('view', [member('a'), member('b')])] })).toEqual([
+      expect.stringContaining('starts with 0 members pressed (none)'),
+    ]);
+    expect(
+      exclusiveSetFindings({ word: [tabOf('view', [member('a', { pressed: true }), member('b', { pressed: true })])] }),
+    ).toEqual([expect.stringContaining('starts with 2 members pressed')]);
+  });
+
+  it('refuses a member that is not a toggle', () => {
+    const findings = exclusiveSetFindings({
+      word: [tabOf('view', [member('a', { pressed: true }), member('b', { toggle: false })])],
+    });
+    expect(findings).toEqual([expect.stringContaining('is not a toggle')]);
+  });
+
+  it('refuses a set split across two tabs', () => {
+    const findings = exclusiveSetFindings({
+      word: [tabOf('view', [member('a', { pressed: true })]), tabOf('draw', [member('b')])],
+    });
+    expect(findings).toEqual([expect.stringContaining('has members in word draw and word view')]);
+  });
+
+  it('refuses a set of one', () => {
+    expect(exclusiveSetFindings({ word: [tabOf('view', [member('a', { pressed: true })])] })).toEqual([
+      expect.stringContaining('has one member'),
+    ]);
+  });
+});
+
+/**
+ * **What is wrong with a host's bindings over members of an exclusive set.**
+ *
+ * `renderCommand` writes `exclusive` onto the generic toggle, but a host override is markup the host wrote,
+ * so the attribute is written by hand there, and one forgotten attribute is a member that silently stays
+ * pressed beside the one somebody picked. So a binding over a member must carry the census's set, and must
+ * be an element that holds a position: `<mjx-toggle-button>`, or `<mjx-split-button toggle>`. A binding
+ * that claims a set the census does not declare is refused too, so the two spellings cannot drift apart.
+ */
+export function exclusiveBindingFindings(
+  file: { readonly name: string; readonly source: string },
+  commands: readonly RibbonCommand[],
+): string[] {
+  const byId = new Map(commands.map((command) => [command.id, command]));
+  const findings: string[] = [];
+  for (const bound of boundControlsIn(file.source)) {
+    const command = byId.get(bound.key);
+    if (command === undefined) continue;
+    const declared = /(?:^|\s)exclusive="([^"]*)"/.exec(bound.attributes)?.[1];
+    if (command.exclusive === undefined) {
+      if (declared !== undefined) {
+        findings.push(
+          `${file.name}: ${bound.key} is bound with exclusive="${declared}", and the census declares it in no set.`,
+        );
+      }
+      continue;
+    }
+    if (declared === undefined) {
+      findings.push(
+        `${file.name}: ${bound.key} is in ${command.exclusive} in the census and its binding carries no ` +
+          '`exclusive`, so pressing another member leaves it pressed.',
+      );
+    } else if (declared !== command.exclusive) {
+      findings.push(
+        `${file.name}: ${bound.key} is bound with exclusive="${declared}", and the census puts it in ${command.exclusive}.`,
+      );
+    }
+    const holdsPosition =
+      bound.tag === 'mjx-toggle-button' ||
+      (bound.tag === 'mjx-split-button' && /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes));
+    if (!holdsPosition) {
+      findings.push(
+        `${file.name}: ${bound.key} is in ${command.exclusive} and is bound as a <${bound.tag}> that holds no ` +
+          'position, so nothing can release it.',
+      );
+    }
+  }
+  return findings;
+}
+
+describe('every host binding over a member of a set carries the set', () => {
+  const commands = everyRibbonCommand();
+
+  it('finds bound members at all, or it is checking nothing', () => {
+    const bound = assemblySources
+      .flatMap((file) => boundControlsIn(file.source))
+      .filter((control) => /(?:^|\s)exclusive="/.test(control.attributes));
+    // Word's and PowerPoint's split Eraser, in two hosts each. Every other member is the generic toggle.
+    expect(bound.map((control) => control.key).sort()).toEqual(
+      ['powerpoint.draw.write.eraser', 'powerpoint.draw.write.eraser', 'word.draw.write.eraser', 'word.draw.write.eraser'].sort(),
+    );
+  });
+
+  for (const file of assemblySources) {
+    it(`${file.name} binds every member with its census set`, () => {
+      expect(exclusiveBindingFindings(file, commands)).toEqual([]);
+    });
+  }
+});
+
+describe('the exclusive binding rule can reject', () => {
+  const eraser: RibbonCommand = {
+    id: 'word.draw.write.eraser',
+    label: 'Eraser',
+    toggle: true,
+    exclusive: 'word.draw.write.tools',
+  };
+  const loose: RibbonCommand = { id: 'word.review.ink.hide-ink', label: 'Hide Ink', toggle: true };
+  const host = (key: string, tag: string, attributes: string): { name: string; source: string } => ({
+    name: 'fixture.stories.ts',
+    source: `const bindings = {\n  '${key}': html\`<${tag}\n    ${attributes}\n    label="x"\n  ></${tag}>\`,\n};\n`,
+  });
+
+  it('accepts a split toggle and a toggle button carrying the census set', () => {
+    expect(exclusiveBindingFindings(host(eraser.id, 'mjx-split-button', 'toggle\n    exclusive="word.draw.write.tools"'), [eraser])).toEqual([]);
+    expect(exclusiveBindingFindings(host(eraser.id, 'mjx-toggle-button', 'exclusive="word.draw.write.tools"'), [eraser])).toEqual([]);
+    expect(exclusiveBindingFindings(host(loose.id, 'mjx-split-button', 'toggle'), [loose])).toEqual([]);
+  });
+
+  it('refuses a member bound without its set', () => {
+    expect(exclusiveBindingFindings(host(eraser.id, 'mjx-split-button', 'toggle'), [eraser])).toEqual([
+      expect.stringContaining('carries no `exclusive`'),
+    ]);
+  });
+
+  it('refuses a binding naming a different set, or a set the census does not declare', () => {
+    expect(
+      exclusiveBindingFindings(host(eraser.id, 'mjx-split-button', 'toggle\n    exclusive="word.draw.pens"'), [eraser]),
+    ).toEqual([expect.stringContaining('the census puts it in word.draw.write.tools')]);
+    expect(
+      exclusiveBindingFindings(host(loose.id, 'mjx-split-button', 'toggle\n    exclusive="word.review.ink"'), [loose]),
+    ).toEqual([expect.stringContaining('declares it in no set')]);
+  });
+
+  it('refuses a member bound as something with no position', () => {
+    expect(
+      exclusiveBindingFindings(host(eraser.id, 'mjx-split-button', 'exclusive="word.draw.write.tools"'), [eraser]),
+    ).toEqual([expect.stringContaining('holds no position')]);
+    expect(exclusiveBindingFindings(host(eraser.id, 'mjx-button', 'exclusive="word.draw.write.tools"'), [eraser])).toEqual([
+      expect.stringContaining('holds no position'),
+    ]);
+  });
+});
+
 // ── the collapse ceiling ─────────────────────────────────────────────────────
 
 /**

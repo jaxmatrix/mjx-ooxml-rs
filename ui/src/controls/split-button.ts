@@ -68,6 +68,11 @@
  * Without `toggle`, a `pressed` attribute is ignored and no `aria-pressed` is written, so every
  * existing split button renders and announces exactly as before — see `splitButtonPressed`.
  *
+ * **A toggling split can be one of an exclusive set**, as the Draw tab's Eraser is one of the ink tools:
+ * `exclusive="<set>"` releases the set's other members when the face is pressed, and keeps the face
+ * pressed when it is pressed again. Only the face takes part; the arrow still only asks for a menu. A
+ * split without `toggle` holds no position, so it is never a member. See `exclusive-set.ts`.
+ *
  * `GUESS:` the derived arrow name is *"More <label> options"*, which is the shape Office uses
  * (*"More Paste options"*). It is not checked against Office, and a caller who knows the real name
  * gives it in `menu-label`.
@@ -94,13 +99,13 @@ import {
   derivedMenuLabel,
   isControlSize,
   isForcibleState,
-  nextPressed,
   pressedIconVariant,
   splitButtonPressed,
   splitMenuIcon,
   type ControlSize,
   type PressedValue,
 } from './control-states.ts';
+import { activateToggle, exclusiveAttribute, exclusiveSetFromAttribute } from './exclusive-set.ts';
 
 /**
  * The split's own rules: the seam between the two regions, and the divider that makes it legible.
@@ -220,6 +225,19 @@ export class MjxSplitButton extends HTMLElement {
     else this.setAttribute('pressed', value);
   }
 
+  /**
+   * The exclusive set the primary region belongs to, or `undefined`. Only a `toggle` split takes part,
+   * because only it holds a position. See `exclusive-set.ts`.
+   */
+  get exclusive(): string | undefined {
+    return exclusiveSetFromAttribute(this.getAttribute(exclusiveAttribute));
+  }
+
+  set exclusive(value: string | undefined) {
+    if (value === undefined) this.removeAttribute(exclusiveAttribute);
+    else this.setAttribute(exclusiveAttribute, value);
+  }
+
   /** Whether the host says a menu is open. Never set by this component — see the module note. */
   get expanded(): boolean {
     return this.hasAttribute('expanded');
@@ -304,10 +322,9 @@ export class MjxSplitButton extends HTMLElement {
       emitControlEvent(this, controlEvents.activate, { region: 'primary' });
       return;
     }
-    // Move, then report — `<mjx-toggle-button>`'s order and its detail, so one listener serves both.
-    const next = nextPressed(pressed);
-    this.setAttribute('pressed', next);
-    emitControlEvent(this, controlEvents.change, { pressed: next });
+    // Move, then report — `<mjx-toggle-button>`'s order and its detail, so one listener serves both,
+    // and the same function, so a split in an exclusive set releases its siblings exactly as a toggle does.
+    activateToggle(this, pressed);
   };
 
   #onMenuClick = (event: MouseEvent): void => {

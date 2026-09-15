@@ -274,6 +274,8 @@ export interface ToggleOptions {
   readonly pressed?: boolean;
   /** Defaults to `icon`, the size nearly every ribbon toggle is. A toggle with no icon must not use it. */
   readonly size?: ControlSize;
+  /** The exclusive set it belongs to, written as `exclusive`. See `src/controls/exclusive-set.ts`. */
+  readonly exclusive?: string | undefined;
 }
 
 /** A ribbon toggle. */
@@ -287,6 +289,7 @@ export function toggle(
     label=${label}
     icon=${icon ?? nothing}
     size=${options.size ?? 'icon'}
+    exclusive=${options.exclusive ?? nothing}
     ?pressed=${options.pressed === true}
   ></mjx-toggle-button>`;
 }

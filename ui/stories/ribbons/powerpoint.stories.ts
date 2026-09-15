@@ -288,6 +288,7 @@ const bindings: ControlOverrides = {
   ></mjx-button>`,
   'powerpoint.draw.write.eraser': html`<mjx-split-button
     toggle
+    exclusive="powerpoint.draw.write.tools"
     label="Eraser"
     icon="eraser"
     size="large"
@@ -592,7 +593,7 @@ export const Insert: Story = { render: () => ribbon('insert') };
 /**
  * **Draw**: nine groups and the ribbon programme's unit 4. See `Ribbons/Word → Draw` for what shapes
  * every Draw tab: two generations of Office's ink tools on one tab, one survivor (Select Objects),
- * and tools that draw pressed but do not yet release each other. What is PowerPoint's own:
+ * and five tools of which one holds at a time, Eraser's split face among them. What is PowerPoint's own:
  *
  * 1. **Word's tab without two groups.** Editing (Ink Editor) and Drawing Canvas are Word's alone, so
  *    the strip goes straight from Stencils to Input Mode.

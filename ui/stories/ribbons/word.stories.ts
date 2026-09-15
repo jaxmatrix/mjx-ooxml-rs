@@ -297,6 +297,7 @@ const bindings: ControlOverrides = {
   ></mjx-button>`,
   'word.draw.write.eraser': html`<mjx-split-button
     toggle
+    exclusive="word.draw.write.tools"
     label="Eraser"
     icon="eraser"
     size="large"
@@ -807,10 +808,11 @@ export const Insert: Story = { render: () => ribbon('insert') };
  *    is unit 3's reason for refusing Text Box. Ruler and Draw with Touch pass the rules and are each
  *    their group's only command. Pens and Write are the tab's primary groups, so they are the last two
  *    standing.
- * 3. **The tools draw pressed, and Select Objects starts pressed.** ⚠ **They do not yet release each
- *    other**: press Pen and Select Objects stays pressed, where Office holds one tool at a time. A
- *    toggle button knows no siblings. That is a gap in the component, not a claim that Office works
- *    this way.
+ * 3. ⚠ **The five tools hold one at a time, and Select Objects starts pressed.** Press Pen and Select
+ *    Objects releases; press Pen again and it stays pressed. Eraser's face is one of the five, so pressing
+ *    it releases Pen, and its arrow still only opens the eraser sizes. Collapse Write and press a tool in
+ *    its popup: Select Objects, beside the trigger, releases too. `GUESS:` that pressing the tool that
+ *    holds does nothing, where Office's Pen opens its options.
  * 4. **Six commands open something.** Press Add Pen, Pens, Colour, Thickness or Touch/Mouse Mode and
  *    its menu opens; press Eraser's arrow and the eraser sizes open. Eraser's face is a toggle, so pressing
  *    it draws pressed without opening anything. The other commands are the plain
@@ -948,23 +950,24 @@ export const Review: Story = { render: () => ribbon('review') };
  *    in fit corners) and Page Width (a width between two stops) stay beside the trigger, and Zoom and
  *    Multiple Pages open from it. `GUESS:` that each glyph reads with no label, and 100% keeps its large size
  *    in the survivor row.
- * 2. ⚠ **The views do not release each other.** Print Layout starts pressed. Press Web Layout and both draw
- *    pressed, where Office holds one view at a time; press Print Layout and it releases. The same is true of
- *    Vertical (pressed) and Side to Side. That is `<mjx-toggle-button>`'s gap, the Draw tab's.
+ * 2. ⚠ **One view at a time, and one page movement.** Print Layout starts pressed. Press Web Layout and
+ *    Print Layout releases; press Web Layout again and it stays pressed. Vertical (pressed) and Side to Side
+ *    do the same, and neither set touches the other. Tab to a view and press Space: the same, by keyboard.
  * 3. ⚠ **Group labels and order.** Document Views, Modes and Night Mode are the census's labels, where
  *    Microsoft 365 says Views, Immersive and Dark Mode. Page Movement is third, where Microsoft 365 draws
  *    it; the census declares it sixth. Night Mode is last, `GUESS:`. Macros and SharePoint are out of scope.
  * 4. **Glyphs to judge**: Read Mode's open book, Print Layout's page and Web Layout's globe (all large
- *    toggles, filled while pressed), Focus's four corners, Immersive Reader's own mark, New Window, Split's
- *    window cut across, View Side by Side's two panes and Switch Modes' half-dark circle. All but Immersive
- *    Reader and New Window are `GUESS:`.
+ *    toggles, filled while pressed), Outline's stepped bars and Draft's lines with a pencil (small, filled
+ *    while pressed), Focus's four corners, Immersive Reader's own mark, New Window, Split's window cut
+ *    across, View Side by Side's two panes and Switch Modes' half-dark circle. All but Immersive Reader and
+ *    New Window are `GUESS:`.
  * 5. **Switch Windows is the tab's only menu**: one window, *1 Method notes*, checked. `GUESS:` the name,
  *    which is the catalogue's own document rather than a real file. Split is a plain button, because Office
  *    relabels it Remove Split.
  * 6. **Show is three checkboxes**: Ruler and Gridlines unticked, Navigation Pane ticked. Tick one and it
  *    ticks.
- * 7. **Labels, not glyphs**: Outline, Draft, Vertical, Side to Side, Zoom, Multiple Pages, Arrange All,
- *    Synchronous Scrolling and Reset Window Position carry no icon and are small. No dialog launchers.
+ * 7. **Labels, not glyphs**: Vertical, Side to Side, Zoom, Multiple Pages, Arrange All, Synchronous
+ *    Scrolling and Reset Window Position carry no icon and are small. No dialog launchers.
  */
 export const View: Story = { render: () => ribbon('view') };
 

@@ -239,7 +239,9 @@ export function tab(id: string, label: string, ...groups: TemplateResult[]): Tem
  *
  * A toggle still goes through `shell-parts.ts`'s `toggle()` rather than being built here, so there
  * is one spelling of a ribbon toggle; what it no longer does is decide anything on the census's
- * behalf.
+ * behalf. **`exclusive` is carried the same way**: the census names the set, and the toggle writes it.
+ * An override that draws a member writes the attribute itself, and `tests/ribbons.test.ts` holds it to
+ * the census.
  *
  * ⚠ An override is drawn exactly as the host wrote it, `slot` included, which is why
  * `tests/ribbons.test.ts` refuses an override that claims `slot="essential"`: every override in
@@ -257,6 +259,7 @@ export function renderCommand(
       essential: command.essential === true,
       pressed: command.pressed === true,
       size: command.size ?? 'small',
+      exclusive: command.exclusive,
     });
   }
   return html`<mjx-button

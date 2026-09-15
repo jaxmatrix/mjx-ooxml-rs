@@ -667,13 +667,14 @@ export const Insert: Story = { render: () => ribbon('insert') };
 /**
  * **Draw**: eight groups and the ribbon programme's unit 4. See `Ribbons/Word → Draw` for what shapes
  * every Draw tab: two generations of Office's ink tools on one tab, one survivor (Select Objects),
- * and tools that draw pressed but do not yet release each other. What is Excel's own:
+ * and five tools of which one holds at a time. What is Excel's own:
  *
  * 1. **No Stencils group**, because Excel's census declares none. There is no Ruler, and the strip
  *    goes from Write to Input Mode.
  * 2. **Eraser is a plain toggle, not a split button.** Excel's census counts five controls in Write,
- *    exactly its five tools, so nothing is behind an arrow. Press it and it draws pressed; nothing
- *    opens. Compare `Ribbons/PowerPoint → Draw`, where the same command has an arrow.
+ *    exactly its five tools, so nothing is behind an arrow. Press it and it draws pressed, releasing the
+ *    tool that held; nothing opens. Compare `Ribbons/PowerPoint → Draw`, where the same command has an
+ *    arrow.
  * 3. **Five commands open something**: Add Pen, Pens, Colour, Thickness and Touch/Mouse Mode.
  */
 export const Draw: Story = { render: () => ribbon('draw') };

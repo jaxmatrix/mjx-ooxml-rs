@@ -148,6 +148,17 @@ export interface RibbonCommand {
   /** A toggle that starts on, so the ribbon shows a pressed state without a pointer. */
   readonly pressed?: boolean;
   /**
+   * **The exclusive set this toggle belongs to**: Office holds exactly one member of the set, so
+   * pressing one releases the others and pressing the one that holds keeps it. The name is
+   * `<app>.<tab>.<group>.<set>`-shaped and shared by every member. `renderCommand` writes it onto the
+   * generic toggle as `exclusive`, and a host that binds its own control writes the same attribute.
+   *
+   * Every member is a `toggle`, every member lives in one tab (the set is looked up in its tab), and
+   * **exactly one member starts `pressed`**. `tests/ribbons.test.ts` holds all three and the host
+   * bindings. The mechanism is `src/controls/exclusive-set.ts`.
+   */
+  readonly exclusive?: string;
+  /**
    * **This command survives its group's collapse** — declared, never inferred, for a toggle and a
    * button alike. It must pass every one of `demotionRules`, and it says nothing about *position*:
    * a survivor draws where it is declared at every width with room for the group, and beside the
@@ -1250,8 +1261,11 @@ function drawPensCommands(application: RibbonApplication): readonly RibbonComman
 /**
  * Write: Select Objects, Lasso Select, Pen, Highlighter, Eraser — Office 2013's tool set, in its order.
  *
- * All five are toggles, because Office draws the current tool pressed. **Select Objects starts
- * pressed**, since a person arriving on the tab has not picked up a pen yet.
+ * All five are toggles, because Office draws the current tool pressed, and **one exclusive set**,
+ * `<app>.draw.write.tools`, because Office holds one tool at a time: pressing Pen releases Select
+ * Objects, and pressing the tool that holds keeps it. **Select Objects starts pressed**, since a person
+ * arriving on the tab has not picked up a pen yet. Word's and PowerPoint's Eraser is a host's split
+ * button, and each host writes the same `exclusive` on it; Excel's is the generic toggle.
  *
  * **Select Objects is the tab's one survivor.** See the section header for why the other four arm a
  * gesture and fail rule 1. **Highlighter draws `highlight`**, Word's Text Highlight Colour glyph. That
@@ -1262,6 +1276,7 @@ function drawPensCommands(application: RibbonApplication): readonly RibbonComman
  * the *Recommended* unit 3 measured clipping. Its letters are narrower, and nobody has measured it.
  */
 function drawWriteCommands(application: RibbonApplication): readonly RibbonCommand[] {
+  const tools = `${application}.draw.write.tools`;
   return [
     {
       id: `${application}.draw.write.select-objects`,
@@ -1269,12 +1284,13 @@ function drawWriteCommands(application: RibbonApplication): readonly RibbonComma
       icon: 'cursor',
       toggle: true,
       pressed: true,
+      exclusive: tools,
       essential: true,
     },
-    { id: `${application}.draw.write.lasso-select`, label: 'Lasso Select', icon: 'lasso', toggle: true },
-    { id: `${application}.draw.write.pen`, label: 'Pen', icon: 'pen', size: 'large', toggle: true },
-    { id: `${application}.draw.write.highlighter`, label: 'Highlighter', icon: 'highlight', size: 'large', toggle: true },
-    { id: `${application}.draw.write.eraser`, label: 'Eraser', icon: 'eraser', size: 'large', toggle: true },
+    { id: `${application}.draw.write.lasso-select`, label: 'Lasso Select', icon: 'lasso', toggle: true, exclusive: tools },
+    { id: `${application}.draw.write.pen`, label: 'Pen', icon: 'pen', size: 'large', toggle: true, exclusive: tools },
+    { id: `${application}.draw.write.highlighter`, label: 'Highlighter', icon: 'highlight', size: 'large', toggle: true, exclusive: tools },
+    { id: `${application}.draw.write.eraser`, label: 'Eraser', icon: 'eraser', size: 'large', toggle: true, exclusive: tools },
   ];
 }
 
@@ -3124,12 +3140,12 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 // Multiple Pages, Page Width, New Window, Arrange All, Split and Reset Window Position. **No field, no
 // gallery, no dialog launcher**: Office puts none on Word's View tab.
 //
-// ⚠ **The views are mutually exclusive in Office, and the toggles here do not release each other.** Word
-// is always in exactly one of Read Mode, Print Layout, Web Layout, Outline and Draft, and pressing the view
-// it is already in keeps it. `<mjx-toggle-button>` has no notion of a sibling, so pressing Web Layout
-// leaves Print Layout pressed, and pressing Print Layout releases it. That is the Draw tab's gap on the
-// tools, now on two more groups (Document Views, and Page Movement's Vertical and Side to Side). No
-// binding can fix it; it is the component's.
+// **Two exclusive sets.** Word is always in exactly one of Read Mode, Print Layout, Web Layout, Outline and
+// Draft, and scrolls in exactly one of Vertical and Side to Side. Pressing the view it is already in keeps
+// it. So the five views are the set `word.view.document-views`, Print Layout pressed, and the two page
+// movements are `word.view.page-movement`, Vertical pressed: pressing Web Layout releases Print Layout, and
+// pressing Print Layout while it holds keeps it. The mechanism is `src/controls/exclusive-set.ts`, the
+// same one the Draw tab's tools use.
 //
 // ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
 //
@@ -3172,9 +3188,9 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 //   `document-one-page-multiple` is a stack of pages, which reads as *several documents* or *copies*,
 //   where the command lays pages side by side.
 // - **The views and Focus are modes, not presses.** Read Mode and Focus take over the whole window and hide
-//   the ribbon, Outline opens the Outlining tab, and a survivor row of views would show two pressed at once
-//   because the toggles do not release each other. **Page Movement** is two commands with no glyph, and a
-//   survivor of each would leave its collapsed popup empty.
+//   the ribbon, and Outline opens the Outlining tab. A press on a view is not taken back by a second press on
+//   it, only by pressing another view, which rule 1 does not allow. **Page Movement** is two commands with no
+//   glyph, and a survivor of each would leave its collapsed popup empty.
 // - **Show's three are checkboxes a host binds**, which the gate refuses as survivors, and none has a glyph.
 // - **Window**: New Window opens a window, Arrange All and Split rearrange every window (Split then arms a
 //   bar the pointer places), View Side by Side asks which document when more than two are open, and Switch
@@ -3187,11 +3203,16 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 // wraps inside `largeControlWidthUnits`. **Read Mode, Print Layout, Web Layout, Focus, Immersive Reader,
 // 100%, New Window, Split, Switch Windows and Switch Modes** are large.
 //
+// **Outline and Draft carry an icon and stay small**, where Office draws them in a column beside the three
+// large views. **Outline draws `list-bar-tree-offset`**, bars stepping one level deeper each, which is the
+// heading hierarchy the view shows. It is deliberately not `text-bullet-list-tree`, the nearer picture,
+// because that is **Multilevel List** on Home's Paragraph group and would make the view look like a list
+// command. **Draft draws `drafts`**, lines of text with a pencil and no page around them, which is the
+// view: the text, edited, with the page layout taken away. Plain lines would be every alignment glyph, and
+// a page of lines would be Print Layout's `document-one-page`. `GUESS:` both glyphs.
+//
 // A wrong icon is worse than none, and this tab is where Fluent's gaps show most:
 //
-// - **Outline**: `text-bullet-list-tree` is exactly Word's outline picture, and it is already **Multilevel
-//   List** on Home's Paragraph group, so an outline view drawn with it is a list command a person reaches
-//   for. **Draft** would be lines of text, which is every alignment glyph.
 // - **Vertical and Side to Side**: Fluent's vertical scroll marks are a phone and a dual screen, and its open
 //   book is Read Mode beside them. No page with an arrow down, no pages turning sideways.
 // - **Ruler, Gridlines and Navigation Pane** are checkboxes, which draw no glyph.
@@ -3202,27 +3223,28 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 // - **Synchronous Scrolling**: `arrow-sync` is AutoSave's. **Reset Window Position**: `arrow-reset` is
 //   PowerPoint's Reset.
 //
-// So those twelve are `small`, and the label is the command.
+// So those ten are `small`, and the label is the command.
 
 /**
  * Word's Document Views group: Read Mode, Print Layout and Web Layout large, then Outline and Draft in a
  * column.
  *
- * **Five toggles, Print Layout pressed**, because Print Layout is a new document's view; see this
- * section's header on why they do not release each other. **Read Mode draws `book-open`**, an open book,
- * Office's own picture for the reading view. **Print Layout draws `document-one-page`**, a printed page.
- * **Web Layout draws `globe`**, Excel's From Web glyph on another application's tab, because Office's own
- * is a page with a globe on it. `GUESS:` all three glyphs. **Outline and Draft** carry no icon; see this
- * section's header.
+ * **Five toggles and one exclusive set, Print Layout pressed**, because Print Layout is a new document's
+ * view and Word is in exactly one view at a time; see this section's header. **Read Mode draws
+ * `book-open`**, an open book, Office's own picture for the reading view. **Print Layout draws
+ * `document-one-page`**, a printed page. **Web Layout draws `globe`**, Excel's From Web glyph on another
+ * application's tab, because Office's own is a page with a globe on it. **Outline draws
+ * `list-bar-tree-offset`** and **Draft draws `drafts`**, both small; see this section's header for why
+ * neither is the nearer-looking glyph. `GUESS:` all five glyphs.
  *
  * **No survivor**: five modes, one of which hides the ribbon and one of which opens a tab.
  */
 const wordViewDocumentViews: readonly RibbonCommand[] = [
-  { id: 'word.view.document-views.read-mode', label: 'Read Mode', icon: 'book-open', size: 'large', toggle: true },
-  { id: 'word.view.document-views.print-layout', label: 'Print Layout', icon: 'document-one-page', size: 'large', toggle: true, pressed: true },
-  { id: 'word.view.document-views.web-layout', label: 'Web Layout', icon: 'globe', size: 'large', toggle: true },
-  { id: 'word.view.document-views.outline', label: 'Outline', toggle: true },
-  { id: 'word.view.document-views.draft', label: 'Draft', toggle: true },
+  { id: 'word.view.document-views.read-mode', label: 'Read Mode', icon: 'book-open', size: 'large', toggle: true, exclusive: 'word.view.document-views' },
+  { id: 'word.view.document-views.print-layout', label: 'Print Layout', icon: 'document-one-page', size: 'large', toggle: true, pressed: true, exclusive: 'word.view.document-views' },
+  { id: 'word.view.document-views.web-layout', label: 'Web Layout', icon: 'globe', size: 'large', toggle: true, exclusive: 'word.view.document-views' },
+  { id: 'word.view.document-views.outline', label: 'Outline', icon: 'list-bar-tree-offset', toggle: true, exclusive: 'word.view.document-views' },
+  { id: 'word.view.document-views.draft', label: 'Draft', icon: 'drafts', toggle: true, exclusive: 'word.view.document-views' },
 ];
 
 /**
@@ -3245,15 +3267,15 @@ const wordViewModes: readonly RibbonCommand[] = [
 /**
  * Word's Page Movement group: Vertical and Side to Side.
  *
- * **Two toggles, Vertical pressed**, because a new document scrolls vertically: one holds at a time in
- * Office, and here they do not release each other. Neither carries an icon, so both are `small` where
- * Office draws them large; see this section's header.
+ * **Two toggles and one exclusive set, Vertical pressed**, because a new document scrolls vertically and
+ * one movement holds at a time in Office. Neither carries an icon, so both are `small` where Office draws
+ * them large; see this section's header.
  *
  * **No survivor**: no glyph, and a survivor of each would leave the popup empty.
  */
 const wordViewPageMovement: readonly RibbonCommand[] = [
-  { id: 'word.view.page-movement.vertical', label: 'Vertical', toggle: true, pressed: true },
-  { id: 'word.view.page-movement.side-to-side', label: 'Side to Side', toggle: true },
+  { id: 'word.view.page-movement.vertical', label: 'Vertical', toggle: true, pressed: true, exclusive: 'word.view.page-movement' },
+  { id: 'word.view.page-movement.side-to-side', label: 'Side to Side', toggle: true, exclusive: 'word.view.page-movement' },
 ];
 
 /**

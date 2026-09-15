@@ -1587,6 +1587,18 @@ export const iconRequests: readonly IconRequest[] = [
     why: "Print Layout, the large toggle on Word's View tab, pressed in a new document: one printed page. `GUESS:`.",
   },
   {
+    name: 'list-bar-tree-offset',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Outline, the small toggle in Word's View Document Views group: bars stepping one level deeper each, the heading hierarchy the view shows. Not `text-bullet-list-tree`, which is Multilevel List. `GUESS:`.",
+  },
+  {
+    name: 'drafts',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Draft, the small toggle in Word's View Document Views group: lines of text with a pencil and no page, the text edited with the layout taken away. Not plain lines, which are every alignment glyph, or `document-one-page`, which is Print Layout. `GUESS:`.",
+  },
+  {
     name: 'full-screen-maximize',
     sizes: [20, 24],
     variants: ['regular', 'filled'],

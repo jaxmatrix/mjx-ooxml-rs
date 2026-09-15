@@ -432,6 +432,7 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
             'word.draw.write.eraser': html`<mjx-split-button
               toggle
+              exclusive="word.draw.write.tools"
               label="Eraser"
               icon="eraser"
               size="large"

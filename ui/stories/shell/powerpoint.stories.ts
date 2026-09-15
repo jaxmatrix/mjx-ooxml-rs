@@ -395,6 +395,7 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
             'powerpoint.draw.write.eraser': html`<mjx-split-button
               toggle
+              exclusive="powerpoint.draw.write.tools"
               label="Eraser"
               icon="eraser"
               size="large"
