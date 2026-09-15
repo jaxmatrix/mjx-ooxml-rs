@@ -13,7 +13,7 @@ use crate::{
 impl Deck {
     /// The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or `None`
     /// if the shape declares no fill in its `p:spPr` (its fill is then inherited from the placeholder /
-    /// style / theme — resolving that is a separate, future task). Reading does not dirty the part.
+    /// style / theme — resolving that is a separate, future task, MJXOFF-354). Reading does not dirty the part.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose

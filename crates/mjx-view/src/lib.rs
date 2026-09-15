@@ -73,6 +73,7 @@
 //! held here ([`DocumentView::fragments_for`] reaches it), which is the whole of what this unit
 //! owes that one. The transports — where bytes come from, and how the chrome talks to the engine —
 //! are a later unit too.
+//! Owned by MJXOFF-357, the viewer's transports.
 //!
 //! # Example
 //!

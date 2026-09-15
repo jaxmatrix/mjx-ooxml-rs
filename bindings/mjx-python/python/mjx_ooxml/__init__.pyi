@@ -2005,7 +2005,7 @@ class Deck:
     def shape_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> FillSpec | None:
         """The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or
         `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the
-        placeholder / style / theme — resolving that is a separate, future task). Reading does not
+        placeholder / style / theme — resolving that is a separate, future task, MJXOFF-354). Reading does not
         dirty the part.
         """
         ...

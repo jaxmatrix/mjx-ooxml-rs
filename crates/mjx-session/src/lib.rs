@@ -73,6 +73,7 @@
 //! Selection, hit-testing, IME and the clipboard are a later unit. The collaboration transport is
 //! not in scope either — but the journal is its natural seam, which is why operations are
 //! self-describing and address-based here rather than later.
+//! Owned by MJXOFF-356, selection, hit-testing, IME and the clipboard.
 //!
 //! **And one thing from the specification is deliberately absent, rather than quietly missing.**
 //! `SESSION_AND_PERSISTENCE.md` §3 asks for the commit to run *off the frame path*: on a worker

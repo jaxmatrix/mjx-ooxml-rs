@@ -10,6 +10,7 @@
 //! separate refactor with its own risk, not required by anything this child's own "Done when" asks
 //! for — so `mjx-pptx` keeps its own reader for now while every new caller has a real type to reach
 //! for.
+//! Owned by MJXOFF-355, moving `mjx-pptx` onto this type.
 //!
 //! A fidelity wrapper, in the same shape as [`crate::line::LineProperties`] and
 //! [`crate::geometry::CustomGeometry`]: `bwMode` is typed via the derive macro; every child is

@@ -177,6 +177,7 @@ impl TabRuler {
 /// what Word draws, read off its own output, and `heavy` is an underscore in a bolder weight rather
 /// than a different character — which this cannot express, so it uses the same one and is visibly
 /// lighter than Word's.
+/// Owned by MJXOFF-322 (RC29), the heavy tab leader.
 #[must_use]
 pub fn leader_character(leader: TabStopLeader) -> Option<char> {
     match leader {

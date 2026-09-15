@@ -56,13 +56,17 @@ pub(crate) const TICKET_ROSTER: [(&str, &str); 48] = [
 ];
 
 // Backlog tickets filed beside the epic's roster that a deferral may still be owned by.
-pub(crate) const TICKETS_BESIDE_THE_ROSTER: [&str; 6] = [
+pub(crate) const TICKETS_BESIDE_THE_ROSTER: [&str; 10] = [
     "MJXOFF-348",
     "MJXOFF-349",
     "MJXOFF-350",
     "MJXOFF-351",
     "MJXOFF-352",
     "MJXOFF-353",
+    "MJXOFF-354",
+    "MJXOFF-355",
+    "MJXOFF-356",
+    "MJXOFF-357",
 ];
 
 // Tickets of the roster whose work is merged, so no deferral or checklist row may name one as its owner, each with why.
