@@ -41,6 +41,18 @@ impl SceneLossKind {
         }
     }
 
+    /// What a placeholder too small for [`label`](Self::label) reads instead: one word, or nothing when even that does not fit.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::ChartNotResolved => "Chart",
+            Self::ColourNotResolved => "Colour",
+            Self::FillImageNotSupplied => "Picture",
+            Self::TextPaintDefaulted => "Text",
+            Self::PaintApproximated => "Paint",
+        }
+    }
+
     /// Whether something is missing, so the element gets a placeholder; an approximation still draws.
     #[must_use]
     pub const fn draws_placeholder(self) -> bool {
@@ -111,6 +123,18 @@ impl PainterLossKind {
             Self::EffectUnsupported => "Effect not drawn",
             Self::LineEndNotDrawn => "Arrowhead not drawn",
             Self::OutlineUnresolved => crate::provider::UNRESOLVED_OUTLINE_LABEL,
+        }
+    }
+
+    /// What a placeholder too small for [`label`](Self::label) reads instead.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::ImageWithNoPixels => "Picture",
+            Self::GlyphRunNotEmbedded => "Text",
+            Self::EffectUnsupported => "Effect",
+            Self::LineEndNotDrawn => "Arrowhead",
+            Self::OutlineUnresolved => "Outline",
         }
     }
 
@@ -319,6 +343,16 @@ impl LossCategory {
             Self::Layout(kind) => kind.label(),
             Self::Scene(kind) => kind.label(),
             Self::Paint(kind) => kind.label(),
+        }
+    }
+
+    /// What a placeholder too small for [`label`](Self::label) reads instead.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::Layout(kind) => kind.short_label(),
+            Self::Scene(kind) => kind.short_label(),
+            Self::Paint(kind) => kind.short_label(),
         }
     }
 

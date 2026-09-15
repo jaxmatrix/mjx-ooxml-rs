@@ -407,6 +407,8 @@ pub struct LabelMeshes {
     pub plate_outline: Option<Arc<VectorPath>>,
     /// The letters' outline, for a painter that writes vectors.
     pub ink_outline: Option<Arc<VectorPath>>,
+    /// What the letters read: the whole label, or the short form the box had room for.
+    pub text: String,
 }
 
 /// What a lowering keeps beyond what a rasteriser needs.
@@ -1027,6 +1029,7 @@ pub fn plan_frame_from(
                                 bounds,
                                 SceneTransform::IDENTITY,
                                 PainterLossKind::EffectUnsupported.label(),
+                                PainterLossKind::EffectUnsupported.short_label(),
                                 OpOrigin::synthesised(index as u32),
                                 tessellator,
                                 options,
@@ -1224,6 +1227,7 @@ pub fn plan_frame_from(
                         bounds,
                         run_transform,
                         PainterLossKind::GlyphRunNotEmbedded.label(),
+                        PainterLossKind::GlyphRunNotEmbedded.short_label(),
                         origin,
                         tessellator,
                         options,
@@ -1300,6 +1304,7 @@ pub fn plan_frame_from(
                         destination,
                         transform,
                         PainterLossKind::ImageWithNoPixels.label(),
+                        PainterLossKind::ImageWithNoPixels.short_label(),
                         origin,
                         tessellator,
                         options,
@@ -1393,6 +1398,7 @@ struct OwedPlaceholder {
     bounds: SceneRect,
     transform: SceneTransform,
     label: &'static str,
+    short: &'static str,
     origin: OpOrigin,
 }
 
@@ -1432,6 +1438,7 @@ impl ElementLosses {
                 .map_or(drawn, |outline| outline.bounds()),
             transform,
             label: kind.label(),
+            short: kind.short_label(),
             origin,
         }
     }
@@ -1454,6 +1461,7 @@ fn place_owed(
         owed.bounds,
         owed.transform,
         owed.label,
+        owed.short,
         owed.origin,
         tessellator,
         options,
@@ -1684,6 +1692,7 @@ fn emit_list_placeholder(
         placeholder.rect,
         transform,
         placeholder.category.label(),
+        placeholder.category.short_label(),
         origin,
         tessellator,
         options,
@@ -1701,6 +1710,7 @@ fn placeholder_op(
     bounds: SceneRect,
     transform: SceneTransform,
     label: &'static str,
+    short: &'static str,
     origin: OpOrigin,
     tessellator: &mut Tessellator,
     options: TessellationOptions,
@@ -1719,7 +1729,7 @@ fn placeholder_op(
         })
     });
     let mesh = tessellator.fill(&resolved.into_geometry(), &stand_in, options)?;
-    let lettering = match placeholder_lettering(label, bounds) {
+    let lettering = match placeholder_lettering(label, short, bounds) {
         Some(set) => {
             let plate = Geometry::Rectangle(set.plate);
             Some(LabelMeshes {
@@ -1727,6 +1737,7 @@ fn placeholder_op(
                 ink: tessellator.fill(&set.ink, &stand_in, options)?,
                 plate_outline: vector_outline(&plate, &stand_in, kept)?,
                 ink_outline: vector_outline(&set.ink, &stand_in, kept)?,
+                text: set.text,
             })
         }
         None => None,

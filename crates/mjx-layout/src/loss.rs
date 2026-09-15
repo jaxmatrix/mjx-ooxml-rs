@@ -44,6 +44,19 @@ impl FrameContent {
             Self::Shape => "Shape not rendered",
         }
     }
+
+    /// What a placeholder too small for [`label`](Self::label) reads instead: one word.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::Chart => "Chart",
+            Self::Diagram => "Diagram",
+            Self::EmbeddedObject => "Object",
+            Self::Ink => "Ink",
+            Self::Picture => "Picture",
+            Self::Shape => "Shape",
+        }
+    }
 }
 
 /// How a box model fell short of the document.
@@ -81,6 +94,17 @@ impl LayoutLossKind {
             Self::TextMeasuredNotShaped => "Text not shaped",
             Self::DroppedByReader => "Content not read",
             Self::ValueApproximated => "Approximated",
+        }
+    }
+
+    /// What a placeholder too small for [`label`](Self::label) reads instead: one word.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::FrameContentNotLaidOut(content) => content.short_label(),
+            Self::TextMeasuredNotShaped => "Text",
+            Self::DroppedByReader => "Content",
+            Self::ValueApproximated => "Value",
         }
     }
 
@@ -221,6 +245,22 @@ mod tests {
             drawn,
             [true, true, true, true, true, true, false, true, false]
         );
+    }
+
+    #[test]
+    fn every_short_label_is_one_word_of_its_own_label() {
+        for kind in LayoutLossKind::ALL {
+            let short = kind.short_label();
+            assert!(
+                !short.contains(' '),
+                "{kind:?}: a short label is one word, and this is {short:?}"
+            );
+            assert!(
+                kind.label().contains(short) || short == "Object" || short == "Value",
+                "{kind:?}: {short:?} does not name what {:?} says",
+                kind.label()
+            );
+        }
     }
 
     #[test]

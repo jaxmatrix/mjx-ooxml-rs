@@ -699,7 +699,9 @@ impl PdfPainter {
             out.push_str(&pdf_path_operators(&path.commands));
             out.push_str("f\n");
         }
-        let escaped = label
+        // The selectable text is what the letters read, so a reader and a search find the same words.
+        let drawn_text = lettering.map_or(label, |lettering| lettering.text.as_str());
+        let escaped = drawn_text
             .replace('\\', "\\\\")
             .replace('(', "\\(")
             .replace(')', "\\)");

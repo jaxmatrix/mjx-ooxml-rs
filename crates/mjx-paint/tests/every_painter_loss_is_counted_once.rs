@@ -405,6 +405,143 @@ fn software_pixels(list: &DisplayList, width: u32, height: u32) -> mjx_paint::Pi
         .expect("the software painter reads back")
 }
 
+// Whether a pixel is a label's own ink: opaque dark magenta.
+fn is_label_ink([red, green, blue, alpha]: [u8; 4]) -> bool {
+    alpha >= 0xe0 && green <= 0x20 && (0x40..=0x80).contains(&red) && red.abs_diff(blue) <= 8
+}
+
+// Whether a pixel is a label's plate: opaque white.
+fn is_label_plate([red, green, blue, alpha]: [u8; 4]) -> bool {
+    alpha >= 0xe0 && red >= 0xf8 && green >= 0xf8 && blue >= 0xf8
+}
+
+// The colour the page around a placeholder is painted, so a label that covers a neighbour shows up as a changed pixel.
+const NEIGHBOUR: [u8; 4] = [0x20, 0x90, 0x30, 0xff];
+
+// A page whose one placeholder covers `rect`, with every other pixel painted [`NEIGHBOUR`].
+fn a_placeholder_among_neighbours(width: f32, height: f32, rect: SceneRect) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let paper = builder
+        .add_paint(Paint::Solid(common::rgb(
+            NEIGHBOUR[0],
+            NEIGHBOUR[1],
+            NEIGHBOUR[2],
+        )))
+        .expect("a neighbour colour");
+    let ground = builder
+        .add_geometry(&common::box_path(SceneRect::new(0.0, 0.0, width, height)))
+        .expect("the page");
+    builder
+        .push(Command::FillPath {
+            geometry: ground,
+            paint: paper,
+        })
+        .expect("the neighbours draw");
+    let image = builder
+        .add_image(Image::stretched(common::PICTURE_HANDLE))
+        .expect("a picture");
+    builder
+        .push(Command::DrawImage {
+            image,
+            destination: rect,
+        })
+        .expect("a picture draw");
+    builder.finish().expect("the page is well formed")
+}
+
+// What a page drew outside `rect`: label pixels, and neighbours whose colour changed at all.
+fn outside(pixels: &mjx_paint::Pixels, rect: SceneRect) -> (usize, usize) {
+    let (mut label, mut changed) = (0, 0);
+    for y in 0..pixels.height {
+        for x in 0..pixels.width {
+            if (x as f32) >= rect.left
+                && (x as f32) < rect.right
+                && (y as f32) >= rect.top
+                && (y as f32) < rect.bottom
+            {
+                continue;
+            }
+            let Some(pixel) = pixels.pixel(x, y) else {
+                continue;
+            };
+            if is_label_ink(pixel) || is_label_plate(pixel) {
+                label += 1;
+            }
+            if pixel != NEIGHBOUR {
+                changed += 1;
+            }
+        }
+    }
+    (label, changed)
+}
+
+// How many pixels inside `rect` the placeholder changed from its neighbours' colour.
+fn drawn_inside(pixels: &mjx_paint::Pixels, rect: SceneRect) -> usize {
+    let mut drawn = 0;
+    for y in rect.top as u32..rect.bottom as u32 {
+        for x in rect.left as u32..rect.right as u32 {
+            if pixels.pixel(x, y).is_some_and(|pixel| pixel != NEIGHBOUR) {
+                drawn += 1;
+            }
+        }
+    }
+    drawn
+}
+
+#[test]
+fn a_label_in_a_cell_sized_placeholder_leaves_every_neighbour_untouched() {
+    // The size of the Excel cell RC02's icon and diagonal cases put a placeholder over.
+    let rect = SceneRect::new(0.0, 0.0, 61.0, 20.0);
+    let pixels = software_pixels(&a_placeholder_among_neighbours(200.0, 60.0, rect), 200, 60);
+    assert_eq!(
+        outside(&pixels, rect),
+        (0, 0),
+        "a label drew outside the cell, or changed a pixel of the cells around it"
+    );
+    assert!(
+        label_ink(&pixels, rect) > 0,
+        "the cell still carries a readable label"
+    );
+}
+
+#[test]
+fn a_box_too_small_for_any_label_draws_none_and_keeps_its_crossed_box() {
+    // Eight pixels tall: one line of lettering is nine, so no form of the label fits.
+    let rect = SceneRect::new(4.0, 4.0, 44.0, 12.0);
+    let pixels = software_pixels(&a_placeholder_among_neighbours(120.0, 40.0, rect), 120, 40);
+    let mut label = 0;
+    for y in 0..pixels.height {
+        for x in 0..pixels.width {
+            if pixels
+                .pixel(x, y)
+                .is_some_and(|pixel| is_label_ink(pixel) || is_label_plate(pixel))
+            {
+                label += 1;
+            }
+        }
+    }
+    assert_eq!(label, 0, "a box this small carries no label at all");
+    assert!(
+        drawn_inside(&pixels, rect) > 0,
+        "the crossed box is still drawn in the element's own space"
+    );
+}
+
+#[test]
+fn a_wide_box_still_reads_its_whole_label() {
+    let rect = SceneRect::new(10.0, 10.0, 310.0, 70.0);
+    let pixels = software_pixels(&a_placeholder_among_neighbours(360.0, 90.0, rect), 360, 90);
+    assert!(
+        label_ink(&pixels, rect) > 100,
+        "a box this wide reads its whole label"
+    );
+    assert_eq!(
+        outside(&pixels, rect),
+        (0, 0),
+        "and none of it reaches the page around it"
+    );
+}
+
 // Label-ink pixels, opaque dark magenta, in the middle half of `rect`'s height, which is where a label is set.
 fn label_ink(pixels: &mjx_paint::Pixels, rect: SceneRect) -> usize {
     let band_top = rect.top + rect.height() * 0.25;
@@ -412,14 +549,8 @@ fn label_ink(pixels: &mjx_paint::Pixels, rect: SceneRect) -> usize {
     let mut ink = 0;
     for y in band_top.ceil() as u32..band_bottom.floor() as u32 {
         for x in rect.left.ceil() as u32..rect.right.floor() as u32 {
-            if let Some([red, green, blue, alpha]) = pixels.pixel(x, y) {
-                if alpha >= 0xe0
-                    && green <= 0x20
-                    && (0x40..=0x80).contains(&red)
-                    && red.abs_diff(blue) <= 8
-                {
-                    ink += 1;
-                }
+            if pixels.pixel(x, y).is_some_and(is_label_ink) {
+                ink += 1;
             }
         }
     }

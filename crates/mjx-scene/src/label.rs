@@ -9,6 +9,8 @@ pub struct PlaceholderLettering {
     pub plate: SceneRect,
     /// The letters, as closed rectangles filled non-zero.
     pub ink: Geometry,
+    /// What the letters actually read: the whole label, or the short form when the box is too small for it.
+    pub text: String,
 }
 
 // How many cells wide a glyph is.
@@ -22,38 +24,60 @@ const LINE_CELLS: usize = 10;
 // The cell sizes a label is tried at, largest first, in device pixels.
 const CELL_PIXELS: [f32; 3] = [3.0, 2.0, 1.0];
 
-/// Sets `label` inside `within` at the largest cell size its words fit at, or `None` when the box cannot hold a single letter.
+/// Sets `label` inside `within`, falling back to `short` when the whole label does not fit, and to no label at all when neither does.
+///
+/// # The box is the whole of what a label may cover
+///
+/// D8 puts a placeholder in the element's own space, and a label that covered the content beside it
+/// would be worse than no label: the neighbour rendered correctly. So every line is laid out inside
+/// `within` less a one-cell margin, and a block that would not fit is not drawn at that size.
+///
+/// # A word is never cut
+///
+/// Lines break between words and nowhere else. A label that cannot be broken to fit — one word wider
+/// than the box, or more lines than it is tall — is not shortened by cutting it; the `short` form is
+/// tried instead, and when that does not fit either the crossed box stands on its own. A label
+/// reading `Picture not` because the rest was cut off says something the loss does not.
 #[must_use]
-pub fn placeholder_lettering(label: &str, within: SceneRect) -> Option<PlaceholderLettering> {
-    let words: Vec<&str> = label.split_whitespace().collect();
-    if words.is_empty() || !within.width().is_finite() || !within.height().is_finite() {
+pub fn placeholder_lettering(
+    label: &str,
+    short: &str,
+    within: SceneRect,
+) -> Option<PlaceholderLettering> {
+    if !within.width().is_finite() || !within.height().is_finite() {
         return None;
     }
-    for cell in CELL_PIXELS {
-        let columns = cells_across(within.width() - 2.0 * cell, cell);
-        let rows = cells_across(within.height() - 2.0 * cell, cell);
-        let lines = wrap(&words, columns);
-        if lines.iter().all(|line| line_cells(line) <= columns)
-            && (lines.len() * LINE_CELLS).saturating_sub(1) <= rows
-        {
-            return Some(set(&lines, within, cell));
+    let forms: [&str; 2] = [label, short];
+    for (index, text) in forms.iter().enumerate() {
+        if index > 0 && *text == forms[0] {
+            continue;
+        }
+        for cell in CELL_PIXELS {
+            if let Some(lettering) = fitted(text, within, cell) {
+                return Some(lettering);
+            }
         }
     }
-    // Too small for every word at the smallest size: as many lines as fit, each cut to the box's width.
-    let cell = 1.0;
-    let columns = cells_across(within.width(), cell);
-    let rows = cells_across(within.height(), cell);
-    let characters = (columns + 1) / ADVANCE_CELLS;
-    let line_count = (rows + 1) / LINE_CELLS;
-    if characters == 0 || rows < GLYPH_ROWS - 2 {
+    None
+}
+
+// `text` set at `cell` pixels a cell, or `None` when it does not fit `within` at that size.
+fn fitted(text: &str, within: SceneRect, cell: f32) -> Option<PlaceholderLettering> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if words.is_empty() {
         return None;
     }
-    let lines: Vec<String> = wrap(&words, columns)
-        .into_iter()
-        .take(line_count.max(1))
-        .map(|line| line.chars().take(characters).collect())
-        .collect();
-    Some(set(&lines, within, cell))
+    // One cell of margin on every side, so the letters never touch the element's own edge.
+    let columns = cells_across(within.width() - 2.0 * cell, cell);
+    let rows = cells_across(within.height() - 2.0 * cell, cell);
+    let lines = wrap(&words, columns);
+    if lines.iter().any(|line| line_cells(line) > columns) {
+        return None;
+    }
+    if (lines.len() * LINE_CELLS).saturating_sub(1) > rows {
+        return None;
+    }
+    Some(set(&lines, within, cell, text))
 }
 
 // Whole cells of `cell` pixels that fit in `length`.
@@ -70,7 +94,7 @@ fn line_cells(line: &str) -> usize {
     (line.chars().count() * ADVANCE_CELLS).saturating_sub(1)
 }
 
-// The words, greedily broken into lines no wider than `columns` cells where a break allows it.
+// The words, broken into lines no wider than `columns` cells; a word wider than that keeps its own line and is never cut.
 fn wrap(words: &[&str], columns: usize) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for word in words {
@@ -85,20 +109,30 @@ fn wrap(words: &[&str], columns: usize) -> Vec<String> {
     lines
 }
 
+// Where a block of `length` begins so that it is centred between `start` and `end` and never leaves them.
+fn placed(start: f32, end: f32, length: f32) -> f32 {
+    let centred = (start + (end - start - length) / 2.0).round();
+    centred.max(start).min((end - length).max(start))
+}
+
 // The lines centred in `within` at `cell` pixels a cell, each cell on a whole device pixel.
-fn set(lines: &[String], within: SceneRect, cell: f32) -> PlaceholderLettering {
+fn set(lines: &[String], within: SceneRect, cell: f32, text: &str) -> PlaceholderLettering {
     let block_height = (lines.len() * LINE_CELLS).saturating_sub(1) as f32 * cell;
-    let top = (within.top + (within.height() - block_height) / 2.0).round();
+    let top = placed(within.top, within.bottom, block_height);
     let mut commands = Vec::new();
     let mut extent: Option<SceneRect> = None;
     for (index, line) in lines.iter().enumerate() {
         let width = line_cells(line) as f32 * cell;
-        let left = (within.left + (within.width() - width) / 2.0).round();
+        let left = placed(within.left, within.right, width);
         let baseline = top + (index * LINE_CELLS) as f32 * cell;
         for (position, character) in line.chars().enumerate() {
             let origin = left + (position * ADVANCE_CELLS) as f32 * cell;
             for (row, bits) in glyph(character).iter().enumerate() {
                 let y = baseline + row as f32 * cell;
+                // A descender's two rows may reach past the block when the box ends there; the box wins.
+                if y + cell > within.bottom {
+                    break;
+                }
                 let mut column = 0;
                 while column < GLYPH_COLUMNS {
                     if bits & (1_u8 << (GLYPH_COLUMNS - 1 - column)) == 0 {
@@ -117,6 +151,9 @@ fn set(lines: &[String], within: SceneRect, cell: f32) -> PlaceholderLettering {
                         origin + column as f32 * cell,
                         y + cell,
                     );
+                    if rect.right > within.right {
+                        break;
+                    }
                     rectangle(&mut commands, rect);
                     extent = Some(extent.map_or(rect, |seen| union(seen, rect)));
                 }
@@ -134,6 +171,7 @@ fn set(lines: &[String], within: SceneRect, cell: f32) -> PlaceholderLettering {
     PlaceholderLettering {
         plate,
         ink: Geometry::path(commands, FillRule::NonZero),
+        text: text.to_owned(),
     }
 }
 
@@ -552,8 +590,10 @@ mod tests {
     #[test]
     fn a_label_is_set_inside_its_box_and_wraps_rather_than_overflowing() {
         let within = SceneRect::new(20.0, 20.0, 180.0, 100.0);
-        let lettering = placeholder_lettering("Picture not available", within).expect("a label");
+        let lettering =
+            placeholder_lettering("Picture not available", "Picture", within).expect("a label");
         let letters = lettering.ink.bounds();
+        assert_eq!(lettering.text, "Picture not available");
         assert!(letters.left >= within.left && letters.right <= within.right);
         assert!(letters.top >= within.top && letters.bottom <= within.bottom);
         assert!(lettering.plate.left <= letters.left && lettering.plate.right >= letters.right);
@@ -565,8 +605,19 @@ mod tests {
     }
 
     #[test]
+    fn a_box_too_small_for_the_label_takes_the_short_form_rather_than_a_cut_word() {
+        // The Excel cell RC02's icons put a placeholder over: three words do not fit, one does.
+        let cell = SceneRect::new(0.0, 0.0, 61.0, 20.0);
+        let lettering = placeholder_lettering("Picture not rendered", "Picture", cell)
+            .expect("the short form fits");
+        assert_eq!(lettering.text, "Picture");
+        let letters = lettering.ink.bounds();
+        assert!(letters.right <= cell.right && letters.bottom <= cell.bottom);
+    }
+
+    #[test]
     fn every_character_of_every_loss_label_has_a_glyph_of_its_own() {
-        for character in "Chart Diagram Embedded object Ink Picture Text shaped Content read Approximated Colour resolved Fill picture available colour Paint approximated embedded Effect drawn Arrowhead Shape outline".chars() {
+        for character in "Chart Diagram Embedded object Ink Picture Text shaped Content read Approximated Colour resolved Fill picture available colour Paint approximated embedded Effect drawn Arrowhead Shape outline Object Value Outline".chars() {
             assert!(
                 character == ' ' || glyph(character) != UNKNOWN,
                 "{character:?} has no glyph"
@@ -575,9 +626,22 @@ mod tests {
     }
 
     #[test]
-    fn a_box_too_small_for_one_letter_has_no_label() {
+    fn a_box_too_small_for_one_line_of_the_short_form_has_no_label() {
+        // Eight pixels tall: one line of lettering is nine, and nothing shorter than one line exists.
         assert_eq!(
-            placeholder_lettering("Chart not rendered", SceneRect::new(0.0, 0.0, 4.0, 40.0)),
+            placeholder_lettering(
+                "Chart not rendered",
+                "Chart",
+                SceneRect::new(0.0, 0.0, 40.0, 8.0)
+            ),
+            None
+        );
+        assert_eq!(
+            placeholder_lettering(
+                "Chart not rendered",
+                "Chart",
+                SceneRect::new(0.0, 0.0, 4.0, 40.0)
+            ),
             None
         );
     }

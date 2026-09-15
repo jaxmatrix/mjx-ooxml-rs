@@ -472,6 +472,10 @@ impl SvgPainter {
                         continue;
                     };
                     let (size, x, y) = super::label_placement(*bounds, label);
+                    // The selectable text is what the letters read, so a reader and a search find the same words.
+                    let drawn_text = lettering
+                        .as_ref()
+                        .map_or(*label, |lettering| lettering.text.as_str());
                     // The label's plate and letters are the same paths every painter draws; the text beneath them is selectable and invisible.
                     let drawn = lettering.as_ref().map_or(String::new(), |lettering| {
                         [
@@ -503,7 +507,7 @@ impl SvgPainter {
                         number(x),
                         number(y),
                         number(size),
-                        xml_escape(label)
+                        xml_escape(drawn_text)
                     ));
                 }
                 DrawOp::Composite { layer: child, .. } => {
