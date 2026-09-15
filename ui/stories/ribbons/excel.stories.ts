@@ -23,6 +23,7 @@ import {
   scalePercentages,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
 import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
@@ -59,11 +60,11 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
- * Print Preview and Background Removal. **Of the five contextual tabs, Table Design, Picture Format and Shape Format
- * are authored**, Excel's first three; **the other two are placeholders** at the census's own priorities: Chart Design
- * and Format. Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone,
- * and binds Table Design as this file does, which is why Picture Format's and Shape Format's bindings and menus are
- * written here and nowhere else. See
+ * Print Preview and Background Removal. **Of the five contextual tabs, Table Design, Picture Format, Shape Format and
+ * Chart Design are authored**, Excel's first four; **the last is a placeholder** at the census's own priorities: Chart
+ * Tools' Format. Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools
+ * alone, and binds Table Design as this file does, which is why Picture Format's, Shape Format's and Chart Design's
+ * bindings and menus are written here and nowhere else. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -85,8 +86,8 @@ const meta: Meta = {
           'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
           'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, Table ' +
-          'Design, Picture Format and Shape Format are authored; Chart Design and Format are placeholders carrying ' +
-          'the census’s priorities.',
+          'Design, Picture Format, Shape Format and Chart Design are authored; Chart Tools’ Format is a placeholder ' +
+          'carrying the census’s priorities.',
       },
     },
     mjx: conventions,
@@ -964,6 +965,43 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Chart Design (a contextual tab, in Chart Tools). `Shell/Excel` draws Table Tools alone, so these five bindings and
+  // `chartToolsMenus('excel', …)` are written here and nowhere else. They are `Ribbons/Word`'s six less Edit Data, under
+  // Excel's ids: every menu and the gallery's pictures are `stories/ribbons/chart-tools-menus.ts`'s, and the pictures
+  // read this workbook's palette. Switch Row/Column, Select Data and Move Chart are the generic large button; none is
+  // bound.
+  'excel.chart-design.chart-layouts.add-chart-element': html`<mjx-button
+    label="Add Chart Element"
+    icon="data-bar-vertical-add"
+    size="large"
+    data-opens="ribbons-excel-chart-design-chart-layouts-add-chart-element"
+  ></mjx-button>`,
+  'excel.chart-design.chart-layouts.quick-layout': html`<mjx-button
+    label="Quick Layout"
+    icon="layout-cell-four"
+    size="large"
+    data-opens="ribbons-excel-chart-design-chart-layouts-quick-layout"
+  ></mjx-button>`,
+  'excel.chart-design.chart-styles.change-colours': html`<mjx-button
+    label="Change Colours"
+    icon="color"
+    size="large"
+    data-opens="ribbons-excel-chart-design-chart-styles-change-colours"
+  ></mjx-button>`,
+  'excel.chart-design.chart-styles.style-gallery': html`<mjx-gallery
+    id="ribbons-xl-chart-design-chart-styles"
+    label="Chart Styles"
+    value="style-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${chartStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'excel.chart-design.type.change-chart-type': html`<mjx-button
+    label="Change Chart Type"
+    icon="chart-multiple"
+    size="large"
+    data-opens="ribbons-excel-chart-design-type-change-chart-type"
+  ></mjx-button>`,
 };
 
 /**
@@ -993,7 +1031,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
     ${viewMenus('excel', 'ribbons')} ${printPreviewMenus('excel', 'ribbons')}
     ${tableToolsMenus('excel', 'ribbons')} ${pictureToolsMenus('excel', 'ribbons')}
-    ${drawingToolsMenus('excel', 'ribbons')}
+    ${drawingToolsMenus('excel', 'ribbons')} ${chartToolsMenus('excel', 'ribbons')}
   `;
 }
 
@@ -1387,9 +1425,43 @@ export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 
 /**
- * **Chart Design** — a placeholder. Five groups: Chart Layouts, Chart Styles, Data, Type and Location. Location is
- * Excel's alone, because only a workbook can move a chart to a sheet of its own; Chart Styles is primary here and
- * secondary in Word, because Excel's census counts three controls where Word's counts two.
+ * **Chart Design**: which elements a chart on the worksheet carries and how they are laid out, which colours and style
+ * it wears, which cells it plots, what kind of chart it is, and where in the workbook it lives. Chart Tools' first tab,
+ * and Excel's fourth contextual tab authored; Office shows it only while a chart is selected. Five groups: Chart
+ * Layouts, Chart Styles, Data, Type and **Location**, every command large. **It is `Ribbons/Word`'s Chart Design where
+ * Office's Excel is**, through the same functions, so judge the three side by side: Chart Layouts, Chart Styles and
+ * Type must match Word's and PowerPoint's exactly, and Data and Location are the only places Excel's may differ. It is
+ * the census's `TabChartToolsDesignNew`. What to look at here, least certain first:
+ *
+ * 1. ⚠ **Move Chart's glyph is the weakest on the tab**: four arrows, which say *move* and not *chart* or *sheet*. Office
+ *    draws a chart with an arrow leaving it. Pressing it opens nothing, where Office opens the Move Chart dialog (*New
+ *    sheet* or *Object in*). It is **Location**, Excel's own group, holding nothing else. `GUESS:` the glyph.
+ * 2. ⚠ **Data is two commands, not four**: Switch Row/Column and Select Data, large, and **no Edit Data or Refresh
+ *    Data**, because a workbook's chart reads its own cells. There is no split button on this tab. Judge the two glyphs
+ *    together: a table with a turn arrow, a table with a pointer.
+ * 3. ⚠ **Change Chart Type opens a menu, where Office opens a dialog.** Its eight submenus are exactly the lists this
+ *    ribbon's own Insert tab opens for each family, each ending on *More … Charts…*; compare them with `Insert`. **No
+ *    Map family**, though Excel's dialog lists one (Insert's Maps reaches it). `GUESS:` both.
+ * 4. ⚠ **Add Chart Element's starts are Word's**, read as the Clustered Column Excel inserts: **Chart Title** (*Above
+ *    Chart*), **Legend** (*Bottom*), **Gridlines** (*Primary Major Horizontal* ticked), **Axes** (both ticked), **Axis
+ *    Titles** (neither), **Data Labels**, **Data Table**, **Error Bars**, **Lines** and **Up/Down Bars** (each on *None*)
+ *    and **Trendline** (plain entries). Each ends on its *More … Options…*. **Lines and Up/Down Bars open**, where Office
+ *    greys both on a column chart. `GUESS:` that Excel's inserted chart starts as Word's.
+ * 5. ⚠ **The Chart Styles gallery**, *Style 1* to *Style 16*, starting on Style 1, in the catalogue's one specimen theme,
+ *    so the pictures match Word's and PowerPoint's exactly. Each describes a look rather than rendering Office's.
+ *    `GUESS:` sixteen, and every look.
+ * 6. **Quick Layout**: four tiled regions, reading *arrange windows* first; its menu is *Layout 1* to *Layout 11*, names
+ *    where Office draws thumbnails.
+ * 7. **Change Colours** opens *Colourful* (Palettes 1–4) and *Monochromatic* (Palettes 1–13), one set, on *Colourful
+ *    Palette 1*. `GUESS:` both counts.
+ * 8. **The census's priorities differ from Word's**, and the collapse shows it. Drag narrow: **Location** (`ancillary`)
+ *    gives way first, then Data and Type (`secondary`, where Word's Data is `standard`), and **Chart Layouts and Chart
+ *    Styles** (`primary`, where Word's Chart Styles is `secondary`) last; each collapses to a trigger with nothing beside
+ *    it. **No survivor anywhere.**
+ * 9. **The spelling is the catalogue's**: *Change Colours*, *Colourful*, *Centred Overlay*, *Centre*.
+ * 10. **No dialog launcher** on any group.
+ * 11. **Not in `Shell/Excel`**, which draws Table Tools: there is no Chart Tools band there and none of these menus is on
+ *     that page.
  */
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 

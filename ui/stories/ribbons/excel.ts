@@ -61,8 +61,15 @@
  * PowerPoint's Shape Format code (`insertShapesCommands`, `shapeStylesCommands`, `wordArtStylesCommands`,
  * `arrangeCommands`, `sizeCommands` and `stories/ribbons/drawing-tools-menus.ts`) and differs only where Office's Excel
  * does: no Merge Shapes, a Text Box split button, no Eyedropper, Bring Forward and Send Backward large, Align snapping to the grid, and Size's
- * *Size and Properties* launcher. **`Ribbons/Excel` alone binds it**, because `Shell/Excel` draws Table Tools. **The
- * other two, Chart Design and Format, are placeholders**, each until its own unit.
+ * *Size and Properties* launcher. **`Ribbons/Excel` alone binds it**, because `Shell/Excel` draws Table Tools.
+ *
+ * **Chart Design is authored**, the fourth and Excel's first of Chart Tools: five groups and eight commands, which
+ * elements a chart carries and how they are laid out, its colours and style, the cells it plots, its type, and where in
+ * the workbook it lives. It is Word's tab through Word's functions (the census's `chartLayoutsCommands`,
+ * `chartStylesCommands`, `chartDataCommands` and `chartTypeCommands`, and every menu and the gallery in
+ * `stories/ribbons/chart-tools-menus.ts`), and differs where Office's Excel does: Data is Switch Row/Column and Select
+ * Data alone, and a fifth group, **Location**, holds Move Chart. **`Ribbons/Excel` alone binds it**, because
+ * `Shell/Excel` draws Table Tools. **The last, Chart Tools' Format, is a placeholder** until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -568,14 +575,44 @@ export function excelShapeFormatTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
- * Which function builds which contextual tab. **Table Design, Picture Format and Shape Format are authored; every other
- * entry is `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
+ * Chart Design: Chart Layouts, Chart Styles, Data, Type, Location — Excel's fourth contextual tab authored and the
+ * fourteenth of all, in **Office's** order, which is also the census's. It sits under the *Chart Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a chart on a worksheet, or a chart sheet, is selected.**
+ * `Ribbons/Excel` draws every contextual set and binds it; **`Shell/Excel` draws Table Tools alone**, so it binds none of
+ * this tab and renders none of its menus. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Word's Chart Design where Office's Excel is.** Five of the eight commands are bound by the host: Add Chart Element,
+ * Quick Layout, Change Colours and Change Chart Type, large dropdowns; the Chart Styles gallery. Every menu and the
+ * gallery's pictures are in `stories/ribbons/chart-tools-menus.ts`. Switch Row/Column, Select Data and Move Chart are
+ * plain large buttons. **Excel's own**: no Edit Data or Refresh Data, and the Location group.
+ *
+ * **No dialog launcher**, as Microsoft 365 draws none on this tab. **No survivor.**
+ */
+export function excelChartDesignTab(options: TabOptions = {}): TemplateResult {
+  const chartDesign = entry('chart-design');
+  const controls = options.controls ?? {};
+  return tab(
+    chartDesign.id,
+    chartDesign.label,
+    censusGroup(chartDesign, 'GroupChartLayouts', {}, controls),
+    censusGroup(chartDesign, 'GroupChartStyles', {}, controls),
+    censusGroup(chartDesign, 'GroupChartData', {}, controls),
+    censusGroup(chartDesign, 'GroupChartType', {}, controls),
+    censusGroup(chartDesign, 'GroupChartLocation', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design, Picture Format, Shape Format and Chart Design are
+ * authored; Chart Tools' Format is `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no
+ * Layout tab.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': excelTableDesignTab,
   'picture-format': excelPictureFormatTab,
   'shape-format': excelShapeFormatTab,
-  'chart-design': () => placeholderTab(entry('chart-design')),
+  'chart-design': excelChartDesignTab,
   'chart-format': () => placeholderTab(entry('chart-format')),
 };
 

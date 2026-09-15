@@ -157,6 +157,9 @@
  * **PowerPoint's Chart Design** followed, the thirteenth and PowerPoint's first of Chart Tools, calling the same four
  * functions and the same lists, and differing from Word's in no command, because Office's PowerPoint does not; see that
  * section's *PowerPoint's Chart Design* part.
+ * **Excel's Chart Design** followed, the fourteenth and Excel's first of Chart Tools, calling the same four functions
+ * (`chartDataCommands` giving Excel its two) and the same lists, and adding the one group only a workbook has, Location's
+ * Move Chart (`excelChartDesignLocation`); see that section's *Excel's Chart Design* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -205,8 +208,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Thirteen contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format, Shape
- * Format and Chart Design, and Excel's Table Design, Picture Format and Shape Format.** Each
+ * **Fourteen contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format, Shape
+ * Format and Chart Design, and Excel's Table Design, Picture Format, Shape Format and Chart Design.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -8735,7 +8738,8 @@ export function chartStylesCommands(application: RibbonApplication, tab: string)
  * and Refresh Data, all large, under `<application>.<tab>.data`. See Word's Chart Design's disagreements 7 and 8.
  *
  * Written once because the group repeats. **Excel's is the first two alone**: a workbook's chart reads its own cells, so
- * there is no separate data to edit or refresh, and Excel's census counts 2. PowerPoint's is Word's four, which its
+ * there is no separate data to edit or refresh, and Excel's census counts 2, which its Chart Design unit draws exactly
+ * (see *Excel's Chart Design*). PowerPoint's is Word's four, which its
  * census count of 6, Word's own, supports; `GUESS:` still, since a count does not name what it counts.
  * **Edit Data is a split button** a host binds over `editDataEntries`; the other three are plain buttons.
  *
@@ -8838,6 +8842,108 @@ export function chartTypeCommands(application: RibbonApplication, tab: string): 
 // Layout `layout-cell-four` (**the weakest glyph on the tab**, reading *tiled windows* first), Change Colours `color`,
 // Switch Row/Column `table-switch`, Select Data `table-cursor`, Edit Data `table-edit`, Refresh Data `arrow-clockwise`,
 // Change Chart Type `chart-multiple`. **One carries none, and says why**: the Chart Styles gallery is its pictures.
+
+// ## Excel's Chart Design
+//
+// The unit after PowerPoint's Chart Design, one tab of one application: **Excel's `TabChartToolsDesignNew`, in
+// `TabSetChartTools`**, all five in-scope groups and eight commands, and **the fourteenth contextual tab authored**,
+// Excel's fourth and its first of Chart Tools. Office shows it under the *Chart Tools* band while a chart on a worksheet
+// (or a chart sheet) is selected: which elements the chart carries and how they are laid out, which colours and style it
+// wears, which cells it plots, what kind of chart it is, and where in the workbook it lives.
+//
+// ## Office's groups, read onto the census's five
+//
+// | Census group (count) | Label | Priority | What it holds here |
+// |---|---|---|---|
+// | `GroupChartLayouts` (23) | Chart Layouts | `primary` | Add Chart Element, Quick Layout |
+// | `GroupChartStyles` (3) | Chart Styles | `primary` | Change Colours; the Chart Styles gallery |
+// | `GroupChartData` (2) | Data | `secondary` | Switch Row/Column, Select Data |
+// | `GroupChartType` (1) | Type | `secondary` | Change Chart Type |
+// | `GroupChartLocation` (1) | Location | `ancillary` | Move Chart |
+//
+// **The brief's reading holds: the fifth group is Location, and it holds Move Chart alone.** `GroupChartLocation` is
+// the census's id, *Location* is Microsoft 365's label, and its one control is Office's large Move Chart button, which
+// opens the Move Chart dialog (*New sheet* or *Object in*). Only a workbook has it, because only a workbook has sheets
+// to move a chart between; a document's or a slide's chart lives where it was inserted. The five groups are in Office's
+// order, which is also the census's, and every id, label, count and priority is the contextual unit's, unchanged. No
+// group carries a dialog launcher.
+//
+// ## Written once, reused, and Excel's own
+//
+// - **Reused, as they stand**: `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` (whose `excel` branch,
+//   written by Word's unit, gives Switch Row/Column and Select Data alone) and `chartTypeCommands` with `'excel'`, above;
+//   in `stories/ribbons/chart-tools-menus.ts`, `addChartElementEntries` (over `chartElements`), `quickLayoutEntries`,
+//   `changeColoursEntries`, `chartStyleGalleryItems` and `changeChartTypeEntries` (over Excel's own Insert → Charts
+//   lists, so here the families are literally the ones one tab to the left opens).
+// - **Excel's own, each because Office's Excel differs**: `excelChartDesignLocation`, below, the Location group, which
+//   neither other application has; the `excel` branch of `chartToolsMenus`, **four** menus rather than five, because
+//   there is no Edit Data split button; `excelChartDesignTab` in `stories/ribbons/excel.ts`; and the five bindings in
+//   `Ribbons/Excel`. **`arrow-move` gains a 24** for Move Chart. No list is Excel's own: `editDataEntries` is not called.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// Word's disagreements 1 (spelling), 3 (Quick Layout's eleven names), 4 (the sixteen-style gallery), 5 (Change Colours'
+// 4 and 13) and 6 (Add Chart Element's eleven submenus, Lines and Up/Down Bars available) hold here unchanged, and are
+// not restated. Word's 7 (Edit Data) and 8's Refresh Data do not apply: Excel has neither.
+//
+// 1. **Chart Styles is `primary` here and `secondary` in Word and PowerPoint.** The census counts 3 controls in Excel's
+//    group and 2 in the other two, and the contextual unit's rubric bound the priority to the count. The census wins;
+//    the tab draws the same two things in all three applications, so the difference is a count, not a command.
+// 2. **Chart Styles counts 3 and draws 2.** Change Colours and the gallery are two; `GUESS:` that the third is the
+//    gallery's collapsed form (a *Quick Styles* dropdown Office's Excel substitutes when the group is squeezed), which
+//    the catalogue's own collapse already provides. Nothing is padded.
+// 3. **Data counts 2 and draws 2**: Switch Row/Column and Select Data, both large. Met, and the reading
+//    `chartDataCommands` made before this unit. **Data is `secondary` here and `standard` in Word and PowerPoint**,
+//    again the rubric on a count of 2; the census wins.
+// 4. **Switch Row/Column is drawn available.** In Office's Excel it is available whenever a chart plots a range, so this
+//    is Office's shape, and Word's disagreement 8 (greyed until the data sheet is open) does not apply.
+// 5. **Location's Move Chart is a plain large button**: Office's opens a dialog, which the catalogue does not draw, and
+//    nothing opens. Its priority is the census's `ancillary`, so it is the first group to give way. Counts 1, draws 1.
+// 6. **Change Chart Type has no Map family**, though Excel's Change Chart Type dialog lists Map (filled map charts);
+//    Excel reaches Map from Insert's Maps, which is not one of the eight Insert → Charts lists this menu reads. Word's
+//    disagreement 2 (a menu, not the dialog) holds too. `GUESS:` that Excel's dialog lists Map.
+// 7. **The chart Excel inserts starts as Word's does**: a Clustered Column with its title Above Chart, its legend at the
+//    Bottom, both axes and Primary Major Horizontal gridlines, so `chartElements`' starts are read as Excel's too.
+//    `GUESS:` (Excel's Recommended/Clustered Column default, from memory).
+// 8. **The counts.** Chart Layouts counts 23 and draws 2, by Word's reading. Chart Styles 3 and 2 (above); Data, Type
+//    and Location are met.
+// 9. **The Chart Styles gallery's pictures read this workbook's palette**, `documentThemePalette`, the catalogue's one
+//    specimen theme, so they match `Ribbons/Word`'s and `Ribbons/PowerPoint`'s exactly.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws:
+//
+// - **Chart Layouts**: none. Add Chart Element and Quick Layout both open a menu (rule 1).
+// - **Chart Styles**: none. Change Colours opens a menu and the gallery is a gallery (rule 1).
+// - **Data**: none. Select Data opens a dialog (rule 1); Switch Row/Column is one press one undo takes back, but its swap
+//   glyph does not say *rows for columns* without its label (rule 2).
+// - **Type**: none. Change Chart Type opens a menu (Office: a dialog; rule 1).
+// - **Location**: none. Move Chart opens a dialog (rule 1), and moving a chart to a new sheet makes a sheet.
+//
+// ## Sizes, and every glyph
+//
+// **Every command is large**, as Office's Excel draws them, and the gallery stands in-ribbon beside Change Colours.
+// **Seven of the eight commands carry a glyph, every one `GUESS:`**: Add Chart Element `data-bar-vertical-add`, Quick
+// Layout `layout-cell-four` (reading *tiled windows* first), Change Colours `color`, Switch Row/Column `table-switch`,
+// Select Data `table-cursor`, Change Chart Type `chart-multiple`, all Word's; and **Move Chart `arrow-move`**, reused
+// from PowerPoint's Move Split and now at 24, four arrows: the chart moves. **Move Chart's is the weakest glyph on the
+// tab**, weaker than Quick Layout's: Office draws a chart with an arrow leaving it, Fluent draws no chart with an arrow
+// but `data-bar-vertical-arrow-down`, which reads *download* or *sort*, and four arrows say *move* without saying
+// *chart* or *sheet*. **One carries none, and says why**: the Chart Styles gallery is its pictures.
+
+/**
+ * **Location, Excel's alone**: Move Chart, large, under `excel.chart-design.location`. It opens Office's Move Chart
+ * dialog, placing the chart on a new chart sheet or as an object in another sheet. See Excel's Chart Design's
+ * disagreement 5.
+ *
+ * A list rather than a function because only Excel's Chart Design has the group, and an id carries its application.
+ *
+ * **No survivor**: a dialog.
+ */
+const excelChartDesignLocation: readonly RibbonCommand[] = [
+  { id: 'excel.chart-design.location.move-chart', label: 'Move Chart', icon: 'arrow-move', size: 'large' },
+];
 
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
@@ -9176,11 +9282,11 @@ export const excelRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsDesignNew' },
         groups: [
-          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true },
-          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'primary', controls: 3, inScope: true },
-          { id: 'GroupChartData', label: 'Data', priority: 'secondary', controls: 2, inScope: true },
-          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupChartLocation', label: 'Location', priority: 'ancillary', controls: 1, inScope: true },
+          { id: 'GroupChartLayouts', label: 'Chart Layouts', priority: 'primary', controls: 23, inScope: true, commands: chartLayoutsCommands('excel', 'chart-design') },
+          { id: 'GroupChartStyles', label: 'Chart Styles', priority: 'primary', controls: 3, inScope: true, commands: chartStylesCommands('excel', 'chart-design') },
+          { id: 'GroupChartData', label: 'Data', priority: 'secondary', controls: 2, inScope: true, commands: chartDataCommands('excel', 'chart-design') },
+          { id: 'GroupChartType', label: 'Type', priority: 'secondary', controls: 1, inScope: true, commands: chartTypeCommands('excel', 'chart-design') },
+          { id: 'GroupChartLocation', label: 'Location', priority: 'ancillary', controls: 1, inScope: true, commands: excelChartDesignLocation },
         ],
       },
       {

@@ -1361,7 +1361,7 @@ is drawn:
 Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layout the fourth, Excel's Table Design
 the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, Excel's Picture Format the
 eighth, PowerPoint's Shape Format the ninth, Word's Shape Format the tenth, Excel's Shape Format the eleventh,
-Word's Chart Design the twelfth, and PowerPoint's Chart Design the thirteenth.** A
+Word's Chart Design the twelfth, PowerPoint's Chart Design the thirteenth, and Excel's Chart Design the fourteenth.** A
 contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
@@ -1405,8 +1405,9 @@ Layout*, **Excel's Table Design the fifth**, see *Excel's Table Design*, **Word'
 contextual tab `Shell/PowerPoint` shows authored, **Excel's Picture Format the eighth**, see *Excel's Picture
 Format*, **PowerPoint's Shape Format the ninth**, see *PowerPoint's Shape Format*, the first of Drawing Tools,
 **Word's Shape Format the tenth**, see *Word's Shape Format*, **Excel's Shape Format the eleventh**, see *Excel's
-Shape Format*, **Word's Chart Design the twelfth**, see *Word's Chart Design*, the first of Chart Tools, and
-**PowerPoint's Chart Design the thirteenth**, see *PowerPoint's Chart Design*.
+Shape Format*, **Word's Chart Design the twelfth**, see *Word's Chart Design*, the first of Chart Tools,
+**PowerPoint's Chart Design the thirteenth**, see *PowerPoint's Chart Design*, and **Excel's Chart Design the
+fourteenth**, see *Excel's Chart Design*, the last Chart Design of the three.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -2189,7 +2190,8 @@ commands and renders `chartToolsMenus('word', 'ribbons')`, five menus.
 - **In `stories/ribbons/chart-tools-menus.ts`**, every list a function of nothing: `chartElements` and
   `addChartElementEntries`, `quickLayoutEntries`, `changeColoursEntries`, `chartStyles` and `chartStyleGalleryItems`,
   `editDataEntries`, `changeChartTypeEntries`; `chartToolsMenus(application, host)` had a `word` branch and rendered
-  nothing for the other two until their units (PowerPoint's has since landed; see *PowerPoint's Chart Design*).
+  nothing for the other two until their units (both have since landed; see *PowerPoint's Chart Design* and *Excel's
+  Chart Design*).
 - **Reused**: Excel's Insert → Charts lists, now exported from `insert-menus.ts`; `wordart-styles-menus.ts`' `submenu`;
   `palette-art.ts`' `paletteSlotColour` and `spacingStep`. **One new glyph**, `data-bar-vertical-add`; `table-switch`
   and `chart-multiple` gain a 24.
@@ -2257,6 +2259,55 @@ split button and a refresh no undo takes back; a menu.
 - **The gallery's pictures read the catalogue's one specimen theme**, so they match `Ribbons/Word`'s exactly; that is
   not a claim that a deck and a document share a theme.
 - **Glyphs**, all Word's and all `GUESS:`; Quick Layout's `layout-cell-four` is again the weakest.
+
+### Excel's Chart Design
+
+**One tab of one application, and the fourteenth contextual tab authored**, Excel's fourth and its first of Chart
+Tools, and the last Chart Design of the three. Five groups and eight commands, in Office's order, which is also the
+census's: Chart Layouts, Chart Styles, Data, Type, Location. It is `TabChartToolsDesignNew` in `TabSetChartTools`,
+under the *Chart Tools* band while a chart on a worksheet or a chart sheet is selected. **It is Word's Chart Design
+wherever Office's Excel is**, and the two differences below are both Office's Excel's.
+
+**The census's groups, read.** `GroupChartLayouts` (23, `primary`) Chart Layouts, `GroupChartStyles` (3, `primary`)
+Chart Styles, `GroupChartData` (2, `secondary`) Data, `GroupChartType` (1, `secondary`) Type, and
+**`GroupChartLocation` (1, `ancillary`) Location**, the fifth group, which is **Move Chart**: the brief's reading holds.
+The ids, labels, counts and priorities are the contextual unit's, unchanged. No group has a dialog launcher.
+
+**It renders in `Ribbons/Excel` alone.** `Shell/Excel` draws Table Tools, so it binds none of the tab and renders none
+of its menus; the menu gate's `hostContextualSets` already says so, and needed no change. `Ribbons/Excel` binds five
+commands and renders `chartToolsMenus('excel', 'ribbons')`, four menus.
+
+- **Chart Layouts**: **Add Chart Element** (large, eleven submenus) and **Quick Layout** (large, Layout 1 to 11).
+- **Chart Styles**: **Change Colours** (large) and the **Chart Styles** gallery in-ribbon, Style 1 to Style 16.
+- **Data**: **Switch Row/Column** and **Select Data**, plain large buttons. No Edit Data, no Refresh Data.
+- **Type**: **Change Chart Type**, a large dropdown over this ribbon's own Insert → Charts families.
+- **Location**: **Move Chart**, a plain large button; Office's opens the Move Chart dialog.
+
+**Reused, and Excel's own.**
+
+- **Reused**: `chartLayoutsCommands`, `chartStylesCommands`, `chartDataCommands` (whose `excel` branch Word's unit wrote)
+  and `chartTypeCommands` with `'excel'` in the census; in `stories/ribbons/chart-tools-menus.ts`,
+  `addChartElementEntries`, `quickLayoutEntries`, `changeColoursEntries`, `chartStyleGalleryItems` and
+  `changeChartTypeEntries`. `arrow-move`, PowerPoint's Move Split, for Move Chart.
+- **Excel's own, each where Office's Excel differs**: `excelChartDesignLocation` in the census (the Location group, which
+  neither other application has); the `excel` branch of `chartToolsMenus`, four menus, because there is no Edit Data;
+  `excelChartDesignTab`; the five bindings. **No new list and no new glyph**; `arrow-move` gains a 24.
+
+**No survivors**: two menus; a menu and a gallery; a swap with no self-evident glyph and a dialog; a menu; a dialog.
+
+⚠ **What is not Office's shape, or is `GUESS:`.** Word's Chart Design's list holds here, less Edit Data and Refresh
+Data. Beyond it:
+
+- **Chart Styles is `primary` and Data `secondary`**, where Word's and PowerPoint's are `secondary` and `standard`: the
+  census counts Chart Styles 3 and Data 2 here. The census wins.
+- **Chart Styles counts 3 and draws 2.** `GUESS:` that the third is the gallery's collapsed *Quick Styles* form. Data,
+  Type and Location are met; Chart Layouts is Word's 23 and 2. Nothing is padded.
+- **Change Chart Type has no Map family**, though Excel's dialog lists Map; Insert's Maps reaches it.
+- **The chart Excel inserts starts as Word's does**, so Add Chart Element's starts are Word's.
+- **Switch Row/Column is drawn available**, which is Office's Excel's shape too (Word greys it until the data sheet is
+  open).
+- **Glyphs**, all `GUESS:`. **Move Chart's `arrow-move`, four arrows that say *move* and not *chart*, is the weakest**;
+  Fluent's one chart with an arrow, `data-bar-vertical-arrow-down`, reads *download*. The gallery carries none.
 
 ### The entries beneath a colour picker's palette
 

@@ -1765,9 +1765,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'arrow-move',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Move Split, in PowerPoint's View Window group: four arrows, the keys that move the split bars between panes. `GUESS:`.",
+    why: "Move Split, in PowerPoint's View Window group: four arrows, the keys that move the split bars between panes. `GUESS:`. **Since Excel's Chart Design unit, also Move Chart**, large, in Location, which opens the Move Chart dialog (a new chart sheet, or an object in another sheet): four arrows, the chart moves, so 24 too. Office draws a chart with an arrow leaving it; Fluent's only chart with an arrow is `data-bar-vertical-arrow-down`, which reads *download* or *sort*, so this says *move* without saying *chart*, and it is that tab's weakest glyph. The two uses are never on one ribbon. `GUESS:`.",
   },
   {
     name: 'text-direction-horizontal-ltr',
