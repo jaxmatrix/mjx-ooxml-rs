@@ -508,7 +508,7 @@ impl Presentation {
         let candidates = slide::content_part_references(sp_tree, &doc.interner);
 
         let mut references = Vec::with_capacity(candidates.len());
-        for (shape_index, rel_id, bounds) in candidates {
+        for (shape_index, element_index, rel_id, bounds) in candidates {
             let part = self.part_for_rel(&slide_part, &rel_id).unwrap_or(None);
             let is_ink = part.as_ref().is_some_and(|part| {
                 self.package.content_type_of(part) == Some(constants::CONTENT_TYPE_INKML)
@@ -518,6 +518,7 @@ impl Presentation {
             }
             references.push(InkReference {
                 shape_index,
+                element_index,
                 rel_id,
                 part,
                 bounds,

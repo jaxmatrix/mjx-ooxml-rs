@@ -24,6 +24,8 @@ pub struct InkReference {
     /// The shape index of the `p:contentPart` on the surface, or `None` when the reference lives
     /// inside an `mc:AlternateContent` and so is out of the shape index space.
     pub shape_index: Option<usize>,
+    /// The position, among the shape tree's child elements, of the content part or of the `mc:AlternateContent` that wraps it.
+    pub element_index: usize,
     /// The relationship id the content part names (`@r:id`).
     pub rel_id: String,
     /// The InkML part that relationship resolves to, or `None` when it resolves outside the package.

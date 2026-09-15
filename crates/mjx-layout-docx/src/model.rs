@@ -2491,6 +2491,11 @@ impl DocumentBoxModel {
             &mjx_layout_chart::ChartAddress::new(address.clone()),
             catalogue.chart_resources(),
         );
+        // Its text is measured with nominal metrics and not shaped, counted once per chart; owned by MJXOFF-320 (RC26).
+        self.losses.record(
+            address.clone(),
+            mjx_layout::LayoutLossKind::TextMeasuredNotShaped,
+        );
     }
 
     /// One table, or the slices of it that landed on this page.

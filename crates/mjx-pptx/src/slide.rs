@@ -637,7 +637,7 @@ fn content_part_bounds(element: &RawElement, interner: &Interner) -> Option<crat
     crate::ShapeBounds::from_transform(&mjx_dml::Transform2D::read(xfrm, interner))
 }
 
-/// Every content part a shape tree references, as `(shape index, relationship id, bounds)`.
+/// Every content part a shape tree references, as `(shape index, child element index, relationship id, bounds)`.
 ///
 /// A `p:contentPart` is a shape like any other, so it has an index in the one shape index space. A
 /// `p14:contentPart` is not: producers wrap it in `mc:AlternateContent`, which sits beside the shapes
@@ -646,18 +646,20 @@ fn content_part_bounds(element: &RawElement, interner: &Interner) -> Option<crat
 pub(crate) fn content_part_references(
     sp_tree: &RawElement,
     interner: &Interner,
-) -> Vec<(Option<usize>, String, Option<crate::ShapeBounds>)> {
+) -> Vec<(Option<usize>, usize, String, Option<crate::ShapeBounds>)> {
     let mut found = Vec::new();
     let mut shape_index = 0usize;
-    for node in &sp_tree.children {
-        let RawNode::Element(element) = node else {
-            continue;
-        };
+    let elements = sp_tree.children.iter().filter_map(|node| match node {
+        RawNode::Element(element) => Some(element),
+        _ => None,
+    });
+    for (element_index, element) in elements.enumerate() {
         if shape_kind(element, interner).is_some() {
             if is_content_part(element, interner) {
                 if let Some(rel_id) = content_part_rel_id(element, interner) {
                     found.push((
                         Some(shape_index),
+                        element_index,
                         rel_id.to_owned(),
                         content_part_bounds(element, interner),
                     ));
@@ -667,7 +669,7 @@ pub(crate) fn content_part_references(
             continue;
         }
         if nav::name_is(&element.name, interner, MCE, "AlternateContent") {
-            collect_alternate_content_parts(element, interner, &mut found);
+            collect_alternate_content_parts(element, element_index, interner, &mut found);
         }
     }
     found
@@ -677,8 +679,9 @@ pub(crate) fn content_part_references(
 /// index — the branches are not in the shape index space.
 fn collect_alternate_content_parts(
     alternate: &RawElement,
+    element_index: usize,
     interner: &Interner,
-    found: &mut Vec<(Option<usize>, String, Option<crate::ShapeBounds>)>,
+    found: &mut Vec<(Option<usize>, usize, String, Option<crate::ShapeBounds>)>,
 ) {
     for branch in ["Choice", "Fallback"] {
         for candidate in nav::children(alternate, interner, MCE, branch) {
@@ -690,6 +693,7 @@ fn collect_alternate_content_parts(
                     if let Some(rel_id) = content_part_rel_id(element, interner) {
                         found.push((
                             None,
+                            element_index,
                             rel_id.to_owned(),
                             content_part_bounds(element, interner),
                         ));

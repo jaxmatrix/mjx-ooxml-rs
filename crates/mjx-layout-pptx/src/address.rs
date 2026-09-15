@@ -100,6 +100,20 @@ pub fn run_path(surface_index: u32, shape: &[u32], paragraph: usize, run: usize)
     paragraph_path(surface_index, shape, paragraph).child(clamp(run))
 }
 
+/// The segment that stands where a shape index would, for a shape-tree child no shape index names.
+pub const WRAPPED: u32 = u32::MAX;
+
+/// The surface and the shape-tree child element an address names, when it names one outside the shape index space — a content part wrapped in `mc:AlternateContent`, addressed `[surface, WRAPPED, element]`.
+#[must_use]
+pub fn wrapped_element(source: &SourceRef) -> Option<(Surface, usize)> {
+    match source.path().segments() {
+        [surface, WRAPPED, element] => {
+            Some((surface_of(source.part(), *surface)?, *element as usize))
+        }
+        _ => None,
+    }
+}
+
 /// A whole node, covering no characters — a page, a shape, a paragraph box.
 #[must_use]
 pub fn node(part: PartId, path: SourcePath) -> SourceRef {

@@ -437,14 +437,17 @@ fn read_slide(deck: &mut Presentation, surface: Surface) -> Result<Slide, PptxEr
     for index in 0..count {
         read_shape(deck, surface, &mut vec![index], &mut shapes)?;
     }
-    // Ink wrapped in `mc:AlternateContent` sits outside the shape index space, so it is addressed after the last shape.
+    // Ink wrapped in `mc:AlternateContent` sits outside the shape index space, so it is addressed by its place among the shape tree's children.
     let wrapped = deck
         .ink_references(surface)?
         .into_iter()
         .filter(|reference| reference.shape_index.is_none());
-    for (ordinal, reference) in wrapped.enumerate() {
+    for reference in wrapped {
         shapes.push(Shape {
-            path: vec![u32::try_from(count + ordinal).unwrap_or(u32::MAX)],
+            path: vec![
+                crate::address::WRAPPED,
+                u32::try_from(reference.element_index).unwrap_or(u32::MAX),
+            ],
             kind: ShapeKind::ContentPart,
             bounds: reference.bounds.map(|bounds| {
                 LayoutRect::from_edges(

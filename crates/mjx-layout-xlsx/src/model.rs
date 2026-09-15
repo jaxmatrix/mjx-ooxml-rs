@@ -1241,20 +1241,37 @@ impl SheetBoxModel {
             // A chart's interior. The anchor is this crate's; everything inside it is
             // `mjx-layout-chart`'s, reached through one call that PowerPoint's and Word's box models
             // make identically — which is what MJXOFF-178's rank 3.55 buys.
-            if let (Some(node), Some(chart)) = (node, content.chart(placed.index)) {
-                let geometry = mjx_layout_chart::lay_out(
-                    chart,
-                    rect,
-                    content.palette(),
-                    &mut mjx_layout_chart::NominalMetrics,
-                );
-                mjx_layout_chart::emit_into(
-                    &geometry,
-                    builder,
-                    node,
-                    &mjx_layout_chart::ChartAddress::new(address),
-                    catalogue.chart_resources(),
-                );
+            match (node, content.chart(placed.index)) {
+                (Some(node), Some(chart)) => {
+                    let geometry = mjx_layout_chart::lay_out(
+                        chart,
+                        rect,
+                        content.palette(),
+                        &mut mjx_layout_chart::NominalMetrics,
+                    );
+                    mjx_layout_chart::emit_into(
+                        &geometry,
+                        builder,
+                        node,
+                        &mjx_layout_chart::ChartAddress::new(address.clone()),
+                        catalogue.chart_resources(),
+                    );
+                    // Its text is measured with nominal metrics and not shaped, counted once per chart; owned by MJXOFF-320 (RC26).
+                    catalogue
+                        .losses
+                        .record(address, LayoutLossKind::TextMeasuredNotShaped);
+                }
+                (_, Some(_)) => {}
+                // Anything else anchored here is placed as an empty box, and counted over it.
+                (_, None) => catalogue.losses.record_at(
+                    address,
+                    drawing_loss(placed.object),
+                    mjx_layout::LossArea {
+                        rect,
+                        transform: TransformId::IDENTITY,
+                        clip,
+                    },
+                ),
             }
             catalogue.drawings.push(placed);
         }
@@ -2010,5 +2027,18 @@ fn empty_area(constraints: &Constraints) -> LayoutError {
     LayoutError::EmptyContentArea {
         width: constraints.content.width().emu(),
         height: constraints.content.height().emu(),
+    }
+}
+
+// What an object anchored on a sheet is lost as when this box model places it and lays out nothing inside it.
+fn drawing_loss(object: Option<&str>) -> LayoutLossKind {
+    let frame = LayoutLossKind::FrameContentNotLaidOut;
+    match object {
+        Some("pic") => frame(FrameContent::Picture),
+        Some("sp" | "cxnSp" | "grpSp") => frame(FrameContent::Shape),
+        // Excel writes a content part for ink.
+        Some("contentPart") => frame(FrameContent::Ink),
+        // A graphic frame with no chart this reader found holds content it did not read.
+        _ => LayoutLossKind::DroppedByReader,
     }
 }

@@ -741,6 +741,11 @@ impl SlideBoxModel {
                 &address,
                 catalogue.chart_resources(),
             );
+            // Its text is measured with nominal metrics and not shaped, counted once per chart; owned by MJXOFF-320 (RC26).
+            catalogue.losses.record(
+                address::node(part, path.clone()),
+                mjx_layout::LayoutLossKind::TextMeasuredNotShaped,
+            );
         }
         Ok(Some(id))
     }

@@ -114,3 +114,95 @@ fn a_string_of_formatted_runs_is_approximated_and_a_plain_string_is_not() {
     );
     assert_eq!(plain.len(), 0);
 }
+
+// A valid one-pixel red PNG.
+const PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+    0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+    0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+    0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+#[test]
+fn a_picture_anchored_on_a_sheet_is_a_picture_not_laid_out_at_its_anchor() {
+    use mjx_xlsx::drawing_geometry::{CellMarker, ResizingBehavior};
+    let mut book = mjx_xlsx::Workbook::blank().expect("a blank workbook");
+    book.add_two_cell_anchored_picture(
+        0,
+        PNG,
+        "Picture 1",
+        CellMarker::new(1, 0, 1, 0),
+        CellMarker::new(4, 0, 6, 0),
+        ResizingBehavior::MoveWithCellsButDoNotResize,
+    )
+    .expect("the picture anchors");
+    let bytes = book.save().expect("the workbook saves");
+    let book = mjx_xlsx::Workbook::open(&bytes).expect("it reopens");
+    let grid = mjx_layout_xlsx::SheetGrid::read(&book, 0).expect("the sheet reads");
+    let found = model()
+        .layout_page(&grid, PageIndex::FIRST, &viewport(6.0, 4.0), None)
+        .expect("the band lays out")
+        .losses()
+        .clone();
+    let picture = LayoutLossKind::FrameContentNotLaidOut(FrameContent::Picture);
+    assert_eq!((found.count(picture), found.len()), (1, 1));
+    let loss = found.iter().next().expect("one loss");
+    assert_eq!(
+        loss.source.path().segments(),
+        &[u32::MAX, 0],
+        "the drawing's own address"
+    );
+    assert!(
+        loss.area.is_some_and(|area| !area.rect.is_empty()),
+        "the picture occupies its anchor's rectangle"
+    );
+}
+
+#[test]
+fn a_chart_on_a_sheet_is_text_measured_not_shaped_once_with_no_area() {
+    let grid = support::grid_of("chart_in_sheet.xlsx", 0);
+    let found = model()
+        .layout_page(&grid, PageIndex::FIRST, &viewport(20.0, 20.0), None)
+        .expect("the band lays out")
+        .losses()
+        .clone();
+    let measured: Vec<_> = found
+        .iter()
+        .filter(|loss| loss.kind == LayoutLossKind::TextMeasuredNotShaped)
+        .collect();
+    assert_eq!(measured.len(), 1, "one chart, one approximation");
+    assert!(measured.iter().all(
+        |loss| loss.area.is_none() && loss.source.path().segments().first() == Some(&u32::MAX)
+    ));
+    assert_eq!(
+        found.count(LayoutLossKind::FrameContentNotLaidOut(FrameContent::Chart)),
+        0,
+        "a chart the engine lays out is not a frame not laid out"
+    );
+}
+
+#[test]
+fn every_picture_and_shape_anchored_on_a_sheet_is_counted_as_itself() {
+    let grid = support::grid_of("worksheet_drawings.xlsx", 0);
+    let found = model()
+        .layout_page(&grid, PageIndex::FIRST, &viewport(40.0, 40.0), None)
+        .expect("the band lays out")
+        .losses()
+        .clone();
+    let frame = LayoutLossKind::FrameContentNotLaidOut;
+    assert_eq!(
+        (
+            found.count(frame(FrameContent::Picture)),
+            found.count(frame(FrameContent::Shape))
+        ),
+        (3, 1),
+        "the fixture anchors three pictures and one shape"
+    );
+    assert!(found
+        .iter()
+        .filter(|loss| matches!(loss.kind, LayoutLossKind::FrameContentNotLaidOut(_)))
+        .all(
+            |loss| loss.area.is_some() && loss.source.path().segments().first() == Some(&u32::MAX)
+        ));
+}
