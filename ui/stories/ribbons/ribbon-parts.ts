@@ -36,7 +36,6 @@ import { html, nothing, type TemplateResult } from 'lit';
 import {
   commandSurfaceId,
   ribbonGroup,
-  strongestPriority,
   type RibbonCommand,
   type RibbonContextualSetEntry,
   type RibbonSurfaceHost,
@@ -319,37 +318,21 @@ export function commandMenu(
   </mjx-menu>`;
 }
 
-/**
- * A tab whose unit has not landed yet: one group carrying the tab's name, and one honest button.
- *
- * **Every core and view tab has landed, and so have Word's and PowerPoint's Table Design, Table Layout and Picture
- * Format, Excel's Table Design and Picture Format, every Shape Format, every Chart Design, and Word's and PowerPoint's
- * Chart Format; the one other contextual tab of the four common sets, Excel's Chart Tools Format, is what still draws
- * through this**, until its own unit authors it.
- *
- * ⚠ **The priority is the census's, not a constant**, and that is the whole point of the
- * placeholder being built from the entry rather than from a tab id and a label alone — which is what the
- * contextual sets were drawn with until they had census entries. A tab
- * that will hold a `primary` group when unit *N* authors it must not collapse earlier today than
- * it will then, or the collapse ladder a reviewer is looking at is a property of the scaffold
- * rather than of the ribbon. `strongestPriority` is what reads it.
- *
- * The button says *Not yet authored* rather than naming a plausible command, for the reason
- * `dev/word-tab-home.ts` gives about its own filler: a made-up command name is a worse lie than an
- * obvious placeholder, and a placeholder occupies exactly as much of the layout as a command does.
- */
-export function placeholderTab(entry: RibbonTabEntry): TemplateResult {
-  return tab(
-    entry.id,
-    entry.label,
-    group(
-      entry.label,
-      strongestPriority(entry),
-      {},
-      html`<mjx-button label="Not yet authored" size="small"></mjx-button>`,
-    ),
-  );
-}
+// ── `placeholderTab` is gone, and this note is what it left behind ───────────
+//
+// **Every tab this catalogue declares is authored**: every core, view and File tab, and, since Excel's Chart Format,
+// all seventeen contextual tabs of the four common sets. So the function that drew a tab whose unit had not landed —
+// one group carrying the tab's name, holding one button that said *Not yet authored* — has no caller and is deleted
+// rather than kept warm. Two things it was built around are worth having written down, because the day the user builds
+// a fifth contextual set somebody will need them again:
+//
+// - **The priority was the census's, not a constant**, read with `dev/ribbons/census.ts`'s `strongestPriority`. A tab
+//   that would hold a `primary` group when its unit landed must not collapse earlier before then, or the collapse
+//   ladder a reviewer is looking at is a property of the scaffold rather than of the ribbon. That rule outlived the
+//   function: `tests/ribbons.test.ts` still holds every declared tab to it.
+// - **The button said *Not yet authored* rather than naming a plausible command**, for the reason `dev/word-tab-home.ts`
+//   gives about its own filler: a made-up command name is a worse lie than an obvious placeholder, and a placeholder
+//   occupies exactly as much of the layout as a command does.
 
 /** Every tab of one application, in Office's order, filtered by where Office shows them. */
 export function tabsFor(

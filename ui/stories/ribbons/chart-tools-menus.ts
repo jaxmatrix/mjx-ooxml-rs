@@ -40,7 +40,8 @@
  * - **Shape Styles**: `chartOutlineEntryOptions(application)`, Shape Outline's entries less Sketched and Arrows.
  * - **WordArt Styles**: `chartTextFillEntryOptions(application)` and `chartTextOutlineEntryOptions(application)`, each
  *   application's own Shape Format text entries.
- * - **Size**: `wordChartMeasures` and `powerpointChartMeasures`, the chart each application inserts.
+ * - **Size**: `wordChartMeasures`, `powerpointChartMeasures` and `excelChartMeasures`, the chart each application
+ *   inserts. All three differ, which is the one measure on the tab that is not shared.
  *
  * `GUESS:` every label, order, check and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * US spelling the census's wins (*Colours*, *Colourful*, *Centred*), as it does across the catalogue.
@@ -588,6 +589,16 @@ export const wordChartMeasures = { height: '8.89', width: '15.24', step: '0.01' 
  */
 export const powerpointChartMeasures = { height: '15.05', width: '22.58', step: '0.01' } as const;
 
+/**
+ * **The height and width an Excel host starts a chart's Size fields on**, in centimetres: the chart Excel inserts on a
+ * worksheet, 5 inches wide and 3 high (the 360 × 216 point chart object Excel's own automation defaults to), 12.7 cm
+ * by 7.62, stepping by 0.01 cm. Neither Word's nor PowerPoint's, which is why it is a constant of its own.
+ * `GUESS:` **both numbers, and they are the weakest call on Excel's Chart Format**: a chart dropped onto a sheet is
+ * the easiest thing in Office to have been resized before anybody looked at it, so this is a default rather than an
+ * observation.
+ */
+export const excelChartMeasures = { height: '7.62', width: '12.7', step: '0.01' } as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -673,9 +684,34 @@ function powerpointChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Excel's **four** menus: Word's five less Edit Data's, under Excel's ids, over the same lists. **Excel's Data group is
- * Switch Row/Column and Select Data alone** (a workbook's chart reads its own cells, so there is no data sheet to edit),
- * and its fifth group, Location, is Move Chart, a dialog, with no menu. The Chart Styles gallery is in-ribbon.
+ * Excel's ten Chart Format menus: **Word's twelve less Position and Wrap Text**, which a cell does not wrap around a
+ * chart, under Excel's ids — the same ten PowerPoint's Chart Format opens, over Excel's own Arrange lists. **Insert
+ * Shapes' two**: Shapes and Change Shape, over a chart's gallery. **Shape Styles' two**: Other Theme Fills, whose id is
+ * the Theme Styles gallery's, and Shape Effects. **WordArt Styles' one**: Text Effects. **Arrange's five**, over
+ * `stories/ribbons/design-layout-menus.ts`' Excel lists, as Excel's Shape Format: Bring Forward and Send Backward with
+ * no text layer, Align ending on Snap to Grid, Snap to Shape and View Gridlines. The Chart Elements field is a field,
+ * and every other command a picker, a gallery, a toggle or a plain button.
+ */
+function excelChartFormatMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'excel.chart-format.insert-shapes.shapes', 'Shapes', ...chartShapesEntries('excel'))}
+    ${commandMenu(host, 'excel.chart-format.insert-shapes.change-shape', 'Change Shape', ...chartChangeShapeEntries('excel'))}
+    ${commandMenu(host, 'excel.chart-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
+    ${commandMenu(host, 'excel.chart-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
+    ${commandMenu(host, 'excel.chart-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'excel.chart-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('excel'))}
+    ${commandMenu(host, 'excel.chart-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('excel'))}
+    ${commandMenu(host, 'excel.chart-format.arrange.align', 'Align', ...alignEntries('excel'))}
+    ${commandMenu(host, 'excel.chart-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'excel.chart-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+  `;
+}
+
+/**
+ * Excel's fourteen menus: **Chart Design's four**, Word's five less Edit Data's, under Excel's ids over the same lists,
+ * then `excelChartFormatMenus`' ten. Chart Design: **Excel's Data group is Switch Row/Column and Select Data alone** (a
+ * workbook's chart reads its own cells, so there is no data sheet to edit), and its fifth group, Location, is Move
+ * Chart, a dialog, with no menu. The Chart Styles gallery is in-ribbon.
  */
 function excelChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
@@ -683,13 +719,14 @@ function excelChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
     ${commandMenu(host, 'excel.chart-design.chart-layouts.quick-layout', 'Quick Layout', ...quickLayoutEntries())}
     ${commandMenu(host, 'excel.chart-design.chart-styles.change-colours', 'Change Colours', ...changeColoursEntries())}
     ${commandMenu(host, 'excel.chart-design.type.change-chart-type', 'Change Chart Type', ...changeChartTypeEntries())}
+    ${excelChartFormatMenus(host)}
   `;
 }
 
 /**
  * Every menu one application's Chart Tools tabs open, with ids for one host's page. **Every Chart Design is authored**:
- * Word's and PowerPoint's five, Excel's four. **Of the three Chart Formats, Word's and PowerPoint's are
- * authored**, twelve menus and ten; Excel's adds its own in its unit.
+ * Word's and PowerPoint's five, Excel's four. **Every Chart Format is authored too**: Word's twelve, and PowerPoint's
+ * and Excel's ten each, which are Word's less Position and Wrap Text.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Chart Tools **and** binds its
  * commands: `Ribbons/Word`, `Ribbons/PowerPoint` and `Ribbons/Excel`. `Shell/Word` and `Shell/Excel` draw Table Tools

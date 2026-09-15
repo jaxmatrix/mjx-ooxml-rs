@@ -379,7 +379,9 @@ function printAreaEntries(): TemplateResult[] {
 // in the same way; it has no Position or Wrap Text. **Excel's Picture Format** renders the same five for Excel, Align
 // ending on Excel's snaps. **PowerPoint's Shape Format** renders PowerPoint's five again, **Word's Shape Format** all
 // seven of Word's, and **Excel's Shape Format** Excel's five, from `stories/ribbons/drawing-tools-menus.ts`, under those
-// tabs' ids.
+// tabs' ids. **Every Chart Format** renders its own application's again, from
+// `stories/ribbons/chart-tools-menus.ts`: Word's seven, PowerPoint's five and Excel's five, because a chart is a
+// `drawing` to `arrangeCommands` exactly as a picture and a shape are.
 
 /** Position, in Word: in line, three of Office's nine wrapped positions, and the dialog. */
 export function positionEntries(): TemplateResult[] {

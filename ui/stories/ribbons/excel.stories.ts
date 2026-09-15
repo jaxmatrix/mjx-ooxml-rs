@@ -23,7 +23,15 @@ import {
   scalePercentages,
   type ControlOverrides,
 } from './ribbon-parts.ts';
-import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
+import {
+  chartOutlineEntryOptions,
+  chartSelectionOptions,
+  chartStyleGalleryItems,
+  chartTextFillEntryOptions,
+  chartTextOutlineEntryOptions,
+  chartToolsMenus,
+  excelChartMeasures,
+} from './chart-tools-menus.ts';
 import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
@@ -60,11 +68,12 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
- * Print Preview and Background Removal. **Of the five contextual tabs, Table Design, Picture Format, Shape Format and
- * Chart Design are authored**, Excel's first four; **the last is a placeholder** at the census's own priorities: Chart
- * Tools' Format. Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools
- * alone, and binds Table Design as this file does, which is why Picture Format's, Shape Format's and Chart Design's
- * bindings and menus are written here and nowhere else. See
+ * Print Preview and Background Removal. **All five contextual tabs are authored too**: Table Design, Picture Format,
+ * Shape Format, Chart Design and Chart Tools' Format. Each was a placeholder at the census's own priorities until its
+ * unit, and **Chart Tools' Format was the last placeholder in the whole catalogue**. Every story draws all four
+ * contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone, and binds Table Design as this file
+ * does, which is why Picture Format's, Shape Format's, Chart Design's and Chart Format's bindings and menus are
+ * written here and nowhere else. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -85,9 +94,8 @@ const meta: Meta = {
         component:
           'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
-          'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, Table ' +
-          'Design, Picture Format, Shape Format and Chart Design are authored; Chart Tools’ Format is a placeholder ' +
-          'carrying the census’s priorities.',
+          'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, all ' +
+          'five are authored: Table Design, Picture Format, Shape Format, Chart Design and Chart Tools’ Format.',
       },
     },
     mjx: conventions,
@@ -1002,6 +1010,169 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-excel-chart-design-type-change-chart-type"
   ></mjx-button>`,
+  // Chart Format (a contextual tab, in Chart Tools). `Shell/Excel` draws Table Tools alone, so these eighteen bindings
+  // and the Chart Format half of `chartToolsMenus('excel', …)` are written here and nowhere else, for Chart Design's
+  // reason. They are `Ribbons/Word`'s twenty-one less Position and Wrap Text, under Excel's ids, and differ only where
+  // Office's Excel does: no picker carries an Eyedropper (the `excel` branches of the entry options), Bring Forward and
+  // Send Backward are large, and the measures are a worksheet chart's. The Chart Elements field's options, a chart's
+  // Shapes and Change Shape, the entry options and the starting measures are `stories/ribbons/chart-tools-menus.ts`'s;
+  // the Theme Styles gallery, Other Theme Fills, Shape Effects and Shape Fill's entries
+  // `stories/ribbons/drawing-tools-menus.ts`'; the WordArt gallery `stories/ribbons/wordart-styles-menus.ts`'; the four
+  // pickers and both galleries' pictures read this workbook's palette. Format Selection and Reset to Match Style are the
+  // generic button, and Alt Text and Selection Pane the generic toggle; none is bound.
+  'excel.chart-format.current-selection.chart-elements': html`<mjx-dropdown
+    id="ribbons-xl-chart-format-chart-elements"
+    label="Chart Elements"
+    value="chart-area"
+    style=${ribbonFieldStyle}
+  >
+    ${chartSelectionOptions()}
+  </mjx-dropdown>`,
+  'excel.chart-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-excel-chart-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'excel.chart-format.insert-shapes.change-shape': html`<mjx-button
+    label="Change Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-excel-chart-format-insert-shapes-change-shape"
+  ></mjx-button>`,
+  'excel.chart-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-xl-chart-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-excel-chart-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'excel.chart-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-xl-chart-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="theme:background1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.chart-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-xl-chart-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="theme:text1/lighter80"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(chartOutlineEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.chart-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-excel-chart-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'excel.chart-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-xl-chart-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'excel.chart-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-xl-chart-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:text1/lighter40"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Fill', fillEntries(chartTextFillEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.chart-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-xl-chart-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Outline', outlineEntries(chartTextOutlineEntryOptions('excel')))}
+  </mjx-color-picker>`,
+  'excel.chart-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-excel-chart-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'excel.chart-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="large"
+    data-opens="ribbons-excel-chart-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.chart-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="large"
+    data-opens="ribbons-excel-chart-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.chart-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-excel-chart-format-arrange-align"
+  ></mjx-button>`,
+  'excel.chart-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-excel-chart-format-arrange-group"
+  ></mjx-button>`,
+  'excel.chart-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-excel-chart-format-arrange-rotate"
+  ></mjx-button>`,
+  'excel.chart-format.size.height': html`<mjx-measure-input
+    id="ribbons-xl-chart-format-height"
+    label="Height"
+    value=${excelChartMeasures.height}
+    unit="cm"
+    step=${excelChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'excel.chart-format.size.width': html`<mjx-measure-input
+    id="ribbons-xl-chart-format-width"
+    label="Width"
+    value=${excelChartMeasures.width}
+    unit="cm"
+    step=${excelChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1466,7 +1637,52 @@ export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 
 /**
- * **Format** — Chart Tools' second tab, a placeholder. Seven groups: Current Selection, Insert Shapes, Shape Styles,
- * WordArt Styles, Accessibility, Arrange and Size.
+ * **Chart Format**: which part of a chart on the worksheet is selected and how to format or reset it, a shape drawn
+ * over the chart, how that part is filled, outlined and given effects, how its text is dressed, how the chart is
+ * described, where it sits among the sheet's objects, and its size. Chart Tools' second tab, Excel's fifth and last
+ * contextual tab authored, and **the last placeholder in the whole catalogue** — nothing draws through `placeholderTab`
+ * any more, and the function is gone. Office shows it only while a chart is selected, and its accessible name,
+ * *Format, Chart Tools*, is what tells it from Shape Format. Seven groups: Current Selection, Insert Shapes, Shape
+ * Styles, WordArt Styles, Accessibility, Arrange and Size. **It is `Ribbons/Word`'s Chart Format less Position and Wrap
+ * Text, under Excel's ids**, so judge the two side by side: every difference other than the ones named below is a
+ * defect. `ShapeFormat` covers the Theme Styles pictures, Other Theme Fills, Shape Effects and Text Effects, and
+ * Arrange is `PictureFormat`'s. What to look at here, least certain first:
+ *
+ * 1. ⚠ **Height 7.62 cm and Width 12.7 cm**, the 5 × 3 inch chart Excel inserts on a worksheet, stepping by 0.01.
+ *    Neither Word's 15.24 × 8.89 nor PowerPoint's 22.58 × 15.05. **This is the weakest call on the tab**: a chart
+ *    dropped onto a sheet is the easiest thing in Office to have been resized before anybody looked, so both numbers
+ *    are a default rather than an observation. `GUESS:` both.
+ * 2. ⚠ **No Eyedropper under any of the four pickers**, where `Ribbons/PowerPoint`'s Chart Format carries one under
+ *    each. Shape Fill: More Fill Colours…, Picture…, Gradient ▸, Texture ▸. Shape Outline: More Outline Colours…,
+ *    Weight ▸, Dashes ▸, and **still no Sketched or Arrows**, which Excel's *Shape* Format's outline has. Text Fill:
+ *    Shape Fill's four. Text Outline: More Outline Colours…, Weight ▸, **Sketched ▸**, Dashes ▸. The census counts
+ *    Shape Styles 35 here against PowerPoint's 38 and WordArt Styles 30 against 33 — the same three-apiece gap Excel's
+ *    Shape Format shows. `GUESS:` every entry.
+ * 3. ⚠ **The pickers start where Word's do, not where PowerPoint's do**: Shape Fill on *Background 1* and Shape Outline
+ *    on *Text 1, Lighter 80%*, because a chart Excel inserts is opaque — white chart area, light grey border, the cells
+ *    behind it hidden — where a chart on a slide is transparent. Text Fill starts on *Text 1, Lighter 40%* and Text
+ *    Outline on none, as in both other applications. `GUESS:` all four and the rounding.
+ * 4. ⚠ **Chart Elements**, the field at the head of Current Selection, starts on *Chart Area* and lists Word's ten
+ *    parts of the inserted Clustered Column, alphabetically, the three series before the vertical axis. Check the field
+ *    is wide enough for *Vertical (Value) Axis Major Gridlines*. `GUESS:` the order and every label.
+ * 5. ⚠ **Reset to Match Style's glyph is the weakest a reader meets**: Reset's loop, which says *reset* without *to the
+ *    chart's style*. Judge it beside Format Selection's column chart with a pencil; both are plain small buttons, drawn
+ *    available.
+ * 6. **Arrange is Excel's Picture Format's and Shape Format's six**: **Bring Forward and Send Backward large** split
+ *    buttons at the head, their arrows without Word's text layers; Selection Pane small with no glyph; **Align ending on
+ *    Snap to Grid, Snap to Shape and View Gridlines, the last ticked**; Group and Rotate. **No Position and no Wrap
+ *    Text.** The census counts 47, exactly what it counts for Excel's Shape Format Arrange, and nothing is added to
+ *    meet it.
+ * 7. **Shapes** opens the shape gallery with **no Action Buttons and no New Drawing Canvas**; **Change Shape**, small,
+ *    opens Change Shape's list, drawn available, with Edit Shape's glyph. No Edit Points, Text Box or Merge Shapes.
+ * 8. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', and **Size
+ *    and Properties** at Size's, as on Picture Format and Shape Format, where PowerPoint's says *Size and Position* and
+ *    Word's *Layout*. `GUESS:` all three; none on Current Selection.
+ * 9. **Text Effects keeps Transform**, which Office may grey on chart text; **Alt Text** is a large toggle, unpressed.
+ * 10. **No survivor anywhere.** Drag narrow: Insert Shapes (`ancillary`) gives way first, then Accessibility
+ *     (`secondary`), then Current Selection, WordArt Styles, Arrange and Size (`standard`), and Shape Styles (`primary`)
+ *     last; each collapses to a trigger with nothing beside it.
+ * 11. **Not in `Shell/Excel`**, which draws Table Tools: there is no Chart Tools band there and none of these menus is
+ *     on that page.
  */
 export const ChartFormat: Story = { render: () => ribbon('chart-format') };

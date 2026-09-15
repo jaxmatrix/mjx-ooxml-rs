@@ -40,7 +40,7 @@
  *     commands, the sheet as it will print. It opens no menu, binds one checkbox (Show Margins) in
  *     `Ribbons/Excel` alone, and draws its groups in Office's order rather than the census's.
  *
- * No core or view tab is a placeholder any more. **Five contextual tabs in four sets are declared**: Table Design
+ * No tab of Excel's is a placeholder any more. **Five contextual tabs in four sets are declared**: Table Design
  * (Excel's own `TabSetTableToolsExcel`, with no Layout tab), Picture Format, Shape Format, and Chart Design and Format.
  * `excelContextualSets` draws them, one set or all.
  *
@@ -69,7 +69,18 @@
  * `chartStylesCommands`, `chartDataCommands` and `chartTypeCommands`, and every menu and the gallery in
  * `stories/ribbons/chart-tools-menus.ts`), and differs where Office's Excel does: Data is Switch Row/Column and Select
  * Data alone, and a fifth group, **Location**, holds Move Chart. **`Ribbons/Excel` alone binds it**, because
- * `Shell/Excel` draws Table Tools. **The last, Chart Tools' Format, is a placeholder** until its own unit.
+ * `Shell/Excel` draws Table Tools.
+ *
+ * **Chart Tools' Format is authored**, the fifth and last: seven groups and twenty-two commands, which part of a chart
+ * on a worksheet is selected and how to format or reset it, a shape over the chart, how the part is styled, how its
+ * text is dressed, and how the chart is described, placed and sized. It is Word's tab through Word's functions (the
+ * census's `chartCurrentSelectionCommands`, `insertShapesCommands` for a chart, `shapeStylesCommands`,
+ * `wordArtStylesCommands`, `chartFormatAccessibilityCommands`, `arrangeCommands` and `sizeCommands`, and the lists in
+ * `stories/ribbons/chart-tools-menus.ts`), and differs where Office's Excel does: no Position or Wrap Text, Bring
+ * Forward and Send Backward large, Align snapping to the grid, no Eyedropper under any of the four pickers, a
+ * worksheet chart's starting measures and Size's *Size and Properties* launcher. **`Ribbons/Excel` alone binds it**,
+ * because `Shell/Excel` draws Table Tools. **No contextual tab of Excel's is a placeholder any more, and this was the
+ * last placeholder in the catalogue**, so `placeholderTab` itself is gone.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -80,7 +91,6 @@ import { excelRibbonContextualSets, excelRibbonTabs, ribbonTab } from '../../dev
 import {
   censusGroup,
   contextualSetsFor,
-  placeholderTab,
   tab,
   tabsFor,
   type ContextualSetOptions,
@@ -604,16 +614,52 @@ export function excelChartDesignTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
- * Which function builds which contextual tab. **Table Design, Picture Format, Shape Format and Chart Design are
- * authored; Chart Tools' Format is `placeholderTab` today** — see Word's. Five, not six: Excel's Table Tools has no
- * Layout tab.
+ * Chart Tools' Format: Current Selection, Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange, Size —
+ * Excel's fifth contextual tab authored and the seventeenth of all, in **Office's** order, which is also the census's.
+ * It sits under the *Chart Tools* band, and its accessible name, *Format, Chart Tools*, is what tells it from Shape
+ * Format.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a chart on a worksheet, or a chart sheet, is selected.**
+ * `Ribbons/Excel` draws every contextual set and binds it; **`Shell/Excel` draws Table Tools alone**, so it binds none
+ * of this tab and renders none of its menus. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Word's Chart Format less Position and Wrap Text, under Excel's ids.** Eighteen of the tab's twenty-two commands are
+ * bound by the host: the Chart Elements field; Shapes, Change Shape, Shape Effects, Text Effects, Align, Group and
+ * Rotate, dropdowns; Bring Forward and Send Backward, **large** split buttons; the Theme Styles and Quick Styles
+ * galleries, the first with Other Theme Fills under it; Shape Fill, Shape Outline, Text Fill and Text Outline, colour
+ * pickers, **none of them with an Eyedropper**; Height and Width, measure fields. Every menu is in
+ * `stories/ribbons/chart-tools-menus.ts`. Format Selection and Reset to Match Style are plain buttons, and Alt Text and
+ * Selection Pane generic toggles.
+ *
+ * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, **Size and
+ * Properties** on Size, where PowerPoint's says Size and Position and Word's Layout. **No survivor.**
+ */
+export function excelChartFormatTab(options: TabOptions = {}): TemplateResult {
+  const chartFormat = entry('chart-format');
+  const controls = options.controls ?? {};
+  return tab(
+    chartFormat.id,
+    chartFormat.label,
+    censusGroup(chartFormat, 'GroupChartCurrentSelection', {}, controls),
+    censusGroup(chartFormat, 'GroupShapesChart', {}, controls),
+    censusGroup(chartFormat, 'GroupChartShapeStyles', { launcher: 'Format Shape' }, controls),
+    censusGroup(chartFormat, 'GroupWordArtStyles', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(chartFormat, 'GroupAltText', {}, controls),
+    censusGroup(chartFormat, 'GroupArrange', {}, controls),
+    censusGroup(chartFormat, 'GroupSize', { launcher: 'Size and Properties' }, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **All five are authored**: Table Design, Picture Format, Shape Format,
+ * Chart Design and Chart Tools' Format — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': excelTableDesignTab,
   'picture-format': excelPictureFormatTab,
   'shape-format': excelShapeFormatTab,
   'chart-design': excelChartDesignTab,
-  'chart-format': () => placeholderTab(entry('chart-format')),
+  'chart-format': excelChartFormatTab,
 };
 
 /**

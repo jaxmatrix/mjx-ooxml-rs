@@ -6,7 +6,7 @@
  * authored twice would look right in the catalogue and drift in the shell, and nobody would notice
  * until a reviewer opened both on the same afternoon.
  *
- * ## What is real and what is a placeholder, today
+ * ## What each tab is, today — and nothing here is a placeholder any more
  *
  * **File** is the ribbon programme's unit 1: seven groups — Info, Open, Save, Print, Share, Export,
  * Help — built from the census's *backstage* rows, because decision 1 of the approved plan makes
@@ -758,7 +758,8 @@ export function wordChartFormatTab(options: TabOptions = {}): TemplateResult {
  *
  * **All six are authored**: Table Design, Table Layout, Picture Format, Shape Format, Chart Design and Chart Tools'
  * Format. The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaced
- * its one `placeholderTab` line here with a `word<Tab>Tab` function.
+ * its one placeholder line here with a `word<Tab>Tab` function. (`placeholderTab` itself was deleted by Excel's Chart
+ * Format, the last of the seventeen; `stories/ribbons/ribbon-parts.ts` records what it was built around.)
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,

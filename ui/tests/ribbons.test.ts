@@ -582,8 +582,10 @@ describe('the priority rubric', () => {
   });
 
   it('draws a placeholder at the strongest priority its tab declares, not at a constant', () => {
-    // The property `placeholderTab` rests on: a tab that will hold a primary group when its unit
-    // lands must not collapse earlier today than it will then.
+    // The property `placeholderTab` rested on: a tab that will hold a primary group when its unit
+    // lands must not collapse earlier today than it will then. Every declared tab is authored since
+    // Excel's Chart Format and that function is gone, so this is now the *only* reader of the rule —
+    // which is why it stays: a newly declared tab must satisfy it before anything renders it.
     for (const application of ribbonApplicationNames) {
       for (const tab of everyRibbonTab(application)) {
         const strongest = strongestPriority(tab);

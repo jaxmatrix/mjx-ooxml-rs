@@ -1,7 +1,8 @@
 /**
  * **The gallery and the effect menus WordArt Styles opens**, written once for every tab that carries the group:
- * PowerPoint's Table Design and every Shape Format today (Shape Format's Text Effects menu is rendered by
- * `stories/ribbons/drawing-tools-menus.ts`), and every Chart Format when its unit lands. The commands are `wordArtStylesCommands(application, tab)` in `dev/ribbons/census.ts`.
+ * PowerPoint's Table Design, every Shape Format and every Chart Format (Shape Format's Text Effects menu is rendered by
+ * `stories/ribbons/drawing-tools-menus.ts` and Chart Format's by `stories/ribbons/chart-tools-menus.ts`). The commands
+ * are `wordArtStylesCommands(application, tab)` in `dev/ribbons/census.ts`.
  *
  * ## What is here, and what is not
  *

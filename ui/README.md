@@ -1362,7 +1362,8 @@ Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layou
 the fifth, Word's Picture Format the sixth, PowerPoint's Picture Format the seventh, Excel's Picture Format the
 eighth, PowerPoint's Shape Format the ninth, Word's Shape Format the tenth, Excel's Shape Format the eleventh,
 Word's Chart Design the twelfth, PowerPoint's Chart Design the thirteenth, Excel's Chart Design the fourteenth,
-Word's Chart Format the fifteenth, and PowerPoint's Chart Format the sixteenth.** A
+Word's Chart Format the fifteenth, PowerPoint's Chart Format the sixteenth, and Excel's Chart Format the
+seventeenth and last.** A
 contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
@@ -1398,7 +1399,8 @@ placeholder priority and the id checks now sweep contextual tabs too.
 **Rendering.** `contextualSetsFor` in `stories/ribbons/ribbon-parts.ts` draws each set as the
 `<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
 `sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
-was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
+was `placeholderTab` when the sets were declared, and all seventeen have since been replaced, which is why that
+function no longer exists; **Word's Table Design is the first**, see *Word's
 Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, **PowerPoint's Table Design
 the third**, see *PowerPoint's Table Design*, **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
 Layout*, **Excel's Table Design the fifth**, see *Excel's Table Design*, **Word's Picture Format the sixth**, see
@@ -1409,8 +1411,12 @@ Format*, **PowerPoint's Shape Format the ninth**, see *PowerPoint's Shape Format
 Shape Format*, **Word's Chart Design the twelfth**, see *Word's Chart Design*, the first of Chart Tools,
 **PowerPoint's Chart Design the thirteenth**, see *PowerPoint's Chart Design*, **Excel's Chart Design the
 fourteenth**, see *Excel's Chart Design*, the last Chart Design of the three, **Word's Chart Format the
-fifteenth**, see *Word's Chart Format*, the first Chart Format and the last of Word's contextual tabs, and
-**PowerPoint's Chart Format the sixteenth**, see *PowerPoint's Chart Format*, the last of PowerPoint's.
+fifteenth**, see *Word's Chart Format*, the first Chart Format and the last of Word's contextual tabs,
+**PowerPoint's Chart Format the sixteenth**, see *PowerPoint's Chart Format*, the last of PowerPoint's, and **Excel's
+Chart Format the seventeenth**, see *Excel's Chart Format*, the last of Excel's and **the last contextual tab of the
+four common sets in the catalogue**. Nothing draws through a placeholder any more, so `placeholderTab` has been
+deleted; `stories/ribbons/ribbon-parts.ts` keeps a note of the two things it was built around, for the day the user
+builds a fifth set.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -2439,6 +2445,75 @@ and a menu, twice; a pane; two split buttons, three menus and a pane; two fields
   33 and 4, Arrange 46 and 6.
 - **Glyphs**, all Word's and all `GUESS:`; Reset to Match Style's `arrow-reset` is again the weakest.
 
+### Excel's Chart Format
+
+**One tab of one application, the seventeenth contextual tab authored, and the last of the four common sets in the
+catalogue** — Excel's fifth and its second of Chart Tools. Seven groups and twenty-two commands, in Office's order,
+which is also the census's: Current Selection, Insert Shapes, Shape Styles, WordArt Styles, Accessibility, Arrange,
+Size. It is `TabChartToolsFormatNew` in `TabSetChartTools`, under the *Chart Tools* band while a chart on a worksheet
+or a chart sheet is selected. **It is Word's Chart Format less Position and Wrap Text, under Excel's ids**, with
+Excel's Shape Format's differences from Word's.
+
+**The census's groups, read.** `GroupChartCurrentSelection` (3) Current Selection, `GroupShapesChart` (2) Insert
+Shapes, `GroupChartShapeStyles` (35) Shape Styles, `GroupWordArtStyles` (30) WordArt Styles, `GroupAltText` (1)
+Accessibility, `GroupArrange` (47) Arrange, `GroupSize` (3) Size. The brief's seven groups map one to one onto them.
+The ids, labels and priorities are the contextual unit's, unchanged, and Word's. **Two of the three counts that
+differ between Word and PowerPoint are Word's here** — Shape Styles 35 and WordArt Styles 30 — and **Arrange's 47 is
+neither Word's 65 nor PowerPoint's 46 but exactly Excel's own Picture Format and Shape Format count**, which is the
+one number on this tab that lines up with a group drawn elsewhere.
+
+**It renders in `Ribbons/Excel` alone.** `Shell/Excel` draws Table Tools, so it binds none of the tab and renders none
+of its menus; the menu gate's `hostContextualSets` already says so, and needed no change. `Ribbons/Excel` binds
+eighteen commands and renders the tab's ten menus through `chartToolsMenus('excel', 'ribbons')`.
+
+- **Current Selection**: Word's: **Chart Elements** over the same ten parts, on Chart Area; **Format Selection** and
+  **Reset to Match Style**, plain small buttons.
+- **Insert Shapes**: **Shapes** (large, the shape gallery, which in Excel has neither Action Buttons nor New Drawing
+  Canvas) and **Change Shape** (small, drawn available).
+- **Shape Styles**: the Theme Styles gallery with Other Theme Fills; **Shape Fill** (Background 1, *No Fill*, More Fill
+  Colours…, Picture…, Gradient, Texture) and **Shape Outline** (Text 1, Lighter 80%, *No Outline*, More Outline
+  Colours…, Weight, Dashes), **no Eyedropper, Sketched or Arrows**; **Shape Effects**. Launcher: *Format Shape*.
+- **WordArt Styles**: Quick Styles; **Text Fill** on Text 1, Lighter 40%, with Excel's Shape Format's four entries;
+  **Text Outline** with its four, Sketched included and no Eyedropper; Text Effects. Launcher: *Format Text Effects*.
+- **Accessibility**: Alt Text, a large toggle.
+- **Arrange**: `arrangeCommands('excel', 'chart-format')`, Excel's Shape Format's six: **Bring Forward and Send
+  Backward large**, then Selection Pane, Align (**Snap to Grid, Snap to Shape, View Gridlines ticked**), Group and
+  Rotate small.
+- **Size**: Height 7.62 cm and Width 12.7 cm. Launcher: **Size and Properties**.
+
+**Reused, and Excel's own.**
+
+- **Reused, every command function**: `chartCurrentSelectionCommands`, `insertShapesCommands(…, 'chart')`,
+  `shapeStylesCommands`, `wordArtStylesCommands`, `chartFormatAccessibilityCommands`, `arrangeCommands` and
+  `sizeCommands(…, 'drawing')`, with `'excel'`. **Every list**: `chartSelectionOptions`, `chartShapesEntries`,
+  `chartChangeShapeEntries`, `chartOutlineEntryOptions` and the **`excel` branches** of `chartTextFillEntryOptions` and
+  `chartTextOutlineEntryOptions`, which Word's unit wrote and which nothing had called until now;
+  `shapeFillEntryOptions('excel')`, the shape styles, Other Theme Fills and `shapeEffectsEntries`; the WordArt gallery
+  and Text Effects; the five Excel Arrange lists. **No new glyph**, and **no new command list** — not even
+  Accessibility, where Excel's *Shape* Format needed `excelShapeFormatAccessibility`.
+- **Excel's own, each where Office differs**: `excelChartMeasures` and `excelChartFormatMenus` (ten `commandMenu`
+  calls, no Position or Wrap Text) in `stories/ribbons/chart-tools-menus.ts`, `excelChartFormatTab` (the *Size and
+  Properties* launcher), and the eighteen bindings (the pickers' starts, the two large split buttons).
+
+**No survivors.** A field, a pane and a reset whose glyph is PowerPoint's Reset; a gallery and a menu; a gallery, two
+colour grids and a menu, twice; a pane; two split buttons, three menus and a pane; two fields.
+
+⚠ **What is not Office's shape, or is `GUESS:`.** Word's Chart Format's list holds, less Position. Beyond it:
+
+- **Height 7.62 cm and Width 12.7 cm** are the 5 × 3 inch chart Excel inserts on a worksheet, and **this is the weakest
+  call on the tab**: a chart dropped onto a sheet is the easiest thing in Office to have been resized before anybody
+  looked, so both numbers are a default rather than an observation.
+- **No Eyedropper under any of the four pickers**, on the census's Shape Styles 35 against PowerPoint's 38 and WordArt
+  Styles 30 against 33 — the same three-apiece gap Excel's Shape Format shows, and Excel's Picture Border has none
+  either.
+- **Shape Fill and Shape Outline start on Background 1 and Text 1, Lighter 80%**, Word's starts rather than
+  PowerPoint's none, because a chart Excel inserts is opaque on the sheet rather than transparent.
+- **Arrange counts 47 and draws 6**, Excel's Picture Format's six with the two layer commands large; nothing is padded.
+- **The three launchers' labels**, *Size and Properties* on Size.
+- **The counts.** Current Selection, Insert Shapes, Accessibility and Size are met. Shape Styles 35 and 4, WordArt
+  Styles 30 and 4, Arrange 47 and 6.
+- **Glyphs**, all Word's and all `GUESS:`; Reset to Match Style's `arrow-reset` is again the weakest a reader meets.
+
 ### The entries beneath a colour picker's palette
 
 **Office's colour grids carry commands under the swatches, and `<mjx-color-picker>` now draws them.** A host slots
@@ -2468,7 +2543,9 @@ Choosing an entry closes the picker and returns focus to the field. `no-fill-lab
   Eyedropper and PowerPoint's entries otherwise (`Ribbons/Excel`), and Word's Chart Format's four, Shape Outline with
   no Sketched or Arrows and the text pickers Word's Shape Format's (`Ribbons/Word`), and PowerPoint's Chart Format's
   four, Word's Chart Format's with an Eyedropper under each and PowerPoint's Shape Format's text entries
-  (`Ribbons/PowerPoint`). `GUESS:` which entries each carries, every label and
+  (`Ribbons/PowerPoint`), and Excel's Chart Format's four, Word's Chart Format's entries under Excel's ids — no
+  Eyedropper anywhere, Shape Outline without Sketched or Arrows, and Text Fill and Text Outline Excel's Shape
+  Format's (`Ribbons/Excel`). `GUESS:` which entries each carries, every label and
   preset, and that Word's carry More Colours… alone.
 - ⚠ **Table Background's colour grid is not drawn.** Its submenu lists its four commands; a menu holds commands, not
   swatches.
