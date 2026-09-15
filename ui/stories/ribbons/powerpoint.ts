@@ -23,8 +23,10 @@
  * because a deck splits Word's Illustrations into Images and Illustrations and adds Camera and Media.
  * Fourteen commands are dropdowns or split buttons a host binds by id.
  *
- * **Draw** is unit 4: nine groups and fifteen commands, declared by the same functions as Word's. Every
- * other tab is a placeholder until its own unit.
+ * **Draw** is unit 4: nine groups and fifteen commands, declared by the same functions as Word's.
+ *
+ * **Design** is unit 5: three groups and four commands, two of them in-ribbon galleries. Every other tab
+ * is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -163,11 +165,32 @@ export function powerpointDrawTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointDesignTab(): TemplateResult {
-  return placeholderTab(entry('design'));
+/**
+ * Design: Themes, Variants, Customise — the ribbon programme's unit 5, in Office's order.
+ *
+ * **Two of the three groups are one gallery each**, which is Office's own shape: the Themes strip and
+ * the Variants strip, each bound by the host as `<mjx-gallery>`. Variants' Colours, Fonts, Effects and
+ * Background Styles are **buttons in that gallery's footer**, where Office puts them, and each opens a
+ * menu. Office's Designer group is out of scope in the census and is not drawn.
+ *
+ * **Three of the four commands are bound by the host**: the two galleries, and Slide Size as a dropdown
+ * over `stories/ribbons/design-layout-menus.ts`. Format Background opens a pane and is the generic button.
+ *
+ * **No dialog launchers**: Office puts none on its Design tab. **No survivor.**
+ */
+export function powerpointDesignTab(options: TabOptions = {}): TemplateResult {
+  const design = entry('design');
+  const controls = options.controls ?? {};
+  return tab(
+    design.id,
+    design.label,
+    censusGroup(design, 'GroupSlideThemes', {}, controls),
+    censusGroup(design, 'GroupThemeVariants', {}, controls),
+    censusGroup(design, 'GroupCustomizeThemeOptions', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointTransitionsTab(): TemplateResult {
   return placeholderTab(entry('transitions'));

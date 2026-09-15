@@ -43,6 +43,15 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
+import {
+  backgroundStyleEntries,
+  designLayoutMenus,
+  themeColourEntries,
+  themeEffectEntries,
+  themeFontEntries,
+  themeGalleryItems,
+  variantGalleryItems,
+} from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
@@ -375,6 +384,37 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-powerpoint-draw-input-mode-touch-mouse-mode"
             ></mjx-button>`,
+            // Design (unit 5). Themes and Variants are in-ribbon galleries. Variants' four footer buttons open
+            // menus with literal ids written beside this ribbon, because they are gallery footers rather than census
+            // commands; Slide Size opens its menu from `stories/ribbons/design-layout-menus.ts`.
+            'powerpoint.design.themes.themes': html`<mjx-gallery
+              id="ppt-themes"
+              label="Themes"
+              value="office-theme"
+              style=${ribbonGalleryStyle}
+            >
+              ${themeGalleryItems()}
+              <mjx-button slot="footer" label="Browse for Themes…"></mjx-button>
+              <mjx-button slot="footer" label="Save Current Theme…"></mjx-button>
+            </mjx-gallery>`,
+            'powerpoint.design.variants.variants': html`<mjx-gallery
+              id="ppt-variants"
+              label="Variants"
+              value="variant-1"
+              style=${ribbonGalleryStyle}
+            >
+              ${variantGalleryItems()}
+              <mjx-button slot="footer" label="Colours" icon="color" data-opens="ppt-variants-colours"></mjx-button>
+              <mjx-button slot="footer" label="Fonts" icon="text-font" data-opens="ppt-variants-fonts"></mjx-button>
+              <mjx-button slot="footer" label="Effects" icon="square-shadow" data-opens="ppt-variants-effects"></mjx-button>
+              <mjx-button slot="footer" label="Background Styles" icon="color-background" data-opens="ppt-variants-background-styles"></mjx-button>
+            </mjx-gallery>`,
+            'powerpoint.design.customise.slide-size': html`<mjx-button
+              label="Slide Size"
+              icon="slide-size"
+              size="large"
+              data-opens="shell-powerpoint-design-customise-slide-size"
+            ></mjx-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -624,6 +664,11 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
+      ${designLayoutMenus('powerpoint', 'shell')}
+      <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-background-styles" label="Background Styles" floating>${backgroundStyleEntries()}</mjx-menu>
       <mjx-dialog id="ppt-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

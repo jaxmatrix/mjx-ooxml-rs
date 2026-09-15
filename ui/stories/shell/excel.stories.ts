@@ -40,8 +40,10 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
+import { designLayoutMenus } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
+import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Excel, assembled** — the ribbon, the name box and formula bar, the grid, a task pane, the sheet
@@ -348,6 +350,125 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-excel-draw-input-mode-touch-mouse-mode"
             ></mjx-button>`,
+            // Page Layout (unit 5). Dropdowns and split buttons open their menus from
+            // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Scale to Fit is three fields over `ribbon-parts.ts`'s lists, and Sheet Options four checkboxes.
+            'excel.page-layout.themes.themes': html`<mjx-button
+              label="Themes"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-themes"
+            ></mjx-button>`,
+            'excel.page-layout.themes.colours': html`<mjx-button
+              label="Colours"
+              icon="color"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-colours"
+            ></mjx-button>`,
+            'excel.page-layout.themes.fonts': html`<mjx-button
+              label="Fonts"
+              icon="text-font"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-fonts"
+            ></mjx-button>`,
+            'excel.page-layout.themes.effects': html`<mjx-button
+              label="Effects"
+              icon="square-shadow"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-effects"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.margins': html`<mjx-button
+              label="Margins"
+              icon="document-margins"
+              size="large"
+              data-opens="shell-excel-page-layout-page-setup-margins"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.orientation': html`<mjx-button
+              label="Orientation"
+              icon="orientation"
+              size="large"
+              data-opens="shell-excel-page-layout-page-setup-orientation"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.size': html`<mjx-button
+              label="Size"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-size"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.print-area': html`<mjx-button
+              label="Print Area"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-print-area"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.breaks': html`<mjx-button
+              label="Breaks"
+              icon="document-page-break"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-breaks"
+            ></mjx-button>`,
+            'excel.page-layout.scale-to-fit.width': html`<mjx-dropdown
+              id="xl-fit-width"
+              label="Width"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${fitPageCounts.map(
+                (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'excel.page-layout.scale-to-fit.height': html`<mjx-dropdown
+              id="xl-fit-height"
+              label="Height"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${fitPageCounts.map(
+                (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'excel.page-layout.scale-to-fit.scale': html`<mjx-combo-box
+              id="xl-fit-scale"
+              label="Scale"
+              value="100%"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${scalePercentages.map((scale) => html`<mjx-option value=${scale} label=${scale}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'excel.page-layout.sheet-options.view-gridlines': html`<mjx-checkbox id="xl-view-gridlines" label="View Gridlines" checked="true"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.print-gridlines': html`<mjx-checkbox id="xl-print-gridlines" label="Print Gridlines"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.view-headings': html`<mjx-checkbox id="xl-view-headings" label="View Headings" checked="true"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.print-headings': html`<mjx-checkbox id="xl-print-headings" label="Print Headings"></mjx-checkbox>`,
+            'excel.page-layout.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="large"
+              data-opens="shell-excel-page-layout-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.page-layout.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="large"
+              data-opens="shell-excel-page-layout-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.page-layout.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-align"
+            ></mjx-button>`,
+            'excel.page-layout.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-group"
+            ></mjx-button>`,
+            'excel.page-layout.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-rotate"
+            ></mjx-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -558,6 +679,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
+      ${designLayoutMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

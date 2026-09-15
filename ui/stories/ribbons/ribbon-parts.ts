@@ -106,6 +106,26 @@ export const printerList: readonly { readonly value: string; readonly label: str
 /** What a copies field offers before somebody types their own. `allow-custom` is why it is short. */
 export const copyCounts: readonly string[] = ['1', '2', '3', '4', '5'];
 
+/**
+ * **What Excel's Scale to Fit offers**: the page counts under Width and Height, and the percentages
+ * under Scale.
+ *
+ * Here for `copyCounts`' reason, at a smaller scale: two hosts bind the same three fields. The page
+ * counts are Office's own entries, Automatic then one page to four; the percentages are a short list
+ * a combo box can extend, because Office's Scale is a spin box from 10% to 400% and the field takes any
+ * number typed into it.
+ */
+export const fitPageCounts: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'automatic', label: 'Automatic' },
+  { value: '1', label: '1 page' },
+  { value: '2', label: '2 pages' },
+  { value: '3', label: '3 pages' },
+  { value: '4', label: '4 pages' },
+];
+
+/** The Scale field's list. See `fitPageCounts`. */
+export const scalePercentages: readonly string[] = ['100%', '90%', '75%', '50%', '25%'];
+
 // ── the parts ────────────────────────────────────────────────────────────────
 
 /** One tab of a ribbon. */

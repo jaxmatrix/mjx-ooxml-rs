@@ -20,6 +20,9 @@
  * 4. **Draw is unit 4**: eight groups and fourteen commands, declared by the same functions as the
  *    other two. Excel's differences are its census's: no Stencils group, and an Eraser with nothing
  *    behind an arrow.
+ * 5. **Page Layout is unit 5**: five groups and twenty-four commands. Arrange is declared by the same
+ *    function as Word's Layout, and Scale to Fit and Sheet Options are fields and checkboxes rather than
+ *    buttons.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -176,11 +179,37 @@ export function excelDrawTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelPageLayoutTab(): TemplateResult {
-  return placeholderTab(entry('page-layout'));
+/**
+ * Page Layout: Themes, Page Setup, Scale to Fit, Sheet Options, Arrange — the ribbon programme's unit 5,
+ * in Office's order.
+ *
+ * **Three dialog launchers, all onto one dialog**, as Office has them: Page Setup, Scale to Fit and Sheet
+ * Options each open Page Setup, on its Page, Page and Sheet pages. Themes and Arrange have none.
+ *
+ * **Scale to Fit is three fields** (Width and Height dropdowns, a Scale combo box) and **Sheet Options is
+ * four checkboxes**, each bound by the host. **Arrange** is Word's Layout Arrange without Position and
+ * Wrap Text, from the same declaration, with Bring Forward and Send Backward large at its head.
+ *
+ * **Twenty-one of the tab's twenty-four commands are bound by the host**: the four theme dropdowns,
+ * five Page Setup dropdowns, the three fields, the four checkboxes, and five of Arrange's six over
+ * `stories/ribbons/design-layout-menus.ts`. Background, Print Titles and Selection Pane are the generic
+ * buttons and toggle. **No survivor.**
+ */
+export function excelPageLayoutTab(options: TabOptions = {}): TemplateResult {
+  const pageLayout = entry('page-layout');
+  const controls = options.controls ?? {};
+  return tab(
+    pageLayout.id,
+    pageLayout.label,
+    censusGroup(pageLayout, 'GroupThemesExcel', {}, controls),
+    censusGroup(pageLayout, 'GroupPageSetup', { launcher: 'Page setup' }, controls),
+    censusGroup(pageLayout, 'GroupPageLayoutScaleToFit', { launcher: 'Page setup: scaling' }, controls),
+    censusGroup(pageLayout, 'GroupPageLayoutSheetOptions', { launcher: 'Page setup: sheet' }, controls),
+    censusGroup(pageLayout, 'GroupArrange', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelFormulasTab(): TemplateResult {
   return placeholderTab(entry('formulas'));

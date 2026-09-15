@@ -10,6 +10,7 @@ import {
   standardColors,
 } from '../pickers/specimens.ts';
 import {
+  fitPageCounts,
   openDeclaredSurface,
   ribbonColourFieldStyle,
   ribbonFieldStyle,
@@ -19,8 +20,10 @@ import {
   ribbonScreenReader,
   ribbonStatesMatrix,
   ribbonTokenDependencies,
+  scalePercentages,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
@@ -34,7 +37,7 @@ import { insertMenus } from './insert-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert and Draw** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw and Page Layout** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -54,7 +57,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert and Draw are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw and Page Layout are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -275,6 +278,125 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-excel-draw-input-mode-touch-mouse-mode"
   ></mjx-button>`,
+  // Page Layout (unit 5). Dropdowns and split buttons open their menus from
+  // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Scale to Fit is three fields over `ribbon-parts.ts`'s lists, and Sheet Options four checkboxes.
+  'excel.page-layout.themes.themes': html`<mjx-button
+    label="Themes"
+    size="small"
+    data-opens="ribbons-excel-page-layout-themes-themes"
+  ></mjx-button>`,
+  'excel.page-layout.themes.colours': html`<mjx-button
+    label="Colours"
+    icon="color"
+    size="small"
+    data-opens="ribbons-excel-page-layout-themes-colours"
+  ></mjx-button>`,
+  'excel.page-layout.themes.fonts': html`<mjx-button
+    label="Fonts"
+    icon="text-font"
+    size="small"
+    data-opens="ribbons-excel-page-layout-themes-fonts"
+  ></mjx-button>`,
+  'excel.page-layout.themes.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-excel-page-layout-themes-effects"
+  ></mjx-button>`,
+  'excel.page-layout.page-setup.margins': html`<mjx-button
+    label="Margins"
+    icon="document-margins"
+    size="large"
+    data-opens="ribbons-excel-page-layout-page-setup-margins"
+  ></mjx-button>`,
+  'excel.page-layout.page-setup.orientation': html`<mjx-button
+    label="Orientation"
+    icon="orientation"
+    size="large"
+    data-opens="ribbons-excel-page-layout-page-setup-orientation"
+  ></mjx-button>`,
+  'excel.page-layout.page-setup.size': html`<mjx-button
+    label="Size"
+    size="small"
+    data-opens="ribbons-excel-page-layout-page-setup-size"
+  ></mjx-button>`,
+  'excel.page-layout.page-setup.print-area': html`<mjx-button
+    label="Print Area"
+    size="small"
+    data-opens="ribbons-excel-page-layout-page-setup-print-area"
+  ></mjx-button>`,
+  'excel.page-layout.page-setup.breaks': html`<mjx-button
+    label="Breaks"
+    icon="document-page-break"
+    size="small"
+    data-opens="ribbons-excel-page-layout-page-setup-breaks"
+  ></mjx-button>`,
+  'excel.page-layout.scale-to-fit.width': html`<mjx-dropdown
+    id="ribbons-xl-fit-width"
+    label="Width"
+    value="automatic"
+    style=${ribbonColourFieldStyle}
+  >
+    ${fitPageCounts.map(
+      (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'excel.page-layout.scale-to-fit.height': html`<mjx-dropdown
+    id="ribbons-xl-fit-height"
+    label="Height"
+    value="automatic"
+    style=${ribbonColourFieldStyle}
+  >
+    ${fitPageCounts.map(
+      (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'excel.page-layout.scale-to-fit.scale': html`<mjx-combo-box
+    id="ribbons-xl-fit-scale"
+    label="Scale"
+    value="100%"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${scalePercentages.map((scale) => html`<mjx-option value=${scale} label=${scale}></mjx-option>`)}
+  </mjx-combo-box>`,
+  'excel.page-layout.sheet-options.view-gridlines': html`<mjx-checkbox id="ribbons-xl-view-gridlines" label="View Gridlines" checked="true"></mjx-checkbox>`,
+  'excel.page-layout.sheet-options.print-gridlines': html`<mjx-checkbox id="ribbons-xl-print-gridlines" label="Print Gridlines"></mjx-checkbox>`,
+  'excel.page-layout.sheet-options.view-headings': html`<mjx-checkbox id="ribbons-xl-view-headings" label="View Headings" checked="true"></mjx-checkbox>`,
+  'excel.page-layout.sheet-options.print-headings': html`<mjx-checkbox id="ribbons-xl-print-headings" label="Print Headings"></mjx-checkbox>`,
+  'excel.page-layout.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="large"
+    data-opens="ribbons-excel-page-layout-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.page-layout.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="large"
+    data-opens="ribbons-excel-page-layout-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.page-layout.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-excel-page-layout-arrange-align"
+  ></mjx-button>`,
+  'excel.page-layout.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-excel-page-layout-arrange-group"
+  ></mjx-button>`,
+  'excel.page-layout.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-excel-page-layout-arrange-rotate"
+  ></mjx-button>`,
 };
 
 /**
@@ -300,6 +422,7 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
+    ${designLayoutMenus('excel', 'ribbons')}
   `;
 }
 
@@ -390,7 +513,24 @@ export const Insert: Story = { render: () => ribbon('insert') };
  */
 export const Draw: Story = { render: () => ribbon('draw') };
 
-/** Unit 5. */
+/**
+ * **Page Layout**: five groups and twenty-four commands, and Excel's part of the ribbon programme's unit
+ * 5. Themes, Page Setup, Scale to Fit, Sheet Options and Arrange. What to look at:
+ *
+ * 1. **Scale to Fit is three fields.** Width and Height are dropdowns (Automatic, 1 page …), and Scale
+ *    is a combo box: pick 75% or type 80%. A percentage is not a length, so it is not a measure input.
+ * 2. **Sheet Options is four checkboxes**: View Gridlines and View Headings ticked, Print Gridlines and
+ *    Print Headings not, as in a new workbook. Office draws them under *Gridlines* and *Headings*
+ *    headings; here each checkbox carries the full name.
+ * 3. **Arrange is Word's Layout Arrange without Position and Wrap Text**, from the same declaration.
+ *    Bring Forward and Send Backward are large split buttons at its head, as Excel draws them. Selection
+ *    Pane is a toggle with no icon.
+ * 4. **Themes, Colours, Fonts and Effects open the same menus as Word's Design tab.** Themes carries no
+ *    icon, so it is small. In Page Setup, only Margins and Orientation are large; Size, Print Area,
+ *    Background and Print Titles have no glyph, and Breaks sits in their column.
+ * 5. **Three dialog launchers**, on Page Setup, Scale to Fit and Sheet Options, all opening Page Setup
+ *    as Office's do. Nothing survives a collapse, and Page Setup is the primary group.
+ */
 export const PageLayout: Story = { render: () => ribbon('page-layout') };
 
 /** Unit 6. */

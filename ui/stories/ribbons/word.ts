@@ -26,8 +26,13 @@
  * *state* (the tool in hand, the ruler on the page), and the one where the census declares two
  * generations of Office's ink tools side by side.
  *
+ * **Design** and **Layout** are unit 5: two groups and three, twenty-nine commands, and the tabs about the
+ * whole document rather than a selection. The Style Set is an in-ribbon gallery, Indent and Spacing are
+ * measure fields, and every other command but three opens a menu from
+ * `stories/ribbons/design-layout-menus.ts`.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 5 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Units 6 onward replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -190,15 +195,58 @@ export function wordDrawTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
+/**
+ * Design: Style Set (Office's *Document Formatting*) and Page Background — the ribbon programme's unit 5,
+ * in Office's order.
+ *
+ * ⚠ **The first group's label is the census's, not Office's.** `GroupStyleSet` draws *Style Set*, where
+ * Office writes *Document Formatting*; `dev/ribbons/census.ts` records it beside Insert's *Slicers*.
+ *
+ * **Eight of the tab's ten commands are bound by the host**: Themes, Colours, Fonts, Paragraph Spacing,
+ * Effects and Watermark are dropdowns over `stories/ribbons/design-layout-menus.ts`, the Style Set is an
+ * in-ribbon `<mjx-gallery>`, and Page Colour is a colour picker. Set as Default and Page Borders open a
+ * dialog in Office and are the generic buttons.
+ *
+ * **No dialog launchers**: Office puts none on Word's Design tab. **No survivor.**
+ */
+export function wordDesignTab(options: TabOptions = {}): TemplateResult {
+  const design = entry('design');
+  const controls = options.controls ?? {};
+  return tab(
+    design.id,
+    design.label,
+    censusGroup(design, 'GroupStyleSet', {}, controls),
+    censusGroup(design, 'GroupPageBackground', {}, controls),
+  );
+}
+
+/**
+ * Layout: Page Setup, Paragraph, Arrange — the ribbon programme's unit 5, in Office's order.
+ *
+ * **Two dialog launchers**, because Office has two: Page Setup opens the Page Setup dialog, and
+ * Paragraph opens the Paragraph dialog, the one Home's launcher opens. Arrange has none.
+ *
+ * **Paragraph is four measure fields**, Indent Left and Right in centimetres and Spacing Before and
+ * After in points, bound by each host as `<mjx-measure-input>`. **Arrange is declared once for Word and
+ * Excel** (`arrangeCommands` in `dev/ribbons/census.ts`); Word's leads with Position and Wrap Text.
+ *
+ * **Eighteen of the tab's nineteen commands are bound by the host**: the seven Page Setup dropdowns,
+ * the four fields, and seven of Arrange's eight, Bring Forward and Send Backward as split buttons.
+ * Selection Pane is the generic toggle. **No survivor.**
+ */
+export function wordLayoutTab(options: TabOptions = {}): TemplateResult {
+  const layout = entry('layout');
+  const controls = options.controls ?? {};
+  return tab(
+    layout.id,
+    layout.label,
+    censusGroup(layout, 'GroupPageLayoutSetup', { launcher: 'Page setup' }, controls),
+    censusGroup(layout, 'GroupParagraphLayout', { launcher: 'Paragraph settings' }, controls),
+    censusGroup(layout, 'GroupArrange', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordDesignTab(): TemplateResult {
-  return placeholderTab(entry('design'));
-}
-
-export function wordLayoutTab(): TemplateResult {
-  return placeholderTab(entry('layout'));
-}
 
 export function wordReferencesTab(): TemplateResult {
   return placeholderTab(entry('references'));

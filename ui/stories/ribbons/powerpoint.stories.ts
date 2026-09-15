@@ -23,6 +23,15 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import {
+  backgroundStyleEntries,
+  designLayoutMenus,
+  themeColourEntries,
+  themeEffectEntries,
+  themeFontEntries,
+  themeGalleryItems,
+  variantGalleryItems,
+} from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
@@ -41,7 +50,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert and Draw** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw and Design** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -61,7 +70,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert and Draw are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw and Design are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -271,6 +280,37 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-powerpoint-draw-input-mode-touch-mouse-mode"
   ></mjx-button>`,
+  // Design (unit 5). Themes and Variants are in-ribbon galleries. Variants' four footer buttons open
+  // menus with literal ids written beside this ribbon, because they are gallery footers rather than census
+  // commands; Slide Size opens its menu from `stories/ribbons/design-layout-menus.ts`.
+  'powerpoint.design.themes.themes': html`<mjx-gallery
+    id="ribbons-ppt-themes"
+    label="Themes"
+    value="office-theme"
+    style=${ribbonGalleryStyle}
+  >
+    ${themeGalleryItems()}
+    <mjx-button slot="footer" label="Browse for Themes…"></mjx-button>
+    <mjx-button slot="footer" label="Save Current Theme…"></mjx-button>
+  </mjx-gallery>`,
+  'powerpoint.design.variants.variants': html`<mjx-gallery
+    id="ribbons-ppt-variants"
+    label="Variants"
+    value="variant-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${variantGalleryItems()}
+    <mjx-button slot="footer" label="Colours" icon="color" data-opens="ribbons-ppt-variants-colours"></mjx-button>
+    <mjx-button slot="footer" label="Fonts" icon="text-font" data-opens="ribbons-ppt-variants-fonts"></mjx-button>
+    <mjx-button slot="footer" label="Effects" icon="square-shadow" data-opens="ribbons-ppt-variants-effects"></mjx-button>
+    <mjx-button slot="footer" label="Background Styles" icon="color-background" data-opens="ribbons-ppt-variants-background-styles"></mjx-button>
+  </mjx-gallery>`,
+  'powerpoint.design.customise.slide-size': html`<mjx-button
+    label="Slide Size"
+    icon="slide-size"
+    size="large"
+    data-opens="ribbons-powerpoint-design-customise-slide-size"
+  ></mjx-button>`,
 };
 
 /**
@@ -296,6 +336,11 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
+    ${designLayoutMenus('powerpoint', 'ribbons')}
+    <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
+    <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
+    <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
+    <mjx-menu id="ribbons-ppt-variants-background-styles" label="Background Styles" floating>${backgroundStyleEntries()}</mjx-menu>
   `;
 }
 
@@ -378,7 +423,26 @@ export const Insert: Story = { render: () => ribbon('insert') };
  */
 export const Draw: Story = { render: () => ribbon('draw') };
 
-/** Unit 5. */
+/**
+ * **Design**: three groups, and PowerPoint's part of the ribbon programme's unit 5. Themes, Variants and
+ * Customise. What to look at:
+ *
+ * 1. **Themes and Variants are each one in-ribbon gallery**, which is Office's own shape for both
+ *    groups. Themes holds nine of Office's themes by name. Variants holds the current theme's four.
+ *    Each picture is a letter over four accent colours, drawn from the catalogue's one palette.
+ * 2. ⚠ **Open the Variants flyout and press Colours at its foot.** Office opens Colours, Fonts, Effects
+ *    and Background Styles from the bottom of that gallery, so they are footer buttons here, each
+ *    opening its menu. Nobody has watched a menu open from inside an open flyout, so check that the
+ *    menu appears beside the button and the flyout behaves. `dev/ribbons/census.ts` marks it `GUESS:`.
+ * 3. **The Themes footer holds Browse for Themes and Save Current Theme**, which open dialogs in Office
+ *    and do nothing here.
+ * 4. **Customise is Slide Size and Format Background, both large.** Slide Size opens Standard,
+ *    Widescreen and Custom Slide Size. Format Background opens a pane in Office, so it is a plain
+ *    button. Check that *Format Background* fits its large button: *Background* is ten letters, and
+ *    nobody has measured it.
+ * 5. **Office's Designer group is not here**: the census marks it out of scope. Nothing survives a
+ *    collapse, and Themes and Variants are the two primary groups.
+ */
 export const Design: Story = { render: () => ribbon('design') };
 
 /** Unit 6. */

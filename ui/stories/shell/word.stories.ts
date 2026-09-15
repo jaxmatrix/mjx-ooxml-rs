@@ -42,6 +42,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
+import { designLayoutMenus, styleSetGalleryItems } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
 import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
@@ -431,6 +432,177 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-word-draw-input-mode-touch-mouse-mode"
             ></mjx-button>`,
+            // Design and Layout (unit 5). Dropdowns and split buttons open their menus from
+            // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // The Style Set is an in-ribbon gallery, Page Colour a colour picker, and Indent and Spacing are measures:
+            // `value` is always points, so an 8 pt Spacing After is 8 and a 0 cm indent is 0.
+            'word.design.style-set.themes': html`<mjx-button
+              label="Themes"
+              size="small"
+              data-opens="shell-word-design-style-set-themes"
+            ></mjx-button>`,
+            'word.design.style-set.style-set': html`<mjx-gallery
+              id="word-style-set"
+              label="Style Set"
+              value="this-document"
+              style=${ribbonGalleryStyle}
+            >
+              ${styleSetGalleryItems()}
+            </mjx-gallery>`,
+            'word.design.style-set.colours': html`<mjx-button
+              label="Colours"
+              icon="color"
+              size="large"
+              data-opens="shell-word-design-style-set-colours"
+            ></mjx-button>`,
+            'word.design.style-set.fonts': html`<mjx-button
+              label="Fonts"
+              icon="text-font"
+              size="large"
+              data-opens="shell-word-design-style-set-fonts"
+            ></mjx-button>`,
+            'word.design.style-set.paragraph-spacing': html`<mjx-button
+              label="Paragraph Spacing"
+              icon="text-line-spacing"
+              size="small"
+              data-opens="shell-word-design-style-set-paragraph-spacing"
+            ></mjx-button>`,
+            'word.design.style-set.effects': html`<mjx-button
+              label="Effects"
+              icon="square-shadow"
+              size="small"
+              data-opens="shell-word-design-style-set-effects"
+            ></mjx-button>`,
+            'word.design.page-background.watermark': html`<mjx-button
+              label="Watermark"
+              size="small"
+              data-opens="shell-word-design-page-background-watermark"
+            ></mjx-button>`,
+            'word.design.page-background.page-colour': html`<mjx-color-picker
+              id="word-page-colour"
+              style=${ribbonColourFieldStyle}
+              label="Page Colour"
+              show-no-fill
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            ></mjx-color-picker>`,
+            'word.layout.page-setup.margins': html`<mjx-button
+              label="Margins"
+              icon="document-margins"
+              size="large"
+              data-opens="shell-word-layout-page-setup-margins"
+            ></mjx-button>`,
+            'word.layout.page-setup.orientation': html`<mjx-button
+              label="Orientation"
+              icon="orientation"
+              size="large"
+              data-opens="shell-word-layout-page-setup-orientation"
+            ></mjx-button>`,
+            'word.layout.page-setup.size': html`<mjx-button
+              label="Size"
+              size="small"
+              data-opens="shell-word-layout-page-setup-size"
+            ></mjx-button>`,
+            'word.layout.page-setup.columns': html`<mjx-button
+              label="Columns"
+              icon="text-column-two"
+              size="large"
+              data-opens="shell-word-layout-page-setup-columns"
+            ></mjx-button>`,
+            'word.layout.page-setup.breaks': html`<mjx-button
+              label="Breaks"
+              icon="document-page-break"
+              size="small"
+              data-opens="shell-word-layout-page-setup-breaks"
+            ></mjx-button>`,
+            'word.layout.page-setup.line-numbers': html`<mjx-button
+              label="Line Numbers"
+              size="small"
+              data-opens="shell-word-layout-page-setup-line-numbers"
+            ></mjx-button>`,
+            'word.layout.page-setup.hyphenation': html`<mjx-button
+              label="Hyphenation"
+              size="small"
+              data-opens="shell-word-layout-page-setup-hyphenation"
+            ></mjx-button>`,
+            'word.layout.paragraph.indent-left': html`<mjx-measure-input
+              id="word-indent-left"
+              label="Indent Left"
+              value="0"
+              unit="cm"
+              step="0.25"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.indent-right': html`<mjx-measure-input
+              id="word-indent-right"
+              label="Indent Right"
+              value="0"
+              unit="cm"
+              step="0.25"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.spacing-before': html`<mjx-measure-input
+              id="word-spacing-before"
+              label="Spacing Before"
+              value="0"
+              unit="pt"
+              step="6"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.spacing-after': html`<mjx-measure-input
+              id="word-spacing-after"
+              label="Spacing After"
+              value="8"
+              unit="pt"
+              step="6"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.arrange.position': html`<mjx-button
+              label="Position"
+              size="small"
+              data-opens="shell-word-layout-arrange-position"
+            ></mjx-button>`,
+            'word.layout.arrange.wrap-text': html`<mjx-button
+              label="Wrap Text"
+              icon="text-position-square"
+              size="large"
+              data-opens="shell-word-layout-arrange-wrap-text"
+            ></mjx-button>`,
+            'word.layout.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="small"
+              data-opens="shell-word-layout-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.layout.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="small"
+              data-opens="shell-word-layout-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.layout.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-word-layout-arrange-align"
+            ></mjx-button>`,
+            'word.layout.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-word-layout-arrange-group"
+            ></mjx-button>`,
+            'word.layout.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-word-layout-arrange-rotate"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -581,6 +753,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Set Default Paste"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
+      ${designLayoutMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

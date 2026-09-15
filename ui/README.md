@@ -445,6 +445,32 @@ each is its group's only command.
 sibling, so pressing Pen leaves Select Objects pressed, where Office holds one tool at a time. That
 is a component gap in the same sense as the dropdown announcement above: no binding can fix it.
 
+### Design and Layout: galleries, dropdowns and fields (unit 5 of the ribbon programme)
+
+Four tabs describe the whole document: Word's Design and Layout, PowerPoint's Design and Excel's Page
+Layout. Almost every command opens something, and each host binds one of three shapes over it:
+
+- **An in-ribbon `<mjx-gallery>`** where Office draws a strip in the group: Word's Style Set, and
+  PowerPoint's Themes and Variants.
+- **A dropdown** over a menu written once in `stories/ribbons/design-layout-menus.ts`: Margins,
+  Orientation, Colours, Watermark and the rest. Bring Forward and Send Backward are split buttons.
+- **A field**: Word's Indent and Spacing are `<mjx-measure-input>`, Excel's Width and Height are
+  `<mjx-dropdown>`, Excel's Scale is an `<mjx-combo-box>`, Word's Page Colour is `<mjx-color-picker>`,
+  and Excel's Sheet Options are `<mjx-checkbox>`.
+
+`dev/ribbons/census.ts` records two design decisions. **Arrange is declared once for Word and Excel**,
+by `arrangeCommands`. **Themes, Colours, Fonts and Effects open the same menus** in Word, in Excel and
+at the foot of PowerPoint's Variants gallery. No command on the four tabs survives a collapse.
+
+⚠ **Two shapes are `GUESS:`.**
+
+- **Word's and Excel's Themes are dropdowns.** Office draws a button whose popup is a gallery, and
+  `<mjx-gallery>` has no button presentation.
+- **Variants' Colours, Fonts, Effects and Background Styles are gallery footer buttons.** Each opens a
+  menu from inside the open flyout, and nobody has watched that happen. Those four menus have literal
+  ids in the PowerPoint hosts, because a footer button is not a census command. The gate accepts a
+  literal id, but it does not require both hosts to open it.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

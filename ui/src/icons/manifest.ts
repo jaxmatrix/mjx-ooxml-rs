@@ -555,7 +555,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'text-line-spacing',
     sizes: [20],
     variants: ['regular'],
-    why: "Line and Paragraph Spacing in Word, Line Spacing in PowerPoint. Arrows between ruled lines, which is Office's drawing too.",
+    why: "Line and Paragraph Spacing in Word, Line Spacing in PowerPoint. Arrows between ruled lines, which is Office's drawing too. **Since unit 5, also Paragraph Spacing** on Word's Design tab: the same spacing, set for the whole document. Small, so 20 alone still.",
   },
   {
     name: 'color-fill',
@@ -573,7 +573,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'square-shadow',
     sizes: [20],
     variants: ['regular'],
-    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not.",
+    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still.",
   },
   {
     name: 'border-all',
@@ -613,9 +613,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'text-column-two',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Columns, on PowerPoint's Paragraph group — the command that splits a placeholder's text into columns. Two rather than three, because two is what the menu's first entry does.",
+    why: "Columns, on PowerPoint's Paragraph group — the command that splits a placeholder's text into columns. Two rather than three, because two is what the menu's first entry does. **Since unit 5, also Columns** on Word's Layout tab, where Office draws it large, so 24 as well.",
   },
   {
     name: 'text-direction-rotate-90-right',
@@ -761,7 +761,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-page-break',
     sizes: [20],
     variants: ['regular'],
-    why: "Page Break, on Word's Pages group. Fluent draws the break itself — two page edges and the gap between them — which is Office's own picture of the command.",
+    why: "Page Break, on Word's Pages group. Fluent draws the break itself — two page edges and the gap between them — which is Office's own picture of the command. **Since unit 5, also Breaks** on Word's Layout and Excel's Page Layout, whose first entry is that page break. Small in both.",
   },
   {
     name: 'image',
@@ -1021,6 +1021,95 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular', 'filled'],
     why: "Ink Editor, on Word's Draw tab (the census's `GroupEditingExcel`), a large toggle: a letter beside a pen, because the command edits text by pen gesture. `GUESS:` the command itself — see `dev/ribbons/census.ts`.",
+  },
+  // ── Design and Layout (Word's Design and Layout, PowerPoint's Design, Excel's Page Layout) ──
+  //
+  // The ribbon programme's unit 5. Nearly every command here opens a menu, a gallery or a dialog, so
+  // every row below is `regular` alone: nothing draws pressed. The one toggle on these tabs that
+  // could, Selection Pane, carries no icon. **20 for a small command, and 20 and 24 for a large one**,
+  // because a large command lays out sideways at 20 in a reduced group.
+  //
+  // **Four rows above gained a command rather than a row here**: `text-line-spacing` (Paragraph
+  // Spacing), `square-shadow` (Effects), `text-column-two` (Columns, now 24 too) and
+  // `document-page-break` (Breaks). Every command these tabs draw without an icon is listed, with its
+  // reason, in the *commands Design and Layout show* section of `dev/ribbons/census.ts`.
+  {
+    name: 'color',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing.",
+  },
+  {
+    name: 'text-font',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Fonts, the theme font pairs, on Word's Design (large) and Excel's Page Layout (small): two letters of two sizes, a heading font over a body font. Not `text-color` or `font-increase`, which act on the selected text.",
+  },
+  {
+    name: 'document-border',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Page Borders, on Word's Design tab, large: a page with a border drawn inside its edge. Not `border-all`, Home's Borders, which is a grid of cell or paragraph edges.",
+  },
+  {
+    name: 'document-margins',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Margins, on Word's Layout and Excel's Page Layout, large: a page with its margins dashed in, which is Office's picture of the command.",
+  },
+  {
+    name: 'orientation',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice.",
+  },
+  {
+    name: 'text-position-square',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Wrap Text, on Word's Layout Arrange group, large: text flowing round a square, the first wrap Office's menu offers after In Line. Not `text-wrap`, which is Excel's Home Wrap Text, text wrapping inside a cell.",
+  },
+  {
+    name: 'position-forward',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Bring Forward, the split button on Arrange in Word (small) and Excel (large): the hatched shape moving in front of the plain one.",
+  },
+  {
+    name: 'position-backward',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Send Backward, beside Bring Forward and its mirror: the hatched shape moving behind the plain one.",
+  },
+  {
+    name: 'align-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Align, the dropdown on Arrange in Word and Excel: two shapes lined up against one edge, which is what the menu does to a selection of shapes. Not `text-align-left`, whose ragged lines are paragraph alignment.",
+  },
+  {
+    name: 'group',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Group, the dropdown on Arrange in Word and Excel: shapes inside one set of selection handles.",
+  },
+  {
+    name: 'rotate-right',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Rotate, the dropdown on Arrange in Word and Excel: a shape with a turning arrow, as Office draws it. Not `arrow-rotate-clockwise`, a bare arrow that reads as *refresh*.",
+  },
+  {
+    name: 'slide-size',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Slide Size, on PowerPoint's Customise group, large: a frame with an arrow to its corner, the slide being resized.",
+  },
+  {
+    name: 'color-background',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`).",
   },
 ];
 

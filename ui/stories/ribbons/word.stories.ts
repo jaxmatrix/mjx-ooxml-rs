@@ -23,6 +23,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { designLayoutMenus, styleSetGalleryItems } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
@@ -38,7 +39,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert and Draw** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design and Layout** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -48,8 +49,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
  * command does.
  *
- * **Nothing here dispatches a command.** The paste button's menu opens, the Insert and Draw tabs'
- * menus open, the pickers open, the gallery previews — and no document changes, because command
+ * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design and
+ * Layout tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -68,7 +69,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert and Draw are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design and Layout are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -299,6 +300,177 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-word-draw-input-mode-touch-mouse-mode"
   ></mjx-button>`,
+  // Design and Layout (unit 5). Dropdowns and split buttons open their menus from
+  // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // The Style Set is an in-ribbon gallery, Page Colour a colour picker, and Indent and Spacing are measures:
+  // `value` is always points, so an 8 pt Spacing After is 8 and a 0 cm indent is 0.
+  'word.design.style-set.themes': html`<mjx-button
+    label="Themes"
+    size="small"
+    data-opens="ribbons-word-design-style-set-themes"
+  ></mjx-button>`,
+  'word.design.style-set.style-set': html`<mjx-gallery
+    id="ribbons-word-style-set"
+    label="Style Set"
+    value="this-document"
+    style=${ribbonGalleryStyle}
+  >
+    ${styleSetGalleryItems()}
+  </mjx-gallery>`,
+  'word.design.style-set.colours': html`<mjx-button
+    label="Colours"
+    icon="color"
+    size="large"
+    data-opens="ribbons-word-design-style-set-colours"
+  ></mjx-button>`,
+  'word.design.style-set.fonts': html`<mjx-button
+    label="Fonts"
+    icon="text-font"
+    size="large"
+    data-opens="ribbons-word-design-style-set-fonts"
+  ></mjx-button>`,
+  'word.design.style-set.paragraph-spacing': html`<mjx-button
+    label="Paragraph Spacing"
+    icon="text-line-spacing"
+    size="small"
+    data-opens="ribbons-word-design-style-set-paragraph-spacing"
+  ></mjx-button>`,
+  'word.design.style-set.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-word-design-style-set-effects"
+  ></mjx-button>`,
+  'word.design.page-background.watermark': html`<mjx-button
+    label="Watermark"
+    size="small"
+    data-opens="ribbons-word-design-page-background-watermark"
+  ></mjx-button>`,
+  'word.design.page-background.page-colour': html`<mjx-color-picker
+    id="ribbons-word-page-colour"
+    style=${ribbonColourFieldStyle}
+    label="Page Colour"
+    show-no-fill
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'word.layout.page-setup.margins': html`<mjx-button
+    label="Margins"
+    icon="document-margins"
+    size="large"
+    data-opens="ribbons-word-layout-page-setup-margins"
+  ></mjx-button>`,
+  'word.layout.page-setup.orientation': html`<mjx-button
+    label="Orientation"
+    icon="orientation"
+    size="large"
+    data-opens="ribbons-word-layout-page-setup-orientation"
+  ></mjx-button>`,
+  'word.layout.page-setup.size': html`<mjx-button
+    label="Size"
+    size="small"
+    data-opens="ribbons-word-layout-page-setup-size"
+  ></mjx-button>`,
+  'word.layout.page-setup.columns': html`<mjx-button
+    label="Columns"
+    icon="text-column-two"
+    size="large"
+    data-opens="ribbons-word-layout-page-setup-columns"
+  ></mjx-button>`,
+  'word.layout.page-setup.breaks': html`<mjx-button
+    label="Breaks"
+    icon="document-page-break"
+    size="small"
+    data-opens="ribbons-word-layout-page-setup-breaks"
+  ></mjx-button>`,
+  'word.layout.page-setup.line-numbers': html`<mjx-button
+    label="Line Numbers"
+    size="small"
+    data-opens="ribbons-word-layout-page-setup-line-numbers"
+  ></mjx-button>`,
+  'word.layout.page-setup.hyphenation': html`<mjx-button
+    label="Hyphenation"
+    size="small"
+    data-opens="ribbons-word-layout-page-setup-hyphenation"
+  ></mjx-button>`,
+  'word.layout.paragraph.indent-left': html`<mjx-measure-input
+    id="ribbons-word-indent-left"
+    label="Indent Left"
+    value="0"
+    unit="cm"
+    step="0.25"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.layout.paragraph.indent-right': html`<mjx-measure-input
+    id="ribbons-word-indent-right"
+    label="Indent Right"
+    value="0"
+    unit="cm"
+    step="0.25"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.layout.paragraph.spacing-before': html`<mjx-measure-input
+    id="ribbons-word-spacing-before"
+    label="Spacing Before"
+    value="0"
+    unit="pt"
+    step="6"
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.layout.paragraph.spacing-after': html`<mjx-measure-input
+    id="ribbons-word-spacing-after"
+    label="Spacing After"
+    value="8"
+    unit="pt"
+    step="6"
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.layout.arrange.position': html`<mjx-button
+    label="Position"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-position"
+  ></mjx-button>`,
+  'word.layout.arrange.wrap-text': html`<mjx-button
+    label="Wrap Text"
+    icon="text-position-square"
+    size="large"
+    data-opens="ribbons-word-layout-arrange-wrap-text"
+  ></mjx-button>`,
+  'word.layout.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.layout.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.layout.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-align"
+  ></mjx-button>`,
+  'word.layout.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-group"
+  ></mjx-button>`,
+  'word.layout.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-word-layout-arrange-rotate"
+  ></mjx-button>`,
 };
 
 /**
@@ -327,6 +499,7 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
+    ${designLayoutMenus('word', 'ribbons')}
   `;
 }
 
@@ -444,10 +617,49 @@ export const Insert: Story = { render: () => ribbon('insert') };
  */
 export const Draw: Story = { render: () => ribbon('draw') };
 
-/** Unit 5. */
+/**
+ * **Design**: the look of the whole document, and half of the ribbon programme's unit 5. Two groups:
+ * Style Set and Page Background. What to look at:
+ *
+ * 1. **The first group is labelled Style Set, and Office calls it Document Formatting.** That is the
+ *    census's `GroupStyleSet`, and the census wins; `dev/ribbons/census.ts` records it. Its commands
+ *    are Office's, in Office's order: Themes, the Style Set gallery, Colours, Fonts, Paragraph Spacing,
+ *    Effects, Set as Default.
+ * 2. **The Style Set is a real in-ribbon gallery.** It holds nine of Office's style sets by name, from
+ *    *This Document* to *Word 2013*. Arrow through it, open its flyout, and the two sections are *This
+ *    Document* and *Built-In*. Each picture is a title, a heading and a line of body text in that set's
+ *    weight, drawn from the catalogue's one palette.
+ * 3. ⚠ **Themes is a dropdown, not a gallery.** Office draws it as a large button whose popup is a grid
+ *    of themes, and `<mjx-gallery>` has no button presentation. The popup is a menu of named themes, and
+ *    `dev/ribbons/census.ts` marks the reading `GUESS:`. Themes also carries no icon, so it is small
+ *    where Office draws it large.
+ * 4. **Six commands open a menu.** Press Themes, Colours, Fonts, Paragraph Spacing, Effects or
+ *    Watermark and its list opens, with the current choice checked. **Page Colour is a colour picker**
+ *    with *No Colour* in it, the component Home's Font Colour already is. Set as Default and Page
+ *    Borders open a dialog in Office, so they are plain buttons.
+ * 5. **Nothing on this tab survives a collapse**, and no group has a dialog launcher, because Office puts
+ *    none there. Style Set is the primary group, so it is the last standing.
+ */
 export const Design: Story = { render: () => ribbon('design') };
 
-/** Unit 5. Word calls its page-setup tab Layout; the census calls it `TabPageLayoutWord`. */
+/**
+ * **Layout**: the page and where things sit on it, and the other half of unit 5. Word calls this tab
+ * Layout; the census calls it `TabPageLayoutWord`. Three groups: Page Setup, Paragraph and Arrange. What
+ * to look at:
+ *
+ * 1. **Paragraph is four fields, not four buttons.** Indent Left and Indent Right are measure inputs in
+ *    centimetres, and Spacing Before and Spacing After are in points, starting at 0 and 8. Type
+ *    `1.5 cm` into Indent Left and it commits; type `abc` and the field says it cannot read it and keeps
+ *    your text. Arrow Up steps by a quarter centimetre, and by six points in Spacing.
+ * 2. **Page Setup is seven dropdowns.** Margins, Orientation and Columns are large, and Size is small
+ *    between them because Fluent draws no page size. Breaks, Line Numbers and Hyphenation are a column.
+ *    Each opens Office's own list, with the current choice checked: Normal, Portrait, A4, One.
+ * 3. **Arrange is declared once for Word and Excel.** Position and Wrap Text lead. Bring Forward and Send
+ *    Backward are split buttons: the face moves one layer, and the arrow offers Bring to Front and Bring
+ *    in Front of Text. Selection Pane is a toggle with no icon, drawn pressed while the pane is open.
+ * 4. **Two dialog launchers**, on Page Setup and Paragraph, as Office has them. Arrange has none.
+ * 5. **Nothing survives a collapse.** Page Setup is the primary group, so it is the last standing.
+ */
 export const Layout: Story = { render: () => ribbon('layout') };
 
 /** Unit 6. */

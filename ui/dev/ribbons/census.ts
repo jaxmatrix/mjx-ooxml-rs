@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert and Draw.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, and the Design and Layout tabs.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -82,7 +82,9 @@
  * first tab where nearly every command opens something, so the first where most of a tab's face is
  * bound by its hosts rather than drawn generically; see the *commands Insert shows* section. Unit 4
  * authored **Draw**, whose census declares two generations of Office's ink tools on one tab; see the
- * *commands Draw shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * *commands Draw shows* section. Unit 5 authored **Word's Design and Layout, PowerPoint's Design and Excel's
+ * Page Layout**, the tabs about the whole document rather than a selection; see the *commands Design and
+ * Layout show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -1357,6 +1359,330 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
   { id: 'word.draw.drawing-canvas.drawing-canvas', label: 'Drawing Canvas' },
 ];
 
+// ── the commands Design and Layout show ──────────────────────────────────────
+//
+// The ribbon programme's **unit 5**: four tabs that say what the *whole* document looks like rather
+// than what a selection does. Word's **Design** (two groups) and **Layout** (three), PowerPoint's
+// **Design** (three), and Excel's **Page Layout** (five). Each carries the commands Office shows on
+// the face of each group the census declares, and nothing added to reach the census's counts.
+//
+// ## Three shapes, decided by what Office's popup is
+//
+// Almost every command here opens something, and the brief sorts them into three shapes:
+//
+// 1. **An in-ribbon gallery** where Office draws a strip of pictures in the group itself: Word's
+//    **Style Set**, and PowerPoint's **Themes** and **Variants**. Both hosts bind `<mjx-gallery>`, whose
+//    items are written once in `stories/ribbons/design-layout-menus.ts`.
+// 2. **A dropdown** where Office draws one button with a list or a grid behind it: Margins,
+//    Orientation, Size, Columns, Breaks, Colours, Fonts, Watermark and the rest. Both hosts bind a
+//    `<mjx-button>` (or `<mjx-split-button>` where Office draws two hit regions) over a menu written
+//    once in the same file.
+// 3. **A field** where Office draws a value you type or pick: Word's Indent and Spacing are
+//    `<mjx-measure-input>`, Excel's Width and Height are `<mjx-dropdown>`, Excel's Scale is an
+//    `<mjx-combo-box>` (a percentage is not a measure `measure.ts` knows), Word's Page Colour is the
+//    `<mjx-color-picker>` Home's Font Colour already is, and Excel's four sheet options are
+//    `<mjx-checkbox>`. Each reuses the `ribbon*FieldStyle` width Home settled.
+//
+// ⚠ **Word's and Excel's Themes are a dropdown, although the brief lists Themes among the galleries.**
+// Office draws them as a large button whose *popup* is a grid of themes. `<mjx-gallery>` has three
+// presentations — the in-ribbon strip, the flyout and the sheet — and none of them is a button, so
+// binding a gallery would draw a strip Office does not draw. The popup is therefore a shallow menu of
+// named themes, which is Insert's rule for a gallery Office opens from a button (Cover Page, Header).
+// PowerPoint's Themes **is** an in-ribbon strip in Office, and it is bound as one. `GUESS:` that this
+// reading of the brief is the intended one.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **Word's `GroupStyleSet` is labelled *Style Set* here and *Document Formatting* in Office.** The
+//    census's id is the source of the label, as Insert's *Slicers* and *Media Clips* are. The group
+//    holds Office's commands: Themes, the Style Set gallery, Colours, Fonts, Paragraph Spacing,
+//    Effects, Set as Default.
+// 2. **PowerPoint's `GroupDesignerOptions` is out of scope**, so Office's Designer group, after
+//    Customise, is not drawn. The census wins.
+// 3. **Variants' four submenus are not on the face.** Office opens Colours, Fonts, Effects and
+//    Background Styles from the bottom of the Variants gallery, not from the group, so they are
+//    **gallery footer buttons** here, each opening a menu. They are not census commands, because the
+//    census declares the face. `GUESS:` that a footer button inside an open flyout is a place a menu
+//    can be opened from without the flyout closing under it; nobody has watched it happen.
+// 4. **The census's counts are much larger than the faces**, and nothing is padded: Word's Arrange is
+//    65 (every wrap and position preset), Excel's is 47, and PowerPoint's Themes is 4 for one strip.
+//
+// ## Three groups are written once
+//
+// **Arrange** is one function of the application, `arrangeCommands`. Excel's Arrange is Word's
+// without Position and Wrap Text, and the six they share carry the same names and glyphs in both.
+// What differs is **size**: Excel draws Bring Forward and Send Backward large at the head of its
+// group, and Word draws them small beside a large Wrap Text. PowerPoint's Home Arrange (`layer`) is
+// **not** shared: it is one button standing for the whole menu, on a different tab, and Office names
+// the six commands only where they are spelled out.
+//
+// **Themes, Colours, Fonts and Effects** open the same four menus in Word's Design and Excel's Page
+// Layout, and the same menus again from the foot of PowerPoint's Variants gallery. The declarations are
+// not shared, because Word draws Colours and Fonts large and Excel draws them small; the menus are,
+// each as one entries function.
+//
+// **Indent and Spacing** share nothing with Home's Paragraph group, although both live under a
+// *Paragraph* label: Home's are one-press verbs (Increase Indent), and Layout's are the measures
+// themselves. They reuse `ribbonNarrowFieldStyle` and the measure input, not the Home commands.
+//
+// ## No survivor on any of the four tabs
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws. Nearly every
+// command here fails rule 1: a gallery, a dropdown, a split button, a dialog (Page Borders, Set as
+// Default, Background, Print Titles), or a pane (Format Background, Selection Pane). The commands that
+// do not open anything are fields and checkboxes, which a host binds, and `tests/ribbons.test.ts`
+// refuses a bound survivor. Each group states its own reason below.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// Office draws most of these tabs large. A command is `large` here where Office draws it large **and**
+// Fluent draws an honest glyph for it; every command with no glyph is `small`, and its label is the
+// command. Unit 1's rule is unchanged: a wrong icon is worse than a missing one.
+//
+// Fluent draws **no theme** (Office's is a page of *Aa* over colour bars; `dark-theme` is dark mode and
+// `design-ideas` is PowerPoint's Designer), **no watermark**, **no page size** (`resize` says *resize
+// this object*), **no line number** (`number-row` is two digits in boxes, and reads as a count), **no
+// hyphen**, **no position preset**, **no selection pane** (`panel-right` is any pane), **no print
+// area**, **no sheet background** (`image` is Pictures) and **no print title**. So **Themes** (Word,
+// Excel), **Set as Default**, **Watermark**, **Page Colour**, **Size**, **Line Numbers**,
+// **Hyphenation**, **Position**, **Selection Pane**, **Print Area**, **Background**, **Print Titles**,
+// and the seven fields are drawn without one.
+
+/**
+ * Arrange, in Word's Layout and Excel's Page Layout: one function, because the shared six carry the same
+ * names and glyphs in both.
+ *
+ * - **Word** leads with Position and Wrap Text, large, and draws the six small beside them.
+ * - **Excel** has no Position or Wrap Text (a cell does not wrap around a picture), and draws Bring
+ *   Forward and Send Backward large at the head. `GUESS:` Selection Pane small in Excel, where Office
+ *   draws it large, because it has no glyph.
+ *
+ * Bring Forward and Send Backward are **split buttons** in Office (the face moves one layer, the arrow
+ * offers Bring to Front and, in Word, Bring in Front of Text), and every host binds one. Position, Wrap
+ * Text, Align, Group and Rotate are dropdowns. **Selection Pane is a toggle**: Office draws it pressed
+ * while the pane is open.
+ *
+ * **Wrap Text draws `text-position-square`**, text around a square, which is the wrap Office's own menu
+ * leads with. It is not `text-wrap`, which is Excel's Home Wrap Text: text wrapping inside a cell, a
+ * different command a person reaches for on the same application's ribbon. **Align draws `align-left`**,
+ * shapes lined up against an edge, which is not `text-align-left`'s ragged lines.
+ *
+ * **No survivor**: Selection Pane opens a pane and carries no glyph, and the other seven open a menu.
+ */
+function arrangeCommands(application: 'word' | 'excel'): readonly RibbonCommand[] {
+  const tab = application === 'word' ? 'layout' : 'page-layout';
+  const layer: ControlSize = application === 'word' ? 'small' : 'large';
+  const wordOnly: readonly RibbonCommand[] =
+    application === 'word'
+      ? [
+          { id: 'word.layout.arrange.position', label: 'Position' },
+          { id: 'word.layout.arrange.wrap-text', label: 'Wrap Text', icon: 'text-position-square', size: 'large' },
+        ]
+      : [];
+  return [
+    ...wordOnly,
+    { id: `${application}.${tab}.arrange.bring-forward`, label: 'Bring Forward', icon: 'position-forward', size: layer },
+    { id: `${application}.${tab}.arrange.send-backward`, label: 'Send Backward', icon: 'position-backward', size: layer },
+    { id: `${application}.${tab}.arrange.selection-pane`, label: 'Selection Pane', toggle: true },
+    { id: `${application}.${tab}.arrange.align`, label: 'Align', icon: 'align-left' },
+    { id: `${application}.${tab}.arrange.group`, label: 'Group', icon: 'group' },
+    { id: `${application}.${tab}.arrange.rotate`, label: 'Rotate', icon: 'rotate-right' },
+  ];
+}
+
+/**
+ * Word's `GroupStyleSet`, which Office labels **Document Formatting**: Themes, the Style Set gallery,
+ * Colours, Fonts, Paragraph Spacing, Effects, Set as Default, in Office's order.
+ *
+ * Themes, Colours, Fonts, Paragraph Spacing and Effects are dropdowns, and the Style Set is an in-ribbon
+ * gallery; the hosts bind all six. **Colours draws `color`**, a painter's palette, and **Fonts draws
+ * `text-font`**, two letters of two sizes: a heading font and a body font. Both are large, as Word draws
+ * them. **Paragraph Spacing draws `text-line-spacing`**, Home's *Line and Paragraph Spacing* glyph, which
+ * is the same idea at the scale of the document. **Effects draws `square-shadow`**, PowerPoint's Shape
+ * Effects: theme effects *are* the shape effects a theme hands to every shape. `GUESS:` Colours and Fonts
+ * large, as Word 2013 to 365 draw them at a wide window.
+ *
+ * **No survivor**: six of the seven open a gallery or a menu, and Set as Default opens a confirmation.
+ */
+const wordDesignStyleSet: readonly RibbonCommand[] = [
+  { id: 'word.design.style-set.themes', label: 'Themes' },
+  { id: 'word.design.style-set.style-set', label: 'Style Set' },
+  { id: 'word.design.style-set.colours', label: 'Colours', icon: 'color', size: 'large' },
+  { id: 'word.design.style-set.fonts', label: 'Fonts', icon: 'text-font', size: 'large' },
+  { id: 'word.design.style-set.paragraph-spacing', label: 'Paragraph Spacing', icon: 'text-line-spacing' },
+  { id: 'word.design.style-set.effects', label: 'Effects', icon: 'square-shadow' },
+  { id: 'word.design.style-set.set-as-default', label: 'Set as Default' },
+];
+
+/**
+ * Word's Page Background: Watermark, Page Colour, Page Borders.
+ *
+ * Watermark is a dropdown gallery (Confidential, Draft, Custom Watermark), and it carries no icon.
+ * **Page Colour is the colour picker Home's Font Colour is**, with *No Colour* in its popup; Office draws
+ * a large button with the same palette behind it, and the picker is the component this catalogue has for
+ * that palette. **Page Borders draws `document-border`**, a page with a border inside its edge, and opens
+ * the Borders and Shading dialog, so every host draws the generic button.
+ *
+ * **No survivor**: a gallery, a picker and a dialog.
+ */
+const wordDesignPageBackground: readonly RibbonCommand[] = [
+  { id: 'word.design.page-background.watermark', label: 'Watermark' },
+  { id: 'word.design.page-background.page-colour', label: 'Page Colour' },
+  { id: 'word.design.page-background.page-borders', label: 'Page Borders', icon: 'document-border', size: 'large' },
+];
+
+/**
+ * Word's Page Setup: Margins, Orientation, Size, Columns large, then Breaks, Line Numbers and Hyphenation
+ * in a column, which is how Office draws it.
+ *
+ * All seven are dropdowns. **Margins draws `document-margins`**, a page with its margins dashed in;
+ * **Orientation draws `orientation`**, a portrait page turning to landscape; **Columns draws
+ * `text-column-two`**, PowerPoint's Home Columns, which is the same command on a text box; **Breaks
+ * draws `document-page-break`**, Insert's Page Break, because a page break is the first entry in
+ * Breaks. **Size** carries no icon and is therefore small between large neighbours: Office draws it
+ * large.
+ *
+ * **No survivor**: all seven open a menu.
+ */
+const wordLayoutPageSetup: readonly RibbonCommand[] = [
+  { id: 'word.layout.page-setup.margins', label: 'Margins', icon: 'document-margins', size: 'large' },
+  { id: 'word.layout.page-setup.orientation', label: 'Orientation', icon: 'orientation', size: 'large' },
+  { id: 'word.layout.page-setup.size', label: 'Size' },
+  { id: 'word.layout.page-setup.columns', label: 'Columns', icon: 'text-column-two', size: 'large' },
+  { id: 'word.layout.page-setup.breaks', label: 'Breaks', icon: 'document-page-break' },
+  { id: 'word.layout.page-setup.line-numbers', label: 'Line Numbers' },
+  { id: 'word.layout.page-setup.hyphenation', label: 'Hyphenation' },
+];
+
+/**
+ * Word's Paragraph group on Layout: Indent Left and Indent Right, Spacing Before and Spacing After.
+ *
+ * **Four measures, not four verbs.** Office draws two spin boxes under *Indent* and two under
+ * *Spacing*, and each host binds a `<mjx-measure-input>` over each: centimetres for an indent, points
+ * for spacing, which is how Word writes them. The names are Office's tooltips. The census counts seven,
+ * which is these four and their spin arrows; nothing is padded in.
+ *
+ * **No survivor**: a field is richer than a button, and a host binds every one.
+ */
+const wordLayoutParagraph: readonly RibbonCommand[] = [
+  { id: 'word.layout.paragraph.indent-left', label: 'Indent Left' },
+  { id: 'word.layout.paragraph.indent-right', label: 'Indent Right' },
+  { id: 'word.layout.paragraph.spacing-before', label: 'Spacing Before' },
+  { id: 'word.layout.paragraph.spacing-after', label: 'Spacing After' },
+];
+
+/**
+ * PowerPoint's Themes group: **one in-ribbon gallery**, which is the whole group in Office.
+ *
+ * The theme names are Office's. Browse for Themes and Save Current Theme sit in the gallery's footer,
+ * where Office puts them, and are not face commands.
+ *
+ * **No survivor**: a gallery, and the only command.
+ */
+const powerpointDesignThemes: readonly RibbonCommand[] = [
+  { id: 'powerpoint.design.themes.themes', label: 'Themes' },
+];
+
+/**
+ * PowerPoint's Variants group: **one in-ribbon gallery** of the current theme's variants.
+ *
+ * Colours, Fonts, Effects and Background Styles are the gallery's footer in Office, not face commands;
+ * see this section's header.
+ *
+ * **No survivor**: a gallery, and the only command.
+ */
+const powerpointDesignVariants: readonly RibbonCommand[] = [
+  { id: 'powerpoint.design.variants.variants', label: 'Variants' },
+];
+
+/**
+ * PowerPoint's Customise group: Slide Size and Format Background, both large.
+ *
+ * **Slide Size draws `slide-size`**, a frame with a diagonal arrow, and is a dropdown (Standard,
+ * Widescreen, Custom Slide Size). **Format Background draws `color-background`**, a paint bucket over a
+ * frame, and opens the Format Background pane, so every host draws the generic button. `GUESS:` that
+ * *Background*, ten letters, fits `largeControlWidthUnits` where *Recommended* did not; nobody has
+ * measured it.
+ *
+ * **No survivor**: a menu, and a pane.
+ */
+const powerpointDesignCustomise: readonly RibbonCommand[] = [
+  { id: 'powerpoint.design.customise.slide-size', label: 'Slide Size', icon: 'slide-size', size: 'large' },
+  { id: 'powerpoint.design.customise.format-background', label: 'Format Background', icon: 'color-background', size: 'large' },
+];
+
+/**
+ * Excel's Themes group: Themes, then Colours, Fonts and Effects in a column.
+ *
+ * Word's four theme commands, drawn the size Excel draws them. **Themes** carries no icon, so it is small
+ * where Office draws it large. The glyphs are Word's, for Word's reasons.
+ *
+ * **No survivor**: all four open a menu.
+ */
+const excelPageLayoutThemes: readonly RibbonCommand[] = [
+  { id: 'excel.page-layout.themes.themes', label: 'Themes' },
+  { id: 'excel.page-layout.themes.colours', label: 'Colours', icon: 'color' },
+  { id: 'excel.page-layout.themes.fonts', label: 'Fonts', icon: 'text-font' },
+  { id: 'excel.page-layout.themes.effects', label: 'Effects', icon: 'square-shadow' },
+];
+
+/**
+ * Excel's Page Setup: Margins, Orientation, Size, Print Area, Breaks, Background, Print Titles.
+ *
+ * Office draws all seven large. **Margins and Orientation are large here**, with Word's glyphs; the other
+ * five are small. Size, Print Area, Background and Print Titles carry no icon, and `GUESS:` Breaks is
+ * small beside them rather than the one large command in a column of labels.
+ *
+ * Margins, Orientation, Size, Print Area and Breaks are dropdowns. **Background** opens the Insert
+ * Pictures dialog and **Print Titles** opens Page Setup on its Sheet page, so every host draws the
+ * generic button for both.
+ *
+ * **No survivor**: five menus and two dialogs.
+ */
+const excelPageLayoutPageSetup: readonly RibbonCommand[] = [
+  { id: 'excel.page-layout.page-setup.margins', label: 'Margins', icon: 'document-margins', size: 'large' },
+  { id: 'excel.page-layout.page-setup.orientation', label: 'Orientation', icon: 'orientation', size: 'large' },
+  { id: 'excel.page-layout.page-setup.size', label: 'Size' },
+  { id: 'excel.page-layout.page-setup.print-area', label: 'Print Area' },
+  { id: 'excel.page-layout.page-setup.breaks', label: 'Breaks', icon: 'document-page-break' },
+  { id: 'excel.page-layout.page-setup.background', label: 'Background' },
+  { id: 'excel.page-layout.page-setup.print-titles', label: 'Print Titles' },
+];
+
+/**
+ * Excel's Scale to Fit: Width, Height and Scale.
+ *
+ * **Three fields.** Width and Height are dropdowns (Automatic, 1 page, 2 pages …), and each host binds an
+ * `<mjx-dropdown>`. Scale is a percentage, which `<mjx-measure-input>` does not carry (its units are
+ * lengths), so each host binds the `<mjx-combo-box>` that File's Copies already is: a short list of
+ * values, and room to type another. The census counts six, which is these three and their spin arrows.
+ *
+ * **No survivor**: three fields, all bound.
+ */
+const excelPageLayoutScaleToFit: readonly RibbonCommand[] = [
+  { id: 'excel.page-layout.scale-to-fit.width', label: 'Width' },
+  { id: 'excel.page-layout.scale-to-fit.height', label: 'Height' },
+  { id: 'excel.page-layout.scale-to-fit.scale', label: 'Scale' },
+];
+
+/**
+ * Excel's Sheet Options: View and Print under Gridlines, then View and Print under Headings.
+ *
+ * **Four toggles, drawn as checkboxes.** Office draws four ticks under two headings, and each host binds
+ * an `<mjx-checkbox>`. They are declared as toggles because each is a state. The names are Office's
+ * tooltips, so the accessible name says which View. **View Gridlines and View Headings start on**, as
+ * they are in a new workbook; the two Print options start off.
+ *
+ * **No survivor, although all four pass rule 1**: one press ticks, one press unticks. None carries a
+ * glyph (rule 2), and each is a checkbox a host binds, which the gate refuses as a survivor.
+ */
+const excelPageLayoutSheetOptions: readonly RibbonCommand[] = [
+  { id: 'excel.page-layout.sheet-options.view-gridlines', label: 'View Gridlines', toggle: true, pressed: true },
+  { id: 'excel.page-layout.sheet-options.print-gridlines', label: 'Print Gridlines', toggle: true },
+  { id: 'excel.page-layout.sheet-options.view-headings', label: 'View Headings', toggle: true, pressed: true },
+  { id: 'excel.page-layout.sheet-options.print-headings', label: 'Print Headings', toggle: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -1653,8 +1979,8 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabWordDesign' },
     groups: [
-      { id: 'GroupStyleSet', label: 'Style Set', priority: 'primary', controls: 16, inScope: true },
-      { id: 'GroupPageBackground', label: 'Page Background', priority: 'standard', controls: 9, inScope: true },
+      { id: 'GroupStyleSet', label: 'Style Set', priority: 'primary', controls: 16, inScope: true, commands: wordDesignStyleSet },
+      { id: 'GroupPageBackground', label: 'Page Background', priority: 'standard', controls: 9, inScope: true, commands: wordDesignPageBackground },
     ],
   },
   {
@@ -1663,9 +1989,9 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabPageLayoutWord' },
     groups: [
-      { id: 'GroupPageLayoutSetup', label: 'Page Setup', priority: 'primary', controls: 23, inScope: true },
-      { id: 'GroupParagraphLayout', label: 'Paragraph', priority: 'standard', controls: 7, inScope: true },
-      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
+      { id: 'GroupPageLayoutSetup', label: 'Page Setup', priority: 'primary', controls: 23, inScope: true, commands: wordLayoutPageSetup },
+      { id: 'GroupParagraphLayout', label: 'Paragraph', priority: 'standard', controls: 7, inScope: true, commands: wordLayoutParagraph },
+      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 65, inScope: true, commands: arrangeCommands('word') },
     ],
   },
   {
@@ -1835,9 +2161,9 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabDesign' },
     groups: [
-      { id: 'GroupSlideThemes', label: 'Themes', priority: 'primary', controls: 4, inScope: true },
-      { id: 'GroupThemeVariants', label: 'Variants', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupCustomizeThemeOptions', label: 'Customise', priority: 'standard', controls: 3, inScope: true },
+      { id: 'GroupSlideThemes', label: 'Themes', priority: 'primary', controls: 4, inScope: true, commands: powerpointDesignThemes },
+      { id: 'GroupThemeVariants', label: 'Variants', priority: 'primary', controls: 10, inScope: true, commands: powerpointDesignVariants },
+      { id: 'GroupCustomizeThemeOptions', label: 'Customise', priority: 'standard', controls: 3, inScope: true, commands: powerpointDesignCustomise },
     ],
   },
   {
@@ -2106,11 +2432,11 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabPageLayoutExcel' },
     groups: [
-      { id: 'GroupThemesExcel', label: 'Themes', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupPageSetup', label: 'Page Setup', priority: 'primary', controls: 16, inScope: true },
-      { id: 'GroupPageLayoutScaleToFit', label: 'Scale to Fit', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupPageLayoutSheetOptions', label: 'Sheet Options', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 47, inScope: true },
+      { id: 'GroupThemesExcel', label: 'Themes', priority: 'standard', controls: 9, inScope: true, commands: excelPageLayoutThemes },
+      { id: 'GroupPageSetup', label: 'Page Setup', priority: 'primary', controls: 16, inScope: true, commands: excelPageLayoutPageSetup },
+      { id: 'GroupPageLayoutScaleToFit', label: 'Scale to Fit', priority: 'standard', controls: 6, inScope: true, commands: excelPageLayoutScaleToFit },
+      { id: 'GroupPageLayoutSheetOptions', label: 'Sheet Options', priority: 'standard', controls: 8, inScope: true, commands: excelPageLayoutSheetOptions },
+      { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 47, inScope: true, commands: arrangeCommands('excel') },
     ],
   },
   {
