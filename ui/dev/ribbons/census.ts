@@ -128,8 +128,12 @@
  * `arrangeCommands` for a table, which it generalised to take the application, the tab and the object; see the
  * *commands Table Layout shows* section's *PowerPoint's Table Layout* part. **Excel's Table Design** followed, the
  * fifth and Excel's first, reusing that file's gallery art and adding Excel's styles and its Export and Refresh menus
- * there; see the *commands Table Design shows* section's *Excel's Table Design* part. `commands` stays optional rather
- * than required, because an empty array would claim a tab had been authored and found to hold nothing.
+ * there; see the *commands Table Design shows* section's *Excel's Table Design* part. **Word's Picture Format**
+ * followed, the sixth, calling `arrangeCommands` for a picture and writing Size once as `sizeCommands`, a function of
+ * the application, the tab and the object, for Shape Format and Chart Format to call; its menus and gallery are in
+ * `stories/ribbons/picture-tools-menus.ts`, for PowerPoint's and Excel's Picture Format; see the *commands Picture
+ * Format shows* section. `commands` stays optional rather than required, because an empty array would claim a tab had
+ * been authored and found to hold nothing.
  *
  * ## The contextual tab sets
  *
@@ -176,8 +180,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Five contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout, and Excel's Table
- * Design.** Each
+ * **Six contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout, Excel's Table Design,
+ * and Word's Picture Format.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -1655,9 +1659,10 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
 // and the seven fields are drawn without one.
 
 /**
- * Arrange, in Word's Layout, Excel's Page Layout and PowerPoint's Table Layout: one function of the application, the
- * tab and the object arranged, because the shared commands carry the same names and glyphs everywhere. The Picture,
- * Shape and Chart Format units are expected to call it too.
+ * Arrange, in Word's Layout, Excel's Page Layout, PowerPoint's Table Layout and Word's Picture Format: one function of
+ * the application, the tab and the object arranged, because the shared commands carry the same names and glyphs
+ * everywhere. A picture is a `drawing` here, and Word's Picture Format gets exactly Office's eight. The Shape and Chart
+ * Format units and the other Picture Format units are expected to call it too.
  *
  * - **Word** leads with Position and Wrap Text, large, and draws the six small beside them.
  * - **Excel** has no Position or Wrap Text (a cell does not wrap around a picture), and draws Bring
@@ -7590,6 +7595,220 @@ const powerpointTableLayoutTableSize: readonly RibbonCommand[] = [
   { id: 'powerpoint.table-layout.table-size.lock-aspect-ratio', label: 'Lock Aspect Ratio', toggle: true },
 ];
 
+// ── the commands Picture Format shows ────────────────────────────────────────
+//
+// ## Word's Picture Format
+//
+// The unit after Excel's Table Design, one tab of one application: **Word's `TabPictureToolsFormat`, in
+// `TabSetPictureTools`**, all six in-scope groups and twenty-five commands, and **the sixth contextual tab authored**.
+// Office shows it under the *Picture Tools* band while a picture is selected: how the picture's light, colour and
+// transparency are corrected, the frame and effects it wears, its alternative text, where it sits among the text and
+// the other objects, how it is cropped and how big it is.
+//
+// ## Office's groups, read onto the census's six
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupPictureTools` (29) | Adjust | Remove Background, Corrections, Colour, Artistic Effects, Transparency; Compress Pictures, Change Picture, Reset Picture |
+// | `GroupPictureStyles` (28) | Picture Styles | the Quick Styles gallery; Picture Border, Picture Effects, Picture Layout; the Format Picture launcher |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrangeWith3DEditor` (65) | Arrange | Position, Wrap Text, Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupPictureSize` (20) | Size | Crop; Height, Width; the Layout launcher |
+// | `GroupImagePlay` (1) | Image Play | Play Animation |
+//
+// **Every id, label and priority is the contextual unit's, unchanged.** `GroupPictureTools` is Adjust, as that unit's
+// header item 2 already read it. `GroupArrangeWith3DEditor` is Office's Arrange with the 3-D model commands a picture
+// never shows; its count, 65, is Word's Layout Arrange's, and so are its eight commands.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Four galleries drawn as large dropdowns**, because `<mjx-gallery>` has no button presentation (Design's Themes
+// gave the same answer): Corrections, Colour, Artistic Effects and Transparency, each a menu of Office's whole list by
+// name. **Six more dropdowns**: Change Picture, Picture Effects, Picture Layout, Position, Wrap Text, Align, Group
+// and Rotate make eight. **Four split buttons**: Reset Picture, Bring Forward, Send Backward, and **Crop, whose face is
+// a state** (`<mjx-split-button toggle>`): Office draws it pressed while the crop handles are out. **One in-ribbon
+// gallery**, Quick Styles, over Word's twenty-eight picture styles. **One colour picker**, Picture Border, with
+// `outlineEntries` beneath it. **Two fields**, Height and Width. **Three generic toggles**: Alt Text and Selection
+// Pane, which open panes and draw pressed while open, and Play Animation. **Two plain buttons**: Remove Background and
+// Compress Pictures. **Two dialog launchers**: Format Picture on Picture Styles and Layout on Size.
+//
+// **Reused, not rewritten.** Arrange is `arrangeCommands('word', 'picture-format')`, which gives a picture exactly
+// Office's eight, Position and Wrap Text first; its seven menus are `stories/ribbons/design-layout-menus.ts`' Word
+// lists, now all exported. Picture Border's entries are `colour-picker-entries.ts`' `outlineEntries`. Picture Effects'
+// Shadow, Reflection, Glow, Bevel and 3-D Rotation are `wordart-styles-menus.ts`' preset lists (Glow and 3-D Rotation
+// now exported). **Written once, new**: `sizeCommands`, below, a function of the application, the tab and the object,
+// because Size repeats on Shape Format and Chart Format; and `stories/ribbons/picture-tools-menus.ts`, every list,
+// gallery and measure of the tab, shaped so PowerPoint's and Excel's Picture Format call it. The palette gate the
+// WordArt gallery kept to itself (`paletteSlotColour`, `spacingStep`) moved to `palette-art.ts` for the picture styles.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Six groups, not five.** The brief lists Adjust, Picture Styles, Accessibility, Arrange and Size; the census also
+//    carries `GroupImagePlay` in scope, and the census wins. **Image Play draws one command, Play Animation**, a large
+//    toggle, pressed, that plays or pauses a moving picture. `GUESS:` the command, its label, its glyph, its size, that
+//    it starts playing, and that it is what the group holds; the contextual unit already marked the group's label a
+//    guess. Office shows it only for an animated picture; it is drawn here so it can be audited.
+// 2. **The counts.** **Accessibility (1) and Image Play (1) are met. Size counts 20**, and one reading makes 20: Crop's
+//    face and arrow, its Crop entry, Crop to Shape, Aspect Ratio's eleven ratios, Fill and Fit, then Height, Width and
+//    the launcher. **Picture Styles counts 28**, which is the gallery's twenty-eight styles, so the census appears to
+//    count the gallery and nothing beside it. **Adjust counts 29 and draws 8**, and no reading reaches it (Corrections'
+//    gallery alone is 30). **Arrange counts 65 and draws 8**, as on Layout. `GUESS:` every reading. Nothing is padded.
+// 3. **Corrections, Colour, Artistic Effects, Transparency and Picture Layout are menus of names**, where Office draws
+//    grids of the selected picture (or of diagrams) wearing each preset. A picture of *this* picture is document
+//    content the ribbon has no copy of. Each list is Office's whole list, with the unchanged state checked where a
+//    picture has one (Sharpen 0%, Brightness 0% Contrast 0%, Saturation 100%, Temperature 6500 K, No Recolour, None,
+//    Transparency 0%). `GUESS:` every name, every step and the order; that **More Variations** is an entry, where
+//    Office opens a colour grid; and Picture Layout's thirty-one layouts.
+// 4. **The census's spelling wins**: *Colour*, *Recolour*, *Greyscale*, *Watercolour*, *Set Transparent Colour*,
+//    *Picture Colour Options…*, *Centre Shadow Rectangle*, where Office writes *Color*, *Gray* and *Center*. *Beveled*
+//    and *Texturizer* keep Office's spelling: the census spells neither word.
+// 5. **Quick Styles draws twenty-eight thumbnails of a stand-in photograph** in the document's palette (a sky in Accent
+//    1, land in Accent 6, a sun in Accent 4), each framed, cut and given its effect; a white or black frame is
+//    Background 1 or Text 1. Office draws the selected picture. `GUESS:` every look and the order. No starting value
+//    and no footer: an inserted picture wears no style, and Office's gallery has no command under it.
+// 6. **Picture Border is the catalogue's colour picker** with *No Outline*, and More Outline Colours…, Weight ▸,
+//    Sketched ▸ and Dashes ▸ beneath the palette. `GUESS:` that Word's carries no Eyedropper, which PowerPoint's does.
+// 7. **Picture Effects is a menu of seven submenus**: Preset (No Presets, Preset 1 to 12, 3-D Options…) and Soft Edges
+//    (No Soft Edges, six widths, Soft Edges Options…) are written for the picture; the other five are Text Effects'
+//    lists. `GUESS:` that a picture's lists are text's, and every Preset and Soft Edges name.
+// 8. **Crop is a split toggle.** Its arrow lists Crop, Crop to Shape ▸ (every shape of the Shapes gallery's
+//    Rectangles, Basic Shapes, Block Arrows, Equation Shapes, Flowchart, Stars and Banners and Callouts), Aspect Ratio
+//    ▸ (Square, four portrait, six landscape), Fill and Fit. `GUESS:` that Crop draws pressed, that Crop to Shape leaves
+//    out Lines and the Text Box, and every shape's name.
+// 9. **Remove Background opens a view tab in Office**, Background Removal, which is authored; nothing is wired
+//    between the two here, as no dialog or pane on the contextual tabs is. **Compress Pictures and both launchers open
+//    dialogs, Alt Text and Selection Pane open panes**; they open nothing here.
+// 10. **Height and Width start on 8.57 cm and 11.43 cm**, a 4:3 photograph scaled to 11.43 cm across, stepping by 0.01
+//    cm. They are one state in Office while the aspect ratio is locked; nothing dispatches, so they do not follow each
+//    other. `GUESS:` both numbers and the step.
+// 11. **Change Picture's five sources and Reset Picture's two entries** (Reset Picture, Reset Picture & Size) are
+//    `GUESS:`.
+// 12. **Position stays small with no glyph**, where Microsoft 365 draws it large beside Wrap Text on this tab: it is
+//    `arrangeCommands`' Position, and Fluent draws no position preset. **No launcher on Adjust, Accessibility, Arrange or
+//    Image Play**, `GUESS:`.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Adjust**: none. Corrections, Colour, Artistic Effects, Transparency and Change Picture open galleries or menus,
+//   and Reset Picture is a split button, all rule 1. **Remove Background** opens a whole view tab rather than doing
+//   one thing one undo takes back, and **Compress Pictures** opens a dialog and discards cropped pixels for good.
+// - **Picture Styles**: none. A gallery, a colour grid and two menus.
+// - **Accessibility**: none. Alt Text opens a pane, and a group of one would collapse to an empty popup.
+// - **Arrange**: none, for `arrangeCommands`' reason.
+// - **Size**: none. Crop is a split button, and Height and Width are fields.
+// - **Image Play**: none. Play Animation passes rules 1 to 3, and is its group's only command, so a survivor would leave
+//   the collapsed popup empty.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Remove Background, Corrections, Colour, Artistic Effects and Transparency
+// large, then Compress Pictures, Change Picture and Reset Picture small in a column; the Quick Styles gallery in-ribbon,
+// then Picture Border, Picture Effects and Picture Layout small in a column; Alt Text large; Arrange as on Layout; Crop
+// large, then Height and Width in a column; Play Animation large (`GUESS:`). **Nineteen of the twenty-five commands
+// carry a glyph**, all `GUESS:`:
+//
+// - **New**: Remove Background draws `video-background-effect`, a subject in front of a hatched background, **the
+//   weakest glyph on the tab**; Artistic Effects `photo-filter`, two lenses; Transparency `transparency-square`, a
+//   chequerboard; Compress Pictures `arrow-minimize`, four arrows pointing in; Change Picture `image-arrow-forward`;
+//   Reset Picture `image-arrow-counterclockwise`; Picture Effects `image-shadow`; Alt Text `image-alt-text`, filled
+//   while pressed; Crop `crop`, filled while pressed; Play Animation `play`, filled while playing.
+// - **Reused**: Corrections draws `brightness-high`, Greyscale's sun; Colour draws `color`, Design's palette; Picture
+//   Layout draws `diagram`, Convert to SmartArt's; Wrap Text, Bring Forward, Send Backward, Align, Group and Rotate
+//   draw `arrangeCommands`' own.
+//
+// **Six commands carry no glyph, and say why**: the Quick Styles gallery is its pictures; Picture Border is a colour
+// picker, which draws a swatch; Height and Width are fields; **Position and Selection Pane** for `arrangeCommands`'
+// reason (Fluent draws no position preset and no selection pane).
+
+/**
+ * **Size, as Office draws it on Picture Format, Shape Format and Chart Format**: Crop for a picture, then Height and
+ * Width, under `<application>.<tab>.size`.
+ *
+ * Written once because the group repeats: `GroupPictureSize` on Picture Format, `GroupSize` on Shape Format and Chart
+ * Format, in all three applications. **Only a picture has Crop**, a large split button whose face is a state (Office
+ * draws it pressed while the crop handles are out), so `object: 'picture'` adds it and every other object gets Height
+ * and Width alone. **Height and Width are measure fields** a host binds. Each unit that calls it records its own counts
+ * and launcher.
+ *
+ * **No survivor**: a split button and two fields.
+ */
+export function sizeCommands(
+  application: RibbonApplication,
+  tab: string,
+  object: 'picture' | 'drawing' = 'drawing',
+): readonly RibbonCommand[] {
+  const pictureOnly: readonly RibbonCommand[] =
+    object === 'picture'
+      ? [{ id: `${application}.${tab}.size.crop`, label: 'Crop', icon: 'crop', size: 'large', toggle: true }]
+      : [];
+  return [
+    ...pictureOnly,
+    { id: `${application}.${tab}.size.height`, label: 'Height' },
+    { id: `${application}.${tab}.size.width`, label: 'Width' },
+  ];
+}
+
+/**
+ * Word's `GroupPictureTools` on Picture Format, labelled **Adjust**: five large, then three small in a column. See
+ * disagreements 2, 3, 4, 9 and 11.
+ *
+ * **Corrections, Colour, Artistic Effects and Transparency are large dropdowns**, **Change Picture a small dropdown** and
+ * **Reset Picture a small split button**, all bound by a host. Remove Background and Compress Pictures are plain buttons.
+ *
+ * **No survivor**: four galleries, a menu, a split button, a view tab and a dialog.
+ */
+const wordPictureFormatAdjust: readonly RibbonCommand[] = [
+  { id: 'word.picture-format.adjust.remove-background', label: 'Remove Background', icon: 'video-background-effect', size: 'large' },
+  { id: 'word.picture-format.adjust.corrections', label: 'Corrections', icon: 'brightness-high', size: 'large' },
+  { id: 'word.picture-format.adjust.colour', label: 'Colour', icon: 'color', size: 'large' },
+  { id: 'word.picture-format.adjust.artistic-effects', label: 'Artistic Effects', icon: 'photo-filter', size: 'large' },
+  { id: 'word.picture-format.adjust.transparency', label: 'Transparency', icon: 'transparency-square', size: 'large' },
+  { id: 'word.picture-format.adjust.compress-pictures', label: 'Compress Pictures', icon: 'arrow-minimize' },
+  { id: 'word.picture-format.adjust.change-picture', label: 'Change Picture', icon: 'image-arrow-forward' },
+  { id: 'word.picture-format.adjust.reset-picture', label: 'Reset Picture', icon: 'image-arrow-counterclockwise' },
+];
+
+/**
+ * Word's `GroupPictureStyles`, labelled **Picture Styles**: the Quick Styles gallery in-ribbon, then Picture Border,
+ * Picture Effects and Picture Layout small in a column, and the Format Picture launcher the tab module passes. See
+ * disagreements 2, 4, 5, 6 and 7.
+ *
+ * **The gallery** and **Picture Border**, a colour picker, carry no glyph. **Picture Effects and Picture Layout are
+ * dropdowns.** All four are bound by a host.
+ *
+ * **No survivor**: a gallery, a colour grid and two menus.
+ */
+const wordPictureFormatPictureStyles: readonly RibbonCommand[] = [
+  { id: 'word.picture-format.picture-styles.quick-styles', label: 'Quick Styles' },
+  { id: 'word.picture-format.picture-styles.picture-border', label: 'Picture Border' },
+  { id: 'word.picture-format.picture-styles.picture-effects', label: 'Picture Effects', icon: 'image-shadow' },
+  { id: 'word.picture-format.picture-styles.picture-layout', label: 'Picture Layout', icon: 'diagram' },
+];
+
+/**
+ * Word's `GroupAltText`, labelled **Accessibility**: Alt Text, large. **A generic toggle**, unpressed: Office draws it
+ * pressed while the Alt Text pane is open. No pane is wired here.
+ *
+ * **No survivor**: it opens a pane, and it is the group's only command.
+ */
+const wordPictureFormatAccessibility: readonly RibbonCommand[] = [
+  { id: 'word.picture-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
+];
+
+/**
+ * Word's `GroupImagePlay`, labelled **Image Play** (the label derived from its id): Play Animation, large. See
+ * disagreement 1.
+ *
+ * **A generic toggle**, pressed: a moving picture plays until it is paused. `GUESS:` all of it.
+ *
+ * **No survivor**: the group's only command.
+ */
+const wordPictureFormatImagePlay: readonly RibbonCommand[] = [
+  { id: 'word.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -7658,12 +7877,12 @@ export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
         groups: [
-          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 29, inScope: true },
-          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
-          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
-          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 29, inScope: true, commands: wordPictureFormatAdjust },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 28, inScope: true, commands: wordPictureFormatPictureStyles },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: wordPictureFormatAccessibility },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true, commands: arrangeCommands('word', 'picture-format') },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true, commands: sizeCommands('word', 'picture-format', 'picture') },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true, commands: wordPictureFormatImagePlay },
         ],
       },
     ],

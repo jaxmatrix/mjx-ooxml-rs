@@ -74,8 +74,13 @@
  *
  * **Table Layout is authored**, the second: seven groups and thirty-three commands, the table's structure, its cells'
  * sizes and alignment, and its data. Its Select, Delete and AutoFit menus are in the same file, Select's and Delete's
- * written for PowerPoint's Table Layout to reuse, and both Word hosts bind it. **The other four are placeholders**,
- * each until its own unit.
+ * written for PowerPoint's Table Layout to reuse, and both Word hosts bind it.
+ *
+ * **Picture Format is authored**, the third: six groups and twenty-five commands, how a picture is corrected, framed,
+ * described, placed, cropped and sized. Its menus, gallery and measures are in `stories/ribbons/picture-tools-menus.ts`,
+ * written for PowerPoint's and Excel's Picture Format to reuse; its Arrange is `arrangeCommands` and its Size is
+ * `sizeCommands`. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table Tools. **The other three are
+ * placeholders**, each until its own unit.
  *
  * ## The three view tabs
  *
@@ -598,16 +603,49 @@ export function wordTableLayoutTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
+ * Picture Format: Adjust, Picture Styles, Accessibility, Arrange, Size, Image Play — the sixth contextual tab authored
+ * and Word's third, in **Office's** order, which is also the census's. It sits under the *Picture Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a picture is selected.** `Ribbons/Word` draws every contextual set
+ * and binds it; **`Shell/Word` draws Table Tools alone**, so it binds none of this tab and renders none of its menus,
+ * and `tests/ribbons.test.ts` refuses a shell that opens a menu of a set it never draws. `dev/ribbons/census.ts`
+ * records every disagreement.
+ *
+ * **Twenty of the tab's twenty-five commands are bound by a host**: Corrections, Colour, Artistic Effects,
+ * Transparency, Change Picture, Picture Effects, Picture Layout, Position, Wrap Text, Align, Group and Rotate,
+ * dropdowns; Reset Picture, Bring Forward and Send Backward, split buttons, and Crop, a split toggle; the Quick Styles
+ * gallery; Picture Border, a colour picker; Height and Width, measure fields. Every menu is in
+ * `stories/ribbons/picture-tools-menus.ts`. Remove Background and Compress Pictures are plain buttons, and Alt Text,
+ * Selection Pane and Play Animation generic toggles.
+ *
+ * **Two dialog launchers**: Format Picture on Picture Styles, Layout on Size. **No survivor.**
+ */
+export function wordPictureFormatTab(options: TabOptions = {}): TemplateResult {
+  const pictureFormat = entry('picture-format');
+  const controls = options.controls ?? {};
+  return tab(
+    pictureFormat.id,
+    pictureFormat.label,
+    censusGroup(pictureFormat, 'GroupPictureTools', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureStyles', { launcher: 'Format Picture' }, controls),
+    censusGroup(pictureFormat, 'GroupAltText', {}, controls),
+    censusGroup(pictureFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureSize', { launcher: 'Layout' }, controls),
+    censusGroup(pictureFormat, 'GroupImagePlay', {}, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Table Design and Table Layout are authored; every other entry is `placeholderTab` today.** The four common sets
+ * **Table Design, Table Layout and Picture Format are authored; every other entry is `placeholderTab` today.** The four common sets
  * are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaces its one line here with a
- * `word<Tab>Tab` function, as Table Design's and Table Layout's did.
+ * `word<Tab>Tab` function, as Table Design's, Table Layout's and Picture Format's did.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,
   'table-layout': wordTableLayoutTab,
-  'picture-format': () => placeholderTab(entry('picture-format')),
+  'picture-format': wordPictureFormatTab,
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),

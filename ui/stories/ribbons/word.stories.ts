@@ -42,6 +42,7 @@ import {
   wordTableStyleGalleryFooter,
   wordTableStyleGalleryItems,
 } from './table-tools-menus.ts';
+import { pictureStyleGalleryItems, pictureToolsMenus, wordPictureMeasures } from './picture-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
@@ -57,8 +58,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * ## What is authored and what is not
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
- * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design and Table Tools'
- * Layout are authored**, the first two. **The other four are placeholders** — Picture Format, Shape Format, Chart
+ * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design, Table Tools'
+ * Layout and Picture Format are authored**, the first three. **The other three are placeholders** — Shape Format, Chart
  * Design and Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
  * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -72,7 +73,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
- * Mailings, Review, View, Print Preview, Table Design and Table Layout tabs' menus open, the pickers open, the
+ * Mailings, Review, View, Print Preview, Table Design, Table Layout and Picture Format tabs' menus open, the pickers
+ * open, the
  * galleries preview — and no document changes, because command dispatch is loop 2.
  */
 
@@ -93,7 +95,7 @@ const meta: Meta = {
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
           'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
-          'four common sets, Table Design and Layout are authored; Picture Format, Shape Format, Chart Design and ' +
+          'four common sets, Table Design, Layout and Picture Format are authored; Shape Format, Chart Design and ' +
           'Format are placeholders carrying the census’s own priorities.',
       },
     },
@@ -845,6 +847,154 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Picture Format (a contextual tab, in Picture Tools). `Shell/Word` draws Table Tools alone, so these twenty bindings
+  // and the sixteen menus they open are written here and nowhere else. Every menu, the gallery's styles and the two
+  // starting measures are `stories/ribbons/picture-tools-menus.ts`'s; Arrange's menus are Layout's own lists under this
+  // tab's ids. Remove Background, Compress Pictures, Alt Text, Selection Pane and Play Animation are the generic button
+  // or toggle and are not bound.
+  'word.picture-format.adjust.corrections': html`<mjx-button
+    label="Corrections"
+    icon="brightness-high"
+    size="large"
+    data-opens="ribbons-word-picture-format-adjust-corrections"
+  ></mjx-button>`,
+  'word.picture-format.adjust.colour': html`<mjx-button
+    label="Colour"
+    icon="color"
+    size="large"
+    data-opens="ribbons-word-picture-format-adjust-colour"
+  ></mjx-button>`,
+  'word.picture-format.adjust.artistic-effects': html`<mjx-button
+    label="Artistic Effects"
+    icon="photo-filter"
+    size="large"
+    data-opens="ribbons-word-picture-format-adjust-artistic-effects"
+  ></mjx-button>`,
+  'word.picture-format.adjust.transparency': html`<mjx-button
+    label="Transparency"
+    icon="transparency-square"
+    size="large"
+    data-opens="ribbons-word-picture-format-adjust-transparency"
+  ></mjx-button>`,
+  'word.picture-format.adjust.change-picture': html`<mjx-button
+    label="Change Picture"
+    icon="image-arrow-forward"
+    size="small"
+    data-opens="ribbons-word-picture-format-adjust-change-picture"
+  ></mjx-button>`,
+  'word.picture-format.adjust.reset-picture': html`<mjx-split-button
+    label="Reset Picture"
+    icon="image-arrow-counterclockwise"
+    size="small"
+    menu-label="Reset Picture"
+    data-opens="ribbons-word-picture-format-adjust-reset-picture"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.picture-format.picture-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-word-picture-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${pictureStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'word.picture-format.picture-styles.picture-border': html`<mjx-color-picker
+    id="ribbons-word-picture-format-picture-border"
+    style=${ribbonColourFieldStyle}
+    label="Picture Border"
+    show-no-fill
+    no-fill-label="No Outline"
+    value="none"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Picture Border',
+      outlineEntries({ moreColours: 'More Outline Colours…', weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'word.picture-format.picture-styles.picture-effects': html`<mjx-button
+    label="Picture Effects"
+    icon="image-shadow"
+    size="small"
+    data-opens="ribbons-word-picture-format-picture-styles-picture-effects"
+  ></mjx-button>`,
+  'word.picture-format.picture-styles.picture-layout': html`<mjx-button
+    label="Picture Layout"
+    icon="diagram"
+    size="small"
+    data-opens="ribbons-word-picture-format-picture-styles-picture-layout"
+  ></mjx-button>`,
+  'word.picture-format.arrange.position': html`<mjx-button
+    label="Position"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-position"
+  ></mjx-button>`,
+  'word.picture-format.arrange.wrap-text': html`<mjx-button
+    label="Wrap Text"
+    icon="text-position-square"
+    size="large"
+    data-opens="ribbons-word-picture-format-arrange-wrap-text"
+  ></mjx-button>`,
+  'word.picture-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.picture-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.picture-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-align"
+  ></mjx-button>`,
+  'word.picture-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-group"
+  ></mjx-button>`,
+  'word.picture-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-word-picture-format-arrange-rotate"
+  ></mjx-button>`,
+  'word.picture-format.size.crop': html`<mjx-split-button
+    toggle
+    label="Crop"
+    icon="crop"
+    size="large"
+    menu-label="Crop"
+    data-opens="ribbons-word-picture-format-size-crop"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.picture-format.size.height': html`<mjx-measure-input
+    id="ribbons-word-picture-format-height"
+    label="Height"
+    value=${wordPictureMeasures.height}
+    unit="cm"
+    step=${wordPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.picture-format.size.width': html`<mjx-measure-input
+    id="ribbons-word-picture-format-width"
+    label="Width"
+    value=${wordPictureMeasures.width}
+    unit="cm"
+    step=${wordPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -876,7 +1026,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
     ${viewMenus('word', 'ribbons')} ${printPreviewMenus('word', 'ribbons')}
-    ${tableToolsMenus('word', 'ribbons')}
+    ${tableToolsMenus('word', 'ribbons')} ${pictureToolsMenus('word', 'ribbons')}
   `;
 }
 
@@ -1320,9 +1470,51 @@ export const TableDesign: Story = { render: () => ribbon('table-design') };
 export const TableLayout: Story = { render: () => ribbon('table-layout') };
 
 /**
- * **Picture Format** — Picture Tools' one tab, a placeholder. Six groups are declared: Adjust, Picture Styles,
- * Accessibility, Arrange, Size and Image Play, with Adjust and Picture Styles primary. Image Play is the one label
- * derived from its id, because Office's name for it is unknown.
+ * **Picture Format**: how a picture's light, colour and transparency are corrected, the frame and effects it wears, its
+ * alternative text, where it sits, how it is cropped and how big it is. Picture Tools' one tab, and the sixth contextual
+ * tab authored; Office shows it only while a picture is selected. Six groups: Adjust, Picture Styles, Accessibility,
+ * Arrange, Size and Image Play. See `Table Design` for the band. What to look at, least certain first:
+ *
+ * 1. ⚠ **Image Play is the census's, not the brief's.** Its one command is **Play Animation**, a large toggle that
+ *    starts pressed, standing for the play and pause of a moving picture. `GUESS:` the command, its label, its glyph and
+ *    that it starts playing. Office shows the group only for an animated picture.
+ * 2. ⚠ **Glyphs to judge**, all `GUESS:`. **Remove Background's subject before a hatched background is the weakest.**
+ *    Then Artistic Effects' two lenses, Transparency's chequerboard, Compress Pictures' four inward arrows, Change
+ *    Picture's picture with a forward arrow, Reset Picture's picture with a turn back, Picture Effects' picture with a
+ *    shadow, Alt Text's picture with a label, Crop's marks and Play Animation's play mark, all new; Corrections' sun
+ *    (Greyscale's), Colour's palette (Design's Colours) and Picture Layout's diagram (Convert to SmartArt's), reused.
+ * 3. ⚠ **Corrections, Colour, Artistic Effects and Transparency are large dropdowns of names**, where Office draws
+ *    grids of the picture wearing each preset. Press each:
+ *    - Corrections: *Sharpen/Soften* (five, Sharpen: 0% checked) and *Brightness/Contrast* (twenty-five, contrast down
+ *      and brightness across, Brightness: 0% Contrast: 0% checked), then Picture Corrections Options….
+ *    - Colour: *Colour Saturation* (seven, 100% checked), *Colour Tone* (seven, 6500 K checked), *Recolour* (twenty-one,
+ *      No Recolour checked), then More Variations, Set Transparent Colour and Picture Colour Options….
+ *    - Artistic Effects: twenty-three, None checked, then Artistic Effects Options….
+ *    - Transparency: seven, 0% checked, then Picture Transparency Options….
+ *
+ *    Arrow through a section: each is one set, so choosing a step moves the tick within its section alone.
+ * 4. ⚠ **The Quick Styles gallery's thumbnails.** Twenty-eight picture styles by Office's names, from Simple Frame,
+ *    White to Metal Oval, each a stand-in landscape (sky Accent 1, land Accent 6, sun Accent 4) framed, cut and given
+ *    its effect in the document's palette. Judge whether Metal Frame, Beveled Matte and the two Perspective styles read
+ *    as different styles. Nothing is selected, and there is no footer. `GUESS:` every look.
+ * 5. **Crop is a split toggle.** Press its face: it fills. Press again: it releases. Its arrow opens Crop, **Crop to
+ *    Shape** (seven sections, 147 shapes), **Aspect Ratio** (Square, Portrait, Landscape) and Fill and Fit. `GUESS:`
+ *    that Crop draws pressed, and every shape's name.
+ * 6. **Picture Effects** opens seven submenus: Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and 3-D Rotation,
+ *    the middle five Text Effects' lists. **Picture Layout** opens thirty-one SmartArt picture layouts.
+ * 7. **Picture Border is a colour field** with *No Outline*, starting on none, and More Outline Colours…, Weight ▸,
+ *    Sketched ▸ and Dashes ▸ beneath the palette. No Eyedropper, `GUESS:`.
+ * 8. **Adjust's small column**: Compress Pictures (a plain button), Change Picture (a dropdown: From a File…, From Stock
+ *    Images…, From Online Sources…, From Icons…, From Clipboard) and **Reset Picture** (a split button: Reset Picture,
+ *    Reset Picture & Size). **Remove Background** is a plain button: in Office it opens the Background Removal tab.
+ * 9. **Arrange is Layout's**: Position and Wrap Text, Bring Forward and Send Backward split, Selection Pane, Align,
+ *    Group and Rotate, opening the same lists as on Layout under this tab's ids. Position stays small with no glyph.
+ * 10. **Height and Width are measure fields**, 8.57 cm and 11.43 cm, stepping by 0.01. `GUESS:` both numbers.
+ * 11. **Alt Text is a large toggle**, unpressed; pressed, it fills. No pane opens.
+ * 12. **Two launchers**: *Format Picture* at Picture Styles' corner and *Layout* at Size's. No other group has one.
+ * 13. **No survivor anywhere.** Drag narrow: Image Play (`ancillary`) gives way first, Accessibility (`secondary`) next,
+ *     then Arrange and Size, and Adjust and Picture Styles last; each collapses to a trigger with nothing beside it.
+ * 14. **Not in `Shell/Word`**, which draws Table Tools: the shell's strip has no Picture Tools band.
  */
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 

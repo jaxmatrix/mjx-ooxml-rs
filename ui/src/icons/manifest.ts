@@ -660,7 +660,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'diagram',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Convert to SmartArt, on PowerPoint's Paragraph group — replacing a bare `table`. `organization` was the near neighbour and was refused: SmartArt is lists, processes and cycles as well as hierarchies, and an org chart would have named one layout out of eight. The same glyph for **SmartArt** on the Insert tab in all three applications, which is the same gallery; 24 since unit 3, because PowerPoint draws it large.",
+    why: "Convert to SmartArt, on PowerPoint's Paragraph group — replacing a bare `table`. `organization` was the near neighbour and was refused: SmartArt is lists, processes and cycles as well as hierarchies, and an org chart would have named one layout out of eight. The same glyph for **SmartArt** on the Insert tab in all three applications, which is the same gallery; 24 since unit 3, because PowerPoint draws it large. **Since Word's Picture Format unit, also Picture Layout**, small, in Picture Styles, which turns the selected pictures into a SmartArt picture layout: the same act as Convert to SmartArt, from a picture rather than from text. `GUESS:`.",
   },
   {
     name: 'shapes',
@@ -1052,7 +1052,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'color',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Colours**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Colours**, the same shared group.",
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Colours**, the same shared group. **Since PowerPoint's Notes Master unit, also Notes Master's Colours**, the same shared group. **Since Word's Picture Format unit, also Colour**, the large dropdown in Adjust, which opens Colour Saturation, Colour Tone and Recolour: a painter's palette, a picture's colours. Design's Colours draws it too, and neither is a survivor, so rule 2 never asks which one a bare palette means. `GUESS:`.",
   },
   {
     name: 'text-font',
@@ -1677,7 +1677,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'brightness-high',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Light Greyscale, the large toggle in PowerPoint's Black and White Colour Mode group (and Greyscale's, the same shared group): a sun with long rays, greyscale lightened. Not `weather-sunny`, which reads as weather, nor `color-off`, which Greyscale beside it draws. `GUESS:`.",
+    why: "Light Greyscale, the large toggle in PowerPoint's Black and White Colour Mode group (and Greyscale's, the same shared group): a sun with long rays, greyscale lightened. Not `weather-sunny`, which reads as weather, nor `color-off`, which Greyscale beside it draws. `GUESS:`. **Since Word's Picture Format unit, also Corrections**, the large dropdown in Adjust, which opens Sharpen/Soften and Brightness/Contrast: a sun, brightness, the half of the gallery a person reaches for. Not a survivor, so the shared sun collides with nothing. `GUESS:`.",
   },
   // ── View (PowerPoint's View) ──────────────────────────────────────────────
   //
@@ -2302,6 +2302,70 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Open in Browser, small, in Excel's Table Design External Table Data group, which opens the table's SharePoint list in a web browser: the web with an arrow going to it. Not `globe`, which is From Web, data coming in. `GUESS:`.",
+  },
+  // ── Picture Format (Word's, and written for all three) ──────────────────────
+  //
+  // Word's Picture Format tab, the sixth contextual tab authored. PowerPoint's and Excel's units reuse these rows. The
+  // reasoning for every glyph is the *commands Picture Format shows* section of `dev/ribbons/census.ts`.
+  {
+    name: 'video-background-effect',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Remove Background, the large button that opens Adjust and the Background Removal tab: a subject standing in front of a hatched background, the part the command takes away. Fluent draws no picture with its background struck out, and `image-off` says *no picture at all*. ⚠ The weakest glyph on Word's Picture Format. `GUESS:`.",
+  },
+  {
+    name: 'photo-filter',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Artistic Effects, the large dropdown in Picture Format's Adjust group, which opens twenty-three filters (Pencil Sketch, Watercolour Sponge, Glass): Fluent's own photo-filter mark, two overlapping lenses. Not `paint-brush`, which is Format Painter, nor `image-sparkle`, which now reads as *generated*. `GUESS:`.",
+  },
+  {
+    name: 'transparency-square',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Transparency, the large dropdown in Picture Format's Adjust group: the chequerboard every image editor draws behind what is see-through. `GUESS:`.",
+  },
+  {
+    name: 'arrow-minimize',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Compress Pictures, small, in Picture Format's Adjust group, which opens the Compress Pictures dialog: four arrows pointing in, Office's own picture of a picture made smaller. It also means *leave full screen* elsewhere; it is not a survivor, so the collision is never asked about. `GUESS:`.",
+  },
+  {
+    name: 'image-arrow-forward',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Change Picture, small, in Picture Format's Adjust group, which replaces the picture and keeps its size and formatting: a picture with an arrow going on to the next. Not `image-edit`, which says edit this one. `GUESS:`.",
+  },
+  {
+    name: 'image-arrow-counterclockwise',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Reset Picture, the small split button in Picture Format's Adjust group, which discards the formatting (and, from its arrow, the size) a picture was given: a picture with a turn back. Not `arrow-reset` alone, which is Recording's Reset to Cameo and says nothing about a picture. `GUESS:`.",
+  },
+  {
+    name: 'image-shadow',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Picture Effects, the small dropdown in Picture Format's Picture Styles group, which opens Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and 3-D Rotation: a picture with a shadow behind it. Not `square-shadow`, Shape Effects, because the menu is about the picture. `GUESS:`.",
+  },
+  {
+    name: 'image-alt-text',
+    sizes: [24],
+    variants: ['regular', 'filled'],
+    why: "Alt Text, the large toggle in Picture Format's Accessibility group, which opens the Alt Text pane and draws pressed while it is open: Fluent's own picture with a text label. Filled for the pressed state. `GUESS:`.",
+  },
+  {
+    name: 'crop',
+    sizes: [24],
+    variants: ['regular', 'filled'],
+    why: "Crop, the large split button in Picture Format's Size group, whose face puts the picture into crop mode and draws pressed while the handles are out, and whose arrow opens Crop to Shape, Aspect Ratio, Fill and Fit: the crop marks every image editor draws. Filled for the pressed state. `GUESS:`.",
+  },
+  {
+    name: 'play',
+    sizes: [24],
+    variants: ['regular', 'filled'],
+    why: "Play Animation, the large toggle in Picture Format's Image Play group, which plays or pauses a moving picture: the play mark, filled while it plays. Not `play-circle`, Recording's Preview, which plays a slide. `GUESS:` the command, its label and its glyph; see the census.",
   },
 ];
 

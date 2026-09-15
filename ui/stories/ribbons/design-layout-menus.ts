@@ -372,10 +372,13 @@ function printAreaEntries(): TemplateResult[] {
 // ── Arrange: Word's Layout and Excel's Page Layout ──────────────────────────
 //
 // Bring Forward's, Send Backward's and Align's lists also serve PowerPoint's Table Layout, whose menus are rendered by
-// `stories/ribbons/table-tools-menus.ts` under that tab's own ids. Each takes the application.
+// `stories/ribbons/table-tools-menus.ts` under that tab's own ids. Each takes the application. **All seven lists also
+// serve Word's Picture Format**, whose Arrange group is `arrangeCommands` for a picture: its menus are rendered by
+// `stories/ribbons/picture-tools-menus.ts` under that tab's ids, so Position, Wrap Text, Group and Rotate are exported
+// too.
 
 /** Position, in Word: in line, three of Office's nine wrapped positions, and the dialog. */
-function positionEntries(): TemplateResult[] {
+export function positionEntries(): TemplateResult[] {
   return [
     section('In Line with Text', item('In Line with Text')),
     section(
@@ -390,7 +393,7 @@ function positionEntries(): TemplateResult[] {
 }
 
 /** Wrap Text, in Word: the seven wraps, then the three commands under them. */
-function wrapTextEntries(): TemplateResult[] {
+export function wrapTextEntries(): TemplateResult[] {
   return [
     choice('In Line with Text', true),
     choice('Square'),
@@ -460,12 +463,12 @@ export function alignEntries(application: RibbonApplication): TemplateResult[] {
 }
 
 /** Group: the three commands, in Office's order. */
-function groupEntries(): TemplateResult[] {
+export function groupEntries(): TemplateResult[] {
   return [item('Group'), item('Regroup'), item('Ungroup')];
 }
 
 /** Rotate: the two quarter turns, the two flips, and the dialog. */
-function rotateEntries(): TemplateResult[] {
+export function rotateEntries(): TemplateResult[] {
   return [
     item('Rotate Right 90°'),
     item('Rotate Left 90°'),

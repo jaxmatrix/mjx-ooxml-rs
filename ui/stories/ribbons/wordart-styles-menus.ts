@@ -10,7 +10,9 @@
  * - **`wordArtTextEffectsEntries()`**: Text Effects' six submenus, Shadow, Reflection, Glow, Bevel, 3-D Rotation and
  *   Transform, each with Office's whole preset list.
  * - **The preset lists themselves**, `shadowPresetEntries`, `reflectionPresetEntries` and `bevelPresetEntries`, which
- *   Table Design's Effects menu reuses for its Shadow, Reflection and Cell Bevel submenus.
+ *   Table Design's Effects menu reuses for its Shadow, Reflection and Cell Bevel submenus, and, with
+ *   `glowPresetEntries` and `rotationPresetEntries`, Picture Format's Picture Effects menu
+ *   (`stories/ribbons/picture-tools-menus.ts`).
  * - **No menu.** A menu's id comes from its command id through `commandMenu`, and `tests/ribbons.test.ts` reads that
  *   id only where it is spelt literally, so each tab's own menus function (`tableToolsMenus` for Table Design) writes
  *   `commandMenu(host, '<its id>', …)` and fills it from here. A shared function that built the menu from a computed id
@@ -33,7 +35,7 @@ import { html, type TemplateResult } from 'lit';
 import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 
 import type { ThemeColorPalette, ThemeColorSlot } from '../../src/pickers/picker-model.ts';
-import { hexColour } from './palette-art.ts';
+import { paletteSlotColour as slotColour, spacingStep as step } from './palette-art.ts';
 
 // ── the entries ──────────────────────────────────────────────────────────────
 
@@ -121,8 +123,11 @@ export function bevelPresetEntries(options?: string): TemplateResult[] {
   ];
 }
 
-/** The six accents under the Office theme's names, as the WordArt and Glow names spell them. */
-const accentNames: readonly { readonly slot: ThemeColorSlot; readonly name: string }[] = [
+/**
+ * The six accents under the Office theme's names, as the WordArt and Glow names spell them. Exported for Picture
+ * Format's Recolour list, which names its variations the same way.
+ */
+export const accentNames: readonly { readonly slot: ThemeColorSlot; readonly name: string }[] = [
   { slot: 'accent1', name: 'Blue, Accent colour 1' },
   { slot: 'accent2', name: 'Orange, Accent colour 2' },
   { slot: 'accent3', name: 'Grey, Accent colour 3' },
@@ -136,7 +141,7 @@ const accentNames: readonly { readonly slot: ThemeColorSlot; readonly name: stri
  * Colours and Glow Options…. `GUESS:` that More Glow Colours is drawn as an entry: in Office it opens a colour grid,
  * which a menu cannot hold.
  */
-function glowPresetEntries(): TemplateResult[] {
+export function glowPresetEntries(): TemplateResult[] {
   const sizes = ['5 point', '8 point', '11 point', '18 point'];
   return [
     item('No Glow'),
@@ -150,8 +155,11 @@ function glowPresetEntries(): TemplateResult[] {
   ];
 }
 
-/** **3-D Rotation's list**: No Rotation, then the parallel, perspective and oblique presets, then its options. */
-function rotationPresetEntries(): TemplateResult[] {
+/**
+ * **3-D Rotation's list**: No Rotation, then the parallel, perspective and oblique presets, then its options. Exported,
+ * with Glow's, for Picture Format's Picture Effects menu.
+ */
+export function rotationPresetEntries(): TemplateResult[] {
   const parallel = [
     'Isometric: Left Down',
     'Isometric: Right Up',
@@ -270,15 +278,6 @@ export interface WordArtStyleSpec {
   readonly label: string;
   readonly look: WordArtLook;
 }
-
-/** A palette slot's colour, checked, with the token a document that has not said falls back to. */
-function slotColour(palette: ThemeColorPalette, slot: ThemeColorSlot): string {
-  const fallback = slot === 'background1' ? 'var(--document-page)' : 'var(--theme-text-primary)';
-  return hexColour(palette[slot]) ?? fallback;
-}
-
-/** A step of the picture's own scale, so every length is a multiple of the spacing token. */
-const step = (multiple: number): string => `calc(var(--spacing) * ${String(multiple)})`;
 
 /**
  * **One WordArt style's picture**: a bold letter *A* on the document's paper, filled, outlined and given its effect in
