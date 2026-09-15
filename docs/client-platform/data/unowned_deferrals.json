@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "location": "bindings/mjx-python/src/deck.rs:172",
+    "comment": "The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the placeholder / style / theme — resolving that is a separate, future task).",
+    "feature": "Reading a shape's inherited fill, resolved from its placeholder, style and theme when its own spPr declares none (Python binding's copy of the facade sentence)"
+  },
+  {
+    "location": "bindings/mjx-wasm/src/deck.rs:257",
+    "comment": "The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the placeholder / style / theme — resolving that is a separate, future task).",
+    "feature": "Reading a shape's inherited fill, resolved from its placeholder, style and theme when its own spPr declares none (WebAssembly binding's copy of the facade sentence)"
+  },
+  {
+    "location": "crates/mjx-dml/src/shape_properties.rs:4",
+    "comment": "This child does not migrate `mjx-pptx`'s existing, already-tested ad hoc navigation to use it — that is a separate refactor with its own risk, not required by anything this child's own \"Done when\" asks for — so `mjx-pptx` keeps its own reader for now while every new caller has a real type to reach for.",
+    "feature": "Moving mjx-pptx's ad hoc spPr navigation onto mjx-dml's shared ShapeProperties type"
+  },
+  {
+    "location": "crates/mjx-layout-docx/src/tabs.rs:176",
+    "comment": "GUESS: the five characters. ECMA-376 names the leader styles and not the glyphs; these are what Word draws, read off its own output, and `heavy` is an underscore in a bolder weight rather than a different character — which this cannot express, so it uses the same one and is visibly lighter than Word's.",
+    "feature": "Word's heavy tab leader, drawn in a bolder weight than the other leaders"
+  },
+  {
+    "location": "crates/mjx-ooxml/src/deck/appearance.rs:14",
+    "comment": "The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the placeholder / style / theme — resolving that is a separate, future task).",
+    "feature": "Reading a shape's inherited fill, resolved from its placeholder, style and theme when its own spPr declares none (the facade)"
+  },
+  {
+    "location": "crates/mjx-pptx/src/presentation/appearance.rs:19",
+    "comment": "The explicit fill of shape `shape_idx` on `surface`, as an interner-free [`FillSpec`], or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the placeholder / style / theme — resolving that is a separate, future task).",
+    "feature": "Reading a shape's inherited fill, resolved from its placeholder, style and theme when its own spPr declares none (mjx-pptx)"
+  },
+  {
+    "location": "crates/mjx-session/src/lib.rs:73",
+    "comment": "Selection, hit-testing, IME and the clipboard are a later unit.",
+    "feature": "Editing interaction in a session: selection, hit-testing wired to selection, IME composition and the clipboard"
+  },
+  {
+    "location": "crates/mjx-view/src/lib.rs:71",
+    "comment": "The transports — where bytes come from, and how the chrome talks to the engine — are a later unit too.",
+    "feature": "The viewer's transports: where document bytes come from, and how the chrome talks to the engine"
+  }
+]
