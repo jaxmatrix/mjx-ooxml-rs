@@ -626,12 +626,20 @@ impl PdfPainter {
                     bounds,
                     outline,
                     label,
+                    lettering,
                     ..
                 } => {
                     let Some(outline) = outline else {
                         continue;
                     };
-                    self.write_placeholder(*transform, *bounds, outline, label, out);
+                    self.write_placeholder(
+                        *transform,
+                        *bounds,
+                        outline,
+                        label,
+                        lettering.as_ref(),
+                        out,
+                    );
                 }
                 DrawOp::Composite { layer: child, .. } => {
                     self.write_group(plan, *child, resources, out)?;
@@ -645,13 +653,14 @@ impl PdfPainter {
     }
 
     /// Write one child layer, with whatever its kind puts around it.
-    // A placeholder: the stand-in outline filled in the warning colour, and its label as real text in a standard face.
+    // A placeholder: the stand-in outline in the warning colour, the label's plate and letters every painter draws, and the label as invisible text a reader can select.
     fn write_placeholder(
         &mut self,
         transform: SceneTransform,
         bounds: SceneRect,
         outline: &crate::plan::VectorPath,
         label: &str,
+        lettering: Option<&crate::plan::LabelMeshes>,
         out: &mut String,
     ) {
         let font = self.label_font();
@@ -670,12 +679,32 @@ impl PdfPainter {
             FillRule::NonZero => "f\n",
             FillRule::EvenOdd => "f*\n",
         });
+        let drawn = lettering.map(|lettering| {
+            [
+                (&lettering.plate_outline, crate::PLACEHOLDER_LABEL_PLATE),
+                (&lettering.ink_outline, crate::PLACEHOLDER_LABEL_INK),
+            ]
+        });
+        for (path, colour) in drawn.into_iter().flatten() {
+            let Some(path) = path else {
+                continue;
+            };
+            let [red, green, blue] = rgb(colour);
+            out.push_str(&format!(
+                "{} {} {} rg\n",
+                number(red),
+                number(green),
+                number(blue)
+            ));
+            out.push_str(&pdf_path_operators(&path.commands));
+            out.push_str("f\n");
+        }
         let escaped = label
             .replace('\\', "\\\\")
             .replace('(', "\\(")
             .replace(')', "\\)");
         out.push_str(&format!(
-            "BT\n0 0 0 rg\n/{font} {} Tf\n1 0 0 -1 {} {} Tm\n({escaped}) Tj\nET\nQ\n",
+            "BT\n3 Tr\n/{font} {} Tf\n1 0 0 -1 {} {} Tm\n({escaped}) Tj\nET\nQ\n",
             number(size),
             number(x),
             number(y)

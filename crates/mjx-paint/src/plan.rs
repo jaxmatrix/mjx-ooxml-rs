@@ -41,14 +41,15 @@
 //! offscreen target before the clip was applied. Re-emitting is cheap — the clip's mesh is already
 //! tessellated and interned — and it makes the two cases the same case.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use mjx_scene::{
-    resolve_outline, tessellate_scene, BitmapFormat, Clip, Color, Command, DisplayList, Effect,
-    EffectKind, FillRule, Geometry, GeometryProvider, GlyphImage, Gradient, GradientKind, Hinting,
-    Image, Mesh, MeshRole, Paint, PathCommand, PathShade, PatternPreset, Placeholder,
-    PlaceholderGeometry, Provenance, ResourceIndex, ScaleBucket, SceneRect, SceneTransform,
-    StrokeGeometry, TessellationOptions, Tessellator, TextDirection,
+    placeholder_lettering, resolve_outline, tessellate_scene, BitmapFormat, Clip, Color, Command,
+    DisplayList, Effect, EffectKind, FillRule, Geometry, GeometryProvider, GlyphImage, Gradient,
+    GradientKind, Hinting, Image, Mesh, MeshRole, Paint, PathCommand, PathShade, PatternPreset,
+    Placeholder, PlaceholderGeometry, Provenance, ResourceIndex, ScaleBucket, SceneRect,
+    SceneTransform, StrokeGeometry, TessellationOptions, Tessellator, TextDirection,
 };
 
 use crate::error::PaintError;
@@ -395,6 +396,19 @@ pub struct VectorPath {
     pub stroke: Option<StrokeGeometry>,
 }
 
+/// A placeholder's label, lowered once into the triangles and outlines every painter draws it with.
+#[derive(Clone, PartialEq, Debug)]
+pub struct LabelMeshes {
+    /// The plate the letters sit on, drawn in [`crate::PLACEHOLDER_LABEL_PLATE`].
+    pub plate: Arc<Mesh>,
+    /// The letters, drawn in [`crate::PLACEHOLDER_LABEL_INK`].
+    pub ink: Arc<Mesh>,
+    /// The plate's outline, for a painter that writes vectors.
+    pub plate_outline: Option<Arc<VectorPath>>,
+    /// The letters' outline, for a painter that writes vectors.
+    pub ink_outline: Option<Arc<VectorPath>>,
+}
+
 /// What a lowering keeps beyond what a rasteriser needs.
 ///
 /// # Why the walk is the same walk either way
@@ -610,6 +624,8 @@ pub enum DrawOp {
         outline: Option<Arc<VectorPath>>,
         /// What it reads.
         label: &'static str,
+        /// The label set in the placeholder's own lettering, or `None` for a box too small to hold a letter.
+        lettering: Option<LabelMeshes>,
         /// Which command it was drawn at.
         origin: OpOrigin,
     },
@@ -837,8 +853,31 @@ pub fn plan_frame_from(
     let mut report = DrawReport::default();
     let placeholders = list.placeholders();
     let mut pending = placeholders.iter().peekable();
+    let mut elements = ElementLosses::default();
+    let mut owed: Option<OwedPlaceholder> = None;
+    let mut commands = list.commands().enumerate().peekable();
 
-    for (index, command) in list.commands().enumerate() {
+    while let Some((index, command)) = commands.next() {
+        // A placeholder a fill owes is placed after the stroke that draws over the same element, or now when none does.
+        let consumed = match (&owed, command) {
+            (Some(held), Command::StrokePath { geometry, .. }) => {
+                held.key == element_key(geometry, transform)
+            }
+            _ => false,
+        };
+        if !consumed {
+            if let Some(held) = owed.take() {
+                place_owed(
+                    held,
+                    &mut elements,
+                    &mut layers,
+                    &mut report,
+                    tessellator,
+                    options,
+                    options_kept,
+                )?;
+            }
+        }
         while let Some(placeholder) =
             pending.next_if(|placeholder| placeholder.command as usize == index)
         {
@@ -983,7 +1022,7 @@ pub fn plan_frame_from(
                             },
                         );
                         if unexpressed {
-                            let bounds = layers.get(opened).map_or(SceneRect::EMPTY, layer_bounds);
+                            let bounds = layer_bounds(&layers, opened);
                             if let Some(op) = placeholder_op(
                                 bounds,
                                 SceneTransform::IDENTITY,
@@ -1009,48 +1048,83 @@ pub fn plan_frame_from(
                 let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index())
                     .filled_with(paint.index());
                 let paint = resolve_paint(list, paint, mesh.bounds(), index)?;
-                if lacks_pixels(&paint, sources) {
-                    report.losses.record(PainterLossKind::ImageWithNoPixels);
-                    if let Some(op) = placeholder_op(
-                        mesh.bounds(),
-                        transform,
-                        PainterLossKind::ImageWithNoPixels.label(),
-                        origin,
-                        tessellator,
-                        options,
-                        options_kept,
-                    )? {
-                        report.loss_placeholders += 1;
-                        push_op(&mut layers, current, op);
+                let lost = if lacks_pixels(&paint, sources) {
+                    Some(PainterLossKind::ImageWithNoPixels)
+                } else {
+                    let outline =
+                        kept_outline(list, geometry, provider, None, index, options_kept)?;
+                    report.triangles += mesh.triangle_count();
+                    report.draw_calls += 1;
+                    let stand_in = provenance.is_placeholder();
+                    if stand_in {
+                        report.placeholders += 1;
                     }
-                    continue;
-                }
-                let outline = kept_outline(list, geometry, provider, None, index, options_kept)?;
-                report.triangles += mesh.triangle_count();
-                report.draw_calls += 1;
-                if provenance.is_placeholder() {
-                    report.placeholders += 1;
-                    report.losses.record(PainterLossKind::OutlineUnresolved);
-                    report.loss_placeholders += 1;
-                }
-                push_op(
-                    &mut layers,
-                    current,
-                    DrawOp::Mesh {
-                        mesh,
+                    push_op(
+                        &mut layers,
+                        current,
+                        DrawOp::Mesh {
+                            mesh: Arc::clone(&mesh),
+                            transform,
+                            paint,
+                            role: MeshRole::Fill,
+                            provenance,
+                            outline,
+                            origin,
+                        },
+                    );
+                    stand_in.then_some(PainterLossKind::OutlineUnresolved)
+                };
+                if let Some(kind) = lost {
+                    let held = elements.lose(
+                        kind,
+                        geometry,
                         transform,
-                        paint,
-                        role: MeshRole::Fill,
-                        provenance,
-                        outline,
+                        current,
+                        list,
+                        mesh.bounds(),
                         origin,
-                    },
-                );
+                        &mut report,
+                    );
+                    let stroked_next = matches!(
+                        commands.peek(),
+                        Some((_, Command::StrokePath { geometry: next, .. })) if *next == geometry
+                    );
+                    if stroked_next {
+                        owed = Some(held);
+                    } else {
+                        place_owed(
+                            held,
+                            &mut elements,
+                            &mut layers,
+                            &mut report,
+                            tessellator,
+                            options,
+                            options_kept,
+                        )?;
+                    }
+                }
             }
             Command::StrokePath { geometry, stroke } => {
+                let key = element_key(geometry, transform);
+                let inherited = if owed.as_ref().is_some_and(|held| held.key == key) {
+                    owed.take()
+                } else {
+                    None
+                };
                 let Some((mesh, provenance, line_ends)) =
                     take_mesh(&meshes, &mut mesh_cursor, index, MeshRole::Stroke)
                 else {
+                    if let Some(held) = inherited {
+                        place_owed(
+                            held,
+                            &mut elements,
+                            &mut layers,
+                            &mut report,
+                            tessellator,
+                            options,
+                            options_kept,
+                        )?;
+                    }
                     continue;
                 };
                 report
@@ -1061,54 +1135,74 @@ pub fn plan_frame_from(
                     index: stroke.index(),
                     command: index,
                 })?;
-                let outline = kept_outline(
-                    list,
-                    geometry,
-                    provider,
-                    Some(StrokeGeometry::from_record(record)),
-                    index,
-                    options_kept,
-                )?;
+                let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index())
+                    .filled_with(record.paint.index())
+                    .stroked_with(stroke.index());
                 let paint = resolve_paint(list, record.paint, mesh.bounds(), index)?;
-                if lacks_pixels(&paint, sources) {
-                    report.losses.record(PainterLossKind::ImageWithNoPixels);
-                    let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index());
-                    if let Some(op) = placeholder_op(
-                        mesh.bounds(),
-                        transform,
-                        PainterLossKind::ImageWithNoPixels.label(),
-                        origin,
+                let lost = if lacks_pixels(&paint, sources) {
+                    Some(PainterLossKind::ImageWithNoPixels)
+                } else {
+                    let outline = kept_outline(
+                        list,
+                        geometry,
+                        provider,
+                        Some(StrokeGeometry::from_record(record)),
+                        index,
+                        options_kept,
+                    )?;
+                    report.triangles += mesh.triangle_count();
+                    report.draw_calls += 1;
+                    let stand_in = provenance.is_placeholder();
+                    if stand_in {
+                        report.placeholders += 1;
+                    }
+                    push_op(
+                        &mut layers,
+                        current,
+                        DrawOp::Mesh {
+                            mesh: Arc::clone(&mesh),
+                            transform,
+                            paint,
+                            role: MeshRole::Stroke,
+                            provenance,
+                            outline,
+                            origin,
+                        },
+                    );
+                    stand_in.then_some(PainterLossKind::OutlineUnresolved)
+                };
+                if let Some(held) = inherited {
+                    place_owed(
+                        held,
+                        &mut elements,
+                        &mut layers,
+                        &mut report,
                         tessellator,
                         options,
                         options_kept,
-                    )? {
-                        report.loss_placeholders += 1;
-                        push_op(&mut layers, current, op);
-                    }
-                    continue;
+                    )?;
                 }
-                report.triangles += mesh.triangle_count();
-                report.draw_calls += 1;
-                if provenance.is_placeholder() {
-                    report.placeholders += 1;
-                    report.losses.record(PainterLossKind::OutlineUnresolved);
-                    report.loss_placeholders += 1;
-                }
-                push_op(
-                    &mut layers,
-                    current,
-                    DrawOp::Mesh {
-                        mesh,
+                if let Some(kind) = lost {
+                    let held = elements.lose(
+                        kind,
+                        geometry,
                         transform,
-                        paint,
-                        role: MeshRole::Stroke,
-                        provenance,
-                        outline,
-                        origin: OpOrigin::from_row(index as u32, "geometry", geometry.index())
-                            .filled_with(record.paint.index())
-                            .stroked_with(stroke.index()),
-                    },
-                );
+                        current,
+                        list,
+                        mesh.bounds(),
+                        origin,
+                        &mut report,
+                    );
+                    place_owed(
+                        held,
+                        &mut elements,
+                        &mut layers,
+                        &mut report,
+                        tessellator,
+                        options,
+                        options_kept,
+                    )?;
+                }
             }
             Command::DrawGlyphs { run, paint } => {
                 let record = list.glyph_run(run).ok_or(PaintError::MissingResource {
@@ -1235,6 +1329,17 @@ pub fn plan_frame_from(
             }
         }
     }
+    if let Some(held) = owed.take() {
+        place_owed(
+            held,
+            &mut elements,
+            &mut layers,
+            &mut report,
+            tessellator,
+            options,
+            options_kept,
+        )?;
+    }
     for placeholder in pending {
         emit_list_placeholder(
             placeholder,
@@ -1261,6 +1366,103 @@ pub fn plan_frame_from(
     }
 
     Ok(FramePlan { layers, report })
+}
+
+// An element's identity in a walk: its geometry row, and the transform it is drawn under, bit for bit.
+type ElementKey = (u32, [u32; 6]);
+
+// The key of the element `geometry` draws under `transform`.
+fn element_key(geometry: ResourceIndex, transform: SceneTransform) -> ElementKey {
+    (
+        geometry.index(),
+        [
+            transform.scale_x.to_bits(),
+            transform.shear_y.to_bits(),
+            transform.shear_x.to_bits(),
+            transform.scale_y.to_bits(),
+            transform.translate_x.to_bits(),
+            transform.translate_y.to_bits(),
+        ],
+    )
+}
+
+// A labelled placeholder an element is owed, and where it goes.
+struct OwedPlaceholder {
+    key: ElementKey,
+    layer: usize,
+    bounds: SceneRect,
+    transform: SceneTransform,
+    label: &'static str,
+    origin: OpOrigin,
+}
+
+// Which painter losses and placeholders each element has already had, so its fill and its stroke count once.
+#[derive(Default)]
+struct ElementLosses {
+    counted: HashSet<(ElementKey, PainterLossKind)>,
+    placed: HashSet<ElementKey>,
+}
+
+impl ElementLosses {
+    // Counts `kind` once for the element, and answers the placeholder it is owed over its geometry's own box.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one element's whole identity, threaded once"
+    )]
+    fn lose(
+        &mut self,
+        kind: PainterLossKind,
+        geometry: ResourceIndex,
+        transform: SceneTransform,
+        layer: usize,
+        list: &DisplayList,
+        drawn: SceneRect,
+        origin: OpOrigin,
+        report: &mut DrawReport,
+    ) -> OwedPlaceholder {
+        let key = element_key(geometry, transform);
+        if self.counted.insert((key, kind)) {
+            report.losses.record(kind);
+        }
+        OwedPlaceholder {
+            key,
+            layer,
+            bounds: list
+                .geometry(geometry)
+                .map_or(drawn, |outline| outline.bounds()),
+            transform,
+            label: kind.label(),
+            origin,
+        }
+    }
+}
+
+// Draws the placeholder an element is owed, unless the element already has its one.
+fn place_owed(
+    owed: OwedPlaceholder,
+    elements: &mut ElementLosses,
+    layers: &mut [Layer],
+    report: &mut DrawReport,
+    tessellator: &mut Tessellator,
+    options: TessellationOptions,
+    kept: PlanOptions,
+) -> Result<(), PaintError> {
+    if !elements.placed.insert(owed.key) {
+        return Ok(());
+    }
+    if let Some(op) = placeholder_op(
+        owed.bounds,
+        owed.transform,
+        owed.label,
+        owed.origin,
+        tessellator,
+        options,
+        kept,
+    )? {
+        report.loss_placeholders += 1;
+        push_op(layers, owed.layer, op);
+    }
+    Ok(())
 }
 
 /// Append an operation to a layer.
@@ -1517,18 +1719,48 @@ fn placeholder_op(
         })
     });
     let mesh = tessellator.fill(&resolved.into_geometry(), &stand_in, options)?;
+    let lettering = match placeholder_lettering(label, bounds) {
+        Some(set) => {
+            let plate = Geometry::Rectangle(set.plate);
+            Some(LabelMeshes {
+                plate: tessellator.fill(&plate, &stand_in, options)?,
+                ink: tessellator.fill(&set.ink, &stand_in, options)?,
+                plate_outline: vector_outline(&plate, &stand_in, kept)?,
+                ink_outline: vector_outline(&set.ink, &stand_in, kept)?,
+            })
+        }
+        None => None,
+    };
     Ok(Some(DrawOp::Placeholder {
         mesh,
         transform,
         bounds,
         outline,
         label,
+        lettering,
         origin,
     }))
 }
 
-// The page-space box everything a layer draws covers.
-fn layer_bounds(layer: &Layer) -> SceneRect {
+// A geometry's own outline, for a plan that keeps outlines.
+fn vector_outline(
+    geometry: &Geometry,
+    provider: &dyn GeometryProvider,
+    kept: PlanOptions,
+) -> Result<Option<Arc<VectorPath>>, PaintError> {
+    if !kept.keeps_outlines() {
+        return Ok(None);
+    }
+    let resolved = resolve_outline(geometry, provider)?;
+    Ok(Some(Arc::new(VectorPath {
+        commands: resolved.commands.into_owned(),
+        fill_rule: resolved.fill_rule,
+        stroke: None,
+    })))
+}
+
+// The page-space box everything a layer draws covers, the layers it composites included.
+fn layer_bounds(layers: &[Layer], index: usize) -> SceneRect {
     let mut covered: Option<SceneRect> = None;
     let mut include = |rect: SceneRect, map: SceneTransform| {
         if rect.is_empty() {
@@ -1552,30 +1784,43 @@ fn layer_bounds(layer: &Layer) -> SceneRect {
             });
         }
     };
-    for op in &layer.ops {
-        match op {
-            DrawOp::Mesh {
-                mesh, transform, ..
-            } => include(mesh.bounds(), *transform),
-            DrawOp::Glyphs {
-                quads, transform, ..
-            } => {
-                for quad in quads {
-                    include(
-                        SceneRect::new(quad.x, quad.y, quad.x + quad.width, quad.y + quad.height),
-                        *transform,
-                    );
+    let mut pending = vec![index];
+    while let Some(at) = pending.pop() {
+        let Some(layer) = layers.get(at) else {
+            continue;
+        };
+        for op in &layer.ops {
+            match op {
+                DrawOp::Mesh {
+                    mesh, transform, ..
+                } => include(mesh.bounds(), *transform),
+                DrawOp::Glyphs {
+                    quads, transform, ..
+                } => {
+                    for quad in quads {
+                        include(
+                            SceneRect::new(
+                                quad.x,
+                                quad.y,
+                                quad.x + quad.width,
+                                quad.y + quad.height,
+                            ),
+                            *transform,
+                        );
+                    }
                 }
+                DrawOp::Picture {
+                    destination,
+                    transform,
+                    ..
+                } => include(*destination, *transform),
+                DrawOp::Placeholder {
+                    bounds, transform, ..
+                } => include(*bounds, *transform),
+                // A child layer is drawn in page space, and every child is opened after its parent.
+                DrawOp::Composite { layer: child, .. } if *child > at => pending.push(*child),
+                DrawOp::PushClip { .. } | DrawOp::PopClip { .. } | DrawOp::Composite { .. } => {}
             }
-            DrawOp::Picture {
-                destination,
-                transform,
-                ..
-            } => include(*destination, *transform),
-            DrawOp::Placeholder {
-                bounds, transform, ..
-            } => include(*bounds, *transform),
-            DrawOp::PushClip { .. } | DrawOp::PopClip { .. } | DrawOp::Composite { .. } => {}
         }
     }
     covered.unwrap_or(SceneRect::EMPTY)

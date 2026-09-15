@@ -800,27 +800,41 @@ fn render_layer(
                 )?;
             }
             DrawOp::Placeholder {
-                mesh, transform, ..
+                mesh,
+                transform,
+                lettering,
+                ..
             } => {
-                if mesh.is_empty() {
-                    continue;
+                // The frame and cross, then the label's plate and letters on top of them.
+                let label = lettering.as_ref().map(|label| {
+                    [
+                        (&label.plate, crate::PLACEHOLDER_LABEL_PLATE),
+                        (&label.ink, crate::PLACEHOLDER_LABEL_INK),
+                    ]
+                });
+                for (drawn, colour) in std::iter::once((mesh, crate::PLACEHOLDER_WARNING))
+                    .chain(label.into_iter().flatten())
+                {
+                    if drawn.is_empty() {
+                        continue;
+                    }
+                    absorb(&mut bounds, drawn.bounds(), *transform);
+                    let Some(path) = mesh_path(drawn, *transform) else {
+                        continue;
+                    };
+                    fill_path(
+                        pool,
+                        handle,
+                        &path,
+                        &PaintProgram::Solid(colour),
+                        *transform,
+                        None,
+                        &clip,
+                        &textures,
+                        width,
+                        height,
+                    )?;
                 }
-                absorb(&mut bounds, mesh.bounds(), *transform);
-                let Some(path) = mesh_path(mesh, *transform) else {
-                    continue;
-                };
-                fill_path(
-                    pool,
-                    handle,
-                    &path,
-                    &PaintProgram::Solid(crate::PLACEHOLDER_WARNING),
-                    *transform,
-                    None,
-                    &clip,
-                    &textures,
-                    width,
-                    height,
-                )?;
             }
             DrawOp::PushClip {
                 mesh, transform, ..

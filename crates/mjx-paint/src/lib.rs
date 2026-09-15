@@ -124,7 +124,9 @@ pub mod resources;
 pub mod software;
 pub mod surface;
 
-pub use backend::{PaintKind, WgpuPainter, PLACEHOLDER_WARNING};
+pub use backend::{
+    PaintKind, WgpuPainter, PLACEHOLDER_LABEL_INK, PLACEHOLDER_LABEL_PLATE, PLACEHOLDER_WARNING,
+};
 pub use compare::{
     compare_painters, compare_renders, render_offscreen, render_once, Agreement, Disagreement,
     Render, ResourceFactory, DEFAULT_CHANNEL_TOLERANCE,
@@ -140,8 +142,8 @@ pub use painter::{
 };
 pub use pattern::{cell_of, coverage_atlas, mask_of, PATTERN_MASKS, PATTERN_SIDE};
 pub use plan::{
-    plan_frame, plan_frame_from, plan_frame_with, DrawOp, FramePlan, Layer, LayerKind, OpOrigin,
-    PaintProgram, PlanOptions, PlanSources, RunIdentity, VectorPath,
+    plan_frame, plan_frame_from, plan_frame_with, DrawOp, FramePlan, LabelMeshes, Layer, LayerKind,
+    OpOrigin, PaintProgram, PlanOptions, PlanSources, RunIdentity, VectorPath,
 };
 pub use pool::{PoolHandle, PoolStatistics, TexturePool, TextureSize, DEFAULT_TEXTURE_POOL_BYTES};
 pub use resources::{

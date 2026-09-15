@@ -464,6 +464,7 @@ impl SvgPainter {
                     bounds,
                     outline,
                     label,
+                    lettering,
                     origin,
                     ..
                 } => {
@@ -471,10 +472,28 @@ impl SvgPainter {
                         continue;
                     };
                     let (size, x, y) = super::label_placement(*bounds, label);
+                    // The label's plate and letters are the same paths every painter draws; the text beneath them is selectable and not drawn.
+                    let drawn = lettering.as_ref().map_or(String::new(), |lettering| {
+                        [
+                            (&lettering.plate_outline, crate::PLACEHOLDER_LABEL_PLATE),
+                            (&lettering.ink_outline, crate::PLACEHOLDER_LABEL_INK),
+                        ]
+                        .into_iter()
+                        .filter_map(|(path, colour)| {
+                            path.as_ref().map(|path| {
+                                format!(
+                                    "<path d=\"{}\" fill=\"{}\"/>",
+                                    svg_path_data(&path.commands),
+                                    hex(colour)
+                                )
+                            })
+                        })
+                        .collect()
+                    });
                     out.push_str(&format!(
                         "<g{} data-mjx-command=\"{}\" data-mjx-loss=\"{}\"><path d=\"{}\" \
-                         fill=\"{}\" fill-opacity=\"{}\" fill-rule=\"evenodd\"/><text x=\"{}\" \
-                         y=\"{}\" font-family=\"sans-serif\" font-size=\"{}\">{}</text></g>\n",
+                         fill=\"{}\" fill-opacity=\"{}\" fill-rule=\"evenodd\"/>{drawn}<text x=\"{}\" \
+                         y=\"{}\" font-family=\"sans-serif\" font-size=\"{}\" fill-opacity=\"0\">{}</text></g>\n",
                         transform_attribute(*transform),
                         origin.command,
                         xml_escape(label),

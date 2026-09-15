@@ -293,6 +293,22 @@ pub const PLACEHOLDER_WARNING: Color = Color {
     alpha: 0xc0,
 };
 
+/// The plate a placeholder's label is set on: opaque white, so the letters read over the frame and the cross.
+pub const PLACEHOLDER_LABEL_PLATE: Color = Color {
+    red: 0xff,
+    green: 0xff,
+    blue: 0xff,
+    alpha: 0xff,
+};
+
+/// The ink a placeholder's label is drawn in: opaque dark magenta, readable on its plate and unlike any document's black text.
+pub const PLACEHOLDER_LABEL_INK: Color = Color {
+    red: 0x5a,
+    green: 0x00,
+    blue: 0x5a,
+    alpha: 0xff,
+};
+
 impl WgpuPainter {
     /// Open a painter with no window: everything is drawn into textures it owns.
     ///

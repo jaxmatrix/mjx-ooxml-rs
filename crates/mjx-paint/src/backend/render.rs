@@ -33,8 +33,8 @@ use super::frame::{
     absorb, rect_corners, uniform_block, write_color, CompositeStep, Staging, UNIT_UV,
 };
 use super::{
-    PaintKind, Pass, PipelineKey, Record, StencilMode, TexRef, WgpuPainter, PLACEHOLDER_WARNING,
-    UNIFORM_FLOATS,
+    PaintKind, Pass, PipelineKey, Record, StencilMode, TexRef, WgpuPainter, PLACEHOLDER_LABEL_INK,
+    PLACEHOLDER_LABEL_PLATE, PLACEHOLDER_WARNING, UNIFORM_FLOATS,
 };
 use crate::error::PaintError;
 use crate::plan::{draws_behind, replaces_subtree, DrawOp, EffectNode, PaintProgram};
@@ -143,39 +143,53 @@ impl WgpuPainter {
                     });
                 }
                 DrawOp::Placeholder {
-                    mesh, transform, ..
+                    mesh,
+                    transform,
+                    lettering,
+                    ..
                 } => {
-                    if mesh.is_empty() {
-                        continue;
-                    }
-                    absorb(&mut bounds, mesh.bounds(), *transform);
-                    let base = (staging.vertices.len() / 4) as i32;
-                    let positions = mesh.positions();
-                    for vertex in 0..mesh.vertex_count() {
-                        let x = positions.get(vertex * 2).copied().unwrap_or_default();
-                        let y = positions.get(vertex * 2 + 1).copied().unwrap_or_default();
-                        staging.vertices.extend_from_slice(&[x, y, 0.0, 0.0]);
-                    }
-                    let start = staging.indices.len() as u32;
-                    staging.indices.extend_from_slice(mesh.indices());
-                    let end = staging.indices.len() as u32;
-                    let warning = PaintProgram::Solid(PLACEHOLDER_WARNING);
-                    let (_, block, textures) =
-                        self.paint_uniform(&warning, *transform, viewport, 1.0, staging);
-                    let slot = staging.uniform(block);
-                    records.push(Record {
-                        uniform_slot: slot,
-                        indices: start..end,
-                        base_vertex: base,
-                        textures,
-                        key: PipelineKey {
-                            blend: BlendMode::Over,
-                            stencil: StencilMode::Test,
-                            samples,
-                            format: OFFSCREEN_FORMAT,
-                        },
-                        stencil_reference: depth,
+                    // The frame and cross, then the label's plate and letters on top of them.
+                    let label = lettering.as_ref().map(|label| {
+                        [
+                            (&label.plate, PLACEHOLDER_LABEL_PLATE),
+                            (&label.ink, PLACEHOLDER_LABEL_INK),
+                        ]
                     });
+                    for (drawn, colour) in std::iter::once((mesh, PLACEHOLDER_WARNING))
+                        .chain(label.into_iter().flatten())
+                    {
+                        if drawn.is_empty() {
+                            continue;
+                        }
+                        absorb(&mut bounds, drawn.bounds(), *transform);
+                        let base = (staging.vertices.len() / 4) as i32;
+                        let positions = drawn.positions();
+                        for vertex in 0..drawn.vertex_count() {
+                            let x = positions.get(vertex * 2).copied().unwrap_or_default();
+                            let y = positions.get(vertex * 2 + 1).copied().unwrap_or_default();
+                            staging.vertices.extend_from_slice(&[x, y, 0.0, 0.0]);
+                        }
+                        let start = staging.indices.len() as u32;
+                        staging.indices.extend_from_slice(drawn.indices());
+                        let end = staging.indices.len() as u32;
+                        let solid = PaintProgram::Solid(colour);
+                        let (_, block, textures) =
+                            self.paint_uniform(&solid, *transform, viewport, 1.0, staging);
+                        let slot = staging.uniform(block);
+                        records.push(Record {
+                            uniform_slot: slot,
+                            indices: start..end,
+                            base_vertex: base,
+                            textures,
+                            key: PipelineKey {
+                                blend: BlendMode::Over,
+                                stencil: StencilMode::Test,
+                                samples,
+                                format: OFFSCREEN_FORMAT,
+                            },
+                            stencil_reference: depth,
+                        });
+                    }
                 }
                 DrawOp::Glyphs {
                     quads,
