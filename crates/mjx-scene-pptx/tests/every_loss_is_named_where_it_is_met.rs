@@ -84,3 +84,37 @@ fn a_chart_is_unanswerable_at_its_frame_and_at_the_handles_it_issued() {
         Resolved::Unanswerable(SceneLossKind::ChartNotResolved)
     );
 }
+
+#[test]
+fn a_pattern_with_no_preset_and_a_group_fill_are_paint_approximated() {
+    use mjx_dml::FillSpec;
+    use mjx_scene::{Color, FillStyle};
+    use mjx_scene_pptx::fill_style;
+    let none = |_: &str| None;
+    let blue = Color {
+        red: 0x1f,
+        green: 0x4e,
+        blue: 0x79,
+        alpha: 0xff,
+    };
+    assert_eq!(
+        fill_style(
+            &FillSpec::Pattern {
+                preset: None,
+                foreground: Some(ColorSpec::Srgb("1F4E79".to_owned())),
+                background: None,
+            },
+            &none
+        ),
+        Resolved::Partial(
+            FillStyle::Solid(blue),
+            vec![SceneLossKind::PaintApproximated]
+        ),
+        "a hatch with no preset is drawn as its foreground and counted"
+    );
+    assert_eq!(
+        fill_style(&FillSpec::Group, &none),
+        Resolved::Partial(FillStyle::None, vec![SceneLossKind::PaintApproximated]),
+        "a group fill paints nothing until the group's own fill is read, and is counted"
+    );
+}

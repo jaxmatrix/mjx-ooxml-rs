@@ -32,23 +32,25 @@ use mjx_dml::{ColorSpec, EffectListSpec};
 use mjx_ooxml_core::measure::{Angle, Emu};
 use mjx_scene::{
     pixels_from_emu, BlendMode, DeviceScale, EffectKind, EffectStyle, FillStyle, RectangleAnchor,
-    SceneLossKind,
+    Resolved, SceneLossKind,
 };
 
-use crate::paint::{color_of, fill_style};
+use crate::paint::{color_of, fill_style, resolved_with};
 
 /// The effect chain a resolved [`EffectListSpec`] names, at `scale`.
 ///
 /// Empty when the list has no effect this build can draw, which is what
 /// [`mjx_scene::Decoration::is_invisible`] wants to see rather than a chain of no-ops.
 ///
-/// `image` resolves a fill overlay's picture, as [`fill_style`] takes it.
+/// `image` resolves a fill overlay's picture, as [`fill_style`] takes it. An effect whose colour does
+/// not resolve is left out of the chain and counted, and the effects that resolve still draw.
 pub fn effect_styles(
     spec: &EffectListSpec,
     scale: DeviceScale,
     image: &dyn Fn(&str) -> Option<u64>,
-) -> Result<Vec<EffectStyle>, SceneLossKind> {
+) -> Resolved<Vec<EffectStyle>> {
     let mut chain: Vec<EffectStyle> = Vec::new();
+    let mut lost: Vec<SceneLossKind> = Vec::new();
 
     // The schema's own child order, which is also the order the effects apply in. Each entry
     // consumes the one before it; the first consumes the subtree.
@@ -59,28 +61,54 @@ pub fn effect_styles(
         chain.push(effect);
     }
     if let Some(overlay) = &spec.fill_overlay {
-        let mut effect = base(EffectKind::FillOverlay, &chain);
-        effect.fill = fill_style(&overlay.fill, image)?;
-        effect.blend = blend_mode(overlay.blend);
-        chain.push(effect);
+        let fill = match fill_style(&overlay.fill, image) {
+            Resolved::Answered(fill) => Some(fill),
+            Resolved::NothingToDraw => Some(FillStyle::None),
+            Resolved::Partial(fill, parts) => {
+                lost.extend(parts);
+                Some(fill)
+            }
+            Resolved::Unanswerable(kind) => {
+                lost.push(kind);
+                None
+            }
+        };
+        if let Some(fill) = fill {
+            let mut effect = base(EffectKind::FillOverlay, &chain);
+            effect.fill = fill;
+            effect.blend = blend_mode(overlay.blend);
+            chain.push(effect);
+        }
     }
-    if let Some(glow) = &spec.glow {
+    if let Some((glow, fill)) = spec
+        .glow
+        .as_ref()
+        .and_then(|glow| Some((glow, solid(&glow.color, &mut lost)?)))
+    {
         let mut effect = base(EffectKind::Glow, &chain);
-        effect.fill = solid(&glow.color)?;
+        effect.fill = fill;
         effect.radius = pixels(glow.radius.unwrap_or(Emu::from_emu(0)), scale);
         chain.push(effect);
     }
-    if let Some(shadow) = &spec.inner_shadow {
+    if let Some((shadow, fill)) = spec
+        .inner_shadow
+        .as_ref()
+        .and_then(|shadow| Some((shadow, solid(&shadow.color, &mut lost)?)))
+    {
         let mut effect = base(EffectKind::InnerShadow, &chain);
-        effect.fill = solid(&shadow.color)?;
+        effect.fill = fill;
         effect.radius = pixels(shadow.blur_radius.unwrap_or(Emu::from_emu(0)), scale);
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
         chain.push(effect);
     }
-    if let Some(shadow) = &spec.outer_shadow {
+    if let Some((shadow, fill)) = spec
+        .outer_shadow
+        .as_ref()
+        .and_then(|shadow| Some((shadow, solid(&shadow.color, &mut lost)?)))
+    {
         let mut effect = base(EffectKind::OuterShadow, &chain);
-        effect.fill = solid(&shadow.color)?;
+        effect.fill = fill;
         effect.radius = pixels(shadow.blur_radius.unwrap_or(Emu::from_emu(0)), scale);
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
@@ -92,14 +120,18 @@ pub fn effect_styles(
         effect.anchor = anchor_of(shadow.alignment);
         chain.push(effect);
     }
-    if let Some(shadow) = &spec.preset_shadow {
+    if let Some((shadow, fill)) = spec
+        .preset_shadow
+        .as_ref()
+        .and_then(|shadow| Some((shadow, solid(&shadow.color, &mut lost)?)))
+    {
         // GUESS: one of the twenty `a:prstShdw` presets is drawn as an ordinary outer shadow at the
         // distance and direction it states. The presets differ in blur and in perspective skew, and
         // ECMA-376 names them without defining any of their geometry — so drawing the family's
         // shared shape is the honest reading, and which preset differs how is a question for the
         // Windows sitting.
         let mut effect = base(EffectKind::OuterShadow, &chain);
-        effect.fill = solid(&shadow.color)?;
+        effect.fill = fill;
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
         chain.push(effect);
@@ -132,7 +164,7 @@ pub fn effect_styles(
         chain.push(effect);
     }
 
-    Ok(chain)
+    resolved_with(chain, lost)
 }
 
 /// An effect of `kind` consuming whatever the chain has produced so far.
@@ -164,9 +196,15 @@ fn base(kind: EffectKind, chain: &[EffectStyle]) -> EffectStyle {
     }
 }
 
-/// A solid fill of the colour an effect states, or nothing when it states none this build can read.
-fn solid(color: &ColorSpec) -> Result<FillStyle, SceneLossKind> {
-    color_of(color).map(FillStyle::Solid)
+/// A solid fill of the colour an effect states, or `None`, with the loss added to `lost`, when this build cannot read it.
+fn solid(color: &ColorSpec, lost: &mut Vec<SceneLossKind>) -> Option<FillStyle> {
+    match color_of(color) {
+        Ok(color) => Some(FillStyle::Solid(color)),
+        Err(kind) => {
+            lost.push(kind);
+            None
+        }
+    }
 }
 
 /// A length in device pixels.

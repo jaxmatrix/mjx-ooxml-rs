@@ -5,7 +5,7 @@ use mjx_layout_xlsx::{CellHit, PageCatalogue, ScaleBlend};
 use mjx_scene::{Color, Decoration, FillStyle, Image, Resolved, ResourceResolver, SceneLossKind};
 
 use crate::colour::{SheetPalette, SystemRole};
-use crate::fill::fill_style;
+use crate::fill::{colour_part, fill_style, with_losses};
 
 /// The resolver for one band of one worksheet.
 ///
@@ -128,55 +128,82 @@ impl ResourceResolver for SheetResources {
             // **The band's style is not read here**, and that is the loss `mjx_layout_xlsx::border`
             // describes: a filled rectangle is solid, so a `dashed` edge draws as a solid line of
             // the right weight and colour. `tests/the_dash_is_lost_at_the_band.rs` asserts it.
-            return Resolved::Answered(Decoration {
-                fill: FillStyle::Solid(
-                    self.palette
-                        .resolve_or_system(band.colour.as_ref(), SystemRole::Foreground),
-                ),
-                stroke: None,
-                opacity: 1.0,
-                effects: Vec::new(),
-            });
+            let mut lost = Vec::new();
+            let colour = colour_part(
+                self.palette
+                    .resolve_or_system(band.colour.as_ref(), SystemRole::Foreground),
+                &mut lost,
+            );
+            return with_losses(
+                Decoration {
+                    fill: FillStyle::Solid(colour),
+                    stroke: None,
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                },
+                lost,
+            );
         }
-        Resolved::Answered(Decoration {
-            // ⚠ A colour scale **replaces** the cell's fill rather than tinting it, so it is asked
-            // first. It arrives as two stops and a position between them — not as a colour —
-            // because blending two `CT_Color`s needs the theme part and the workbook's
-            // `indexedColors`, and a box model holds neither. This is where both halves are
-            // present, which is why the interpolation happens here and nowhere else; see
-            // `mjx_layout_xlsx::condfmt::graded`.
-            fill: entry
-                .scale_fill
-                .as_ref()
-                .and_then(|blend| self.scale_style(blend))
-                .or_else(|| {
-                    entry
-                        .fill
-                        .as_ref()
-                        .map(|fill| fill_style(fill, &self.palette))
-                })
-                .unwrap_or(FillStyle::None),
-            // A cell's four edges are four different lines and a decoration carries one stroke, so
-            // the edges are their own fragments and this is `None` for every cell. Putting one of
-            // them here would draw that edge on all four sides — which is the defect
-            // `mjx-layout-pptx` names at its own `build_cell_borders`, and the reason
-            // `mjx_layout_xlsx::border` exists.
-            stroke: None,
-            // SpreadsheetML has no per-cell opacity: a cell's transparency is the alpha of its own
-            // colour, which reaches `fill` above with its alpha intact. Stating `1.0` is therefore
-            // not a placeholder for a value that exists, and a `PushOpacity` this crate never emits
-            // is a layer the painter never has to open.
-            opacity: 1.0,
-            // `x:font` carries `outline` and `shadow` booleans — Macintosh typography, two flags
-            // with no radius, no colour and no direction anywhere in the schema. There is nothing to
-            // build an `EffectStyle` out of, so nothing is built; see this crate's own
-            // documentation.
-            effects: Vec::new(),
-        })
+        let mut lost = Vec::new();
+        let scaled = entry
+            .scale_fill
+            .as_ref()
+            .map(|blend| self.scale_style(blend));
+        if matches!(scaled, Some(None)) {
+            // A colour scale whose stops do not resolve falls back to the cell's own fill, and is counted.
+            lost.push(SceneLossKind::ColourNotResolved);
+        }
+        let own_fill = |lost: &mut Vec<SceneLossKind>| match entry.fill.as_ref() {
+            Some(fill) => match fill_style(fill, &self.palette) {
+                Resolved::Answered(style) => style,
+                Resolved::NothingToDraw => FillStyle::None,
+                Resolved::Unanswerable(kind) => {
+                    lost.push(kind);
+                    FillStyle::None
+                }
+                Resolved::Partial(style, parts) => {
+                    lost.extend(parts);
+                    style
+                }
+            },
+            None => FillStyle::None,
+        };
+        let fill = match scaled {
+            Some(Some(style)) => style,
+            _ => own_fill(&mut lost),
+        };
+        with_losses(
+            Decoration {
+                // ⚠ A colour scale **replaces** the cell's fill rather than tinting it, so it is asked
+                // first. It arrives as two stops and a position between them — not as a colour —
+                // because blending two `CT_Color`s needs the theme part and the workbook's
+                // `indexedColors`, and a box model holds neither. This is where both halves are
+                // present, which is why the interpolation happens here and nowhere else; see
+                // `mjx_layout_xlsx::condfmt::graded`.
+                fill,
+                // A cell's four edges are four different lines and a decoration carries one stroke, so
+                // the edges are their own fragments and this is `None` for every cell. Putting one of
+                // them here would draw that edge on all four sides — which is the defect
+                // `mjx-layout-pptx` names at its own `build_cell_borders`, and the reason
+                // `mjx_layout_xlsx::border` exists.
+                stroke: None,
+                // SpreadsheetML has no per-cell opacity: a cell's transparency is the alpha of its own
+                // colour, which reaches `fill` above with its alpha intact. Stating `1.0` is therefore
+                // not a placeholder for a value that exists, and a `PushOpacity` this crate never emits
+                // is a layer the painter never has to open.
+                opacity: 1.0,
+                // `x:font` carries `outline` and `shadow` booleans — Macintosh typography, two flags
+                // with no radius, no colour and no direction anywhere in the schema. There is nothing to
+                // build an `EffectStyle` out of, so nothing is built; see this crate's own
+                // documentation.
+                effects: Vec::new(),
+            },
+            lost,
+        )
     }
 
     fn text_decoration(&self, source: &SourceRef) -> Resolved<Decoration> {
-        Resolved::from(self.text_colour(source))
+        self.text_colour(source)
     }
 
     fn image(&self, _reference: ImageRef) -> Resolved<Image> {
@@ -192,31 +219,38 @@ impl ResourceResolver for SheetResources {
 }
 
 impl SheetResources {
-    // A cell's own text colour: the number format's, then the font's.
-    fn text_colour(&self, source: &SourceRef) -> Option<Decoration> {
+    // A cell's own text colour: the number format's, then the font's; one stated and not resolved is counted.
+    fn text_colour(&self, source: &SourceRef) -> Resolved<Decoration> {
         // **This is the method PowerPoint's companion cannot answer**, and the difference is the
         // document model rather than the effort. A slide's run lives inside a paragraph inside a
         // shape and a `GlyphRunFragment` carries no handle, so `mjx-scene-pptx` has no way back to
         // the run's own `a:rPr`. A cell's text is *one string in one cell*, its fragments all carry
         // the cell's own two-segment path, and `CellHit::from_source` splits it — so the font that
         // the `xf` ladder already resolved is one lookup away.
-        let hit = CellHit::from_source(source)?;
-        let handle = self.cell_decoration(hit.row, hit.column)?;
-        let entry = self.catalogue.decoration(handle)?;
+        let Some(entry) = CellHit::from_source(source)
+            .and_then(|hit| self.cell_decoration(hit.row, hit.column))
+            .and_then(|handle| self.catalogue.decoration(handle))
+        else {
+            return Resolved::NothingToDraw;
+        };
         // ⚠ A number format's own colour wins over the font's, and it has to: `[Red]` is a statement
         // about *this value* — the negative section of `#,##0;[Red]#,##0` colours the negative cells
         // and nothing else — where `x:font/color` is a statement about the cell's style. A painter
         // that preferred the font would draw a red negative in the sheet's own black and lose the
         // one thing the format code was written for.
         let colour = match entry.text_colour {
-            Some(index) => self.palette.resolve_indexed(index)?,
+            Some(index) => self.palette.resolve_indexed(index),
             None => {
-                let font = entry.font.as_ref()?;
-                self.palette
-                    .resolve(font.color.as_ref()?, SystemRole::Foreground)?
+                let Some(stated) = entry.font.as_ref().and_then(|font| font.color.as_ref()) else {
+                    return Resolved::NothingToDraw;
+                };
+                self.palette.resolve(stated, SystemRole::Foreground)
             }
         };
-        Some(Decoration {
+        let Some(colour) = colour else {
+            return Resolved::Unanswerable(SceneLossKind::TextPaintDefaulted);
+        };
+        Resolved::Answered(Decoration {
             fill: FillStyle::Solid(colour),
             stroke: None,
             opacity: 1.0,

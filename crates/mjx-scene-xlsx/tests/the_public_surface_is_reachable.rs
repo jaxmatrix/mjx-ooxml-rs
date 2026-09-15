@@ -89,7 +89,7 @@ fn the_palette_answers_every_spelling_of_a_colour() {
         .is_none());
     assert_eq!(
         palette.resolve_or_system(None, SystemRole::Foreground),
-        palette.system(SystemRole::Foreground)
+        mjx_scene::Resolved::Answered(palette.system(SystemRole::Foreground))
     );
 
     // The shell's own system colours, rather than ours imposed on it.
@@ -182,7 +182,7 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
             },
             &palette
         ),
-        FillStyle::None
+        mjx_scene::Resolved::Answered(FillStyle::None)
     );
 
     // `patternType="solid"` paints the **foreground**.
@@ -195,7 +195,7 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
         },
         &palette,
     );
-    let FillStyle::Solid(colour) = solid else {
+    let mjx_scene::Resolved::Answered(FillStyle::Solid(colour)) = solid else {
         panic!("a solid fill resolved to {solid:?}");
     };
     assert_eq!(
@@ -216,10 +216,10 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
     );
     assert!(matches!(
         hatched,
-        FillStyle::Pattern {
+        mjx_scene::Resolved::Answered(FillStyle::Pattern {
             preset: PatternPreset::Trellis,
             ..
-        }
+        })
     ));
 
     // A `dxf`'s third state: a colour and no `@patternType` at all.
@@ -232,7 +232,10 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
         },
         &palette,
     );
-    assert!(matches!(differential, FillStyle::Solid(_)));
+    assert!(matches!(
+        differential,
+        mjx_scene::Resolved::Answered(FillStyle::Solid(_))
+    ));
 
     // A gradient, in both of its kinds.
     let ramp = fill_style(
@@ -258,7 +261,7 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
         },
         &palette,
     );
-    let FillStyle::Gradient(gradient) = ramp else {
+    let mjx_scene::Resolved::Answered(FillStyle::Gradient(gradient)) = ramp else {
         panic!("a gradient resolved to {ramp:?}");
     };
     assert_eq!(gradient.stops.len(), 2);
@@ -283,7 +286,11 @@ fn a_fill_translates_in_every_one_of_its_three_shapes() {
             },
             &palette
         ),
-        FillStyle::None
+        mjx_scene::Resolved::Partial(
+            FillStyle::None,
+            vec![mjx_scene::SceneLossKind::ColourNotResolved]
+        ),
+        "its one unreadable stop is counted"
     );
 }
 

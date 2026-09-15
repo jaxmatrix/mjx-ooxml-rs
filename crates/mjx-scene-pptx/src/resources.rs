@@ -7,7 +7,7 @@ use mjx_scene::{
 };
 
 use crate::effects::effect_styles;
-use crate::paint::{fill_style, stroke_style};
+use crate::paint::{fill_style, part, resolved_with, stroke_style};
 
 /// The resolver for one page of a slide deck.
 ///
@@ -77,32 +77,33 @@ impl ResourceResolver for SlideResources {
             return Resolved::NothingToDraw;
         };
         let image = |rel_id: &str| self.image_handle(rel_id);
-        let built = || -> Result<Decoration, SceneLossKind> {
-            Ok(Decoration {
-                fill: match entry.fill.as_ref() {
-                    Some(fill) => fill_style(fill, &image)?,
-                    None => FillStyle::None,
-                },
-                stroke: match entry.outline.as_ref() {
-                    Some(outline) => stroke_style(outline, self.scale, &image)?,
-                    None => None,
-                },
-                // A shape's own transparency is `a:alpha` on its fill's colour, not a group opacity, and
-                // that alpha is gone one crate below (see `crate::paint`). Stating `1.0` is therefore
-                // not a placeholder for a value that exists — there is no per-shape opacity in
-                // DrawingML for this to carry — and a `PushOpacity` this crate never emits is one the
-                // painter never has to open a layer for.
-                opacity: 1.0,
-                effects: match entry.effects.as_ref() {
-                    Some(effects) => effect_styles(effects, self.scale, &image)?,
-                    None => Vec::new(),
-                },
-            })
+        // Each part resolves on its own: one that does not is counted once, and the parts that do still draw.
+        let mut lost: Vec<SceneLossKind> = Vec::new();
+        let decoration = Decoration {
+            fill: match entry.fill.as_ref() {
+                Some(fill) => part(fill_style(fill, &image), FillStyle::None, &mut lost),
+                None => FillStyle::None,
+            },
+            stroke: match entry.outline.as_ref() {
+                Some(outline) => part(stroke_style(outline, self.scale, &image), None, &mut lost),
+                None => None,
+            },
+            // A shape's own transparency is `a:alpha` on its fill's colour, not a group opacity, and
+            // that alpha is gone one crate below (see `crate::paint`). Stating `1.0` is therefore
+            // not a placeholder for a value that exists — there is no per-shape opacity in
+            // DrawingML for this to carry — and a `PushOpacity` this crate never emits is one the
+            // painter never has to open a layer for.
+            opacity: 1.0,
+            effects: match entry.effects.as_ref() {
+                Some(effects) => part(
+                    effect_styles(effects, self.scale, &image),
+                    Vec::new(),
+                    &mut lost,
+                ),
+                None => Vec::new(),
+            },
         };
-        match built() {
-            Ok(decoration) => Resolved::Answered(decoration),
-            Err(kind) => Resolved::Unanswerable(kind),
-        }
+        resolved_with(decoration, lost)
     }
 
     fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {

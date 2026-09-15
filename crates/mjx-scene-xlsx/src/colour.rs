@@ -273,10 +273,23 @@ impl SheetPalette {
     /// `<top style="hair"/>` that names no `<color>`. Compare [`resolve`](Self::resolve), which a
     /// *fill* uses, because a cell whose fill states no colour is not filled at all.
     #[must_use]
-    pub fn resolve_or_system(&self, colour: Option<&SheetColor>, role: SystemRole) -> Color {
-        colour
-            .and_then(|colour| self.resolve(colour, role))
-            .unwrap_or_else(|| self.system(role))
+    pub fn resolve_or_system(
+        &self,
+        colour: Option<&SheetColor>,
+        role: SystemRole,
+    ) -> mjx_scene::Resolved<Color> {
+        use mjx_scene::{Resolved, SceneLossKind};
+        match colour {
+            // No colour stated is Excel's own automatic colour, which is the system colour, so nothing is lost.
+            None => Resolved::Answered(self.system(role)),
+            Some(stated) => match self.resolve(stated, role) {
+                Some(resolved) => Resolved::Answered(resolved),
+                // A stated colour this build cannot read is drawn in the system colour by our guess, so it is counted.
+                None => {
+                    Resolved::Partial(self.system(role), vec![SceneLossKind::PaintApproximated])
+                }
+            },
+        }
     }
 }
 

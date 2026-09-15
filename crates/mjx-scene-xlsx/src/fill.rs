@@ -29,14 +29,16 @@
 
 use mjx_layout_xlsx::{CellFill, CellGradient};
 use mjx_ooxml_types::spreadsheetml::{GradientType, PatternType};
-use mjx_scene::{FillStyle, Gradient, GradientStop, PatternPreset, SceneRect};
+use mjx_scene::{
+    Color, FillStyle, Gradient, GradientStop, PatternPreset, Resolved, SceneLossKind, SceneRect,
+};
 
 use crate::colour::{SheetPalette, SystemRole};
 
 /// What paints a cell whose catalogue entry states `fill`, or [`FillStyle::None`] when nothing
-/// does.
+/// does, with every colour the file states and this build cannot resolve counted.
 #[must_use]
-pub fn fill_style(fill: &CellFill, palette: &SheetPalette) -> FillStyle {
+pub fn fill_style(fill: &CellFill, palette: &SheetPalette) -> Resolved<FillStyle> {
     if let Some(gradient) = &fill.gradient {
         return gradient_style(gradient, palette);
     }
@@ -44,29 +46,42 @@ pub fn fill_style(fill: &CellFill, palette: &SheetPalette) -> FillStyle {
         // `<patternFill patternType="none"/>`, which is the first `<fill>` of every workbook and
         // what an unformatted cell resolves to. Nothing is painted, which is not the same as
         // painting white: a cell with no fill lets the sheet's own background through.
-        Some(PatternType::None) => FillStyle::None,
-        // The foreground, and see this module's own warning about why.
+        Some(PatternType::None) => Resolved::Answered(FillStyle::None),
+        // The foreground, and see this module's own warning about why; one that is missing or does not resolve paints nothing and is counted.
         Some(PatternType::Solid) => fill
             .foreground
             .as_ref()
             .and_then(|colour| palette.resolve(colour, SystemRole::Foreground))
-            .map_or(FillStyle::None, FillStyle::Solid),
+            .map_or(
+                Resolved::Unanswerable(SceneLossKind::ColourNotResolved),
+                |colour| Resolved::Answered(FillStyle::Solid(colour)),
+            ),
         Some(pattern) => {
             let Some(preset) = pattern_preset(pattern) else {
                 // Unreachable for the two handled above; written rather than assumed so that adding
                 // a nineteenth `ST_PatternValues` cannot silently paint nothing.
-                return FillStyle::None;
+                return Resolved::Answered(FillStyle::None);
             };
-            FillStyle::Pattern {
-                preset,
-                // A hatch whose colours the file leaves out is drawn in the window's own colours,
-                // which is what makes `<patternFill patternType="gray125"/>` — the second `<fill>`
-                // of every workbook Excel writes — a grey stipple rather than nothing.
-                foreground: palette
-                    .resolve_or_system(fill.foreground.as_ref(), SystemRole::Foreground),
-                background: palette
-                    .resolve_or_system(fill.background.as_ref(), SystemRole::Background),
-            }
+            // A hatch whose colours the file leaves out is drawn in the window's own colours,
+            // which is what makes `<patternFill patternType="gray125"/>` — the second `<fill>`
+            // of every workbook Excel writes — a grey stipple rather than nothing.
+            let mut lost = Vec::new();
+            let foreground = colour_part(
+                palette.resolve_or_system(fill.foreground.as_ref(), SystemRole::Foreground),
+                &mut lost,
+            );
+            let background = colour_part(
+                palette.resolve_or_system(fill.background.as_ref(), SystemRole::Background),
+                &mut lost,
+            );
+            with_losses(
+                FillStyle::Pattern {
+                    preset,
+                    foreground,
+                    background,
+                },
+                lost,
+            )
         }
         // A `<patternFill>` that states a colour and **no** `@patternType` at all. R16 calls this
         // "a third state beside `none` and `solid`, and is what a `dxf` writes", and it is: a
@@ -77,37 +92,42 @@ pub fn fill_style(fill: &CellFill, palette: &SheetPalette) -> FillStyle {
         // opposite colour from the `solid` case above, and it is not a mistake — it is what makes
         // MJXOFF-173's conditional formatting land the colour a reader expects. Which of the two
         // Excel actually reads when a `dxf` writes both is a question for the Windows sitting.
-        None => fill
-            .background
-            .as_ref()
-            .or(fill.foreground.as_ref())
-            .and_then(|colour| palette.resolve(colour, SystemRole::Background))
-            .map_or(FillStyle::None, FillStyle::Solid),
+        None => match fill.background.as_ref().or(fill.foreground.as_ref()) {
+            None => Resolved::Answered(FillStyle::None),
+            Some(colour) => palette.resolve(colour, SystemRole::Background).map_or(
+                Resolved::Unanswerable(SceneLossKind::ColourNotResolved),
+                |colour| Resolved::Answered(FillStyle::Solid(colour)),
+            ),
+        },
     }
 }
 
-/// What paints a gradient-filled cell.
+/// What paints a gradient-filled cell; a stop whose colour does not resolve is left out and counted.
 ///
 /// GUESS: `@degree` is degrees clockwise from the positive `x` axis, which is the sense
 /// [`Gradient::angle`] is in, so the conversion is a change of unit and not of convention. ECMA-376
 /// §18.8.24 gives the attribute no worked example, and whether Excel measures it the other way is a
 /// question for the Windows sitting.
-fn gradient_style(gradient: &CellGradient, palette: &SheetPalette) -> FillStyle {
+fn gradient_style(gradient: &CellGradient, palette: &SheetPalette) -> Resolved<FillStyle> {
+    let mut lost = Vec::new();
     let stops: Vec<GradientStop> = gradient
         .stops
         .iter()
         .filter_map(|stop| {
-            let colour = stop
+            let resolved = stop
                 .colour
                 .as_ref()
-                .and_then(|colour| palette.resolve(colour, SystemRole::Foreground))?;
-            Some(GradientStop::new(stop.position as f32, colour))
+                .and_then(|colour| palette.resolve(colour, SystemRole::Foreground));
+            if resolved.is_none() {
+                lost.push(SceneLossKind::ColourNotResolved);
+            }
+            Some(GradientStop::new(stop.position as f32, resolved?))
         })
         .collect();
     if stops.is_empty() {
         // A gradient with no readable stop is not a gradient. Painting nothing is visible and
         // reportable; painting one of the two system colours would look like a decision.
-        return FillStyle::None;
+        return with_losses(FillStyle::None, lost);
     }
     let mut ramp = Gradient::linear(stops, (gradient.degrees as f32).to_radians());
     if gradient.kind == GradientType::Path {
@@ -117,7 +137,34 @@ fn gradient_style(gradient: &CellGradient, palette: &SheetPalette) -> FillStyle 
         // fractions of the cell — which is exactly what `Gradient::focus` is.
         ramp.focus = SceneRect::new(left as f32, top as f32, right as f32, bottom as f32);
     }
-    FillStyle::Gradient(ramp)
+    with_losses(FillStyle::Gradient(ramp), lost)
+}
+
+/// A value whole when nothing was lost, and partial with its losses otherwise.
+pub(crate) fn with_losses<T>(value: T, lost: Vec<SceneLossKind>) -> Resolved<T> {
+    if lost.is_empty() {
+        Resolved::Answered(value)
+    } else {
+        Resolved::Partial(value, lost)
+    }
+}
+
+/// A colour that always draws, with what standing it in lost added to `lost`.
+pub(crate) fn colour_part(answer: Resolved<Color>, lost: &mut Vec<SceneLossKind>) -> Color {
+    match answer {
+        Resolved::Answered(colour) => colour,
+        Resolved::Partial(colour, parts) => {
+            lost.extend(parts);
+            colour
+        }
+        // `resolve_or_system` always answers a colour; transparent is the honest nothing.
+        Resolved::NothingToDraw | Resolved::Unanswerable(_) => Color {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 0,
+        },
+    }
 }
 
 /// The display list's name for a SpreadsheetML hatch, or `None` for the two values that are not

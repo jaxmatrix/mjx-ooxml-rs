@@ -84,15 +84,15 @@ fn a_colour_reads_with_and_without_its_hash_and_refuses_what_it_cannot_read() {
 fn every_arm_of_a_fill_translates() {
     assert!(matches!(
         fill_style(&FillSpec::None, &no_images),
-        Ok(FillStyle::None)
+        Resolved::Answered(FillStyle::None)
     ));
-    assert!(matches!(
+    assert_eq!(
         fill_style(&FillSpec::Group, &no_images),
-        Ok(FillStyle::None)
-    ));
+        Resolved::Partial(FillStyle::None, vec![SceneLossKind::PaintApproximated])
+    );
     assert!(matches!(
         fill_style(&FillSpec::Solid(blue()), &no_images),
-        Ok(FillStyle::Solid(_))
+        Resolved::Answered(FillStyle::Solid(_))
     ));
 
     let gradient = FillSpec::Gradient {
@@ -108,7 +108,7 @@ fn every_arm_of_a_fill_translates() {
         ],
         angle: Some(Angle::from_degrees(45.0)),
     };
-    let Ok(FillStyle::Gradient(ramp)) = fill_style(&gradient, &no_images) else {
+    let Resolved::Answered(FillStyle::Gradient(ramp)) = fill_style(&gradient, &no_images) else {
         panic!("a gradient with two readable stops is a gradient");
     };
     assert_eq!(ramp.stops.len(), 2);
@@ -129,7 +129,7 @@ fn every_arm_of_a_fill_translates() {
                 },
                 &no_images
             ),
-            Ok(FillStyle::None)
+            Resolved::Answered(FillStyle::None)
         ),
         "a gradient with no readable stop paints nothing rather than painting black"
     );
@@ -141,7 +141,7 @@ fn every_arm_of_a_fill_translates() {
     };
     assert!(matches!(
         fill_style(&pattern, &no_images),
-        Ok(FillStyle::Pattern {
+        Resolved::Answered(FillStyle::Pattern {
             preset: PatternPreset::DiagonalBrick,
             ..
         })
@@ -155,7 +155,7 @@ fn every_arm_of_a_fill_translates() {
     assert!(
         matches!(
             fill_style(&colourless_pattern, &no_images),
-            Ok(FillStyle::Solid(_))
+            Resolved::Partial(FillStyle::Solid(_), _)
         ),
         "a pattern with no preset falls back to its foreground as a solid, which is what a hatch \
          reduces to below one pixel"
@@ -165,13 +165,16 @@ fn every_arm_of_a_fill_translates() {
         rel_id: "rId7".to_owned(),
         mode: PictureFillMode::Tile,
     };
-    let Ok(FillStyle::Image(image)) = fill_style(&picture, &one_image) else {
+    let Resolved::Answered(FillStyle::Image(image)) = fill_style(&picture, &one_image) else {
         panic!("a picture fill whose relationship the page names is an image fill");
     };
     assert_eq!(image.handle, 3);
     assert_eq!(image.fill_mode, ImageFillMode::Tile);
     assert!(
-        matches!(fill_style(&picture, &no_images), Err(SceneLossKind::FillImageNotSupplied)),
+        matches!(
+            fill_style(&picture, &no_images),
+            Resolved::Unanswerable(SceneLossKind::FillImageNotSupplied)
+        ),
         "a picture fill nobody can supply is counted as a fill picture not supplied rather than painted a wrong colour"
     );
 }
@@ -200,7 +203,7 @@ fn an_outline_carries_every_attribute_it_states() {
         }),
     };
     let stroke = stroke_style(&spec, DeviceScale::UNZOOMED, &no_images)
-        .ok()
+        .answered()
         .flatten()
         .expect("an outline with a readable fill is a stroke");
 
@@ -233,7 +236,10 @@ fn an_outline_that_fills_with_nothing_is_no_outline_at_all() {
         ..LineSpec::new()
     };
     assert!(
-        matches!(stroke_style(&unfilled, DeviceScale::UNZOOMED, &no_images), Ok(None)),
+        matches!(
+            stroke_style(&unfilled, DeviceScale::UNZOOMED, &no_images),
+            Resolved::Answered(None)
+        ),
         "a line with no fill draws nothing; answering with a stroke of `FillStyle::None` would make \
          the painter open a draw call that covers no pixels"
     );
@@ -244,7 +250,7 @@ fn an_outline_that_fills_with_nothing_is_no_outline_at_all() {
         ..LineSpec::new()
     };
     let stroke = stroke_style(&hairline, DeviceScale::UNZOOMED, &no_images)
-        .ok()
+        .answered()
         .flatten()
         .expect("a hairline is still a stroke");
     assert!(

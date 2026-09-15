@@ -25,7 +25,7 @@ use mjx_ooxml_types::drawingml::{
 };
 use mjx_scene::{
     Color, CompoundStroke, DashPattern, DeviceScale, FillStyle, Gradient, GradientStop, Image,
-    LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, PatternPreset, SceneLossKind,
+    LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, PatternPreset, Resolved, SceneLossKind,
     StrokeAlignment, StrokeStyle,
 };
 
@@ -73,24 +73,48 @@ pub fn color_of(spec: &ColorSpec) -> Result<Color, SceneLossKind> {
     })
 }
 
+/// A value with the parts of it that could not be resolved: whole when nothing was lost.
+pub(crate) fn resolved_with<T>(value: T, lost: Vec<SceneLossKind>) -> Resolved<T> {
+    if lost.is_empty() {
+        Resolved::Answered(value)
+    } else {
+        Resolved::Partial(value, lost)
+    }
+}
+
+/// The value of one part of a decoration, with what it lost added to `lost`, or `nothing` when the part cannot be drawn.
+pub(crate) fn part<T>(answer: Resolved<T>, nothing: T, lost: &mut Vec<SceneLossKind>) -> T {
+    match answer {
+        Resolved::Answered(value) => value,
+        Resolved::NothingToDraw => nothing,
+        Resolved::Unanswerable(kind) => {
+            lost.push(kind);
+            nothing
+        }
+        Resolved::Partial(value, parts) => {
+            lost.extend(parts);
+            value
+        }
+    }
+}
+
 /// The fill a resolved [`FillSpec`] names.
 ///
 /// `image` answers what handle a picture fill's relationship id was issued under; a caller with no
 /// image table hands one that always answers `None`, and a picture fill then paints nothing rather
 /// than painting a wrong colour.
-pub fn fill_style(
-    spec: &FillSpec,
-    image: &dyn Fn(&str) -> Option<u64>,
-) -> Result<FillStyle, SceneLossKind> {
-    Ok(match spec {
-        FillSpec::None => FillStyle::None,
-        // `a:grpFill` says *take the group's fill*, and the group's fill is not in the catalogue:
-        // `mjx-pptx` answers `effective_shape_fill` for a `p:sp` and a `p:cxnSp`, and a group's own
-        // `a:grpSpPr` is a question it does not take. So this paints nothing, which is what a group
-        // with no fill of its own means and is the common case. A group that *does* state a fill
-        // needs a reader in `mjx-pptx` before it can be consumed here.
-        FillSpec::Group => FillStyle::None,
-        FillSpec::Solid(color) => FillStyle::Solid(color_of(color)?),
+pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> Resolved<FillStyle> {
+    match spec {
+        FillSpec::None => Resolved::Answered(FillStyle::None),
+        // `a:grpFill` takes the group's fill, which nothing reads yet, so the shape paints nothing and says so.
+        // Owned by MJXOFF-328 (RC35), group fill.
+        FillSpec::Group => {
+            Resolved::Partial(FillStyle::None, vec![SceneLossKind::PaintApproximated])
+        }
+        FillSpec::Solid(color) => match color_of(color) {
+            Ok(color) => Resolved::Answered(FillStyle::Solid(color)),
+            Err(kind) => Resolved::Unanswerable(kind),
+        },
         FillSpec::Gradient { stops, angle } => {
             let stops = stops
                 .iter()
@@ -100,38 +124,52 @@ pub fn fill_style(
                         color_of(&stop.color)?,
                     ))
                 })
-                .collect::<Result<Vec<GradientStop>, SceneLossKind>>()?;
-            if stops.is_empty() {
-                return Ok(FillStyle::None);
+                .collect::<Result<Vec<GradientStop>, SceneLossKind>>();
+            match stops {
+                Err(kind) => Resolved::Unanswerable(kind),
+                Ok(stops) if stops.is_empty() => Resolved::Answered(FillStyle::None),
+                Ok(stops) => Resolved::Answered(FillStyle::Gradient(Gradient::linear(
+                    stops,
+                    angle.map_or(0.0, |angle| angle.radians() as f32),
+                ))),
             }
-            FillStyle::Gradient(Gradient::linear(
-                stops,
-                angle.map_or(0.0, |angle| angle.radians() as f32),
-            ))
         }
         FillSpec::Pattern {
             preset,
             foreground,
             background,
         } => {
-            // A pattern with no preset is drawn as its foreground, which is what a hatch reduces to
-            // below one pixel; a colour it states and cannot be resolved is counted, not skipped.
-            let foreground = foreground.as_ref().map(color_of).transpose()?;
-            let background = background.as_ref().map(color_of).transpose()?;
+            // A colour it states and cannot be resolved loses the whole fill, and is counted.
+            let foreground = match foreground.as_ref().map(color_of).transpose() {
+                Ok(foreground) => foreground,
+                Err(kind) => return Resolved::Unanswerable(kind),
+            };
+            let background = match background.as_ref().map(color_of).transpose() {
+                Ok(background) => background,
+                Err(kind) => return Resolved::Unanswerable(kind),
+            };
+            // A hatch with no preset or a missing colour is drawn as the colour it has, which is what it reduces to below one pixel, and counted.
+            let approximated = vec![SceneLossKind::PaintApproximated];
             match (preset.map(pattern_preset), foreground, background) {
-                (Some(preset), Some(foreground), Some(background)) => FillStyle::Pattern {
-                    preset,
-                    foreground,
-                    background,
-                },
-                (_, Some(foreground), _) => FillStyle::Solid(foreground),
-                (_, None, Some(background)) => FillStyle::Solid(background),
-                (_, None, None) => FillStyle::None,
+                (Some(preset), Some(foreground), Some(background)) => {
+                    Resolved::Answered(FillStyle::Pattern {
+                        preset,
+                        foreground,
+                        background,
+                    })
+                }
+                (_, Some(foreground), _) => {
+                    Resolved::Partial(FillStyle::Solid(foreground), approximated)
+                }
+                (_, None, Some(background)) => {
+                    Resolved::Partial(FillStyle::Solid(background), approximated)
+                }
+                (_, None, None) => Resolved::Partial(FillStyle::None, approximated),
             }
         }
         FillSpec::Picture { rel_id, mode } => match image(rel_id) {
             // A picture fill the page's image table holds no entry for is counted and stood in for.
-            None => return Err(SceneLossKind::FillImageNotSupplied),
+            None => Resolved::Unanswerable(SceneLossKind::FillImageNotSupplied),
             Some(handle) => {
                 let mut picture = Image::stretched(handle);
                 picture.fill_mode = match mode {
@@ -142,10 +180,10 @@ pub fn fill_style(
                         mjx_scene::ImageFillMode::Stretch
                     }
                 };
-                FillStyle::Image(picture)
+                Resolved::Answered(FillStyle::Image(picture))
             }
         },
-    })
+    }
 }
 
 /// The stroke a resolved [`LineSpec`] names, at `scale`, or `None` when it outlines nothing.
@@ -157,49 +195,56 @@ pub fn stroke_style(
     spec: &LineSpec,
     scale: DeviceScale,
     image: &dyn Fn(&str) -> Option<u64>,
-) -> Result<Option<StrokeStyle>, SceneLossKind> {
+) -> Resolved<Option<StrokeStyle>> {
+    let mut lost = Vec::new();
     let fill = match spec.fill.as_ref() {
-        Some(fill) => fill_style(fill, image)?,
+        Some(fill) => match fill_style(fill, image) {
+            Resolved::Unanswerable(kind) => return Resolved::Unanswerable(kind),
+            answer => part(answer, FillStyle::None, &mut lost),
+        },
         None => FillStyle::None,
     };
     if fill.is_none() {
-        return Ok(None);
+        return resolved_with(None, lost);
     }
     let width = spec.width.map_or(0.0, |width| {
         mjx_scene::pixels_from_emu(mjx_ooxml_core::measure::Emu::from_emu(width.emu()), scale)
     });
-    Ok(Some(StrokeStyle {
-        fill,
-        width: width.max(HAIRLINE_PIXELS),
-        cap: match spec.cap {
-            Some(DrawingLineCap::Round) => LineCap::Round,
-            Some(DrawingLineCap::Square) => LineCap::Square,
-            Some(DrawingLineCap::Flat) | None => LineCap::Flat,
-        },
-        join: match spec.join {
-            Some(mjx_dml::LineJoin::Bevel) => LineJoin::Bevel,
-            // `a:miter@lim` is a fraction of the line's width; DrawingML's own default when a
-            // mitre states none is eight, which is what PowerPoint writes.
-            Some(mjx_dml::LineJoin::Miter { limit }) => LineJoin::Miter {
-                limit: limit.map_or(8.0, |limit| limit.ratio() as f32),
+    resolved_with(
+        Some(StrokeStyle {
+            fill,
+            width: width.max(HAIRLINE_PIXELS),
+            cap: match spec.cap {
+                Some(DrawingLineCap::Round) => LineCap::Round,
+                Some(DrawingLineCap::Square) => LineCap::Square,
+                Some(DrawingLineCap::Flat) | None => LineCap::Flat,
             },
-            Some(mjx_dml::LineJoin::Round) | None => LineJoin::Round,
-        },
-        dash: dash_pattern(spec.dash.as_ref()),
-        alignment: match spec.pen_alignment {
-            Some(PenAlignment::Inset) => StrokeAlignment::Inset,
-            Some(PenAlignment::Center) | None => StrokeAlignment::Centered,
-        },
-        compound: match spec.compound {
-            Some(CompoundLine::Double) => CompoundStroke::Double,
-            Some(CompoundLine::ThickThin) => CompoundStroke::ThickThin,
-            Some(CompoundLine::ThinThick) => CompoundStroke::ThinThick,
-            Some(CompoundLine::Triple) => CompoundStroke::Triple,
-            Some(CompoundLine::Single) | None => CompoundStroke::Single,
-        },
-        head: line_end(spec.head_end.as_ref()),
-        tail: line_end(spec.tail_end.as_ref()),
-    }))
+            join: match spec.join {
+                Some(mjx_dml::LineJoin::Bevel) => LineJoin::Bevel,
+                // `a:miter@lim` is a fraction of the line's width; DrawingML's own default when a
+                // mitre states none is eight, which is what PowerPoint writes.
+                Some(mjx_dml::LineJoin::Miter { limit }) => LineJoin::Miter {
+                    limit: limit.map_or(8.0, |limit| limit.ratio() as f32),
+                },
+                Some(mjx_dml::LineJoin::Round) | None => LineJoin::Round,
+            },
+            dash: dash_pattern(spec.dash.as_ref()),
+            alignment: match spec.pen_alignment {
+                Some(PenAlignment::Inset) => StrokeAlignment::Inset,
+                Some(PenAlignment::Center) | None => StrokeAlignment::Centered,
+            },
+            compound: match spec.compound {
+                Some(CompoundLine::Double) => CompoundStroke::Double,
+                Some(CompoundLine::ThickThin) => CompoundStroke::ThickThin,
+                Some(CompoundLine::ThinThick) => CompoundStroke::ThinThick,
+                Some(CompoundLine::Triple) => CompoundStroke::Triple,
+                Some(CompoundLine::Single) | None => CompoundStroke::Single,
+            },
+            head: line_end(spec.head_end.as_ref()),
+            tail: line_end(spec.tail_end.as_ref()),
+        }),
+        lost,
+    )
 }
 
 /// How wide a hairline is drawn, in device pixels.
