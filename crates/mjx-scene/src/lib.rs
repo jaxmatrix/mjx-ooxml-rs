@@ -70,6 +70,7 @@ pub mod error;
 pub mod geometry;
 pub mod glyphs;
 pub mod list;
+pub mod loss;
 pub mod mesh_cache;
 pub mod paint;
 pub mod provider;
@@ -80,13 +81,17 @@ pub use build::SceneBuilder;
 pub use command::{Clip, Command};
 pub use diff::{diff_frames, FrameDiff, RecordChange, RecordChangeKind};
 pub use effect::{BlendMode, Effect, EffectKind, EffectStyle};
-pub use encoding::{ResourceIndex, SectionKind, HEADER_BYTES, MAGIC, SECTION_ROW_BYTES, VERSION};
+pub use encoding::{
+    ResourceIndex, SectionKind, HEADER_BYTES, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC,
+    SECTION_ROW_BYTES, VERSION,
+};
 pub use error::SceneError;
 pub use geometry::{
     finite, pixels_from_emu, FillRule, Geometry, PathCommand, ScenePoint, SceneRect, SceneTransform,
 };
 pub use glyphs::{AtlasPlacement, GlyphImage, SceneGlyph, SceneGlyphRun};
 pub use list::{Commands, DisplayList};
+pub use loss::{LossCategory, Placeholder, Resolved, SceneLoss, SceneLossKind, SceneLosses};
 pub use mesh_cache::MeshCache;
 pub use paint::{
     CompoundStroke, DashPattern, FillStyle, Gradient, GradientKind, GradientStop, Image,
@@ -96,9 +101,11 @@ pub use paint::{
 };
 pub use provider::{
     GeometryProvider, OutlineProvenance, PlaceholderGeometry, ResolvedOutline,
-    PLACEHOLDER_CORNER_FRACTION, PLACEHOLDER_FRAME_FRACTION,
+    PLACEHOLDER_CORNER_FRACTION, PLACEHOLDER_FRAME_FRACTION, UNRESOLVED_OUTLINE_LABEL,
 };
-pub use scene::{build_scene, Decoration, ResourceResolver, SceneOptions, DEFAULT_TEXT_COLOR};
+pub use scene::{
+    build_page, build_scene, Decoration, ResourceResolver, SceneOptions, DEFAULT_TEXT_COLOR,
+};
 pub use tessellate::{
     dash_lengths, page_bucket, resolve_outline, tessellate_scene, Mesh, MeshRole, Provenance,
     ResolvedGeometry, SceneMesh, StrokeGeometry, TessellationOptions, Tessellator,

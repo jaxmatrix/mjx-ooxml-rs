@@ -32,6 +32,7 @@ use std::sync::Arc;
 use mjx_layout::{BoxModel, Constraints};
 use mjx_layout::{DecorationRef, ImageRef, LayoutSize, PageIndex, SourceRef};
 use mjx_ooxml_core::measure::Emu;
+use mjx_scene::Resolved;
 use mjx_scene::{
     build_scene, Decoration, DisplayList, Geometry, GlyphImage, Image, PlaceholderGeometry,
     ResourceIndex, ResourceResolver, SceneGlyphRun, SceneOptions, SectionKind, TessellationOptions,
@@ -45,16 +46,16 @@ use support::plain_text::{PlainTextColumn, PlainTextDocument};
 struct PlainText;
 
 impl ResourceResolver for PlainText {
-    fn decoration(&self, _reference: DecorationRef) -> Option<Decoration> {
-        None
+    fn decoration(&self, _reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
-        None
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: ImageRef) -> Option<Image> {
-        None
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        Resolved::NothingToDraw
     }
 }
 

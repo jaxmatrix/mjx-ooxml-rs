@@ -68,7 +68,7 @@ use crate::painter::{
     AdapterKind, Antialiasing, BackendReport, Capabilities, DrawReport, Frame, FrameReport,
     GraphicsApi, Painter, Pixels,
 };
-use crate::plan::{plan_frame_with, DrawOp, FramePlan, LayerKind, PaintProgram, PlanOptions};
+use crate::plan::{DrawOp, FramePlan, LayerKind, PaintProgram, PlanOptions};
 use crate::resources::{EmbeddableFace, Resources};
 use crate::software::SoftwarePainter;
 use crate::surface::{SurfaceHost, Viewport};
@@ -395,11 +395,11 @@ impl Painter for PdfPainter {
                 })
             }
         }
-        let plan = plan_frame_with(
+        let plan = crate::plan::plan_frame_from(
             list,
-            resources.geometry(),
+            crate::plan::PlanSources::from_resources(resources),
             &mut self.tessellator,
-            PlanOptions::for_vector(),
+            PlanOptions::for_vector().writing_text(true),
         )?;
         let report = plan.report();
         let mut content = String::new();
@@ -621,6 +621,18 @@ impl PdfPainter {
                         out.push_str("Q\n");
                     }
                 }
+                DrawOp::Placeholder {
+                    transform,
+                    bounds,
+                    outline,
+                    label,
+                    ..
+                } => {
+                    let Some(outline) = outline else {
+                        continue;
+                    };
+                    self.write_placeholder(*transform, *bounds, outline, label, out);
+                }
                 DrawOp::Composite { layer: child, .. } => {
                     self.write_group(plan, *child, resources, out)?;
                 }
@@ -633,6 +645,62 @@ impl PdfPainter {
     }
 
     /// Write one child layer, with whatever its kind puts around it.
+    // A placeholder: the stand-in outline filled in the warning colour, and its label as real text in a standard face.
+    fn write_placeholder(
+        &mut self,
+        transform: SceneTransform,
+        bounds: SceneRect,
+        outline: &crate::plan::VectorPath,
+        label: &str,
+        out: &mut String,
+    ) {
+        let font = self.label_font();
+        let [red, green, blue] = rgb(crate::PLACEHOLDER_WARNING);
+        let (size, x, y) = super::label_placement(bounds, label);
+        out.push_str("q\n");
+        push_transform(transform, out);
+        out.push_str(&format!(
+            "{} {} {} rg\n",
+            number(red),
+            number(green),
+            number(blue)
+        ));
+        out.push_str(&pdf_path_operators(&outline.commands));
+        out.push_str(match outline.fill_rule {
+            FillRule::NonZero => "f\n",
+            FillRule::EvenOdd => "f*\n",
+        });
+        let escaped = label
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
+        out.push_str(&format!(
+            "BT\n0 0 0 rg\n/{font} {} Tf\n1 0 0 -1 {} {} Tm\n({escaped}) Tj\nET\nQ\n",
+            number(size),
+            number(x),
+            number(y)
+        ));
+    }
+
+    // The page's standard label face, registered the first time a placeholder asks for it.
+    fn label_font(&mut self) -> String {
+        const NAME: &str = "MJXLabel";
+        let registered = self
+            .open
+            .as_ref()
+            .is_some_and(|open| open.resources.fonts.iter().any(|(name, _)| name == NAME));
+        if !registered {
+            let object = self.writer.add(
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+                    .to_vec(),
+            );
+            if let Some(open) = &mut self.open {
+                open.resources.fonts.push((NAME.to_owned(), object));
+            }
+        }
+        NAME.to_owned()
+    }
+
     fn write_group(
         &mut self,
         plan: &FramePlan,

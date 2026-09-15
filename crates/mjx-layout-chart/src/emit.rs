@@ -70,6 +70,9 @@ pub trait ChartResources {
 
     /// Records `outline` and returns the handle that names it.
     fn outline(&mut self, outline: ChartOutline) -> Option<GeometryRef>;
+
+    /// Records that the fragment at `root` frames a chart.
+    fn frame(&mut self, _root: &SourceRef) {}
 }
 
 /// A resource table for a host that keeps none, and the one every test in this crate uses.
@@ -82,6 +85,7 @@ pub struct ChartResourceTable {
     geometry_base: u64,
     decorations: Vec<ChartPaint>,
     outlines: Vec<ChartOutline>,
+    frames: Vec<SourceRef>,
 }
 
 impl ChartResourceTable {
@@ -93,6 +97,7 @@ impl ChartResourceTable {
             geometry_base,
             decorations: Vec::new(),
             outlines: Vec::new(),
+            frames: Vec::new(),
         }
     }
 
@@ -108,6 +113,12 @@ impl ChartResourceTable {
     pub fn shape(&self, handle: GeometryRef) -> Option<&ChartOutline> {
         self.outlines
             .get(usize::try_from(handle.number().checked_sub(self.geometry_base)?).ok()?)
+    }
+
+    /// Whether the fragment at `source` frames a chart this table issued handles for.
+    #[must_use]
+    pub fn is_frame(&self, source: &SourceRef) -> bool {
+        self.frames.contains(source)
     }
 
     /// How many paints it holds.
@@ -140,6 +151,12 @@ impl ChartResources for ChartResourceTable {
         );
         self.outlines.push(outline);
         Some(handle)
+    }
+
+    fn frame(&mut self, root: &SourceRef) {
+        if !self.frames.contains(root) {
+            self.frames.push(root.clone());
+        }
     }
 }
 
@@ -229,6 +246,7 @@ pub fn emit_into(
     address: &ChartAddress,
     resources: &mut impl ChartResources,
 ) -> Option<FragmentId> {
+    resources.frame(&address.root);
     let plot = builder.push_simple(
         Some(root),
         address.child(segment::PLOT_AREA),

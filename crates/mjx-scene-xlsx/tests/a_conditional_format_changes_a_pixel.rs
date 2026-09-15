@@ -177,6 +177,7 @@ fn the_dxfs_font_colour_reaches_the_text_and_not_the_cell_below_it() {
             resolved
                 .resources
                 .text_decoration(node.source())
+                .answered()
                 .map(|decoration| decoration.fill)
         })
     };
@@ -327,6 +328,7 @@ fn a_dxf_font_colour_outranks_a_number_formats_own_colour() {
             resolved
                 .resources
                 .text_decoration(node.source())
+                .answered()
                 .map(|decoration| decoration.fill)
         })
     };

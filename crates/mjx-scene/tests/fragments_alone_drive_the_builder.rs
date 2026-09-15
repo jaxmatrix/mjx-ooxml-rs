@@ -50,6 +50,7 @@ use mjx_layout::{
     SourcePath, SourceRef, Transform,
 };
 use mjx_ooxml_core::measure::{Angle, Emu};
+use mjx_scene::Resolved;
 use mjx_scene::{
     build_scene, Color, Command, Decoration, DisplayList, FillStyle, Geometry, Image, Paint,
     ResourceIndex, ResourceResolver, SceneOptions, SceneTransform, SectionKind, StrokeStyle,
@@ -63,16 +64,16 @@ use support::plain_text::{PlainTextColumn, PlainTextDocument};
 struct PlainText;
 
 impl ResourceResolver for PlainText {
-    fn decoration(&self, _reference: DecorationRef) -> Option<Decoration> {
-        None
+    fn decoration(&self, _reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
-        None
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: ImageRef) -> Option<Image> {
-        None
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        Resolved::NothingToDraw
     }
 }
 
@@ -313,8 +314,8 @@ const SLATE: Color = Color {
 };
 
 impl ResourceResolver for Decorated {
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration> {
-        Some(Decoration {
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::Answered(Decoration {
             fill: FillStyle::Solid(Color {
                 red: reference.number() as u8,
                 green: 0,
@@ -326,12 +327,12 @@ impl ResourceResolver for Decorated {
         })
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
-        Some(Decoration::filled(FillStyle::Solid(SLATE)))
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::Answered(Decoration::filled(FillStyle::Solid(SLATE)))
     }
 
-    fn image(&self, reference: ImageRef) -> Option<Image> {
-        Some(Image::stretched(reference.number()))
+    fn image(&self, reference: ImageRef) -> Resolved<Image> {
+        Resolved::Answered(Image::stretched(reference.number()))
     }
 }
 
@@ -665,8 +666,8 @@ fn close_enough(left: SceneTransform, right: SceneTransform) -> bool {
 struct Shadowed;
 
 impl ResourceResolver for Shadowed {
-    fn decoration(&self, _reference: DecorationRef) -> Option<Decoration> {
-        Some(Decoration {
+    fn decoration(&self, _reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::Answered(Decoration {
             fill: FillStyle::Solid(SLATE),
             opacity: 0.5,
             effects: vec![
@@ -683,12 +684,12 @@ impl ResourceResolver for Shadowed {
         })
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
-        None
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: ImageRef) -> Option<Image> {
-        None
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        Resolved::NothingToDraw
     }
 }
 
@@ -1056,5 +1057,73 @@ fn a_clip_is_reinstalled_when_the_transform_beneath_it_changes() {
     assert!(
         transform_at < second_clip_at,
         "the re-installed clip must sit inside the transform that made it necessary: {commands:?}"
+    );
+}
+
+// A resolver that cannot say what any run is painted in.
+struct UnpaintedRuns;
+
+impl ResourceResolver for UnpaintedRuns {
+    fn decoration(&self, _reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::NothingToDraw
+    }
+
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::Unanswerable(mjx_scene::SceneLossKind::TextPaintDefaulted)
+    }
+
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        Resolved::NothingToDraw
+    }
+}
+
+#[test]
+fn every_run_drawn_in_the_default_colour_is_counted_at_its_own_address() {
+    let mut rasteriser = GlyphRasteriser::new();
+    let mut atlas = GlyphAtlas::new();
+    let face = support::liberation_sans();
+    let mut model = PlainTextColumn::new(
+        &mut rasteriser,
+        Arc::clone(&face),
+        FontSize::from_points(14.0),
+    );
+    let document = PlainTextDocument::from_paragraphs(["Two paragraphs,", "each of one run."]);
+    let constraints = Constraints::single_column(a_page_of_prose(), Emu::from_points(18.0));
+    let page = model
+        .layout_page(&document, PageIndex::FIRST, &constraints, None)
+        .expect("the plain-text box model lays out its first page");
+    let tree = page.fragments();
+    let runs: Vec<SourceRef> = tree
+        .nodes()
+        .filter(|(_, node)| matches!(node.fragment(), Fragment::GlyphRun(_)))
+        .map(|(_, node)| node.source().clone())
+        .collect();
+    assert!(!runs.is_empty(), "the box model produced no glyph runs");
+
+    let list = build_scene(
+        tree,
+        &UnpaintedRuns,
+        &mut rasteriser,
+        &mut atlas,
+        &SceneOptions::new(a_page_of_prose()),
+    )
+    .expect("an unpainted run still draws");
+    let losses = list.losses();
+    assert_eq!(
+        losses.count(mjx_scene::SceneLossKind::TextPaintDefaulted),
+        runs.len()
+    );
+    let counted: Vec<SourceRef> = losses.iter().map(|loss| loss.source.clone()).collect();
+    assert_eq!(counted, runs, "each loss names the run it approximated");
+    assert!(
+        list.placeholders().is_empty(),
+        "an approximation draws no placeholder"
+    );
+    assert_eq!(
+        list.commands()
+            .filter(|command| matches!(command, Command::DrawGlyphs { .. }))
+            .count(),
+        runs.len(),
+        "every run is still drawn"
     );
 }

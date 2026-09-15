@@ -211,6 +211,15 @@ pub enum SceneError {
         outline: u64,
     },
 
+    /// A loss record is malformed.
+    #[error("the loss record at byte {offset} of the losses section {reason}")]
+    MalformedLoss {
+        /// Where the record starts, within the section.
+        offset: usize,
+        /// What is wrong with it.
+        reason: &'static str,
+    },
+
     /// A path could not be turned into triangles.
     ///
     /// Not what a *degenerate* path produces: a zero-length, self-intersecting or

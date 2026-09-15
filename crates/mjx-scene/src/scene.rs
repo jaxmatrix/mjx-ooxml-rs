@@ -67,8 +67,8 @@
 //!    something is actually clipped away.
 
 use mjx_layout::{
-    DecorationRef, Fragment, FragmentId, FragmentTree, GeometryRef, ImageRef, LayoutSize,
-    SourceRef, Transform,
+    DecorationRef, Fragment, FragmentId, FragmentTree, GeometryRef, ImageRef, LayoutLosses,
+    LayoutSize, PageFragments, SourceRef, Transform,
 };
 use mjx_text::{place_run, DeviceScale, GlyphAtlas, GlyphRasteriser, Hinting, PreparedImage};
 use mjx_tokens::Color;
@@ -83,6 +83,7 @@ use crate::geometry::{
 };
 use crate::glyphs::{AtlasPlacement, GlyphImage, SceneGlyph, SceneGlyphRun};
 use crate::list::DisplayList;
+use crate::loss::{LossCategory, Resolved, SceneLossKind};
 use crate::paint::{FillStyle, Image, StrokeStyle};
 
 /// What text is drawn in when the resolver says nothing about it.
@@ -146,11 +147,11 @@ impl Decoration {
 ///
 /// Implemented by **the box model's companion** — the layer that issued the handles. Nothing here
 /// can be answered by this crate, and nothing here has to be answered at all: a box model with no
-/// decoration returns `None` from every method and produces a scene of plain text, which is exactly
-/// what the foreign box model in this crate's tests does.
+/// decoration answers [`Resolved::NothingToDraw`] from every method and produces a scene of plain
+/// text, which is exactly what the foreign box model in this crate's tests does.
 pub trait ResourceResolver {
     /// What paints the box or shape that carries `reference`.
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration>;
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration>;
 
     /// What paints the text at `source`.
     ///
@@ -159,10 +160,15 @@ pub trait ResourceResolver {
     /// fragment vocabulary's own link back to the document, so answering from it reaches around
     /// nothing; a run's fill, outline and shadow are `a:rPr`'s in DrawingML and `w:rPr`'s in
     /// WordprocessingML, and the resolver is the layer that can read either.
-    fn text_decoration(&self, source: &SourceRef) -> Option<Decoration>;
+    fn text_decoration(&self, source: &SourceRef) -> Resolved<Decoration>;
 
     /// Which picture `reference` names, and how it is drawn.
-    fn image(&self, reference: ImageRef) -> Option<Image>;
+    fn image(&self, reference: ImageRef) -> Resolved<Image>;
+
+    /// Why the content inside the box at `source` cannot be drawn as a whole, or `None` when it can.
+    fn unanswerable_content(&self, _source: &SourceRef) -> Option<SceneLossKind> {
+        None
+    }
 }
 
 /// How a scene is built: at what scale, with what hinting, onto how large a page.
@@ -191,7 +197,29 @@ impl SceneOptions {
     }
 }
 
-/// Build the display list for one page.
+/// Build the display list for one laid-out page: its fragments, and a placeholder for every layout loss that has an area.
+///
+/// # Errors
+///
+/// As [`build_scene`].
+pub fn build_page(
+    page: &PageFragments,
+    resolver: &dyn ResourceResolver,
+    rasteriser: &mut GlyphRasteriser,
+    atlas: &mut GlyphAtlas,
+    options: &SceneOptions,
+) -> Result<DisplayList, SceneError> {
+    build(
+        page.fragments(),
+        page.losses(),
+        resolver,
+        rasteriser,
+        atlas,
+        options,
+    )
+}
+
+/// Build the display list for a fragment tree that carries no layout losses.
 ///
 /// # Errors
 ///
@@ -199,6 +227,25 @@ impl SceneOptions {
 /// [`SceneBuilder::finish`] rejects.
 pub fn build_scene(
     tree: &FragmentTree,
+    resolver: &dyn ResourceResolver,
+    rasteriser: &mut GlyphRasteriser,
+    atlas: &mut GlyphAtlas,
+    options: &SceneOptions,
+) -> Result<DisplayList, SceneError> {
+    build(
+        tree,
+        &LayoutLosses::new(),
+        resolver,
+        rasteriser,
+        atlas,
+        options,
+    )
+}
+
+// The walk both entry points share.
+fn build(
+    tree: &FragmentTree,
+    layout_losses: &LayoutLosses,
     resolver: &dyn ResourceResolver,
     rasteriser: &mut GlyphRasteriser,
     atlas: &mut GlyphAtlas,
@@ -238,7 +285,18 @@ pub fn build_scene(
 
         let absolute = tree.transform(node.transform());
         let rect = SceneRect::from_layout(node.rect(), scale);
-        let decoration = decoration_of(node.fragment(), resolver);
+        let content_loss = match node.fragment() {
+            Fragment::Box(_) => resolver.unanswerable_content(node.source()),
+            _ => None,
+        };
+        let (decoration, decoration_loss) = match content_loss {
+            Some(_) => (None, None),
+            None => match decoration_of(node.fragment(), resolver) {
+                Resolved::Answered(decoration) => (Some(decoration), None),
+                Resolved::NothingToDraw => (None, None),
+                Resolved::Unanswerable(kind) => (None, Some(kind)),
+            },
+        };
         let mut pops = 0_usize;
 
         let transform_changed = absolute != enclosing.transform;
@@ -269,19 +327,33 @@ pub fn build_scene(
             }
         }
 
-        draw(
-            &mut builder,
-            tree,
-            node_id,
-            rect,
-            decoration.as_ref(),
-            resolver,
-            rasteriser,
-            atlas,
-            options,
-        )?;
+        if let Some(kind) = content_loss {
+            builder.add_loss(
+                LossCategory::Scene(kind),
+                node.source(),
+                placeholder_over(kind, rect),
+            )?;
+        } else {
+            draw(
+                &mut builder,
+                tree,
+                node_id,
+                rect,
+                decoration.as_ref(),
+                decoration_loss,
+                resolver,
+                rasteriser,
+                atlas,
+                options,
+            )?;
+        }
 
         stack.push(Step::Leave { pops });
+        if content_loss.is_some_and(SceneLossKind::replaces_content)
+            || decoration_loss.is_some_and(SceneLossKind::replaces_content)
+        {
+            continue;
+        }
         let enclosing = Enclosing {
             transform: absolute,
             clip: node.clip().or(enclosing.clip),
@@ -295,7 +367,39 @@ pub fn build_scene(
         }
     }
 
+    // Layout losses are drawn last, each in its element's own space, so nothing on the page covers one.
+    for loss in layout_losses {
+        let Some(area) = loss.area.filter(|_| loss.kind.draws_placeholder()) else {
+            continue;
+        };
+        let rect = SceneRect::from_layout(area.rect, scale);
+        if rect.is_empty() {
+            continue;
+        }
+        let mut pops = 0_usize;
+        let transform = tree.transform(area.transform);
+        if !transform.is_identity() {
+            let index = builder.add_transform(SceneTransform::from_layout(transform, scale))?;
+            builder.push(Command::PushTransform(index))?;
+            pops += 1;
+        }
+        if let Some(clip) = area.clip.and_then(|clip| tree.clip(clip)) {
+            let index = builder.add_clip(Clip::rectangle(SceneRect::from_layout(clip, scale)))?;
+            builder.push(Command::PushClip(index))?;
+            pops += 1;
+        }
+        builder.add_loss(LossCategory::Layout(loss.kind), &loss.source, Some(rect))?;
+        for _ in 0..pops {
+            builder.push(Command::Pop)?;
+        }
+    }
+
     builder.finish()
+}
+
+// The rectangle a loss of `kind` draws its placeholder over, or `None` for an approximation or an element with no area.
+fn placeholder_over(kind: SceneLossKind, rect: SceneRect) -> Option<SceneRect> {
+    (kind.draws_placeholder() && !rect.is_empty()).then_some(rect)
 }
 
 /// What is already installed around the node about to be entered.
@@ -343,17 +447,19 @@ fn relative_transform(enclosing: Transform, absolute: Transform) -> Transform {
 }
 
 /// The decoration a fragment carries, if it carries one at all.
-fn decoration_of(fragment: &Fragment, resolver: &dyn ResourceResolver) -> Option<Decoration> {
+fn decoration_of(fragment: &Fragment, resolver: &dyn ResourceResolver) -> Resolved<Decoration> {
     let reference = match fragment {
-        Fragment::Box(box_fragment) => box_fragment.decoration?,
-        Fragment::Shape(shape) => shape.decoration?,
-        Fragment::Line(_) | Fragment::GlyphRun(_) | Fragment::Image(_) | Fragment::Table(_) => {
-            return None
-        }
+        Fragment::Box(box_fragment) => box_fragment.decoration,
+        Fragment::Shape(shape) => shape.decoration,
+        Fragment::Line(_) | Fragment::GlyphRun(_) | Fragment::Image(_) | Fragment::Table(_) => None,
     };
-    resolver
-        .decoration(reference)
-        .filter(|decoration| !decoration.is_invisible())
+    let Some(reference) = reference else {
+        return Resolved::NothingToDraw;
+    };
+    match resolver.decoration(reference) {
+        Resolved::Answered(decoration) if decoration.is_invisible() => Resolved::NothingToDraw,
+        answer => answer,
+    }
 }
 
 /// Emit whatever one node draws for itself. Its children are the walk's business, not this one's.
@@ -368,6 +474,7 @@ fn draw(
     node_id: FragmentId,
     rect: SceneRect,
     decoration: Option<&Decoration>,
+    decoration_loss: Option<SceneLossKind>,
     resolver: &dyn ResourceResolver,
     rasteriser: &mut GlyphRasteriser,
     atlas: &mut GlyphAtlas,
@@ -383,21 +490,29 @@ fn draw(
         Fragment::Line(_) | Fragment::Table(_) => Ok(()),
         Fragment::Box(_) => {
             let Some(decoration) = decoration else {
-                return Ok(());
+                return record_decoration_loss(builder, decoration_loss, node.source(), rect);
             };
             let geometry = builder.add_geometry(&Geometry::Rectangle(rect))?;
             paint_geometry(builder, geometry, decoration)
         }
         Fragment::Shape(shape) => {
             let Some(decoration) = decoration else {
-                return Ok(());
+                return record_decoration_loss(builder, decoration_loss, node.source(), rect);
             };
             let geometry = builder.add_geometry(&unresolved_geometry(shape.geometry, rect))?;
             paint_geometry(builder, geometry, decoration)
         }
         Fragment::Image(picture) => {
-            let Some(mut image) = resolver.image(picture.image) else {
-                return Ok(());
+            let mut image = match resolver.image(picture.image) {
+                Resolved::Answered(image) => image,
+                Resolved::NothingToDraw => return Ok(()),
+                Resolved::Unanswerable(kind) => {
+                    return builder.add_loss(
+                        LossCategory::Scene(kind),
+                        node.source(),
+                        placeholder_over(kind, rect),
+                    )
+                }
             };
             // A fragment's crop is the box model's answer and outranks the resolver's, because it
             // is what the *layout* was computed against.
@@ -469,9 +584,26 @@ fn draw(
                 glyphs,
             };
             let index = builder.add_glyph_run(&scene_run)?;
-            let paint = text_paint(builder, resolver, node.source())?;
+            let paint = text_paint(builder, resolver, node.source(), rect)?;
             builder.push(Command::DrawGlyphs { run: index, paint })
         }
+    }
+}
+
+// Counts a decoration the resolver could not answer, with a placeholder over the element when something is missing.
+fn record_decoration_loss(
+    builder: &mut SceneBuilder,
+    loss: Option<SceneLossKind>,
+    source: &SourceRef,
+    rect: SceneRect,
+) -> Result<(), SceneError> {
+    match loss {
+        Some(kind) => builder.add_loss(
+            LossCategory::Scene(kind),
+            source,
+            placeholder_over(kind, rect),
+        ),
+        None => Ok(()),
     }
 }
 
@@ -507,12 +639,20 @@ fn text_paint(
     builder: &mut SceneBuilder,
     resolver: &dyn ResourceResolver,
     source: &SourceRef,
+    rect: SceneRect,
 ) -> Result<ResourceIndex, SceneError> {
-    let fill = resolver
-        .text_decoration(source)
-        .map(|decoration| decoration.fill)
-        .filter(|fill| !fill.is_none())
-        .unwrap_or(FillStyle::Solid(DEFAULT_TEXT_COLOR));
+    let fill = match resolver.text_decoration(source) {
+        Resolved::Answered(decoration) if !decoration.fill.is_none() => decoration.fill,
+        Resolved::Answered(_) | Resolved::NothingToDraw => FillStyle::Solid(DEFAULT_TEXT_COLOR),
+        Resolved::Unanswerable(kind) => {
+            builder.add_loss(
+                LossCategory::Scene(kind),
+                source,
+                placeholder_over(kind, rect),
+            )?;
+            FillStyle::Solid(DEFAULT_TEXT_COLOR)
+        }
+    };
     // The filter above removed the one fill that interns to no paint, so the `ok_or` cannot fire.
     // It is written rather than assumed because there is no `expect` in this crate — and because it
     // is what makes deleting the fallback a **red**. It used to be a green mutation: a second
@@ -550,4 +690,244 @@ fn outline_to_path(outline: &mjx_text::GlyphOutline) -> Vec<PathCommand> {
             OutlineCommand::Close => PathCommand::Close,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::paint::Image;
+    use mjx_layout::{
+        BoxFragment, FragmentTreeBuilder, ImageFragment, LayoutLossKind, LayoutRect, LossArea,
+        PageIndex, PartId, ShapeFragment, SourcePath, TransformId,
+    };
+    use mjx_ooxml_core::measure::Emu;
+
+    // A resolver whose every answer the test chooses.
+    struct Answers {
+        decoration: Resolved<Decoration>,
+        image: Resolved<Image>,
+        content: Option<(Vec<u32>, SceneLossKind)>,
+    }
+
+    impl ResourceResolver for Answers {
+        fn decoration(&self, _reference: DecorationRef) -> Resolved<Decoration> {
+            self.decoration.clone()
+        }
+
+        fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
+            Resolved::NothingToDraw
+        }
+
+        fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+            self.image.clone()
+        }
+
+        fn unanswerable_content(&self, source: &SourceRef) -> Option<SceneLossKind> {
+            let (path, kind) = self.content.as_ref()?;
+            (source.path().segments() == path.as_slice()).then_some(*kind)
+        }
+    }
+
+    fn at(segments: &[u32]) -> SourceRef {
+        SourceRef::node(PartId::PRIMARY, SourcePath::new(segments))
+    }
+
+    // A rectangle of 72 by 36 points, which is 96 by 48 unzoomed pixels.
+    fn a_box() -> LayoutRect {
+        LayoutRect::from_edges(
+            Emu::ZERO,
+            Emu::ZERO,
+            Emu::from_points(72.0),
+            Emu::from_points(36.0),
+        )
+    }
+
+    fn solid() -> Decoration {
+        Decoration::filled(FillStyle::Solid(DEFAULT_TEXT_COLOR))
+    }
+
+    fn scene(tree: &FragmentTree, resolver: &Answers) -> DisplayList {
+        build_scene(
+            tree,
+            resolver,
+            &mut GlyphRasteriser::new(),
+            &mut GlyphAtlas::new(),
+            &SceneOptions::new(LayoutSize::new(
+                Emu::from_points(200.0),
+                Emu::from_points(200.0),
+            )),
+        )
+        .expect("the scene builds")
+    }
+
+    fn fills(list: &DisplayList) -> usize {
+        list.commands()
+            .filter(|command| matches!(command, Command::FillPath { .. }))
+            .count()
+    }
+
+    fn one_shape() -> FragmentTree {
+        let mut builder = FragmentTreeBuilder::new();
+        builder.push_simple(
+            None,
+            at(&[0, 0]),
+            a_box(),
+            Fragment::Shape(ShapeFragment {
+                geometry: GeometryRef::new(1),
+                decoration: Some(DecorationRef::new(1)),
+            }),
+        );
+        builder.finish()
+    }
+
+    #[test]
+    fn a_shape_whose_decoration_is_unanswerable_is_counted_under_a_placeholder() {
+        let list = scene(
+            &one_shape(),
+            &Answers {
+                decoration: Resolved::Unanswerable(SceneLossKind::ColourNotResolved),
+                image: Resolved::NothingToDraw,
+                content: None,
+            },
+        );
+        assert_eq!(list.losses().count(SceneLossKind::ColourNotResolved), 1);
+        let placeholders = list.placeholders();
+        assert_eq!(placeholders.len(), 1);
+        assert_eq!(placeholders[0].rect, SceneRect::new(0.0, 0.0, 96.0, 48.0));
+        assert_eq!(placeholders[0].source, at(&[0, 0]));
+        assert_eq!(fills(&list), 0);
+    }
+
+    #[test]
+    fn a_shape_that_paints_nothing_is_no_loss() {
+        let list = scene(
+            &one_shape(),
+            &Answers {
+                decoration: Resolved::NothingToDraw,
+                image: Resolved::NothingToDraw,
+                content: None,
+            },
+        );
+        assert!(list.losses().is_empty());
+        assert!(list.placeholders().is_empty());
+    }
+
+    #[test]
+    fn unanswerable_content_is_one_placeholder_and_nothing_inside_it_is_drawn() {
+        let mut builder = FragmentTreeBuilder::new();
+        let frame = builder.push_simple(
+            None,
+            at(&[0, 0]),
+            a_box(),
+            Fragment::Box(BoxFragment {
+                decoration: None,
+                cell: None,
+            }),
+        );
+        for bar in 0..3 {
+            builder.push_simple(
+                frame,
+                at(&[0, 0, 3, bar]),
+                a_box(),
+                Fragment::Shape(ShapeFragment {
+                    geometry: GeometryRef::new(2),
+                    decoration: Some(DecorationRef::new(2)),
+                }),
+            );
+        }
+        let list = scene(
+            &builder.finish(),
+            &Answers {
+                decoration: Resolved::Answered(solid()),
+                image: Resolved::NothingToDraw,
+                content: Some((vec![0, 0], SceneLossKind::ChartNotResolved)),
+            },
+        );
+        assert_eq!(list.losses().len(), 1);
+        assert_eq!(list.losses().count(SceneLossKind::ChartNotResolved), 1);
+        assert_eq!(list.placeholders().len(), 1);
+        assert_eq!(fills(&list), 0, "the bars inside the frame are not drawn");
+        assert_eq!(
+            list.placeholder_at(10.0, 10.0).map(|found| found.category),
+            Some(LossCategory::Scene(SceneLossKind::ChartNotResolved))
+        );
+        assert_eq!(list.placeholder_at(150.0, 150.0), None);
+    }
+
+    #[test]
+    fn a_picture_the_resolver_cannot_supply_is_a_placeholder() {
+        let mut builder = FragmentTreeBuilder::new();
+        builder.push_simple(
+            None,
+            at(&[0, 4]),
+            a_box(),
+            Fragment::Image(ImageFragment {
+                image: ImageRef::new(0),
+                crop: None,
+            }),
+        );
+        let list = scene(
+            &builder.finish(),
+            &Answers {
+                decoration: Resolved::NothingToDraw,
+                image: Resolved::Unanswerable(SceneLossKind::FillImageNotSupplied),
+                content: None,
+            },
+        );
+        assert_eq!(list.losses().count(SceneLossKind::FillImageNotSupplied), 1);
+        assert_eq!(list.placeholders().len(), 1);
+    }
+
+    #[test]
+    fn a_layout_loss_with_an_area_is_drawn_in_its_own_space_and_an_approximation_is_not() {
+        let mut builder = FragmentTreeBuilder::new();
+        let doubled = builder.transform(Transform::scale(2.0, 2.0));
+        let mut losses = LayoutLosses::new();
+        losses.record_at(
+            at(&[1, 1]),
+            LayoutLossKind::DroppedByReader,
+            LossArea {
+                rect: a_box(),
+                transform: doubled,
+                clip: None,
+            },
+        );
+        losses.record_at(
+            at(&[1, 2]),
+            LayoutLossKind::ValueApproximated,
+            LossArea {
+                rect: a_box(),
+                transform: TransformId::IDENTITY,
+                clip: None,
+            },
+        );
+        let page = PageFragments::new(PageIndex::FIRST, builder.finish(), None).with_losses(losses);
+        let list = build_page(
+            &page,
+            &Answers {
+                decoration: Resolved::NothingToDraw,
+                image: Resolved::NothingToDraw,
+                content: None,
+            },
+            &mut GlyphRasteriser::new(),
+            &mut GlyphAtlas::new(),
+            &SceneOptions::new(LayoutSize::new(
+                Emu::from_points(200.0),
+                Emu::from_points(200.0),
+            )),
+        )
+        .expect("the page builds");
+        let placeholders = list.placeholders();
+        assert_eq!(placeholders.len(), 1);
+        assert_eq!(
+            placeholders[0].category,
+            LossCategory::Layout(LayoutLossKind::DroppedByReader)
+        );
+        assert_eq!(placeholders[0].transform.scale_x, 2.0);
+        assert!(list.placeholder_at(150.0, 80.0).is_some());
+        assert!(
+            list.losses().is_empty(),
+            "a layout loss is not a scene loss"
+        );
+    }
 }

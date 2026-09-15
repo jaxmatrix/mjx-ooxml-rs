@@ -39,6 +39,7 @@
 //! [`SheetBoxModel::rasteriser_mut`]. R14 reported that as a seam finding and it holds here
 //! unchanged — a box model that only measures still has to own the thing that numbers faces.
 
+use mjx_layout::{FrameContent, LayoutLossKind};
 use std::collections::HashSet;
 
 use mjx_layout::{
@@ -340,6 +341,7 @@ pub struct PageCatalogue {
     fits: Vec<(u16, AutoFit)>,
     unevaluated: Vec<(u32, u16, UnevaluatedRule)>,
     drawings: Vec<PlacedDrawing>,
+    losses: mjx_layout::LayoutLosses,
     /// The paints and outlines a chart anchored on the sheet issued (MJXOFF-178).
     ///
     /// A separate table rather than more entries in [`Self::decorations`], because a chart's outline
@@ -388,6 +390,18 @@ impl PageCatalogue {
     #[must_use]
     pub fn chart_outline(&self, handle: GeometryRef) -> Option<&ChartOutline> {
         self.charts.shape(handle)
+    }
+
+    /// What laying the page out could not lay out.
+    #[must_use]
+    pub fn losses(&self) -> &mjx_layout::LayoutLosses {
+        &self.losses
+    }
+
+    /// Whether the fragment at `source` frames a chart laid out on this page.
+    #[must_use]
+    pub fn is_chart_frame(&self, source: &mjx_layout::SourceRef) -> bool {
+        self.charts.is_frame(source)
     }
 
     /// Whether `number` names a handle a chart issued rather than one a cell did.
@@ -833,7 +847,7 @@ impl BoxModel for SheetBoxModel {
                 state,
             )?)
         };
-        Ok(PageFragments::new(page, tree, continuation))
+        Ok(PageFragments::new(page, tree, continuation).with_losses(self.catalogue.losses.clone()))
     }
 
     fn estimate_extent(&self, content: &Self::Content, constraints: &Constraints) -> Extent {
@@ -1442,6 +1456,12 @@ impl SheetBoxModel {
             .map(|decoration| decoration.borders.clone())
         {
             for band in border::bands(rect, &borders) {
+                if border::draws_solid_in_place_of_a_dash(band.stated.style) {
+                    catalogue.losses.record(
+                        address::node(content.part(), address::cell_path(row, column)),
+                        LayoutLossKind::ValueApproximated,
+                    );
+                }
                 let decoration = catalogue.band_handle(&band.stated);
                 bands.push(PendingBand {
                     row,
@@ -1468,6 +1488,31 @@ impl SheetBoxModel {
                 }),
             }),
         );
+
+        let cell_area = mjx_layout::LossArea {
+            rect,
+            transform: TransformId::IDENTITY,
+            clip,
+        };
+        let cell_source = address::node(content.part(), address::cell_path(row, column));
+        if icon.is_some() {
+            catalogue.losses.record_at(
+                cell_source.clone(),
+                LayoutLossKind::FrameContentNotLaidOut(FrameContent::Picture),
+                cell_area,
+            );
+        }
+        if resolver
+            .formats()
+            .border(&format)
+            .is_some_and(|border| draws_a_diagonal(border, interner))
+        {
+            catalogue.losses.record_at(
+                cell_source.clone(),
+                LayoutLossKind::DroppedByReader,
+                cell_area,
+            );
+        }
 
         // The bar is a child of the cell's own box and is pushed **before** the text, so a
         // `showValue` bar has its number drawn over it rather than under it. It is a fragment
@@ -1529,6 +1574,11 @@ impl SheetBoxModel {
             return Ok(());
         }
         let text = display.text;
+        if content.cell_is_rich(&cell) {
+            catalogue
+                .losses
+                .record(cell_source, LayoutLossKind::ValueApproximated);
+        }
 
         let style = CellStyle::resolve(
             resolver.formats().alignment(&format),
@@ -1882,6 +1932,17 @@ pub(crate) fn borders_from(
         top: edge_of(border.top_edge(), interner),
         bottom: edge_of(border.bottom_edge(), interner),
     }
+}
+
+// Whether a border draws a diagonal, which no band this crate emits can carry.
+fn draws_a_diagonal(border: &mjx_sml::Border, interner: &mjx_ooxml_core::Interner) -> bool {
+    let flagged = border.diagonal_up(interner).ok().flatten().unwrap_or(false)
+        || border
+            .diagonal_down(interner)
+            .ok()
+            .flatten()
+            .unwrap_or(false);
+    flagged && edge_of(border.diagonal_edge(), interner).is_some()
 }
 
 /// One border edge, or `None` when it states `style="none"` or nothing at all.

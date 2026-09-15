@@ -273,6 +273,10 @@ pub struct DrawReport {
     /// It is here, on the value `draw` hands back, rather than only inside the painter, because a
     /// field the painter reads and the caller cannot act on is the same defect one layer up.
     pub placeholders: usize,
+    /// What this painter could not draw, counted by kind.
+    pub losses: PainterLosses,
+    /// How many labelled placeholders this painter drew, for every stage's losses together.
+    pub loss_placeholders: usize,
 }
 
 impl DrawReport {
@@ -289,6 +293,102 @@ impl DrawReport {
         self.atlas_pages_created += other.atlas_pages_created;
         self.atlas_pages_released += other.atlas_pages_released;
         self.placeholders += other.placeholders;
+        self.losses.absorb(other.losses);
+        self.loss_placeholders += other.loss_placeholders;
+    }
+}
+
+/// What a painter could not draw of a display list it was handed.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum PainterLossKind {
+    /// A picture whose pixels the image source could not supply.
+    ImageWithNoPixels,
+    /// A run of glyphs whose face the font source could not supply to an exporter that writes text.
+    GlyphRunNotEmbedded,
+    /// An effect this painter has no way to express.
+    EffectUnsupported,
+    /// An arrowhead at the end of a line, which no stroke draws.
+    LineEndNotDrawn,
+    /// A shape outline no geometry provider resolved, drawn as the stand-in outline instead.
+    OutlineUnresolved,
+}
+
+impl PainterLossKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; 5] = [
+        Self::ImageWithNoPixels,
+        Self::GlyphRunNotEmbedded,
+        Self::EffectUnsupported,
+        Self::LineEndNotDrawn,
+        Self::OutlineUnresolved,
+    ];
+
+    /// What a placeholder, a report or a ledger row calls this loss.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::ImageWithNoPixels => "Picture not available",
+            Self::GlyphRunNotEmbedded => "Text not embedded",
+            Self::EffectUnsupported => "Effect not drawn",
+            Self::LineEndNotDrawn => "Arrowhead not drawn",
+            Self::OutlineUnresolved => mjx_scene::UNRESOLVED_OUTLINE_LABEL,
+        }
+    }
+
+    // The kind's slot in a fixed-size counter.
+    const fn slot(self) -> usize {
+        match self {
+            Self::ImageWithNoPixels => 0,
+            Self::GlyphRunNotEmbedded => 1,
+            Self::EffectUnsupported => 2,
+            Self::LineEndNotDrawn => 3,
+            Self::OutlineUnresolved => 4,
+        }
+    }
+}
+
+/// A painter's losses, counted per kind in fixed storage so a report stays `Copy`.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct PainterLosses {
+    counts: [usize; PainterLossKind::ALL.len()],
+}
+
+impl PainterLosses {
+    /// Counts one loss of `kind`.
+    pub fn record(&mut self, kind: PainterLossKind) {
+        self.add(kind, 1);
+    }
+
+    /// Counts `amount` losses of `kind`.
+    pub fn add(&mut self, kind: PainterLossKind, amount: usize) {
+        if let Some(count) = self.counts.get_mut(kind.slot()) {
+            *count += amount;
+        }
+    }
+
+    /// How many losses are of `kind`.
+    #[must_use]
+    pub fn count(&self, kind: PainterLossKind) -> usize {
+        self.counts.get(kind.slot()).copied().unwrap_or(0)
+    }
+
+    /// How many losses there are of every kind together.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.counts.iter().sum()
+    }
+
+    /// Whether nothing was lost.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Adds another report's losses to these.
+    pub fn absorb(&mut self, other: Self) {
+        for kind in PainterLossKind::ALL {
+            self.add(kind, other.count(kind));
+        }
     }
 }
 

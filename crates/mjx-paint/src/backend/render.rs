@@ -142,6 +142,41 @@ impl WgpuPainter {
                         stencil_reference: depth,
                     });
                 }
+                DrawOp::Placeholder {
+                    mesh, transform, ..
+                } => {
+                    if mesh.is_empty() {
+                        continue;
+                    }
+                    absorb(&mut bounds, mesh.bounds(), *transform);
+                    let base = (staging.vertices.len() / 4) as i32;
+                    let positions = mesh.positions();
+                    for vertex in 0..mesh.vertex_count() {
+                        let x = positions.get(vertex * 2).copied().unwrap_or_default();
+                        let y = positions.get(vertex * 2 + 1).copied().unwrap_or_default();
+                        staging.vertices.extend_from_slice(&[x, y, 0.0, 0.0]);
+                    }
+                    let start = staging.indices.len() as u32;
+                    staging.indices.extend_from_slice(mesh.indices());
+                    let end = staging.indices.len() as u32;
+                    let warning = PaintProgram::Solid(PLACEHOLDER_WARNING);
+                    let (_, block, textures) =
+                        self.paint_uniform(&warning, *transform, viewport, 1.0, staging);
+                    let slot = staging.uniform(block);
+                    records.push(Record {
+                        uniform_slot: slot,
+                        indices: start..end,
+                        base_vertex: base,
+                        textures,
+                        key: PipelineKey {
+                            blend: BlendMode::Over,
+                            stencil: StencilMode::Test,
+                            samples,
+                            format: OFFSCREEN_FORMAT,
+                        },
+                        stencil_reference: depth,
+                    });
+                }
                 DrawOp::Glyphs {
                     quads,
                     transform,

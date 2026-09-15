@@ -67,8 +67,8 @@ use crate::painter::{
     GraphicsApi, Painter, Pixels,
 };
 use crate::plan::{
-    apply, draws_behind, plan_frame, replaces_subtree, DrawOp, EffectNode, FramePlan, GlyphQuad,
-    LayerKind, PaintProgram,
+    apply, draws_behind, replaces_subtree, DrawOp, EffectNode, FramePlan, GlyphQuad, LayerKind,
+    PaintProgram,
 };
 use crate::pool::{
     PoolHandle, PoolStatistics, TexturePool, TextureSize, DEFAULT_TEXTURE_POOL_BYTES,
@@ -514,7 +514,12 @@ impl Painter for SoftwarePainter {
             }
         };
 
-        let plan = plan_frame(list, resources.geometry(), &mut self.tessellator)?;
+        let plan = crate::plan::plan_frame_from(
+            list,
+            crate::plan::PlanSources::from_resources(resources),
+            &mut self.tessellator,
+            crate::plan::PlanOptions::for_raster(),
+        )?;
         let mut report = plan.report();
 
         {
@@ -788,6 +793,29 @@ fn render_layer(
                     paint,
                     *transform,
                     Some(Placement::covering(*destination)),
+                    &clip,
+                    &textures,
+                    width,
+                    height,
+                )?;
+            }
+            DrawOp::Placeholder {
+                mesh, transform, ..
+            } => {
+                if mesh.is_empty() {
+                    continue;
+                }
+                absorb(&mut bounds, mesh.bounds(), *transform);
+                let Some(path) = mesh_path(mesh, *transform) else {
+                    continue;
+                };
+                fill_path(
+                    pool,
+                    handle,
+                    &path,
+                    &PaintProgram::Solid(crate::PLACEHOLDER_WARNING),
+                    *transform,
+                    None,
                     &clip,
                     &textures,
                     width,

@@ -191,12 +191,13 @@ pub use ranges::{
 pub use residency::{
     AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
     ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, DrawingDistances,
-    DrawingFormatting, DrawingPlacement, FieldSpan, FloatingTableAnchoring, HardBreak,
-    HeaderFooterFormatting, HeaderFooterSlots, HorizontalAnchoring, NoteFormatting, NoteReference,
-    NumberingDefinition, NumberingLevelFormatting, ParagraphFormatting, RevisionSpan,
-    RowFormatting, RowHeightSpecification, RunFormatting, SectionColumns, SectionFormatting,
-    SectionLineNumbering, SectionNoteRules, SectionPageNumbering, TableFormatting,
-    VerticalAnchoring, WidthSpecification, WrapFormatting, NON_BREAKING_HYPHEN, SOFT_HYPHEN,
+    DrawingFormatting, DrawingPlacement, FieldSpan, FloatingTableAnchoring, FramedContent,
+    HardBreak, HeaderFooterFormatting, HeaderFooterSlots, HorizontalAnchoring, NoteFormatting,
+    NoteReference, NumberingDefinition, NumberingLevelFormatting, ParagraphFormatting,
+    RevisionSpan, RowFormatting, RowHeightSpecification, RunFormatting, SectionColumns,
+    SectionFormatting, SectionLineNumbering, SectionNoteRules, SectionPageNumbering,
+    TableFormatting, VerticalAnchoring, WidthSpecification, WrapFormatting, NON_BREAKING_HYPHEN,
+    SOFT_HYPHEN,
 };
 pub use revisions::{
     math_control_properties, CellMergeTrackChange, CellPropertiesChange,

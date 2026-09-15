@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so that adding a module is a
 /// deliberate act that touches this number — a `>=` would pass on a scan that quietly stopped.
-const SOURCE_FILE_COUNT: usize = 9;
+const SOURCE_FILE_COUNT: usize = 10;
 
 fn source_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

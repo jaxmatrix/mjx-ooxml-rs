@@ -121,6 +121,22 @@ pub fn band_width(style: BorderStyle) -> Emu {
     }
 }
 
+/// Whether a band of `style` is drawn solid where the file states a dash, which is a value approximated.
+#[must_use]
+pub fn draws_solid_in_place_of_a_dash(style: BorderStyle) -> bool {
+    matches!(
+        style,
+        BorderStyle::Dashed
+            | BorderStyle::Dotted
+            | BorderStyle::DashDot
+            | BorderStyle::DashDotDot
+            | BorderStyle::MediumDashed
+            | BorderStyle::MediumDashDot
+            | BorderStyle::MediumDashDotDot
+            | BorderStyle::SlantDashDot
+    )
+}
+
 /// How wide each of a `double` edge's two lines is.
 ///
 /// GUESS: the same weight as `thin`, which is what a double rule looks like in Excel's gallery.

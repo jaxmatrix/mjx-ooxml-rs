@@ -39,6 +39,7 @@
 //! `0x4420_0000` is the IEEE-754 bit pattern of 640.0 written down independently, which is what a
 //! specification says.
 
+use mjx_layout::{FrameContent, LayoutLossKind, PartId, SourcePath, SourceRef};
 use mjx_scene::encoding::{
     CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE, GLYPH_RUN_STRIDE, GLYPH_STRIDE,
     GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, IMAGE_STRIDE, PAINT_STRIDE, SECTION_ALIGNMENT,
@@ -51,6 +52,7 @@ use mjx_scene::{
     RectangleAnchor, ResourceIndex, SceneBuilder, SceneGlyph, SceneGlyphRun, ScenePoint, SceneRect,
     SceneTransform, SectionKind, Stroke, StrokeAlignment, TileFlip,
 };
+use mjx_scene::{LossCategory, SceneLossKind};
 use mjx_text::{BitmapFormat, DeviceScale, Hinting, TextDirection};
 
 /// A readable failure message: two byte strings, side by side, with the first difference named.
@@ -874,7 +876,7 @@ fn a_resource_index_is_addressable_without_walking_the_table() {
 /// A stride of zero means the section's records vary in length: the command stream and the path
 /// data, and nothing else.
 #[rustfmt::skip]
-const THE_SECTION_VOCABULARY: [(u16, usize); 13] = [
+const THE_SECTION_VOCABULARY: [(u16, usize); 14] = [
     ( 1,  0),   // commands, variable
     ( 2, 24),   // transforms
     ( 3, 24),   // clips
@@ -888,6 +890,7 @@ const THE_SECTION_VOCABULARY: [(u16, usize); 13] = [
     (11, 32),   // glyph runs
     (12, 36),   // glyphs
     (13, 72),   // images
+    (14,  0),   // losses, variable
 ];
 
 #[test]
@@ -914,9 +917,9 @@ fn every_section_kind_is_pinned_to_its_wire_value_and_its_stride() {
     }
     assert_eq!(SectionKind::from_wire_value(0), None);
     assert_eq!(
-        SectionKind::from_wire_value(14),
+        SectionKind::from_wire_value(15),
         None,
-        "fourteen is the next free wire value and this build must not claim it"
+        "fifteen is the next free wire value and this build must not claim it"
     );
 }
 
@@ -1058,6 +1061,13 @@ fn a_scene_of_every_section() -> DisplayList {
     ] {
         builder.push(command).expect("every command is legal");
     }
+    builder
+        .add_loss(
+            LossCategory::Scene(SceneLossKind::ChartNotResolved),
+            &SourceRef::node(PartId::PRIMARY, SourcePath::new(&[0])),
+            Some(SceneRect::new(0.0, 0.0, 8.0, 8.0)),
+        )
+        .expect("a loss");
     let list = builder.finish().expect("the scene is well formed");
     for kind in SectionKind::ALL {
         assert!(
@@ -1075,4 +1085,53 @@ fn a_scene_of_every_section() -> DisplayList {
 /// time without a command stream in the way.
 fn finish_with_a_pop(builder: SceneBuilder) -> DisplayList {
     builder.finish().expect("the scene is well formed")
+}
+
+#[test]
+fn a_loss_record_is_a_length_a_category_a_source_a_position_and_a_rectangle() {
+    let mut builder = SceneBuilder::new(two_pixels_per_point(), 320.0, 240.0);
+    builder
+        .add_loss(
+            LossCategory::Layout(LayoutLossKind::DroppedByReader),
+            &SourceRef::node(PartId::PRIMARY, SourcePath::new(&[1, 1])),
+            Some(SceneRect::new(1.0, 2.0, 3.0, 4.0)),
+        )
+        .expect("a layout loss");
+    builder
+        .add_loss(
+            LossCategory::Scene(SceneLossKind::TextPaintDefaulted),
+            &SourceRef::new(PartId::new(3), SourcePath::new(&[5]), 2..6),
+            None,
+        )
+        .expect("a scene loss");
+    let list = finish_with_a_pop(builder);
+    #[rustfmt::skip]
+    let expected: &[u8] = &[
+        0x30, 0x00, 0x01, 0x07, 0x01, 0x00, 0x02, 0x00, // 48 bytes, layout, not read, placeholder, depth 2
+        0x00, 0x00, 0x00, 0x00,                         // part 0
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // characters 0..0
+        0x00, 0x00, 0x00, 0x00,                         // drawn before command 0
+        0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x00, 0x40, // left 1, top 2
+        0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x80, 0x40, // right 3, bottom 4
+        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, // path 1, 1
+        0x2c, 0x00, 0x02, 0x04, 0x00, 0x00, 0x01, 0x00, // 44 bytes, scene, text paint, no placeholder, depth 1
+        0x03, 0x00, 0x00, 0x00,                         // part 3
+        0x02, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, // characters 2..6
+        0xff, 0xff, 0xff, 0xff,                         // no stream position
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // an empty rectangle
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x05, 0x00, 0x00, 0x00,                         // path 5
+    ];
+    assert_bytes(
+        "the losses section",
+        list.section_bytes(SectionKind::Losses),
+        expected,
+    );
+    assert_eq!(
+        LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
+            FrameContent::Picture
+        ))
+        .label(),
+        "Picture not rendered"
+    );
 }

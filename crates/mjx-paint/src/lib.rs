@@ -136,17 +136,17 @@ pub use font_source::{FaceLibrary, GLYPH_FILL_RULE};
 pub use gradient::{GradientRamp, RAMP_TEXELS};
 pub use painter::{
     AdapterKind, Antialiasing, BackendReport, Capabilities, DrawReport, Frame, FrameReport,
-    GraphicsApi, Painter, Pixels,
+    GraphicsApi, Painter, PainterLossKind, PainterLosses, Pixels,
 };
 pub use pattern::{cell_of, coverage_atlas, mask_of, PATTERN_MASKS, PATTERN_SIDE};
 pub use plan::{
-    plan_frame, plan_frame_with, DrawOp, FramePlan, Layer, LayerKind, OpOrigin, PaintProgram,
-    PlanOptions, RunIdentity, VectorPath,
+    plan_frame, plan_frame_from, plan_frame_with, DrawOp, FramePlan, Layer, LayerKind, OpOrigin,
+    PaintProgram, PlanOptions, PlanSources, RunIdentity, VectorPath,
 };
 pub use pool::{PoolHandle, PoolStatistics, TexturePool, TextureSize, DEFAULT_TEXTURE_POOL_BYTES};
 pub use resources::{
-    AtlasPage, AtlasSource, AtlasVisitor, AtlasWrite, EmbeddableFace, FontSource, ImagePixels,
-    ImageSource, NoFonts, NoGlyphs, NoImages, Resources,
+    AtlasPage, AtlasSource, AtlasVisitor, AtlasWrite, EmbeddableFace, EncodedImages, FontSource,
+    ImagePixels, ImageSource, NoFonts, NoGlyphs, NoImages, Resources,
 };
 pub use software::{SoftwarePainter, MAXIMUM_SOFTWARE_TARGET, SOFTWARE_PAINTER};
 pub use surface::{

@@ -33,6 +33,8 @@
 //! frame's new glyph coverage, made only to be copied again into a staging buffer. The visitor
 //! borrows, and the source is free to drop its delta the moment the call returns.
 
+use std::collections::HashMap;
+
 use mjx_scene::{BitmapFormat, GeometryProvider, PathCommand};
 
 use crate::error::PaintError;
@@ -280,6 +282,49 @@ impl FontSource for NoFonts {
 }
 
 /// The empty font source, as something a borrow can point at.
+/// Pictures' encoded bytes by handle, turned into no pixels because decoding is `mjx-image`'s (MJXOFF-306).
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
+pub struct EncodedImages {
+    images: HashMap<u64, Vec<u8>>,
+}
+
+impl EncodedImages {
+    /// No pictures.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Holds `bytes` for `handle`, answering whatever it held before.
+    pub fn insert(&mut self, handle: u64, bytes: Vec<u8>) -> Option<Vec<u8>> {
+        self.images.insert(handle, bytes)
+    }
+
+    /// The encoded bytes held for `handle`.
+    #[must_use]
+    pub fn bytes(&self, handle: u64) -> Option<&[u8]> {
+        self.images.get(&handle).map(Vec::as_slice)
+    }
+
+    /// How many pictures it holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.images.len()
+    }
+
+    /// Whether it holds none.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.images.is_empty()
+    }
+}
+
+impl ImageSource for EncodedImages {
+    fn pixels(&self, _handle: u64) -> Option<ImagePixels<'_>> {
+        None
+    }
+}
+
 static NO_FONTS: NoFonts = NoFonts;
 
 /// An atlas source that reports nothing ever changed.

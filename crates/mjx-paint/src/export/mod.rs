@@ -458,3 +458,17 @@ fn crc32(data: &[u8]) -> u32 {
     }
     !crc
 }
+
+// Where a placeholder's label sits: a size that fits the box, and the baseline's start, in the box's own space.
+pub(crate) fn label_placement(bounds: mjx_scene::SceneRect, label: &str) -> (f32, f32, f32) {
+    let width = (bounds.right - bounds.left).max(0.0);
+    let height = (bounds.bottom - bounds.top).max(0.0);
+    let characters = label.chars().count().max(1) as f32;
+    let size = 12.0_f32
+        .min(height * 0.6)
+        .min(width / (characters * 0.55))
+        .max(1.0);
+    let x = bounds.left + (width - characters * size * 0.5).max(0.0) / 2.0;
+    let y = bounds.top + (height + size * 0.7) / 2.0;
+    (size, x, y)
+}

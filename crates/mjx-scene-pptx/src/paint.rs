@@ -25,23 +25,24 @@ use mjx_ooxml_types::drawingml::{
 };
 use mjx_scene::{
     Color, CompoundStroke, DashPattern, DeviceScale, FillStyle, Gradient, GradientStop, Image,
-    LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, PatternPreset, StrokeAlignment,
-    StrokeStyle,
+    LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, PatternPreset, SceneLossKind,
+    StrokeAlignment, StrokeStyle,
 };
 
 /// The colour a resolved [`ColorSpec`] names, or `None` when it names none this build can read.
 ///
 /// **Always opaque.** See the module's own warning: the alpha was dropped one crate below.
-#[must_use]
-pub fn color_of(spec: &ColorSpec) -> Option<Color> {
+pub fn color_of(spec: &ColorSpec) -> Result<Color, SceneLossKind> {
     let hex = match spec {
         ColorSpec::Srgb(hex) => hex.as_str(),
         // A scheme colour that reaches here is one `mjx-dml` could not resolve — there was no
         // theme, or the slot was empty — and inventing a colour for it would paint a shape in a
         // colour no tier of the document states. Drawing nothing is the honest answer and it is
         // visible, which is what makes it reportable.
-        ColorSpec::Scheme(_) => return None,
-        ColorSpec::Other { value, .. } => value.as_deref()?,
+        ColorSpec::Scheme(_) => return Err(SceneLossKind::ColourNotResolved),
+        ColorSpec::Other { value, .. } => {
+            value.as_deref().ok_or(SceneLossKind::ColourNotResolved)?
+        }
         // ⚠ **A transformed colour draws nothing, and that is a stated gap rather than an
         // oversight.** `ColorSpec::Transformed` arrived with the document graph's own work and
         // carries `lumMod`, `lumOff`, `tint`, `shade` and `alpha` — arithmetic on the colour
@@ -56,17 +57,18 @@ pub fn color_of(spec: &ColorSpec) -> Option<Color> {
         // here would put a second implementation of DrawingML's colour model above the crate that
         // owns it. So it takes the answer the scheme arm above already takes, for the same reason:
         // drawing nothing is honest, it is visible, and it is reportable.
-        ColorSpec::Transformed { .. } => return None,
+        ColorSpec::Transformed { .. } => return Err(SceneLossKind::ColourNotResolved),
     };
     let digits = hex.strip_prefix('#').unwrap_or(hex);
+    let unreadable = SceneLossKind::ColourNotResolved;
     if digits.len() != 6 {
-        return None;
+        return Err(unreadable);
     }
     let channel = |from: usize| u8::from_str_radix(digits.get(from..from + 2)?, 16).ok();
-    Some(Color {
-        red: channel(0)?,
-        green: channel(2)?,
-        blue: channel(4)?,
+    Ok(Color {
+        red: channel(0).ok_or(unreadable)?,
+        green: channel(2).ok_or(unreadable)?,
+        blue: channel(4).ok_or(unreadable)?,
         alpha: 0xff,
     })
 }
@@ -76,9 +78,11 @@ pub fn color_of(spec: &ColorSpec) -> Option<Color> {
 /// `image` answers what handle a picture fill's relationship id was issued under; a caller with no
 /// image table hands one that always answers `None`, and a picture fill then paints nothing rather
 /// than painting a wrong colour.
-#[must_use]
-pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillStyle {
-    match spec {
+pub fn fill_style(
+    spec: &FillSpec,
+    image: &dyn Fn(&str) -> Option<u64>,
+) -> Result<FillStyle, SceneLossKind> {
+    Ok(match spec {
         FillSpec::None => FillStyle::None,
         // `a:grpFill` says *take the group's fill*, and the group's fill is not in the catalogue:
         // `mjx-pptx` answers `effective_shape_fill` for a `p:sp` and a `p:cxnSp`, and a group's own
@@ -86,19 +90,19 @@ pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillS
         // with no fill of its own means and is the common case. A group that *does* state a fill
         // needs a reader in `mjx-pptx` before it can be consumed here.
         FillSpec::Group => FillStyle::None,
-        FillSpec::Solid(color) => color_of(color).map_or(FillStyle::None, FillStyle::Solid),
+        FillSpec::Solid(color) => FillStyle::Solid(color_of(color)?),
         FillSpec::Gradient { stops, angle } => {
-            let stops: Vec<GradientStop> = stops
+            let stops = stops
                 .iter()
-                .filter_map(|stop| {
-                    Some(GradientStop::new(
+                .map(|stop| {
+                    Ok(GradientStop::new(
                         stop.position.ratio() as f32,
                         color_of(&stop.color)?,
                     ))
                 })
-                .collect();
+                .collect::<Result<Vec<GradientStop>, SceneLossKind>>()?;
             if stops.is_empty() {
-                return FillStyle::None;
+                return Ok(FillStyle::None);
             }
             FillStyle::Gradient(Gradient::linear(
                 stops,
@@ -110,12 +114,10 @@ pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillS
             foreground,
             background,
         } => {
-            // A pattern with no preset, or with a colour this build cannot read, is a pattern that
-            // cannot be drawn as one. Its foreground is used as a solid fill instead, which is what
-            // a hatch reduces to as its scale falls below one pixel and is the closest thing to it
-            // that is not nothing.
-            let foreground = foreground.as_ref().and_then(color_of);
-            let background = background.as_ref().and_then(color_of);
+            // A pattern with no preset is drawn as its foreground, which is what a hatch reduces to
+            // below one pixel; a colour it states and cannot be resolved is counted, not skipped.
+            let foreground = foreground.as_ref().map(color_of).transpose()?;
+            let background = background.as_ref().map(color_of).transpose()?;
             match (preset.map(pattern_preset), foreground, background) {
                 (Some(preset), Some(foreground), Some(background)) => FillStyle::Pattern {
                     preset,
@@ -128,7 +130,8 @@ pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillS
             }
         }
         FillSpec::Picture { rel_id, mode } => match image(rel_id) {
-            None => FillStyle::None,
+            // A picture fill the page's image table holds no entry for is counted and stood in for.
+            None => return Err(SceneLossKind::FillImageNotSupplied),
             Some(handle) => {
                 let mut picture = Image::stretched(handle);
                 picture.fill_mode = match mode {
@@ -142,7 +145,7 @@ pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillS
                 FillStyle::Image(picture)
             }
         },
-    }
+    })
 }
 
 /// The stroke a resolved [`LineSpec`] names, at `scale`, or `None` when it outlines nothing.
@@ -150,23 +153,22 @@ pub fn fill_style(spec: &FillSpec, image: &dyn Fn(&str) -> Option<u64>) -> FillS
 /// A width of zero is DrawingML's hairline and is drawn as the thinnest visible line rather than as
 /// nothing, which is what every renderer does with it and what makes a table's default border
 /// appear at all.
-#[must_use]
 pub fn stroke_style(
     spec: &LineSpec,
     scale: DeviceScale,
     image: &dyn Fn(&str) -> Option<u64>,
-) -> Option<StrokeStyle> {
-    let fill = spec
-        .fill
-        .as_ref()
-        .map_or(FillStyle::None, |fill| fill_style(fill, image));
+) -> Result<Option<StrokeStyle>, SceneLossKind> {
+    let fill = match spec.fill.as_ref() {
+        Some(fill) => fill_style(fill, image)?,
+        None => FillStyle::None,
+    };
     if fill.is_none() {
-        return None;
+        return Ok(None);
     }
     let width = spec.width.map_or(0.0, |width| {
         mjx_scene::pixels_from_emu(mjx_ooxml_core::measure::Emu::from_emu(width.emu()), scale)
     });
-    Some(StrokeStyle {
+    Ok(Some(StrokeStyle {
         fill,
         width: width.max(HAIRLINE_PIXELS),
         cap: match spec.cap {
@@ -197,7 +199,7 @@ pub fn stroke_style(
         },
         head: line_end(spec.head_end.as_ref()),
         tail: line_end(spec.tail_end.as_ref()),
-    })
+    }))
 }
 
 /// How wide a hairline is drawn, in device pixels.

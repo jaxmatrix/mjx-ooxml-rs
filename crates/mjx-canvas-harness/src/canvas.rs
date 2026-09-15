@@ -36,6 +36,7 @@ use mjx_layout::{
     GeometryRef, LayoutRect, PartId, ShapeFragment, SourcePath, SourceRef, Transform,
 };
 use mjx_ooxml_core::measure::{Angle, Emu};
+use mjx_scene::Resolved;
 use mjx_scene::{
     Color, Decoration, FillRule, FillStyle, Geometry, GeometryProvider, OutlineProvenance,
     PathCommand, ResolvedOutline, ResourceResolver, SceneError, ScenePoint, SceneRect, StrokeStyle,
@@ -580,21 +581,26 @@ fn bounds_of(points: &[Pt]) -> Rect {
 }
 
 impl ResourceResolver for Canvas {
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration> {
-        let handle = reference.number().checked_sub(1)?;
-        self.decorations.get(usize::try_from(handle).ok()?).cloned()
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration> {
+        Resolved::from(
+            reference
+                .number()
+                .checked_sub(1)
+                .and_then(|handle| usize::try_from(handle).ok())
+                .and_then(|handle| self.decorations.get(handle).cloned()),
+        )
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
         // No scene contains text; see this module's own documentation. Answering `None` keeps that
         // true rather than merely stated — a scene that grew a glyph run would draw it in
         // `mjx_scene::DEFAULT_TEXT_COLOR` and visibly change, rather than quietly acquiring a
         // dependency on an installed face.
-        None
+        Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: mjx_layout::ImageRef) -> Option<mjx_scene::Image> {
-        None
+    fn image(&self, _reference: mjx_layout::ImageRef) -> Resolved<mjx_scene::Image> {
+        Resolved::NothingToDraw
     }
 }
 

@@ -76,12 +76,14 @@ pub enum SectionKind {
     Glyphs = 12,
     /// Images, 72 bytes each.
     Images = 13,
+    /// Losses and the placeholders drawn for them. Variable-length records; see [`LOSS_RECORD_BYTES`].
+    Losses = 14,
 }
 
 impl SectionKind {
     /// Every kind, in wire order. The order sections are written in, and the order a diff walks
     /// them.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Commands,
         Self::Transforms,
         Self::Clips,
@@ -95,6 +97,7 @@ impl SectionKind {
         Self::GlyphRuns,
         Self::Glyphs,
         Self::Images,
+        Self::Losses,
     ];
 
     /// The wire value.
@@ -120,6 +123,7 @@ impl SectionKind {
             11 => Self::GlyphRuns,
             12 => Self::Glyphs,
             13 => Self::Images,
+            14 => Self::Losses,
             _ => return None,
         })
     }
@@ -128,7 +132,7 @@ impl SectionKind {
     #[must_use]
     pub const fn stride(self) -> Option<usize> {
         Some(match self {
-            Self::Commands | Self::PathData => return None,
+            Self::Commands | Self::PathData | Self::Losses => return None,
             Self::Transforms => TRANSFORM_STRIDE,
             Self::Clips => CLIP_STRIDE,
             Self::Paints => PAINT_STRIDE,
@@ -160,6 +164,7 @@ impl SectionKind {
             Self::GlyphRuns => "glyph runs",
             Self::Glyphs => "glyphs",
             Self::Images => "images",
+            Self::Losses => "losses",
         }
     }
 }
@@ -245,6 +250,12 @@ pub const GLYPH_RUN_STRIDE: usize = 32;
 pub const GLYPH_STRIDE: usize = 36;
 /// One image.
 pub const IMAGE_STRIDE: usize = 72;
+
+/// The fixed head of one loss record; a record is this plus four bytes per source path segment.
+pub const LOSS_RECORD_BYTES: usize = 40;
+
+/// The flag a loss record sets when it draws a placeholder.
+pub const LOSS_FLAG_PLACEHOLDER: u8 = 1;
 
 // Every section begins on a `SECTION_ALIGNMENT` boundary and **the writer pads nothing** — one
 // section's bytes are followed immediately by the next section's — so every fixed stride has itself

@@ -2,7 +2,7 @@
 
 use mjx_layout::{DecorationRef, ImageRef, SourceRef};
 use mjx_layout_xlsx::{CellHit, PageCatalogue, ScaleBlend};
-use mjx_scene::{Color, Decoration, FillStyle, Image, ResourceResolver};
+use mjx_scene::{Color, Decoration, FillStyle, Image, Resolved, ResourceResolver, SceneLossKind};
 
 use crate::colour::{SheetPalette, SystemRole};
 use crate::fill::fill_style;
@@ -111,8 +111,15 @@ impl SheetResources {
 }
 
 impl ResourceResolver for SheetResources {
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration> {
-        let entry = self.catalogue.decoration(reference)?;
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration> {
+        let Some(entry) = self.catalogue.decoration(reference) else {
+            // Nothing on this side resolves a chart's paints; the chart is counted once, at its frame.
+            return if PageCatalogue::is_chart_handle(reference.number()) {
+                Resolved::Unanswerable(SceneLossKind::ChartNotResolved)
+            } else {
+                Resolved::NothingToDraw
+            };
+        };
         if let Some(band) = &entry.border_band {
             // A border band is a box the width of one line, filled with that line's colour. An edge
             // that states no `<color>` is drawn in the window's own foreground rather than dropped:
@@ -121,7 +128,7 @@ impl ResourceResolver for SheetResources {
             // **The band's style is not read here**, and that is the loss `mjx_layout_xlsx::border`
             // describes: a filled rectangle is solid, so a `dashed` edge draws as a solid line of
             // the right weight and colour. `tests/the_dash_is_lost_at_the_band.rs` asserts it.
-            return Some(Decoration {
+            return Resolved::Answered(Decoration {
                 fill: FillStyle::Solid(
                     self.palette
                         .resolve_or_system(band.colour.as_ref(), SystemRole::Foreground),
@@ -131,7 +138,7 @@ impl ResourceResolver for SheetResources {
                 effects: Vec::new(),
             });
         }
-        Some(Decoration {
+        Resolved::Answered(Decoration {
             // ⚠ A colour scale **replaces** the cell's fill rather than tinting it, so it is asked
             // first. It arrives as two stops and a position between them — not as a colour —
             // because blending two `CT_Color`s needs the theme part and the workbook's
@@ -168,7 +175,25 @@ impl ResourceResolver for SheetResources {
         })
     }
 
-    fn text_decoration(&self, source: &SourceRef) -> Option<Decoration> {
+    fn text_decoration(&self, source: &SourceRef) -> Resolved<Decoration> {
+        Resolved::from(self.text_colour(source))
+    }
+
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        // A worksheet's fragment tree carries no `Fragment::Image`: `mjx-layout-xlsx` issues no `ImageRef`, and a drawing reaches the tree as a box.
+        Resolved::NothingToDraw
+    }
+
+    fn unanswerable_content(&self, source: &SourceRef) -> Option<SceneLossKind> {
+        self.catalogue
+            .is_chart_frame(source)
+            .then_some(SceneLossKind::ChartNotResolved)
+    }
+}
+
+impl SheetResources {
+    // A cell's own text colour: the number format's, then the font's.
+    fn text_colour(&self, source: &SourceRef) -> Option<Decoration> {
         // **This is the method PowerPoint's companion cannot answer**, and the difference is the
         // document model rather than the effort. A slide's run lives inside a paragraph inside a
         // shape and a `GlyphRunFragment` carries no handle, so `mjx-scene-pptx` has no way back to
@@ -197,16 +222,5 @@ impl ResourceResolver for SheetResources {
             opacity: 1.0,
             effects: Vec::new(),
         })
-    }
-
-    fn image(&self, _reference: ImageRef) -> Option<Image> {
-        // A worksheet's fragment tree carries no `Fragment::Image`: `mjx-layout-xlsx` lays out
-        // cells and their text and issues no `ImageRef` at all, because a picture on a sheet is a
-        // `xdr:twoCellAnchor` in a *drawing* part. MJXOFF-173 **places** those anchors — all three
-        // modes, against the box model's own row heights and column widths — and lays out nothing
-        // inside them, because a drawing's content is DrawingML and the crate that lays DrawingML
-        // out sits at the same rank as the box model. So a drawing reaches the tree as a box with
-        // no image handle, this is still never called, and `None` is still what it means.
-        None
     }
 }

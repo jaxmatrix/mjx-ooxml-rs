@@ -107,6 +107,7 @@ pub fn diff_frames(previous: &DisplayList, next: &DisplayList) -> FrameDiff {
             // up as a changed geometry record; reporting the bytes separately would name a range
             // no consumer can upload on its own.
             SectionKind::PathData => {}
+            SectionKind::Losses => compare_losses(previous, next, &mut diff),
             _ => compare_records(section, previous, next, &mut diff),
         }
     }
@@ -176,4 +177,42 @@ fn compare_commands(previous: &DisplayList, next: &DisplayList, diff: &mut Frame
         });
         index = index.saturating_add(1);
     }
+}
+
+// Loss records compared one by one, each a length-prefixed slice.
+fn compare_losses(previous: &DisplayList, next: &DisplayList, diff: &mut FrameDiff) {
+    let before = loss_slices(previous.section_bytes(SectionKind::Losses));
+    let after = loss_slices(next.section_bytes(SectionKind::Losses));
+    for index in 0..before.len().max(after.len()) {
+        let kind = match (before.get(index), after.get(index)) {
+            (Some(old), Some(new)) if old == new => continue,
+            (Some(_), Some(_)) => RecordChangeKind::Changed,
+            (None, Some(_)) => RecordChangeKind::Added,
+            (Some(_), None) => RecordChangeKind::Removed,
+            (None, None) => continue,
+        };
+        diff.changes.push(RecordChange {
+            section: SectionKind::Losses,
+            index: u32::try_from(index).unwrap_or(u32::MAX),
+            kind,
+        });
+    }
+}
+
+// A validated loss section split into its records.
+fn loss_slices(bytes: &[u8]) -> Vec<&[u8]> {
+    let mut records = Vec::new();
+    let mut at = 0_usize;
+    while let Some(word) = bytes.get(at..at + 2) {
+        let length = usize::from(u16::from_le_bytes([
+            word.first().copied().unwrap_or(0),
+            word.get(1).copied().unwrap_or(0),
+        ]));
+        let Some(record) = bytes.get(at..at + length).filter(|_| length > 0) else {
+            break;
+        };
+        records.push(record);
+        at += length;
+    }
+    records
 }

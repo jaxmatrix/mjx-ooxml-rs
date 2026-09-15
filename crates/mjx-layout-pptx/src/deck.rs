@@ -36,6 +36,8 @@
 //! keystroke cost a document. [`SlideDeck::re_read_slide`] refreshes exactly one slide, which is the
 //! granularity [`BoxModel::invalidate`](mjx_layout::BoxModel::invalidate) reports in.
 
+use mjx_layout::{FrameContent, LayoutLossKind};
+use mjx_pptx::GraphicFrameKind;
 use std::ops::Range;
 
 use mjx_dml::{
@@ -130,6 +132,8 @@ pub enum ShapeContent {
     /// around: `mjx-layout-chart` sits at rank 3.55 and this crate at 3.6, so all three box models
     /// reach one engine, and none of them parses a `c:chartSpace` itself.
     Chart(Box<ChartModel>),
+    /// A frame this crate places and does not lay the content of out, and the loss that is.
+    NotLaidOut(LayoutLossKind),
 }
 
 /// A table, in the vocabulary laying it out needs.
@@ -433,6 +437,33 @@ fn read_slide(deck: &mut Presentation, surface: Surface) -> Result<Slide, PptxEr
     for index in 0..count {
         read_shape(deck, surface, &mut vec![index], &mut shapes)?;
     }
+    // Ink wrapped in `mc:AlternateContent` sits outside the shape index space, so it is addressed after the last shape.
+    let wrapped = deck
+        .ink_references(surface)?
+        .into_iter()
+        .filter(|reference| reference.shape_index.is_none());
+    for (ordinal, reference) in wrapped.enumerate() {
+        shapes.push(Shape {
+            path: vec![u32::try_from(count + ordinal).unwrap_or(u32::MAX)],
+            kind: ShapeKind::ContentPart,
+            bounds: reference.bounds.map(|bounds| {
+                LayoutRect::from_edges(
+                    Emu::from_emu(bounds.offset_x_emu),
+                    Emu::from_emu(bounds.offset_y_emu),
+                    Emu::from_emu(bounds.offset_x_emu.saturating_add(bounds.width_emu)),
+                    Emu::from_emu(bounds.offset_y_emu.saturating_add(bounds.height_emu)),
+                )
+            }),
+            rotation: Angle::from_degrees(0.0),
+            flip_horizontal: false,
+            flip_vertical: false,
+            decoration: ShapeDecoration::default(),
+            body: None,
+            content: ShapeContent::NotLaidOut(LayoutLossKind::FrameContentNotLaidOut(
+                FrameContent::Ink,
+            )),
+        });
+    }
     // The deck's own accents, or the Office defaults when it states none. Reading the theme once per
     // surface rather than once per chart is the difference between one parse and one per frame.
     let palette = deck
@@ -491,13 +522,25 @@ fn read_shape(
             // embedded object — is `Nothing` and takes up the room it occupies, as before.
             Err(PptxError::ShapeIsNotATable) => match read_chart(deck, surface, path)? {
                 Some(chart) => ShapeContent::Chart(Box::new(chart)),
-                None => ShapeContent::Nothing,
+                None => frame_loss(deck, surface, path)?,
             },
             Err(error) => return Err(error),
         },
         ShapeKind::Picture => ShapeContent::Picture(PictureContent {
             image_rel_id: deck.picture_image_rel_id(surface, path.clone())?,
         }),
+        // A content part is placed and never laid out: ink when its part is InkML, and content not read otherwise.
+        ShapeKind::ContentPart => {
+            let ink = match path.as_slice() {
+                [index] => deck.ink_part_for_shape(surface, *index)?.is_some(),
+                _ => false,
+            };
+            ShapeContent::NotLaidOut(if ink {
+                LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink)
+            } else {
+                LayoutLossKind::DroppedByReader
+            })
+        }
         _ => ShapeContent::Nothing,
     };
 
@@ -531,6 +574,23 @@ fn read_shape(
         }
     }
     Ok(())
+}
+
+/// What a graphic frame that holds neither a table nor a readable chart holds, as the loss an empty frame is.
+fn frame_loss(
+    deck: &mut Presentation,
+    surface: Surface,
+    path: &[usize],
+) -> Result<ShapeContent, PptxError> {
+    let frame = |content| LayoutLossKind::FrameContentNotLaidOut(content);
+    Ok(ShapeContent::NotLaidOut(
+        match deck.graphic_frame_kind(surface, path.to_vec())? {
+            Some(GraphicFrameKind::Diagram) => frame(FrameContent::Diagram),
+            Some(GraphicFrameKind::OleObject) => frame(FrameContent::EmbeddedObject),
+            Some(GraphicFrameKind::Chart) => frame(FrameContent::Chart),
+            _ => LayoutLossKind::DroppedByReader,
+        },
+    ))
 }
 
 /// Reads the chart a graphic frame holds, or `None` when it holds none.

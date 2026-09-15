@@ -28,6 +28,8 @@ pub struct InkReference {
     pub rel_id: String,
     /// The InkML part that relationship resolves to, or `None` when it resolves outside the package.
     pub part: Option<PartName>,
+    /// Where the content part sits on the surface, or `None` when it states no transform.
+    pub bounds: Option<crate::ShapeBounds>,
 }
 
 // ---------------------------------------------------------------------------------------------

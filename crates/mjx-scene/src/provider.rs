@@ -59,6 +59,9 @@ pub const PLACEHOLDER_CORNER_FRACTION: f32 = 0.18;
 /// through it is not a preset shape DrawingML defines.
 pub const PLACEHOLDER_FRAME_FRACTION: f32 = 0.08;
 
+/// What a stand-in outline is called when it stands for a handle no provider resolved.
+pub const UNRESOLVED_OUTLINE_LABEL: &str = "Shape outline not resolved";
+
 /// Where an outline came from.
 ///
 /// Carried on every [`ResolvedOutline`] so that a stand-in can never be mistaken for the real thing

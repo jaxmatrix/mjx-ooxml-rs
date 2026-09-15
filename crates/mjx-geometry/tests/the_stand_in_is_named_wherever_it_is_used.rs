@@ -64,8 +64,21 @@ const CONSTRUCTIONS: &[&str] = &[
     "PlaceholderGeometry {",
 ];
 
-/// The one shipped file allowed to build a stand-in, and what it is.
-const THE_ONE_SHIPPED_CONSTRUCTION: &str = "crates/mjx-geometry/src/provider.rs";
+/// The shipped files allowed to build a stand-in, each with what it is.
+const THE_SHIPPED_CONSTRUCTIONS: &[(&str, &str)] = &[
+    (
+        "crates/mjx-geometry/src/provider.rs",
+        "the provider's own `UnknownShapePolicy::StandIn` fall-through",
+    ),
+    (
+        "crates/mjx-paint/src/plan.rs",
+        "the one placeholder drawing every loss is lowered to, over content that cannot be drawn (MJXOFF-299)",
+    ),
+    (
+        "crates/mjx-scene-xlsx/src/geometry.rs",
+        "a worksheet issues no outline handle, so any that arrives is a named placeholder rather than a failed frame (MJXOFF-299)",
+    ),
+];
 
 /// Directories a walk never enters: build output, version control, and the git-ignored reference
 /// tree, which is a **symlink** in this worktree and must not be followed.
@@ -190,7 +203,10 @@ fn only_the_providers_own_fall_through_builds_a_stand_in_in_shipped_code() {
 
     assert_eq!(
         shipped,
-        BTreeSet::from([THE_ONE_SHIPPED_CONSTRUCTION.to_owned()]),
+        THE_SHIPPED_CONSTRUCTIONS
+            .iter()
+            .map(|(path, _)| (*path).to_owned())
+            .collect::<BTreeSet<String>>(),
         "shipped code builds a stand-in somewhere other than the provider's own \
          `UnknownShapePolicy::StandIn` fall-through. That is what MJXOFF-206 removed: a render path \
          that can substitute a framed crossed rectangle for a shape it could have drawn is a page \

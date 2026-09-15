@@ -2,6 +2,8 @@
 //!
 //! MJX-LEDGER-LIMITATION: an arrowhead (`a:headEnd`, `a:tailEnd`) is carried through the display
 //! list and never tessellated, so no line draws its line ends.
+//!
+//! MJX-STAND-IN: the placeholder geometry answers no outline here, because the one path the suite strokes is a path.
 
 use mjx_scene::{
     CompoundStroke, DashPattern, FillRule, Geometry, LineCap, LineEnd, LineEndShape, LineEndSize,

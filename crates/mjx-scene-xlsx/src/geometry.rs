@@ -42,7 +42,10 @@
 //! the `mjx-geometry` edge that rank 3.7 already permits. That crate does not exist, and naming
 //! which child creates it is a decision for whoever schedules it.
 
-use mjx_scene::{GeometryProvider, ResolvedOutline, SceneError, SceneRect};
+use mjx_scene::{
+    GeometryProvider, PlaceholderGeometry, ResolvedOutline, SceneError, SceneRect,
+    UNRESOLVED_OUTLINE_LABEL,
+};
 
 /// The provider for a worksheet: it answers no handle, because a worksheet issues none.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -73,8 +76,10 @@ impl SheetGeometry {
 }
 
 impl GeometryProvider for SheetGeometry {
-    fn outline(&self, outline: u64, _within: SceneRect) -> Result<ResolvedOutline, SceneError> {
-        // See the module documentation: a stand-in here would hide a defect behind a shape.
-        Err(SceneError::UnresolvedOutline { outline })
+    fn outline(&self, outline: u64, within: SceneRect) -> Result<ResolvedOutline, SceneError> {
+        // MJX-STAND-IN: no worksheet fragment issues an outline handle, so any that arrives is a named placeholder rather than a failed frame (MJXOFF-299).
+        let mut placeholder = PlaceholderGeometry::new().outline(outline, within)?;
+        placeholder.label = UNRESOLVED_OUTLINE_LABEL.to_owned();
+        Ok(placeholder)
     }
 }

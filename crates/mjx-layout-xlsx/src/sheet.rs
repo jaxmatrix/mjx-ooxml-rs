@@ -452,6 +452,24 @@ impl SheetGrid {
             .filter(|text| !text.is_empty())
     }
 
+    /// Whether a cell's string carries formatted runs of its own, which the cell's one format flattens.
+    #[must_use]
+    pub fn cell_is_rich(&self, cell: &mjx_sml::Cell<'_>) -> bool {
+        let formatted = |item: mjx_sml::StringItem<'_>| {
+            item.runs().any(|run| run.properties_markup().is_some())
+        };
+        if let Some(shared) = cell.shared_string_index() {
+            return self
+                .shared_strings
+                .as_ref()
+                .and_then(|table| table.item(shared))
+                .is_some_and(formatted);
+        }
+        cell.inline_string_markup()
+            .and_then(|inline| InlineString::parse(inline).ok())
+            .is_some_and(|string| formatted(string.item()))
+    }
+
     /// Whether a cell holds anything a reader would see — which is what *"overflow stops at the
     /// first non-empty cell"* actually means.
     ///

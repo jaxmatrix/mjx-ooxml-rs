@@ -29,7 +29,7 @@ use crate::gradient::RAMP_TEXELS;
 use crate::painter::{
     Antialiasing, BackendReport, Capabilities, DrawReport, Frame, FrameReport, Painter, Pixels,
 };
-use crate::plan::{plan_frame, LayerKind};
+use crate::plan::LayerKind;
 use crate::pool::PoolHandle;
 use crate::resources::Resources;
 use crate::surface::{SurfaceHost, Viewport};
@@ -243,7 +243,12 @@ impl Painter for WgpuPainter {
         };
         let viewport = (width, height);
 
-        let plan = plan_frame(list, resources.geometry(), &mut self.tessellator)?;
+        let plan = crate::plan::plan_frame_from(
+            list,
+            crate::plan::PlanSources::from_resources(resources),
+            &mut self.tessellator,
+            crate::plan::PlanOptions::for_raster(),
+        )?;
         let mut report = plan.report();
 
         // Upload only what changed. A frame that drew the same words as the last one takes a delta

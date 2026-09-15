@@ -25,6 +25,7 @@ use mjx_scene::{
     DeviceScale, FillStyle, ImageFillMode, PatternPreset, ResourceResolver, StrokeAlignment,
     PATTERN_PRESET_COUNT,
 };
+use mjx_scene::{Resolved, SceneLossKind};
 use mjx_scene_pptx::paint::color_of;
 use mjx_scene_pptx::{fill_style, pattern_preset, stroke_style, SlideGeometry, SlideResources};
 
@@ -44,7 +45,7 @@ fn blue() -> ColorSpec {
 fn a_colour_reads_with_and_without_its_hash_and_refuses_what_it_cannot_read() {
     assert_eq!(
         color_of(&ColorSpec::Srgb("FF8000".to_owned())).map(|c| (c.red, c.green, c.blue, c.alpha)),
-        Some((0xff, 0x80, 0x00, 0xff))
+        Ok((0xff, 0x80, 0x00, 0xff))
     );
     assert_eq!(
         color_of(&ColorSpec::Srgb("#FF8000".to_owned())),
@@ -54,17 +55,17 @@ fn a_colour_reads_with_and_without_its_hash_and_refuses_what_it_cannot_read() {
     );
     assert_eq!(
         color_of(&ColorSpec::Srgb("FF80".to_owned())),
-        None,
+        Err(SceneLossKind::ColourNotResolved),
         "four digits is not a colour, and guessing one would paint a shape a colour no tier states"
     );
     assert_eq!(
         color_of(&ColorSpec::Srgb("GGHHII".to_owned())),
-        None,
+        Err(SceneLossKind::ColourNotResolved),
         "non-hexadecimal digits read as no colour rather than as zero"
     );
     assert_eq!(
         color_of(&ColorSpec::Scheme(mjx_dml::SchemeColor::Accent1)),
-        None,
+        Err(SceneLossKind::ColourNotResolved),
         "a scheme colour reaching this layer is one `mjx-dml` could not resolve — there was no \
          theme — and inventing one would paint the shape off the document's palette"
     );
@@ -74,7 +75,7 @@ fn a_colour_reads_with_and_without_its_hash_and_refuses_what_it_cannot_read() {
             value: Some("C0C0C0".to_owned()),
         })
         .map(|colour| colour.red),
-        Some(0xc0),
+        Ok(0xc0),
         "a system colour resolved to a hex triplet reads like any other"
     );
 }
@@ -83,15 +84,15 @@ fn a_colour_reads_with_and_without_its_hash_and_refuses_what_it_cannot_read() {
 fn every_arm_of_a_fill_translates() {
     assert!(matches!(
         fill_style(&FillSpec::None, &no_images),
-        FillStyle::None
+        Ok(FillStyle::None)
     ));
     assert!(matches!(
         fill_style(&FillSpec::Group, &no_images),
-        FillStyle::None
+        Ok(FillStyle::None)
     ));
     assert!(matches!(
         fill_style(&FillSpec::Solid(blue()), &no_images),
-        FillStyle::Solid(_)
+        Ok(FillStyle::Solid(_))
     ));
 
     let gradient = FillSpec::Gradient {
@@ -107,7 +108,7 @@ fn every_arm_of_a_fill_translates() {
         ],
         angle: Some(Angle::from_degrees(45.0)),
     };
-    let FillStyle::Gradient(ramp) = fill_style(&gradient, &no_images) else {
+    let Ok(FillStyle::Gradient(ramp)) = fill_style(&gradient, &no_images) else {
         panic!("a gradient with two readable stops is a gradient");
     };
     assert_eq!(ramp.stops.len(), 2);
@@ -128,7 +129,7 @@ fn every_arm_of_a_fill_translates() {
                 },
                 &no_images
             ),
-            FillStyle::None
+            Ok(FillStyle::None)
         ),
         "a gradient with no readable stop paints nothing rather than painting black"
     );
@@ -140,10 +141,10 @@ fn every_arm_of_a_fill_translates() {
     };
     assert!(matches!(
         fill_style(&pattern, &no_images),
-        FillStyle::Pattern {
+        Ok(FillStyle::Pattern {
             preset: PatternPreset::DiagonalBrick,
             ..
-        }
+        })
     ));
 
     let colourless_pattern = FillSpec::Pattern {
@@ -154,7 +155,7 @@ fn every_arm_of_a_fill_translates() {
     assert!(
         matches!(
             fill_style(&colourless_pattern, &no_images),
-            FillStyle::Solid(_)
+            Ok(FillStyle::Solid(_))
         ),
         "a pattern with no preset falls back to its foreground as a solid, which is what a hatch \
          reduces to below one pixel"
@@ -164,14 +165,14 @@ fn every_arm_of_a_fill_translates() {
         rel_id: "rId7".to_owned(),
         mode: PictureFillMode::Tile,
     };
-    let FillStyle::Image(image) = fill_style(&picture, &one_image) else {
+    let Ok(FillStyle::Image(image)) = fill_style(&picture, &one_image) else {
         panic!("a picture fill whose relationship the page names is an image fill");
     };
     assert_eq!(image.handle, 3);
     assert_eq!(image.fill_mode, ImageFillMode::Tile);
     assert!(
-        matches!(fill_style(&picture, &no_images), FillStyle::None),
-        "a picture fill nobody can supply paints nothing rather than a wrong colour"
+        matches!(fill_style(&picture, &no_images), Err(SceneLossKind::FillImageNotSupplied)),
+        "a picture fill nobody can supply is counted as a fill picture not supplied rather than painted a wrong colour"
     );
 }
 
@@ -199,6 +200,8 @@ fn an_outline_carries_every_attribute_it_states() {
         }),
     };
     let stroke = stroke_style(&spec, DeviceScale::UNZOOMED, &no_images)
+        .ok()
+        .flatten()
         .expect("an outline with a readable fill is a stroke");
 
     assert!(
@@ -230,7 +233,7 @@ fn an_outline_that_fills_with_nothing_is_no_outline_at_all() {
         ..LineSpec::new()
     };
     assert!(
-        stroke_style(&unfilled, DeviceScale::UNZOOMED, &no_images).is_none(),
+        matches!(stroke_style(&unfilled, DeviceScale::UNZOOMED, &no_images), Ok(None)),
         "a line with no fill draws nothing; answering with a stroke of `FillStyle::None` would make \
          the painter open a draw call that covers no pixels"
     );
@@ -241,6 +244,8 @@ fn an_outline_that_fills_with_nothing_is_no_outline_at_all() {
         ..LineSpec::new()
     };
     let stroke = stroke_style(&hairline, DeviceScale::UNZOOMED, &no_images)
+        .ok()
+        .flatten()
         .expect("a hairline is still a stroke");
     assert!(
         stroke.width >= 1.0,
@@ -310,6 +315,7 @@ fn a_resolver_answers_from_the_catalogue_it_was_given_and_from_nothing_else() {
 
     let decoration = resources
         .decoration(mjx_layout::DecorationRef::new(0))
+        .answered()
         .expect("handle zero was issued");
     assert!(
         !decoration.effects.is_empty(),
@@ -319,12 +325,12 @@ fn a_resolver_answers_from_the_catalogue_it_was_given_and_from_nothing_else() {
 
     assert_eq!(
         resources.decoration(mjx_layout::DecorationRef::new(9_999)),
-        None,
+        Resolved::NothingToDraw,
         "a handle the page never issued resolves to nothing rather than to whatever is first"
     );
     assert_eq!(
         resources.image(mjx_layout::ImageRef::new(0)),
-        None,
+        Resolved::NothingToDraw,
         "the fixture holds no picture, so no image handle resolves"
     );
     assert_eq!(
@@ -332,9 +338,8 @@ fn a_resolver_answers_from_the_catalogue_it_was_given_and_from_nothing_else() {
             mjx_layout::PartId::new(0),
             mjx_layout::SourcePath::new(&[0, 0, 0, 0])
         )),
-        None,
-        "a run's own fill has no table to resolve through yet, and answering `None` is what makes \
-         `build_scene` fall back to its documented default text colour"
+        Resolved::Unanswerable(SceneLossKind::TextPaintDefaulted),
+        "a run's own fill has no table to resolve through (MJXOFF-311), so the resolver says it cannot answer and the builder counts the default text colour it draws"
     );
 }
 

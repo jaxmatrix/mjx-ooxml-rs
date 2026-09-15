@@ -25,6 +25,7 @@
 use crate::checkpoint::{Checkpoint, ModelSignature};
 use crate::fragment::FragmentTree;
 use crate::index::SpatialIndex;
+use crate::loss::LayoutLosses;
 use crate::measure::{LayoutRect, LayoutSize};
 use crate::source::SourceRef;
 use mjx_ooxml_core::measure::Emu;
@@ -318,6 +319,7 @@ pub struct PageFragments {
     fragments: FragmentTree,
     index: SpatialIndex,
     continuation: Option<Checkpoint>,
+    losses: LayoutLosses,
 }
 
 impl PageFragments {
@@ -331,7 +333,21 @@ impl PageFragments {
             fragments,
             index,
             continuation,
+            losses: LayoutLosses::new(),
         }
+    }
+
+    /// The same page, carrying the losses its layout recorded.
+    #[must_use]
+    pub fn with_losses(mut self, losses: LayoutLosses) -> Self {
+        self.losses = losses;
+        self
+    }
+
+    /// What the layout of this page could not lay out.
+    #[must_use]
+    pub const fn losses(&self) -> &LayoutLosses {
+        &self.losses
     }
 
     /// Which page this is.

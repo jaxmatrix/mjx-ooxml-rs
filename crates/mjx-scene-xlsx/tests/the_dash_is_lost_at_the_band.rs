@@ -69,6 +69,7 @@ fn a_dashed_border_draws_solid_in_the_right_colour() {
     let decoration = resolved
         .resources
         .decoration(bands[0])
+        .answered()
         .expect("the band's handle resolves");
     assert_eq!(
         decoration.fill,

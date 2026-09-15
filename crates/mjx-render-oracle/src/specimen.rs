@@ -47,6 +47,7 @@ use mjx_paint::{
     DrawReport, NoGlyphs, NoImages, OffscreenSurface, PaintError, Painter, PdfPainter, Pixels,
     Resources, SoftwarePainter, Viewport,
 };
+use mjx_scene::Resolved;
 use mjx_scene::{
     build_scene, Color, Decoration, DisplayList, FillStyle, Gradient, GradientStop, Image,
     ResourceResolver, SceneOptions, StrokeStyle,
@@ -402,7 +403,7 @@ impl Palette {
 }
 
 impl ResourceResolver for Palette {
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration> {
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration> {
         let paper = Color {
             red: 0xff,
             green: 0xff,
@@ -416,27 +417,29 @@ impl ResourceResolver for Palette {
             alpha: 0xff,
         };
         match reference.number() {
-            DECORATION_PAPER => Some(Decoration::filled(FillStyle::Solid(paper))),
-            DECORATION_INK => Some(Decoration::filled(FillStyle::Solid(self.ink()))),
-            DECORATION_STROKED => Some(Decoration {
+            DECORATION_PAPER => Resolved::Answered(Decoration::filled(FillStyle::Solid(paper))),
+            DECORATION_INK => Resolved::Answered(Decoration::filled(FillStyle::Solid(self.ink()))),
+            DECORATION_STROKED => Resolved::Answered(Decoration {
                 fill: FillStyle::Solid(self.ink()),
                 stroke: Some(StrokeStyle::solid(2.0, edge)),
                 ..Decoration::none()
             }),
-            DECORATION_GRADIENT => Some(Decoration::filled(FillStyle::Gradient(Gradient::linear(
-                vec![
-                    GradientStop::new(0.0, self.ink()),
-                    GradientStop::new(0.5, paper),
-                    GradientStop::new(1.0, edge),
-                ],
-                0.0,
-            )))),
-            DECORATION_TRANSLUCENT => Some(Decoration {
+            DECORATION_GRADIENT => {
+                Resolved::Answered(Decoration::filled(FillStyle::Gradient(Gradient::linear(
+                    vec![
+                        GradientStop::new(0.0, self.ink()),
+                        GradientStop::new(0.5, paper),
+                        GradientStop::new(1.0, edge),
+                    ],
+                    0.0,
+                ))))
+            }
+            DECORATION_TRANSLUCENT => Resolved::Answered(Decoration {
                 fill: FillStyle::Solid(edge),
                 opacity: 0.5,
                 ..Decoration::none()
             }),
-            DECORATION_ACCENT => Some(Decoration {
+            DECORATION_ACCENT => Resolved::Answered(Decoration {
                 fill: FillStyle::Solid(Color {
                     red: 0xe0,
                     green: 0xa8,
@@ -446,20 +449,20 @@ impl ResourceResolver for Palette {
                 stroke: Some(StrokeStyle::solid(2.0, edge)),
                 ..Decoration::none()
             }),
-            _ => None,
+            _ => Resolved::NothingToDraw,
         }
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
         // No specimen contains text; see this module's own documentation for why. Answering `None`
         // rather than a colour keeps that true: a specimen that grew a glyph run would draw it in
         // `mjx_scene::DEFAULT_TEXT_COLOR` and the page would visibly change, rather than quietly
         // acquiring a font dependency.
-        None
+        Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: ImageRef) -> Option<Image> {
-        None
+    fn image(&self, _reference: ImageRef) -> Resolved<Image> {
+        Resolved::NothingToDraw
     }
 }
 

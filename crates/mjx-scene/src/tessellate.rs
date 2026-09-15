@@ -722,6 +722,8 @@ pub struct SceneMesh {
     /// only place it can learn it: the mesh is a vertex buffer and the display list's
     /// [`Geometry::Unresolved`] says only that *somebody* had to resolve it, not what they answered.
     pub provenance: Provenance,
+    /// How many of the stroke's line ends the tessellator drew no triangles for.
+    pub line_ends_not_drawn: u8,
 }
 
 /// Every mesh a display list needs, in paint order.
@@ -754,6 +756,7 @@ pub fn tessellate_scene(
                     role: MeshRole::Fill,
                     mesh,
                     provenance,
+                    line_ends_not_drawn: 0,
                 });
             }
             Command::StrokePath { geometry, stroke } => {
@@ -772,12 +775,19 @@ pub fn tessellate_scene(
                     role: MeshRole::Stroke,
                     mesh,
                     provenance,
+                    line_ends_not_drawn: undrawn_line_ends(&stroke),
                 });
             }
             _ => {}
         }
     }
     Ok(meshes)
+}
+
+// How many of a stroke's two ends name an arrowhead, none of which the stroker draws (MJXOFF-88 owns their proportions).
+fn undrawn_line_ends(stroke: &Stroke) -> u8 {
+    u8::from(stroke.head.shape != crate::paint::LineEndShape::None)
+        + u8::from(stroke.tail.shape != crate::paint::LineEndShape::None)
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1418,5 +1428,73 @@ fn push_path_words(words: &mut Vec<u32>, commands: &[PathCommand]) {
             }
             PathCommand::Close => words.push(5),
         }
+    }
+}
+
+#[cfg(test)]
+mod line_end_tests {
+    use super::*;
+    use crate::build::SceneBuilder;
+    use crate::paint::{LineEnd, LineEndShape, Paint};
+    use crate::PathCommand;
+    use crate::ScenePoint;
+
+    // A provider no path geometry ever asks.
+    struct Unasked;
+
+    impl GeometryProvider for Unasked {
+        fn outline(
+            &self,
+            outline: u64,
+            _within: SceneRect,
+        ) -> Result<crate::provider::ResolvedOutline, SceneError> {
+            Err(SceneError::UnresolvedOutline { outline })
+        }
+    }
+
+    #[test]
+    fn a_stroke_counts_each_arrowhead_the_stroker_draws_no_triangles_for() {
+        let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, 100.0, 100.0);
+        let paint = builder
+            .add_paint(Paint::Solid(mjx_tokens::Color {
+                red: 0,
+                green: 0,
+                blue: 0,
+                alpha: 0xff,
+            }))
+            .expect("a paint");
+        let geometry = builder
+            .add_geometry(&Geometry::path(
+                vec![
+                    PathCommand::MoveTo(ScenePoint::new(10.0, 50.0)),
+                    PathCommand::LineTo(ScenePoint::new(90.0, 50.0)),
+                ],
+                FillRule::NonZero,
+            ))
+            .expect("a line");
+        let stroke = builder
+            .add_stroke(Stroke {
+                paint,
+                width: 2.0,
+                cap: LineCap::Flat,
+                join: LineJoin::Round,
+                dash: DashPattern::Solid,
+                alignment: StrokeAlignment::Centered,
+                compound: CompoundStroke::Single,
+                head: LineEnd {
+                    shape: LineEndShape::Triangle,
+                    ..LineEnd::default()
+                },
+                tail: LineEnd::default(),
+            })
+            .expect("a stroke");
+        builder
+            .push(Command::StrokePath { geometry, stroke })
+            .expect("a stroke command");
+        let list = builder.finish().expect("the list builds");
+        let meshes = tessellate_scene(&list, &Unasked, &mut Tessellator::new())
+            .expect("the list tessellates");
+        assert_eq!(meshes.len(), 1);
+        assert_eq!(meshes[0].line_ends_not_drawn, 1);
     }
 }

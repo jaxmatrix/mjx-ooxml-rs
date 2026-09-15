@@ -165,7 +165,7 @@ pub use document::{
 // in the surface — a box model above this crate reads numbers, not DrawingML.
 pub use document::{
     AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
-    DrawingDistances, DrawingFormatting, DrawingPlacement, FloatingTableAnchoring,
+    DrawingDistances, DrawingFormatting, DrawingPlacement, FloatingTableAnchoring, FramedContent,
     HorizontalAnchoring, RowFormatting, RowHeightSpecification, TableFormatting, VerticalAnchoring,
     WidthSpecification, WrapFormatting,
 };

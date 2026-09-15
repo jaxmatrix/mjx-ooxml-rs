@@ -141,7 +141,7 @@ fn deck_page(bytes: &[u8]) -> Page {
 fn sheet_page(bytes: &[u8], width: f64, height: f64) -> Page {
     let mut book = Workbook::open(bytes).expect("the input opens");
     let theme = book.theme_colors().expect("the theme part reads");
-    let grid = SheetGrid::read(&mut book, 0).expect("the sheet reads");
+    let grid = SheetGrid::read(&book, 0).expect("the sheet reads");
     let constraints = mjx_layout_xlsx::constraints_for(LayoutSize {
         width: Emu::from_inches(width),
         height: Emu::from_inches(height),

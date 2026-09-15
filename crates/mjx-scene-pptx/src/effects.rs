@@ -32,6 +32,7 @@ use mjx_dml::{ColorSpec, EffectListSpec};
 use mjx_ooxml_core::measure::{Angle, Emu};
 use mjx_scene::{
     pixels_from_emu, BlendMode, DeviceScale, EffectKind, EffectStyle, FillStyle, RectangleAnchor,
+    SceneLossKind,
 };
 
 use crate::paint::{color_of, fill_style};
@@ -42,12 +43,11 @@ use crate::paint::{color_of, fill_style};
 /// [`mjx_scene::Decoration::is_invisible`] wants to see rather than a chain of no-ops.
 ///
 /// `image` resolves a fill overlay's picture, as [`fill_style`] takes it.
-#[must_use]
 pub fn effect_styles(
     spec: &EffectListSpec,
     scale: DeviceScale,
     image: &dyn Fn(&str) -> Option<u64>,
-) -> Vec<EffectStyle> {
+) -> Result<Vec<EffectStyle>, SceneLossKind> {
     let mut chain: Vec<EffectStyle> = Vec::new();
 
     // The schema's own child order, which is also the order the effects apply in. Each entry
@@ -60,19 +60,19 @@ pub fn effect_styles(
     }
     if let Some(overlay) = &spec.fill_overlay {
         let mut effect = base(EffectKind::FillOverlay, &chain);
-        effect.fill = fill_style(&overlay.fill, image);
+        effect.fill = fill_style(&overlay.fill, image)?;
         effect.blend = blend_mode(overlay.blend);
         chain.push(effect);
     }
     if let Some(glow) = &spec.glow {
         let mut effect = base(EffectKind::Glow, &chain);
-        effect.fill = solid(&glow.color);
+        effect.fill = solid(&glow.color)?;
         effect.radius = pixels(glow.radius.unwrap_or(Emu::from_emu(0)), scale);
         chain.push(effect);
     }
     if let Some(shadow) = &spec.inner_shadow {
         let mut effect = base(EffectKind::InnerShadow, &chain);
-        effect.fill = solid(&shadow.color);
+        effect.fill = solid(&shadow.color)?;
         effect.radius = pixels(shadow.blur_radius.unwrap_or(Emu::from_emu(0)), scale);
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
@@ -80,7 +80,7 @@ pub fn effect_styles(
     }
     if let Some(shadow) = &spec.outer_shadow {
         let mut effect = base(EffectKind::OuterShadow, &chain);
-        effect.fill = solid(&shadow.color);
+        effect.fill = solid(&shadow.color)?;
         effect.radius = pixels(shadow.blur_radius.unwrap_or(Emu::from_emu(0)), scale);
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
@@ -99,7 +99,7 @@ pub fn effect_styles(
         // shared shape is the honest reading, and which preset differs how is a question for the
         // Windows sitting.
         let mut effect = base(EffectKind::OuterShadow, &chain);
-        effect.fill = solid(&shadow.color);
+        effect.fill = solid(&shadow.color)?;
         effect.distance = pixels(shadow.distance.unwrap_or(Emu::from_emu(0)), scale);
         effect.direction = radians(shadow.direction);
         chain.push(effect);
@@ -132,7 +132,7 @@ pub fn effect_styles(
         chain.push(effect);
     }
 
-    chain
+    Ok(chain)
 }
 
 /// An effect of `kind` consuming whatever the chain has produced so far.
@@ -165,8 +165,8 @@ fn base(kind: EffectKind, chain: &[EffectStyle]) -> EffectStyle {
 }
 
 /// A solid fill of the colour an effect states, or nothing when it states none this build can read.
-fn solid(color: &ColorSpec) -> FillStyle {
-    color_of(color).map_or(FillStyle::None, FillStyle::Solid)
+fn solid(color: &ColorSpec) -> Result<FillStyle, SceneLossKind> {
+    color_of(color).map(FillStyle::Solid)
 }
 
 /// A length in device pixels.

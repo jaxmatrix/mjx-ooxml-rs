@@ -116,6 +116,8 @@ pub struct InlineObject {
     pub ascent: Emu,
     /// How far below.
     pub descent: Emu,
+    /// What a drawing's graphic frames, or `None` for an object that is not a drawing.
+    pub framed: Option<mjx_docx::FramedContent>,
 }
 
 /// A paragraph, composed: the string it is laid out from, the runs over it, and the map back.
@@ -309,8 +311,8 @@ enum Event {
     Field { end: usize, value: String },
     /// A note reference mark.
     NoteMark(String),
-    /// An inline drawing.
-    Drawing(usize, Emu, Emu),
+    /// An inline drawing, and what its graphic frames.
+    Drawing(usize, Emu, Emu, mjx_docx::FramedContent),
     /// An equation.
     Equation(usize, Emu, Emu, Emu),
     /// A tracked-change span this view does not show runs from here to `end`.
@@ -405,6 +407,7 @@ impl<'a> Builder<'a> {
         &mut self,
         at: usize,
         kind: InlineObjectKind,
+        framed: Option<mjx_docx::FramedContent>,
         width: Emu,
         ascent: Emu,
         descent: Emu,
@@ -426,6 +429,7 @@ impl<'a> Builder<'a> {
         self.objects.push(InlineObject {
             at: start,
             kind,
+            framed,
             width,
             ascent,
             descent,
@@ -471,6 +475,7 @@ impl<'a> Builder<'a> {
                     index,
                     Emu::from_emu(drawing.width),
                     Emu::from_emu(drawing.height),
+                    drawing.content,
                 ),
             ));
         }
@@ -530,10 +535,11 @@ impl<'a> Builder<'a> {
                 Event::NoteMark(mark) => {
                     self.push_generated(&mark, offset, PieceKind::NoteMark, SUPERSCRIPT_SCALE);
                 }
-                Event::Drawing(index, width, height) => {
+                Event::Drawing(index, width, height, framed) => {
                     self.push_object(
                         offset,
                         InlineObjectKind::Drawing(index),
+                        Some(framed),
                         width,
                         height,
                         Emu::ZERO,
@@ -543,6 +549,7 @@ impl<'a> Builder<'a> {
                     self.push_object(
                         offset,
                         InlineObjectKind::Equation(index),
+                        None,
                         width,
                         ascent,
                         descent,

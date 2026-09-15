@@ -77,7 +77,7 @@ fn band_fills(tree: &mjx_layout::FragmentTree, resources: &SheetResources) -> Ve
             Fragment::Box(box_fragment) if box_fragment.cell.is_none() => box_fragment.decoration,
             _ => None,
         })
-        .filter_map(|handle| resources.decoration(handle))
+        .filter_map(|handle| resources.decoration(handle).answered())
         .map(|decoration| decoration.fill)
         .collect()
 }
@@ -87,6 +87,7 @@ fn the_gradient_reaches_both_of_its_stops() {
     let (tree, resources) = resolved();
     let decoration = resources
         .decoration(cell_handle(&tree, 0, 0))
+        .answered()
         .expect("A1's handle resolves");
     let FillStyle::Gradient(gradient) = &decoration.fill else {
         panic!(
@@ -167,6 +168,7 @@ fn the_font_colour_reaches_the_text() {
 
     let decoration = resources
         .text_decoration(&source)
+        .answered()
         .expect("the run's cell states a font colour, so the resolver answers");
     assert_eq!(
         decoration.fill,
@@ -190,7 +192,10 @@ fn a_cell_with_no_stated_colour_answers_nothing() {
     let (tree, resources) = resolved();
     // B1..M1 carry the default format, which states no colour at all.
     let handle = cell_handle(&tree, 0, 1);
-    let decoration = resources.decoration(handle).expect("the handle resolves");
+    let decoration = resources
+        .decoration(handle)
+        .answered()
+        .expect("the handle resolves");
     assert_eq!(
         decoration.fill,
         FillStyle::None,

@@ -61,8 +61,7 @@ use crate::painter::{
     GraphicsApi, Painter, Pixels,
 };
 use crate::plan::{
-    plan_frame_with, DrawOp, EffectNode, FramePlan, LayerKind, OpOrigin, PaintProgram, PlanOptions,
-    VectorPath,
+    DrawOp, EffectNode, FramePlan, LayerKind, OpOrigin, PaintProgram, PlanOptions, VectorPath,
 };
 use crate::resources::Resources;
 use crate::surface::{SurfaceHost, Viewport};
@@ -241,11 +240,14 @@ impl Painter for SvgPainter {
         }
         // The vector plan: the same walk every painter takes, keeping the outline each shape's
         // triangles were made from.
-        let plan = plan_frame_with(
+        let plan = crate::plan::plan_frame_from(
             list,
-            resources.geometry(),
+            crate::plan::PlanSources::from_resources(resources),
             &mut self.tessellator,
-            PlanOptions::for_vector(),
+            SVG_UNEXPRESSED_EFFECTS.into_iter().fold(
+                PlanOptions::for_vector().writing_text(true),
+                PlanOptions::not_expressing,
+            ),
         )?;
         let report = plan.report();
         // A document exporter never asks the atlas for its delta — it draws outlines — but taking it
@@ -457,6 +459,34 @@ impl SvgPainter {
                         out.push_str("</g>\n");
                     }
                 }
+                DrawOp::Placeholder {
+                    transform,
+                    bounds,
+                    outline,
+                    label,
+                    origin,
+                    ..
+                } => {
+                    let Some(outline) = outline else {
+                        continue;
+                    };
+                    let (size, x, y) = super::label_placement(*bounds, label);
+                    out.push_str(&format!(
+                        "<g{} data-mjx-command=\"{}\" data-mjx-loss=\"{}\"><path d=\"{}\" \
+                         fill=\"{}\" fill-opacity=\"{}\" fill-rule=\"evenodd\"/><text x=\"{}\" \
+                         y=\"{}\" font-family=\"sans-serif\" font-size=\"{}\">{}</text></g>\n",
+                        transform_attribute(*transform),
+                        origin.command,
+                        xml_escape(label),
+                        svg_path_data(&outline.commands),
+                        hex(crate::PLACEHOLDER_WARNING),
+                        number(opacity(crate::PLACEHOLDER_WARNING)),
+                        number(x),
+                        number(y),
+                        number(size),
+                        xml_escape(label)
+                    ));
+                }
                 DrawOp::Composite { layer: child, .. } => {
                     self.emit_group(plan, *child, resources, out);
                 }
@@ -597,6 +627,11 @@ impl SvgPainter {
                 "document"
             },
             match provenance.label.as_deref() {
+                Some(label) if provenance.is_placeholder() => format!(
+                    " data-mjx-label=\"{}\" data-mjx-loss=\"{}\"",
+                    xml_escape(label),
+                    crate::PainterLossKind::OutlineUnresolved.label()
+                ),
                 Some(label) => format!(" data-mjx-label=\"{}\"", xml_escape(label)),
                 None => String::new(),
             }
@@ -989,3 +1024,10 @@ fn whiten(fragment: &str) -> String {
     out.push_str(rest);
     out
 }
+
+/// The effect kinds an SVG filter chain does not express; a group rooted in one is drawn without its effect, under a placeholder.
+pub const SVG_UNEXPRESSED_EFFECTS: [EffectKind; 3] = [
+    EffectKind::InnerShadow,
+    EffectKind::FillOverlay,
+    EffectKind::Reflection,
+];

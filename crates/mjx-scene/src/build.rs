@@ -30,14 +30,16 @@ use crate::effect::{Effect, EffectStyle};
 use crate::encoding::{
     opcode, pack_color, path_step, write_f32, write_i16, write_i32, write_u16, write_u32,
     ResourceIndex, SectionKind, CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE, GRADIENT_STOP_STRIDE,
-    GRADIENT_STRIDE, HEADER_BYTES, IMAGE_STRIDE, MAGIC, PAINT_STRIDE, SECTION_ROW_BYTES,
-    STROKE_STRIDE, TRANSFORM_STRIDE, VERSION,
+    GRADIENT_STRIDE, HEADER_BYTES, IMAGE_STRIDE, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC,
+    PAINT_STRIDE, SECTION_ROW_BYTES, STROKE_STRIDE, TRANSFORM_STRIDE, VERSION,
 };
 use crate::error::SceneError;
 use crate::geometry::{finite, FillRule, Geometry, PathCommand, SceneRect, SceneTransform};
 use crate::glyphs::{
     direction_wire_value, format_wire_value, hinting_wire_value, GlyphImage, SceneGlyphRun,
 };
+use crate::loss::LossCategory;
+use mjx_layout::SourceRef;
 use mjx_tokens::Color;
 
 use crate::list::{
@@ -145,6 +147,7 @@ pub struct SceneBuilder {
     glyphs: Vec<u8>,
     glyph_count: u32,
     images: Table,
+    losses: Vec<u8>,
 }
 
 impl SceneBuilder {
@@ -172,6 +175,7 @@ impl SceneBuilder {
             glyphs: Vec::new(),
             glyph_count: 0,
             images: Table::new(SectionKind::Images, IMAGE_STRIDE),
+            losses: Vec::new(),
         }
     }
 
@@ -773,6 +777,59 @@ impl SceneBuilder {
         Ok(placed.last().copied())
     }
 
+    /// Records a loss at `source`, with a placeholder over `placeholder` drawn at this point of the stream.
+    ///
+    /// # Errors
+    ///
+    /// [`SceneError::TableFull`] when the source path is too deep for one record or the stream too long to be addressed.
+    pub fn add_loss(
+        &mut self,
+        category: LossCategory,
+        source: &SourceRef,
+        placeholder: Option<SceneRect>,
+    ) -> Result<(), SceneError> {
+        let segments = source.path().segments();
+        let length = u16::try_from(LOSS_RECORD_BYTES + segments.len() * 4).map_err(|_| {
+            SceneError::TableFull {
+                section: SectionKind::Losses,
+                count: segments.len(),
+            }
+        })?;
+        let command = u32::try_from(self.command_count).map_err(|_| SceneError::TableFull {
+            section: SectionKind::Commands,
+            count: self.command_count,
+        })?;
+        let (stage, kind) = category.wire();
+        let characters = source.characters();
+        write_u16(&mut self.losses, length);
+        self.losses.push(stage);
+        self.losses.push(kind);
+        self.losses.push(if placeholder.is_some() {
+            LOSS_FLAG_PLACEHOLDER
+        } else {
+            0
+        });
+        self.losses.push(0);
+        // The length fitted a `u16`, so the depth, a quarter of it, does too.
+        write_u16(&mut self.losses, segments.len() as u16);
+        write_u32(&mut self.losses, source.part().number());
+        write_u32(&mut self.losses, characters.start);
+        write_u32(&mut self.losses, characters.end);
+        write_u32(
+            &mut self.losses,
+            if placeholder.is_some() {
+                command
+            } else {
+                u32::MAX
+            },
+        );
+        write_rect(&mut self.losses, placeholder.unwrap_or(SceneRect::EMPTY));
+        for segment in segments {
+            write_u32(&mut self.losses, *segment);
+        }
+        Ok(())
+    }
+
     /// Assemble the bytes and validate them.
     ///
     /// # Errors
@@ -800,6 +857,7 @@ impl SceneBuilder {
             (SectionKind::GlyphRuns, &self.glyph_runs),
             (SectionKind::Glyphs, &self.glyphs),
             (SectionKind::Images, &self.images.bytes),
+            (SectionKind::Losses, &self.losses),
         ];
         let present: Vec<(SectionKind, &[u8])> = sections
             .into_iter()

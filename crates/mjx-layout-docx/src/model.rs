@@ -717,6 +717,7 @@ pub struct DocumentBoxModel {
     total_visited: u64,
     dirty_from: Option<u32>,
     report: PageReport,
+    losses: mjx_layout::LayoutLosses,
 }
 
 impl DocumentBoxModel {
@@ -739,6 +740,7 @@ impl DocumentBoxModel {
             total_visited: 0,
             dirty_from: None,
             report: PageReport::default(),
+            losses: mjx_layout::LayoutLosses::new(),
         }
     }
 
@@ -2091,7 +2093,8 @@ impl BoxModel for DocumentBoxModel {
         };
         self.report = report_of(content, &laid);
         let tree = self.build(content, &laid)?;
-        Ok(PageFragments::new(page, tree, continuation))
+        Ok(PageFragments::new(page, tree, continuation)
+            .with_losses(std::mem::take(&mut self.losses)))
     }
 
     fn estimate_extent(&self, content: &Self::Content, constraints: &Constraints) -> Extent {
@@ -2263,6 +2266,7 @@ impl DocumentBoxModel {
     ) -> Result<FragmentTree, DocumentLayoutError> {
         let mut builder = FragmentTreeBuilder::new();
         let mut catalogue = DecorationCatalogue::new();
+        self.losses = mjx_layout::LayoutLosses::new();
         let page = builder.push_simple(
             None,
             address::root(),
@@ -2400,6 +2404,25 @@ impl DocumentBoxModel {
                             cell: None,
                         }),
                     );
+                    let lost = content
+                        .paragraphs()
+                        .get(float.paragraph)
+                        .and_then(|paragraph| paragraph.drawings().get(float.drawing))
+                        .and_then(|drawing| {
+                            let charted = drawing.id.and_then(|id| content.chart(id)).is_some();
+                            framed_loss(drawing.content, charted)
+                        });
+                    if let Some(kind) = lost {
+                        self.losses.record_at(
+                            address.clone(),
+                            kind,
+                            mjx_layout::LossArea {
+                                rect,
+                                transform: mjx_layout::TransformId::IDENTITY,
+                                clip: None,
+                            },
+                        );
+                    }
                     // A chart's interior. The float's frame is this crate's; everything inside it is
                     // `mjx-layout-chart`'s, reached through one call that PowerPoint's and Excel's
                     // box models make identically — which is what MJXOFF-178's rank 3.55 buys.
@@ -2449,7 +2472,7 @@ impl DocumentBoxModel {
         else {
             return;
         };
-        if !formatting.frames_a_chart {
+        if formatting.content != mjx_docx::FramedContent::Chart {
             return;
         }
         let Some(chart) = formatting.id.and_then(|id| content.chart(id)) else {
@@ -2965,6 +2988,18 @@ impl DocumentBoxModel {
                             cell: None,
                         }),
                     );
+                    if let Some(kind) = object.framed.and_then(|framed| framed_loss(framed, false))
+                    {
+                        self.losses.record_at(
+                            source.clone(),
+                            kind,
+                            mjx_layout::LossArea {
+                                rect,
+                                transform: mjx_layout::TransformId::IDENTITY,
+                                clip: None,
+                            },
+                        );
+                    }
                     if let InlineObjectKind::Equation(index) = object.kind {
                         if let Some(equation) = layout.composition.equations().get(index) {
                             self.emit_math(
@@ -3364,4 +3399,23 @@ fn read_charts(
         }
     }
     Ok(charts)
+}
+
+// What laying out a drawing's frame and nothing inside it loses; a chart this crate laid out loses nothing.
+fn framed_loss(
+    content: mjx_docx::FramedContent,
+    chart_laid_out: bool,
+) -> Option<mjx_layout::LayoutLossKind> {
+    use mjx_docx::FramedContent;
+    use mjx_layout::{FrameContent, LayoutLossKind};
+    let frame = LayoutLossKind::FrameContentNotLaidOut;
+    Some(match content {
+        FramedContent::Chart if chart_laid_out => return None,
+        FramedContent::Chart => frame(FrameContent::Chart),
+        FramedContent::Picture => frame(FrameContent::Picture),
+        FramedContent::Diagram => frame(FrameContent::Diagram),
+        FramedContent::EmbeddedObject => frame(FrameContent::EmbeddedObject),
+        FramedContent::Ink => frame(FrameContent::Ink),
+        FramedContent::Other => LayoutLossKind::DroppedByReader,
+    })
 }

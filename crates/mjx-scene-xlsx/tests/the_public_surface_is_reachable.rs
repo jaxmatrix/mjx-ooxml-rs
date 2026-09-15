@@ -301,16 +301,22 @@ fn the_resolver_answers_from_the_catalogue_it_was_built_with() {
     assert!(resolved
         .resources
         .decoration(DecorationRef::new(u64::MAX))
+        .answered()
         .is_none());
 
     // An address that names no cell — the page's own root path — answers nothing.
     let root = SourceRef::node(mjx_layout::PartId::new(0), SourcePath::root());
-    assert!(resolved.resources.text_decoration(&root).is_none());
+    assert!(resolved
+        .resources
+        .text_decoration(&root)
+        .answered()
+        .is_none());
 
     // A worksheet issues no image handle at all.
     assert!(resolved
         .resources
         .image(mjx_layout::ImageRef::new(0))
+        .answered()
         .is_none());
 
     // A1 holds text, so it has a report and therefore a decoration.
@@ -323,18 +329,21 @@ fn the_resolver_answers_from_the_catalogue_it_was_built_with() {
 }
 
 #[test]
-fn the_geometry_provider_refuses_a_handle_a_worksheet_never_issues() {
+fn the_geometry_provider_answers_a_handle_a_worksheet_never_issues_with_a_named_placeholder() {
     let geometry = SheetGeometry::new();
     assert_eq!(geometry.registered(), 0);
     assert_eq!(geometry.unregistered(), 0);
-    let refused = geometry.outline(7, SceneRect::new(0.0, 0.0, 10.0, 10.0));
+    let answered = geometry
+        .outline(7, SceneRect::new(0.0, 0.0, 10.0, 10.0))
+        .expect("no outline request fails the frame (MJXOFF-299)");
+    assert_eq!(
+        answered.provenance,
+        mjx_scene::OutlineProvenance::Placeholder
+    );
+    assert_eq!(answered.label, mjx_scene::UNRESOLVED_OUTLINE_LABEL);
     assert!(
-        matches!(
-            refused,
-            Err(mjx_scene::SceneError::UnresolvedOutline { outline: 7 })
-        ),
-        "the provider answered {refused:?}. A stand-in here would turn a handle nobody issued — \
-         which can only be a defect — into a shape a reader reports as a rendering bug."
+        !answered.commands.is_empty(),
+        "the placeholder outline covers the box it was asked for"
     );
     assert_eq!(SheetGeometry, geometry);
 }

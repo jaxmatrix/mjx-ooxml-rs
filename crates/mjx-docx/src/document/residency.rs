@@ -2510,12 +2510,46 @@ pub struct DrawingFormatting {
     /// drawing out and wants to know what is *inside* it has to name it back to the format crate,
     /// and this is the only identifier a `w:drawing` carries.
     pub id: Option<u32>,
-    /// Whether the drawing frames a chart (`a:graphicData > c:chart`).
-    ///
-    /// Read here rather than left to the box model because the residency already has the
-    /// `a:graphic` open: asking again would mean re-parsing `word/document.xml`, which is the
-    /// quadratic read this whole module exists to end.
-    pub frames_a_chart: bool,
+    /// What the drawing's graphic frames, read here because the residency already has `a:graphic` open.
+    pub content: FramedContent,
+}
+
+/// What a drawing's `a:graphicData` frames.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FramedContent {
+    /// A chart (`c:chart`).
+    Chart,
+    /// A picture (`pic:pic`).
+    Picture,
+    /// A diagram, such as a SmartArt graphic.
+    Diagram,
+    /// An object embedded from another application.
+    EmbeddedObject,
+    /// Handwriting.
+    Ink,
+    /// Anything else: a shape, a group, a canvas, or a graphic that names no known kind.
+    Other,
+}
+
+impl FramedContent {
+    // What a graphic's data frames, the chart relationship deciding a chart and the `uri` the rest.
+    fn of(data: Option<&mjx_dml::GraphicData>, interner: &Interner) -> Self {
+        let Some(data) = data else {
+            return Self::Other;
+        };
+        if data.chart_relationship_id(interner).is_some() {
+            return Self::Chart;
+        }
+        match data.uri(interner).as_deref() {
+            Some("http://schemas.openxmlformats.org/drawingml/2006/picture") => Self::Picture,
+            Some("http://schemas.openxmlformats.org/drawingml/2006/diagram") => Self::Diagram,
+            Some("http://schemas.openxmlformats.org/presentationml/2006/ole") => {
+                Self::EmbeddedObject
+            }
+            Some("http://schemas.microsoft.com/office/word/2010/wordprocessingInk") => Self::Ink,
+            _ => Self::Other,
+        }
+    }
 }
 
 /// One block of body content: a paragraph, or a table.
@@ -2753,10 +2787,11 @@ fn read_drawing(
             id: inline
                 .doc_properties(interner)
                 .and_then(|properties| properties.id(interner).ok()),
-            frames_a_chart: inline
+            content: inline
                 .graphic(interner)
-                .and_then(|graphic| graphic.data()?.chart_relationship_id(interner))
-                .is_some(),
+                .map_or(FramedContent::Other, |graphic| {
+                    FramedContent::of(graphic.data(), interner)
+                }),
             placement: DrawingPlacement::Inline(DrawingDistances {
                 top: emu_or_zero(inline.distance_top(interner)),
                 bottom: emu_or_zero(inline.distance_bottom(interner)),
@@ -2823,10 +2858,11 @@ fn read_drawing(
         id: anchor
             .doc_properties(interner)
             .and_then(|properties| properties.id(interner).ok()),
-        frames_a_chart: anchor
+        content: anchor
             .graphic(interner)
-            .and_then(|graphic| graphic.data()?.chart_relationship_id(interner))
-            .is_some(),
+            .map_or(FramedContent::Other, |graphic| {
+                FramedContent::of(graphic.data(), interner)
+            }),
         placement: DrawingPlacement::Anchored(Box::new(AnchoredDrawing {
             distance,
             effect_extent: DrawingDistances {

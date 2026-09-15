@@ -333,6 +333,12 @@ pub(crate) const MCE: SchemaNamespace = SchemaNamespace {
     strict: None,
 };
 
+/// The Office 2010 PowerPoint namespace as a [`SchemaNamespace`], where `p14:contentPart` and its `p14:xfrm` live.
+pub(crate) const POWERPOINT_2010: SchemaNamespace = SchemaNamespace {
+    transitional: crate::constants::POWERPOINT_2010_NAMESPACE,
+    strict: None,
+};
+
 /// The `a:graphicData@uri` a graphic frame declares — what kind of object it frames — or `None` when
 /// the shape is not a `p:graphicFrame` or the frame states no `uri`.
 pub(crate) fn graphic_frame_uri<'a>(
@@ -624,7 +630,14 @@ pub(crate) fn content_part_rel_id<'a>(
         .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
-/// Every content part a shape tree references, as `(shape index, relationship id)`.
+/// Where a content part sits, read from its own `p14:xfrm` or `p:xfrm`, or `None` when it states neither.
+fn content_part_bounds(element: &RawElement, interner: &Interner) -> Option<crate::ShapeBounds> {
+    let xfrm = nav::child(element, interner, POWERPOINT_2010, "xfrm")
+        .or_else(|| nav::child(element, interner, PML, "xfrm"))?;
+    crate::ShapeBounds::from_transform(&mjx_dml::Transform2D::read(xfrm, interner))
+}
+
+/// Every content part a shape tree references, as `(shape index, relationship id, bounds)`.
 ///
 /// A `p:contentPart` is a shape like any other, so it has an index in the one shape index space. A
 /// `p14:contentPart` is not: producers wrap it in `mc:AlternateContent`, which sits beside the shapes
@@ -633,7 +646,7 @@ pub(crate) fn content_part_rel_id<'a>(
 pub(crate) fn content_part_references(
     sp_tree: &RawElement,
     interner: &Interner,
-) -> Vec<(Option<usize>, String)> {
+) -> Vec<(Option<usize>, String, Option<crate::ShapeBounds>)> {
     let mut found = Vec::new();
     let mut shape_index = 0usize;
     for node in &sp_tree.children {
@@ -643,7 +656,11 @@ pub(crate) fn content_part_references(
         if shape_kind(element, interner).is_some() {
             if is_content_part(element, interner) {
                 if let Some(rel_id) = content_part_rel_id(element, interner) {
-                    found.push((Some(shape_index), rel_id.to_owned()));
+                    found.push((
+                        Some(shape_index),
+                        rel_id.to_owned(),
+                        content_part_bounds(element, interner),
+                    ));
                 }
             }
             shape_index += 1;
@@ -661,7 +678,7 @@ pub(crate) fn content_part_references(
 fn collect_alternate_content_parts(
     alternate: &RawElement,
     interner: &Interner,
-    found: &mut Vec<(Option<usize>, String)>,
+    found: &mut Vec<(Option<usize>, String, Option<crate::ShapeBounds>)>,
 ) {
     for branch in ["Choice", "Fallback"] {
         for candidate in nav::children(alternate, interner, MCE, branch) {
@@ -671,7 +688,11 @@ fn collect_alternate_content_parts(
                 };
                 if is_content_part(element, interner) {
                     if let Some(rel_id) = content_part_rel_id(element, interner) {
-                        found.push((None, rel_id.to_owned()));
+                        found.push((
+                            None,
+                            rel_id.to_owned(),
+                            content_part_bounds(element, interner),
+                        ));
                     }
                 }
             }

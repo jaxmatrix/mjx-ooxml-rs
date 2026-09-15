@@ -84,13 +84,13 @@ fn the_negative_cells_text_resolves_red_and_its_neighbours_does_not() {
         let Some(hit) = mjx_layout_xlsx::CellHit::from_source(&source) else {
             continue;
         };
-        let colour = resolved
-            .resources
-            .text_decoration(&source)
-            .map(|decoration| match decoration.fill {
-                FillStyle::Solid(colour) => colour,
-                other => panic!("a glyph run's text decoration resolved to {other:?}"),
-            });
+        let colour =
+            resolved.resources.text_decoration(&source).answered().map(
+                |decoration| match decoration.fill {
+                    FillStyle::Solid(colour) => colour,
+                    other => panic!("a glyph run's text decoration resolved to {other:?}"),
+                },
+            );
         answered.push((hit.column, colour));
     }
     answered.sort_by_key(|(column, _)| *column);
@@ -203,7 +203,7 @@ fn a_replaced_indexed_palette_moves_what_a_format_colour_paints() {
         if hit.column != 1 {
             continue;
         }
-        if let Some(decoration) = resolved.resources.text_decoration(&source) {
+        if let Some(decoration) = resolved.resources.text_decoration(&source).answered() {
             if let FillStyle::Solid(colour) = decoration.fill {
                 found = Some(colour);
             }

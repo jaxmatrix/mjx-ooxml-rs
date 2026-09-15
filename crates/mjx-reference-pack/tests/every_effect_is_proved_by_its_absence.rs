@@ -76,16 +76,16 @@ struct OneShape {
 }
 
 impl ResourceResolver for OneShape {
-    fn decoration(&self, _reference: DecorationRef) -> Option<Decoration> {
-        Some(self.decoration.clone())
+    fn decoration(&self, _reference: DecorationRef) -> mjx_scene::Resolved<Decoration> {
+        mjx_scene::Resolved::Answered(self.decoration.clone())
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
-        None
+    fn text_decoration(&self, _source: &SourceRef) -> mjx_scene::Resolved<Decoration> {
+        mjx_scene::Resolved::NothingToDraw
     }
 
-    fn image(&self, _reference: ImageRef) -> Option<mjx_scene::Image> {
-        None
+    fn image(&self, _reference: ImageRef) -> mjx_scene::Resolved<mjx_scene::Image> {
+        mjx_scene::Resolved::NothingToDraw
     }
 }
 
@@ -126,7 +126,7 @@ fn render(effects: &EffectListSpec) -> Pixels {
         ),
         stroke: None,
         opacity: 1.0,
-        effects: effect_styles(effects, scale, &no_images),
+        effects: effect_styles(effects, scale, &no_images).expect("every effect colour resolves"),
     };
     let resolver = OneShape { decoration };
 
@@ -309,7 +309,8 @@ fn the_parameters_are_not_identity_values() {
     // of the same image and the whole file passes vacuously.
     let no_images = |_: &str| None;
     for kind in EffectKind::ALL {
-        let chain = effect_styles(&only(kind), DeviceScale::UNZOOMED, &no_images);
+        let chain = effect_styles(&only(kind), DeviceScale::UNZOOMED, &no_images)
+            .expect("every effect colour resolves");
         let entry = chain
             .first()
             .unwrap_or_else(|| panic!("{kind:?} translated to no effect at all"));

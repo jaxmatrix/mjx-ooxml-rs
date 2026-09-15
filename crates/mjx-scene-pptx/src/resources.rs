@@ -2,7 +2,9 @@
 
 use mjx_layout::{DecorationRef, ImageRef, SourceRef};
 use mjx_layout_pptx::PageCatalogue;
-use mjx_scene::{Decoration, DeviceScale, FillStyle, Image, ResourceResolver, DEFAULT_TEXT_COLOR};
+use mjx_scene::{
+    Decoration, DeviceScale, FillStyle, Image, Resolved, ResourceResolver, SceneLossKind,
+};
 
 use crate::effects::effect_styles;
 use crate::paint::{fill_style, stroke_style};
@@ -66,38 +68,49 @@ impl SlideResources {
 }
 
 impl ResourceResolver for SlideResources {
-    fn decoration(&self, reference: DecorationRef) -> Option<Decoration> {
-        let entry = self.catalogue.decoration(reference)?;
+    fn decoration(&self, reference: DecorationRef) -> Resolved<Decoration> {
+        if PageCatalogue::is_chart_handle(reference.number()) {
+            // Nothing on this side resolves a chart's paints; the chart is counted once, at its frame.
+            return Resolved::Unanswerable(SceneLossKind::ChartNotResolved);
+        }
+        let Some(entry) = self.catalogue.decoration(reference) else {
+            return Resolved::NothingToDraw;
+        };
         let image = |rel_id: &str| self.image_handle(rel_id);
-        Some(Decoration {
-            fill: entry
-                .fill
-                .as_ref()
-                .map_or(FillStyle::None, |fill| fill_style(fill, &image)),
-            stroke: entry
-                .outline
-                .as_ref()
-                .and_then(|outline| stroke_style(outline, self.scale, &image)),
-            // A shape's own transparency is `a:alpha` on its fill's colour, not a group opacity, and
-            // that alpha is gone one crate below (see `crate::paint`). Stating `1.0` is therefore
-            // not a placeholder for a value that exists — there is no per-shape opacity in
-            // DrawingML for this to carry — and a `PushOpacity` this crate never emits is one the
-            // painter never has to open a layer for.
-            opacity: 1.0,
-            effects: entry
-                .effects
-                .as_ref()
-                .map(|effects| effect_styles(effects, self.scale, &image))
-                .unwrap_or_default(),
-        })
+        let built = || -> Result<Decoration, SceneLossKind> {
+            Ok(Decoration {
+                fill: match entry.fill.as_ref() {
+                    Some(fill) => fill_style(fill, &image)?,
+                    None => FillStyle::None,
+                },
+                stroke: match entry.outline.as_ref() {
+                    Some(outline) => stroke_style(outline, self.scale, &image)?,
+                    None => None,
+                },
+                // A shape's own transparency is `a:alpha` on its fill's colour, not a group opacity, and
+                // that alpha is gone one crate below (see `crate::paint`). Stating `1.0` is therefore
+                // not a placeholder for a value that exists — there is no per-shape opacity in
+                // DrawingML for this to carry — and a `PushOpacity` this crate never emits is one the
+                // painter never has to open a layer for.
+                opacity: 1.0,
+                effects: match entry.effects.as_ref() {
+                    Some(effects) => effect_styles(effects, self.scale, &image)?,
+                    None => Vec::new(),
+                },
+            })
+        };
+        match built() {
+            Ok(decoration) => Resolved::Answered(decoration),
+            Err(kind) => Resolved::Unanswerable(kind),
+        }
     }
 
-    fn text_decoration(&self, _source: &SourceRef) -> Option<Decoration> {
+    fn text_decoration(&self, _source: &SourceRef) -> Resolved<Decoration> {
         // A run's own fill is `a:rPr > a:solidFill`, and it reaches this crate through nothing: the
         // box model's catalogue indexes decorations by the handle a *shape* fragment carries, and a
         // `GlyphRunFragment` carries none — which is why this method is addressed by `SourceRef` at
-        // all. Answering `None` makes `build_scene` use `DEFAULT_TEXT_COLOR`, which is opaque black
-        // on the page's own background, and is what "no colour was specified" has always meant.
+        // all. Answering that it cannot say makes the builder draw the run in `DEFAULT_TEXT_COLOR`
+        // and count it as a text colour approximated, so the approximation is visible in the list.
         //
         // Wiring it needs the box model to publish a per-run decoration table keyed by the same
         // addresses it puts on its glyph runs. That is a table `mjx-layout-pptx` can build — every
@@ -105,20 +118,27 @@ impl ResourceResolver for SlideResources {
         // stated gap rather than a silent one. `DEFAULT_TEXT_COLOR` is named here so a reader can
         // see what the answer collapses to.
         // Owned by MJXOFF-311 (RC16), run colour.
-        let _ = DEFAULT_TEXT_COLOR;
-        None
+        Resolved::Unanswerable(SceneLossKind::TextPaintDefaulted)
     }
 
-    fn image(&self, reference: ImageRef) -> Option<Image> {
-        let request = self.catalogue.image(reference)?;
+    fn image(&self, reference: ImageRef) -> Resolved<Image> {
+        let Some(request) = self.catalogue.image(reference) else {
+            return Resolved::NothingToDraw;
+        };
         if request.image_rel_id.is_empty() {
             // A `p:pic` with no `a:blip` names no image at all. Drawing nothing is right; drawing
             // handle zero would draw whatever the first picture on the page happens to be.
-            return None;
+            return Resolved::NothingToDraw;
         }
         // `a:srcRect` and the image adjustments are not modelled in `mjx-dml` — see the crate's own
         // documentation — so the picture is shown whole and unadjusted. `Image::stretched` states
         // exactly that, rather than a crop and an adjustment set invented here.
-        Some(Image::stretched(reference.number()))
+        Resolved::Answered(Image::stretched(reference.number()))
+    }
+
+    fn unanswerable_content(&self, source: &SourceRef) -> Option<SceneLossKind> {
+        self.catalogue
+            .is_chart_frame(source)
+            .then_some(SceneLossKind::ChartNotResolved)
     }
 }

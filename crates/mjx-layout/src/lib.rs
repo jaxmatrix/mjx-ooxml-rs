@@ -65,6 +65,7 @@ pub mod checkpoint;
 pub mod error;
 pub mod fragment;
 pub mod index;
+pub mod loss;
 pub mod measure;
 pub mod model;
 pub mod source;
@@ -78,6 +79,7 @@ pub use fragment::{
     ShapeFragment, TableCell, TableFragment, TransformId, UnitRect,
 };
 pub use index::{SpatialIndex, MAXIMUM_CELL_SPAN, MAXIMUM_GRID_SIDE};
+pub use loss::{FrameContent, LayoutLoss, LayoutLossKind, LayoutLosses, LossArea};
 pub use measure::{LayoutPoint, LayoutRect, LayoutSize, Transform};
 pub use model::{
     BoxModel, ChangeKind, ChangeSet, Constraints, ContentChange, DirtyPages, Extent,

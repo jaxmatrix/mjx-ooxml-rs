@@ -154,6 +154,16 @@ fn a_scene_of_everything() -> DisplayList {
     ] {
         builder.push(command).expect("every command is legal");
     }
+    builder
+        .add_loss(
+            mjx_scene::LossCategory::Scene(mjx_scene::SceneLossKind::ColourNotResolved),
+            &mjx_layout::SourceRef::node(
+                mjx_layout::PartId::PRIMARY,
+                mjx_layout::SourcePath::new(&[1, 2]),
+            ),
+            Some(SceneRect::new(0.0, 0.0, 8.0, 8.0)),
+        )
+        .expect("a loss");
     builder.finish().expect("the scene is well formed")
 }
 
@@ -562,4 +572,43 @@ fn section_offset(bytes: &[u8], wanted: SectionKind) -> usize {
         }
     }
     panic!("the scene of everything has no `{wanted}` section, so this test targets nothing")
+}
+
+#[test]
+fn a_loss_record_that_lies_about_itself_is_an_error() {
+    let whole = a_scene_of_everything().into_bytes();
+    let row = (0..usize::from(u16::from_le_bytes([whole[20], whole[21]])))
+        .map(|row| 32 + row * 12)
+        .find(|at| {
+            u16::from_le_bytes([whole[*at], whole[at + 1]]) == SectionKind::Losses.wire_value()
+        })
+        .expect("the scene has a losses row");
+    let section = u32::from_le_bytes([
+        whole[row + 4],
+        whole[row + 5],
+        whole[row + 6],
+        whole[row + 7],
+    ]) as usize;
+    for (offset, value, what) in [
+        (section + 2, 9_u8, "an unknown stage"),
+        (section + 3, 99_u8, "an unknown kind"),
+        (section + 4, 2_u8, "an unknown flag"),
+        (section + 5, 1_u8, "a reserved byte"),
+        (section + 6, 3_u8, "a depth its length does not hold"),
+        (
+            section + 20,
+            200_u8,
+            "a placeholder past the end of the stream",
+        ),
+    ] {
+        let mut bytes = whole.clone();
+        bytes[offset] = value;
+        assert!(
+            matches!(
+                DisplayList::from_bytes(bytes),
+                Err(SceneError::MalformedLoss { .. })
+            ),
+            "a loss record naming {what} decoded"
+        );
+    }
 }

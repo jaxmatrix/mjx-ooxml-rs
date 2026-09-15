@@ -88,6 +88,7 @@ fn a_half_transparent_cell_fill_resolves_at_half_opacity() {
     let decoration = resolved
         .resources
         .decoration(handle)
+        .answered()
         .expect("the handle resolves");
     let FillStyle::Solid(colour) = decoration.fill else {
         panic!(
@@ -184,6 +185,7 @@ fn a_tint_resolves_without_touching_the_alpha_of_a_stated_colour() {
     let decoration = resolved
         .resources
         .decoration(handle)
+        .answered()
         .expect("the handle resolves");
     let FillStyle::Gradient(gradient) = &decoration.fill else {
         panic!("the gradient fill resolved to {:?}", decoration.fill);

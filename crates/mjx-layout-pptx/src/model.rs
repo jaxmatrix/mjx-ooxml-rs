@@ -121,6 +121,8 @@ pub struct PageCatalogue {
     /// type — see [`PageCatalogue::CHART_HANDLE_BASE`].
     charts: ChartResourceTable,
     images: Vec<ImageRequest>,
+    /// What laying the page out could not lay out.
+    losses: mjx_layout::LayoutLosses,
     /// How deep each shape's path is, so a hit test can split a `SourceRef` correctly.
     shape_depths: Vec<(SourcePath, usize)>,
     autofit: Vec<(SourcePath, AutofitOutcome)>,
@@ -151,6 +153,12 @@ impl PageCatalogue {
         }
     }
 
+    /// What laying the page out could not lay out.
+    #[must_use]
+    pub fn losses(&self) -> &mjx_layout::LayoutLosses {
+        &self.losses
+    }
+
     /// The table a chart on this page issues its handles from.
     pub fn chart_resources(&mut self) -> &mut ChartResourceTable {
         &mut self.charts
@@ -166,6 +174,12 @@ impl PageCatalogue {
     #[must_use]
     pub fn chart_outline(&self, handle: GeometryRef) -> Option<&ChartOutline> {
         self.charts.shape(handle)
+    }
+
+    /// Whether the fragment at `source` frames a chart laid out on this page.
+    #[must_use]
+    pub fn is_chart_frame(&self, source: &mjx_layout::SourceRef) -> bool {
+        self.charts.is_frame(source)
     }
 
     /// Whether `handle` was issued by a chart rather than by the slide itself.
@@ -379,7 +393,7 @@ impl BoxModel for SlideBoxModel {
                 state.to_vec(),
             )?)
         };
-        Ok(PageFragments::new(page, tree, continuation))
+        Ok(PageFragments::new(page, tree, continuation).with_losses(self.catalogue.losses.clone()))
     }
 
     fn estimate_extent(&self, content: &Self::Content, constraints: &Constraints) -> Extent {
@@ -458,11 +472,14 @@ impl SlideBoxModel {
             u32::try_from(index).unwrap_or(u32::MAX),
             constraints,
         )?;
-        Ok(Some(PageFragments::new(
-            PageIndex::new(u32::try_from(index).unwrap_or(u32::MAX)),
-            tree,
-            None,
-        )))
+        Ok(Some(
+            PageFragments::new(
+                PageIndex::new(u32::try_from(index).unwrap_or(u32::MAX)),
+                tree,
+                None,
+            )
+            .with_losses(self.catalogue.losses.clone()),
+        ))
     }
 
     /// The walk both surfaces share: a page box, then every shape under whichever group contains it.
@@ -556,6 +573,13 @@ impl SlideBoxModel {
         // A shape no tier places has no rectangle, and drawing it at the origin would put something
         // on the slide that PowerPoint does not.
         let Some(rect) = shape.bounds else {
+            // Content no tier places is still counted, with no area to draw a placeholder over.
+            if let ShapeContent::NotLaidOut(kind) = &shape.content {
+                catalogue.losses.record(
+                    address::node(part, address::shape_path(surface, &shape.path)),
+                    *kind,
+                );
+            }
             return Ok(None);
         };
         let path = address::shape_path(surface, &shape.path);
@@ -579,7 +603,10 @@ impl SlideBoxModel {
                 };
                 Some(table::lay_out(&mut engine, rect, content)?)
             }
-            ShapeContent::Nothing | ShapeContent::Picture(_) | ShapeContent::Chart(_) => None,
+            ShapeContent::Nothing
+            | ShapeContent::Picture(_)
+            | ShapeContent::Chart(_)
+            | ShapeContent::NotLaidOut(_) => None,
         };
 
         let fragment = match (&shape.content, shape.kind) {
@@ -624,10 +651,12 @@ impl SlideBoxModel {
             // under this one below — and a graphic frame holding something this crate still does
             // not lay out, which is now a diagram or an embedded object. All three take up the room
             // they occupy and are hit-testable.
-            (ShapeContent::Nothing | ShapeContent::Chart(_), _) => Fragment::Box(BoxFragment {
-                decoration,
-                cell: None,
-            }),
+            (ShapeContent::Nothing | ShapeContent::Chart(_) | ShapeContent::NotLaidOut(_), _) => {
+                Fragment::Box(BoxFragment {
+                    decoration,
+                    cell: None,
+                })
+            }
         };
 
         let id = builder.push(
@@ -641,6 +670,17 @@ impl SlideBoxModel {
         let Some(id) = id else {
             return Ok(None);
         };
+        if let ShapeContent::NotLaidOut(kind) = &shape.content {
+            catalogue.losses.record_at(
+                address::node(part, path.clone()),
+                *kind,
+                mjx_layout::LossArea {
+                    rect,
+                    transform,
+                    clip: None,
+                },
+            );
+        }
 
         if let Some(body) = &shape.body {
             // A vertical text body is laid out in a **transposed** rectangle and then turned, so

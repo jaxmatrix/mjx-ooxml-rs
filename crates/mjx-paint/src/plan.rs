@@ -46,14 +46,15 @@ use std::sync::Arc;
 use mjx_scene::{
     resolve_outline, tessellate_scene, BitmapFormat, Clip, Color, Command, DisplayList, Effect,
     EffectKind, FillRule, Geometry, GeometryProvider, GlyphImage, Gradient, GradientKind, Hinting,
-    Image, Mesh, MeshRole, Paint, PathCommand, PathShade, PatternPreset, Provenance, ResourceIndex,
-    ScaleBucket, SceneRect, SceneTransform, StrokeGeometry, TessellationOptions, Tessellator,
-    TextDirection,
+    Image, Mesh, MeshRole, Paint, PathCommand, PathShade, PatternPreset, Placeholder,
+    PlaceholderGeometry, Provenance, ResourceIndex, ScaleBucket, SceneRect, SceneTransform,
+    StrokeGeometry, TessellationOptions, Tessellator, TextDirection,
 };
 
 use crate::error::PaintError;
 use crate::gradient::GradientRamp;
-use crate::painter::DrawReport;
+use crate::painter::{DrawReport, PainterLossKind};
+use crate::resources::{FontSource, ImageSource, Resources};
 
 /// Compose two transforms: `outer` applied to the result of `inner`.
 ///
@@ -407,6 +408,8 @@ pub struct VectorPath {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct PlanOptions {
     keep_outlines: bool,
+    unexpressed_effects: [Option<EffectKind>; 4],
+    writes_text: bool,
 }
 
 impl PlanOptions {
@@ -415,6 +418,8 @@ impl PlanOptions {
     pub const fn for_raster() -> Self {
         Self {
             keep_outlines: false,
+            unexpressed_effects: [None; 4],
+            writes_text: false,
         }
     }
 
@@ -423,6 +428,8 @@ impl PlanOptions {
     pub const fn for_vector() -> Self {
         Self {
             keep_outlines: true,
+            unexpressed_effects: [None; 4],
+            writes_text: false,
         }
     }
 
@@ -437,6 +444,76 @@ impl PlanOptions {
     #[must_use]
     pub const fn keeps_outlines(self) -> bool {
         self.keep_outlines
+    }
+
+    /// The same options, for a painter with no way to express an effect rooted in `kind`.
+    #[must_use]
+    pub fn not_expressing(mut self, kind: EffectKind) -> Self {
+        if self.expresses(kind) {
+            if let Some(slot) = self
+                .unexpressed_effects
+                .iter_mut()
+                .find(|slot| slot.is_none())
+            {
+                *slot = Some(kind);
+            }
+        }
+        self
+    }
+
+    /// Whether the painter can express an effect rooted in `kind`.
+    #[must_use]
+    pub fn expresses(self, kind: EffectKind) -> bool {
+        !self.unexpressed_effects.contains(&Some(kind))
+    }
+
+    /// The same options, for a painter that writes text from the font source's faces rather than from the atlas.
+    #[must_use]
+    pub const fn writing_text(mut self, writes: bool) -> Self {
+        self.writes_text = writes;
+        self
+    }
+
+    /// Whether the painter writes text from the font source's faces.
+    #[must_use]
+    pub const fn writes_text(self) -> bool {
+        self.writes_text
+    }
+}
+
+/// What a lowering may ask about a list's resources: always the geometry, and the pictures and faces when a painter hands them over.
+#[derive(Clone, Copy)]
+pub struct PlanSources<'a> {
+    geometry: &'a dyn GeometryProvider,
+    images: Option<&'a dyn ImageSource>,
+    fonts: Option<&'a dyn FontSource>,
+}
+
+impl<'a> PlanSources<'a> {
+    /// Only the geometry, so no picture and no face is checked.
+    #[must_use]
+    pub fn geometry_only(geometry: &'a dyn GeometryProvider) -> Self {
+        Self {
+            geometry,
+            images: None,
+            fonts: None,
+        }
+    }
+
+    /// Everything a painter was handed for this draw.
+    #[must_use]
+    pub fn from_resources(resources: &'a Resources<'_>) -> Self {
+        Self {
+            geometry: resources.geometry(),
+            images: Some(resources.images()),
+            fonts: Some(resources.fonts()),
+        }
+    }
+}
+
+impl core::fmt::Debug for PlanSources<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("PlanSources { geometry, images, fonts }")
     }
 }
 
@@ -521,6 +598,21 @@ pub enum DrawOp {
         /// Which command and which table row this came from.
         origin: OpOrigin,
     },
+    /// A labelled stand-in over content that cannot be drawn, one drawing rule for every stage's losses.
+    Placeholder {
+        /// Its triangles: the stand-in outline's frame and cross.
+        mesh: Arc<Mesh>,
+        /// Under what transform.
+        transform: SceneTransform,
+        /// The element's rectangle, in the space `transform` maps from.
+        bounds: SceneRect,
+        /// The stand-in outline, for a painter that writes vectors.
+        outline: Option<Arc<VectorPath>>,
+        /// What it reads.
+        label: &'static str,
+        /// Which command it was drawn at.
+        origin: OpOrigin,
+    },
     /// Bring a finished child layer back into this one.
     Composite {
         /// Which layer.
@@ -540,6 +632,7 @@ impl DrawOp {
             | Self::Picture { origin, .. }
             | Self::PushClip { origin, .. }
             | Self::PopClip { origin, .. }
+            | Self::Placeholder { origin, .. }
             | Self::Composite { origin, .. } => *origin,
         }
     }
@@ -665,8 +758,12 @@ enum Open {
     /// is the whole point of tracking it separately rather than not pushing at all: the stream still
     /// contains a `Pop`, and a walk that ignored the push would close somebody else's group.
     IdentityOpacity,
-    /// A layer, and the layer that was current before it.
-    Layer { opened: usize, parent: usize },
+    /// A layer, the layer that was current before it, and whether its effect is one the painter cannot express.
+    Layer {
+        opened: usize,
+        parent: usize,
+        unexpressed: bool,
+    },
 }
 
 /// Lower `list` into a plan.
@@ -700,6 +797,26 @@ pub fn plan_frame_with(
     tessellator: &mut Tessellator,
     options_kept: PlanOptions,
 ) -> Result<FramePlan, PaintError> {
+    plan_frame_from(
+        list,
+        PlanSources::geometry_only(provider),
+        tessellator,
+        options_kept,
+    )
+}
+
+/// Lower `list` into a plan, counting every loss the painter's own sources and capabilities make.
+///
+/// # Errors
+///
+/// As [`plan_frame`].
+pub fn plan_frame_from(
+    list: &DisplayList,
+    sources: PlanSources<'_>,
+    tessellator: &mut Tessellator,
+    options_kept: PlanOptions,
+) -> Result<FramePlan, PaintError> {
+    let provider = sources.geometry;
     // Hand-off 2 from R07: the whole page's triangles in one call. **The painter tessellates
     // nothing** — it does not mean it may not ask, it means it writes no tessellation code, and the
     // one place it asks for something this call does not cover is a clip's own outline, which is not
@@ -718,8 +835,24 @@ pub fn plan_frame_with(
     let mut stack: Vec<Open> = Vec::new();
     let mut active_clips: Vec<OpenClip> = Vec::new();
     let mut report = DrawReport::default();
+    let placeholders = list.placeholders();
+    let mut pending = placeholders.iter().peekable();
 
     for (index, command) in list.commands().enumerate() {
+        while let Some(placeholder) =
+            pending.next_if(|placeholder| placeholder.command as usize == index)
+        {
+            emit_list_placeholder(
+                placeholder,
+                transform,
+                &mut layers,
+                current,
+                &mut report,
+                tessellator,
+                options,
+                options_kept,
+            )?;
+        }
         report.commands += 1;
         match command {
             Command::PushTransform(slot) => {
@@ -783,6 +916,7 @@ pub fn plan_frame_with(
                 stack.push(Open::Layer {
                     opened,
                     parent: current,
+                    unexpressed: false,
                 });
                 current = opened;
                 report.layers += 1;
@@ -790,10 +924,17 @@ pub fn plan_frame_with(
             }
             Command::PushEffect(slot) => {
                 let dag = resolve_effects(list, slot, index)?;
+                let unexpressed = dag
+                    .last()
+                    .is_some_and(|root| !options_kept.expresses(root.effect.kind));
+                if unexpressed {
+                    report.losses.record(PainterLossKind::EffectUnsupported);
+                }
                 let opened = open_layer(&mut layers, LayerKind::Effect(dag));
                 stack.push(Open::Layer {
                     opened,
                     parent: current,
+                    unexpressed,
                 });
                 current = opened;
                 report.layers += 1;
@@ -827,7 +968,11 @@ pub fn plan_frame_with(
                         );
                     }
                     Open::IdentityOpacity => {}
-                    Open::Layer { opened, parent } => {
+                    Open::Layer {
+                        opened,
+                        parent,
+                        unexpressed,
+                    } => {
                         current = parent;
                         push_op(
                             &mut layers,
@@ -837,23 +982,56 @@ pub fn plan_frame_with(
                                 origin: OpOrigin::synthesised(index as u32),
                             },
                         );
+                        if unexpressed {
+                            let bounds = layers.get(opened).map_or(SceneRect::EMPTY, layer_bounds);
+                            if let Some(op) = placeholder_op(
+                                bounds,
+                                SceneTransform::IDENTITY,
+                                PainterLossKind::EffectUnsupported.label(),
+                                OpOrigin::synthesised(index as u32),
+                                tessellator,
+                                options,
+                                options_kept,
+                            )? {
+                                report.loss_placeholders += 1;
+                                push_op(&mut layers, current, op);
+                            }
+                        }
                     }
                 }
             }
             Command::FillPath { geometry, paint } => {
-                let Some((mesh, provenance)) =
+                let Some((mesh, provenance, _)) =
                     take_mesh(&meshes, &mut mesh_cursor, index, MeshRole::Fill)
                 else {
                     continue;
                 };
-                let outline = kept_outline(list, geometry, provider, None, index, options_kept)?;
                 let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index())
                     .filled_with(paint.index());
                 let paint = resolve_paint(list, paint, mesh.bounds(), index)?;
+                if lacks_pixels(&paint, sources) {
+                    report.losses.record(PainterLossKind::ImageWithNoPixels);
+                    if let Some(op) = placeholder_op(
+                        mesh.bounds(),
+                        transform,
+                        PainterLossKind::ImageWithNoPixels.label(),
+                        origin,
+                        tessellator,
+                        options,
+                        options_kept,
+                    )? {
+                        report.loss_placeholders += 1;
+                        push_op(&mut layers, current, op);
+                    }
+                    continue;
+                }
+                let outline = kept_outline(list, geometry, provider, None, index, options_kept)?;
                 report.triangles += mesh.triangle_count();
                 report.draw_calls += 1;
                 if provenance.is_placeholder() {
                     report.placeholders += 1;
+                    report.losses.record(PainterLossKind::OutlineUnresolved);
+                    report.loss_placeholders += 1;
                 }
                 push_op(
                     &mut layers,
@@ -870,11 +1048,14 @@ pub fn plan_frame_with(
                 );
             }
             Command::StrokePath { geometry, stroke } => {
-                let Some((mesh, provenance)) =
+                let Some((mesh, provenance, line_ends)) =
                     take_mesh(&meshes, &mut mesh_cursor, index, MeshRole::Stroke)
                 else {
                     continue;
                 };
+                report
+                    .losses
+                    .add(PainterLossKind::LineEndNotDrawn, usize::from(line_ends));
                 let record = list.stroke(stroke).ok_or(PaintError::MissingResource {
                     table: "stroke",
                     index: stroke.index(),
@@ -889,10 +1070,29 @@ pub fn plan_frame_with(
                     options_kept,
                 )?;
                 let paint = resolve_paint(list, record.paint, mesh.bounds(), index)?;
+                if lacks_pixels(&paint, sources) {
+                    report.losses.record(PainterLossKind::ImageWithNoPixels);
+                    let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index());
+                    if let Some(op) = placeholder_op(
+                        mesh.bounds(),
+                        transform,
+                        PainterLossKind::ImageWithNoPixels.label(),
+                        origin,
+                        tessellator,
+                        options,
+                        options_kept,
+                    )? {
+                        report.loss_placeholders += 1;
+                        push_op(&mut layers, current, op);
+                    }
+                    continue;
+                }
                 report.triangles += mesh.triangle_count();
                 report.draw_calls += 1;
                 if provenance.is_placeholder() {
                     report.placeholders += 1;
+                    report.losses.record(PainterLossKind::OutlineUnresolved);
+                    report.loss_placeholders += 1;
                 }
                 push_op(
                     &mut layers,
@@ -924,6 +1124,22 @@ pub fn plan_frame_with(
                 let bounds = run_bounds(&record);
                 let program = resolve_paint(list, paint, bounds, index)?;
                 let run_transform = glyph_run_transform(&record, transform);
+                if lacks_face(&record, sources, options_kept) {
+                    report.losses.record(PainterLossKind::GlyphRunNotEmbedded);
+                    if let Some(op) = placeholder_op(
+                        bounds,
+                        run_transform,
+                        PainterLossKind::GlyphRunNotEmbedded.label(),
+                        origin,
+                        tessellator,
+                        options,
+                        options_kept,
+                    )? {
+                        report.loss_placeholders += 1;
+                        push_op(&mut layers, current, op);
+                    }
+                    continue;
+                }
                 match program {
                     PaintProgram::Solid(colour) => plan_glyph_run(
                         &record,
@@ -983,6 +1199,23 @@ pub fn plan_frame_with(
                     index: image.index(),
                     command: index,
                 })?;
+                let origin = OpOrigin::from_row(index as u32, "image", image.index());
+                if has_no_pixels(record.handle, sources) {
+                    report.losses.record(PainterLossKind::ImageWithNoPixels);
+                    if let Some(op) = placeholder_op(
+                        destination,
+                        transform,
+                        PainterLossKind::ImageWithNoPixels.label(),
+                        origin,
+                        tessellator,
+                        options,
+                        options_kept,
+                    )? {
+                        report.loss_placeholders += 1;
+                        push_op(&mut layers, current, op);
+                    }
+                    continue;
+                }
                 report.images += 1;
                 report.draw_calls += 1;
                 push_op(
@@ -996,11 +1229,23 @@ pub fn plan_frame_with(
                             image: record,
                             destination,
                         },
-                        origin: OpOrigin::from_row(index as u32, "image", image.index()),
+                        origin,
                     },
                 );
             }
         }
+    }
+    for placeholder in pending {
+        emit_list_placeholder(
+            placeholder,
+            transform,
+            &mut layers,
+            current,
+            &mut report,
+            tessellator,
+            options,
+            options_kept,
+        )?;
     }
 
     if let Some(remaining) = stack.pop() {
@@ -1170,17 +1415,170 @@ fn take_mesh(
     cursor: &mut usize,
     command: usize,
     role: MeshRole,
-) -> Option<(Arc<Mesh>, Provenance)> {
+) -> Option<(Arc<Mesh>, Provenance, u8)> {
     while let Some(entry) = meshes.get(*cursor) {
         if entry.command > command {
             return None;
         }
         *cursor += 1;
         if entry.command == command && entry.role == role {
-            return Some((Arc::clone(&entry.mesh), entry.provenance.clone()));
+            return Some((
+                Arc::clone(&entry.mesh),
+                entry.provenance.clone(),
+                entry.line_ends_not_drawn,
+            ));
         }
     }
     None
+}
+
+// Whether the painter was handed an image source that holds no pixels for `handle`.
+fn has_no_pixels(handle: u64, sources: PlanSources<'_>) -> bool {
+    sources.images.is_some_and(|images| {
+        images
+            .pixels(handle)
+            .is_none_or(|pixels| pixels.width == 0 || pixels.height == 0)
+    })
+}
+
+// Whether `paint` is a picture the painter's image source holds no pixels for.
+fn lacks_pixels(paint: &PaintProgram, sources: PlanSources<'_>) -> bool {
+    matches!(paint, PaintProgram::Picture { handle, .. } if has_no_pixels(*handle, sources))
+}
+
+// Whether an exporter that writes text from faces was handed no face for a run with ink in it.
+fn lacks_face(
+    run: &mjx_scene::SceneGlyphRun,
+    sources: PlanSources<'_>,
+    options: PlanOptions,
+) -> bool {
+    options.writes_text()
+        && run
+            .glyphs
+            .iter()
+            .any(|glyph| !matches!(glyph.image, GlyphImage::Blank))
+        && sources
+            .fonts
+            .is_some_and(|fonts| fonts.face(run.face, &[0]).is_none())
+}
+
+// Emits a display list's own placeholder at its position in the stream, under whatever is installed there.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a walk's whole state, threaded once"
+)]
+fn emit_list_placeholder(
+    placeholder: &Placeholder,
+    transform: SceneTransform,
+    layers: &mut [Layer],
+    current: usize,
+    report: &mut DrawReport,
+    tessellator: &mut Tessellator,
+    options: TessellationOptions,
+    kept: PlanOptions,
+) -> Result<(), PaintError> {
+    let origin = OpOrigin::synthesised(placeholder.command);
+    if let Some(op) = placeholder_op(
+        placeholder.rect,
+        transform,
+        placeholder.category.label(),
+        origin,
+        tessellator,
+        options,
+        kept,
+    )? {
+        report.loss_placeholders += 1;
+        push_op(layers, current, op);
+    }
+    Ok(())
+}
+
+// MJX-STAND-IN: every loss over content that cannot be drawn is lowered here to one labelled placeholder outline (MJXOFF-299).
+// The one placeholder drawing: the stand-in outline's frame and cross over `bounds`, or nothing for an element with no area.
+fn placeholder_op(
+    bounds: SceneRect,
+    transform: SceneTransform,
+    label: &'static str,
+    origin: OpOrigin,
+    tessellator: &mut Tessellator,
+    options: TessellationOptions,
+    kept: PlanOptions,
+) -> Result<Option<DrawOp>, PaintError> {
+    if bounds.is_empty() || !bounds.width().is_finite() || !bounds.height().is_finite() {
+        return Ok(None);
+    }
+    let stand_in = PlaceholderGeometry::new();
+    let resolved = stand_in.outline(0, bounds)?;
+    let outline = kept.keeps_outlines().then(|| {
+        Arc::new(VectorPath {
+            commands: resolved.commands.clone(),
+            fill_rule: resolved.fill_rule,
+            stroke: None,
+        })
+    });
+    let mesh = tessellator.fill(&resolved.into_geometry(), &stand_in, options)?;
+    Ok(Some(DrawOp::Placeholder {
+        mesh,
+        transform,
+        bounds,
+        outline,
+        label,
+        origin,
+    }))
+}
+
+// The page-space box everything a layer draws covers.
+fn layer_bounds(layer: &Layer) -> SceneRect {
+    let mut covered: Option<SceneRect> = None;
+    let mut include = |rect: SceneRect, map: SceneTransform| {
+        if rect.is_empty() {
+            return;
+        }
+        for (x, y) in [
+            (rect.left, rect.top),
+            (rect.right, rect.top),
+            (rect.right, rect.bottom),
+            (rect.left, rect.bottom),
+        ] {
+            let (x, y) = apply(map, x, y);
+            covered = Some(match covered {
+                Some(box_) => SceneRect::new(
+                    box_.left.min(x),
+                    box_.top.min(y),
+                    box_.right.max(x),
+                    box_.bottom.max(y),
+                ),
+                None => SceneRect::new(x, y, x, y),
+            });
+        }
+    };
+    for op in &layer.ops {
+        match op {
+            DrawOp::Mesh {
+                mesh, transform, ..
+            } => include(mesh.bounds(), *transform),
+            DrawOp::Glyphs {
+                quads, transform, ..
+            } => {
+                for quad in quads {
+                    include(
+                        SceneRect::new(quad.x, quad.y, quad.x + quad.width, quad.y + quad.height),
+                        *transform,
+                    );
+                }
+            }
+            DrawOp::Picture {
+                destination,
+                transform,
+                ..
+            } => include(*destination, *transform),
+            DrawOp::Placeholder {
+                bounds, transform, ..
+            } => include(*bounds, *transform),
+            DrawOp::PushClip { .. } | DrawOp::PopClip { .. } | DrawOp::Composite { .. } => {}
+        }
+    }
+    covered.unwrap_or(SceneRect::EMPTY)
 }
 
 /// The triangles a clip's region covers, and — for a vector plan — its own outline.

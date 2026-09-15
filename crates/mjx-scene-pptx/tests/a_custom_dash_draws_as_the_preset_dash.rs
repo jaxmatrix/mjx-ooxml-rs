@@ -26,18 +26,24 @@ fn a_line(dash: LineDash) -> LineSpec {
 #[test]
 fn a_custom_dash_is_the_whole_stroke_of_a_preset_dash() {
     let custom = stroke_style(&a_line(LineDash::Custom), DeviceScale::UNZOOMED, &no_images)
+        .ok()
+        .flatten()
         .expect("a filled line is a stroke");
     let preset = stroke_style(
         &a_line(LineDash::Preset(PresetLineDash::Dash)),
         DeviceScale::UNZOOMED,
         &no_images,
     )
+    .ok()
+    .flatten()
     .expect("a filled line is a stroke");
     let solid = stroke_style(
         &a_line(LineDash::Preset(PresetLineDash::Solid)),
         DeviceScale::UNZOOMED,
         &no_images,
     )
+    .ok()
+    .flatten()
     .expect("a filled line is a stroke");
 
     assert_eq!(custom.dash, DashPattern::Dash);

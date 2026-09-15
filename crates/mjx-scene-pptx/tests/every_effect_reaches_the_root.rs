@@ -119,7 +119,8 @@ fn first(keep: usize) -> EffectListSpec {
 #[test]
 fn the_chain_is_reachable_from_its_root_at_every_length() {
     for length in 1..=8 {
-        let chain = effect_styles(&first(length), DeviceScale::UNZOOMED, &no_images);
+        let chain = effect_styles(&first(length), DeviceScale::UNZOOMED, &no_images)
+            .expect("every colour in the list resolves");
         assert_eq!(
             chain.len(),
             length,
@@ -152,7 +153,8 @@ fn the_chain_is_reachable_from_its_root_at_every_length() {
 
 #[test]
 fn the_first_entry_consumes_the_subtree_and_no_other_one_does() {
-    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images);
+    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images)
+        .expect("every colour in the list resolves");
     assert_eq!(
         chain.len(),
         8,
@@ -177,7 +179,8 @@ fn the_first_entry_consumes_the_subtree_and_no_other_one_does() {
 
 #[test]
 fn the_order_is_the_schemas_own() {
-    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images);
+    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images)
+        .expect("every colour in the list resolves");
     let kinds: Vec<EffectKind> = chain.iter().map(|entry| entry.kind).collect();
     assert_eq!(
         kinds,
@@ -198,7 +201,8 @@ fn the_order_is_the_schemas_own() {
 
 #[test]
 fn an_empty_list_produces_no_chain_at_all() {
-    let chain = effect_styles(&EffectListSpec::new(), DeviceScale::UNZOOMED, &no_images);
+    let chain = effect_styles(&EffectListSpec::new(), DeviceScale::UNZOOMED, &no_images)
+        .expect("every colour in the list resolves");
     assert!(
         chain.is_empty(),
         "an effect list with nothing in it must produce no entries, so that \
@@ -212,7 +216,8 @@ fn an_empty_list_produces_no_chain_at_all() {
 /// drawing nothing agree perfectly.
 #[test]
 fn the_numbers_are_not_all_at_their_no_op_values() {
-    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images);
+    let chain = effect_styles(&everything(), DeviceScale::UNZOOMED, &no_images)
+        .expect("every colour in the list resolves");
 
     let radii: Vec<f32> = chain.iter().map(|entry| entry.radius).collect();
     assert!(

@@ -304,7 +304,7 @@ fn the_svg_draws_text_as_outlines_and_says_when_it_cannot() {
         "one path per glyph of the run"
     );
 
-    // Without one: the metadata and an honest admission, rather than silence.
+    // Without one: a counted loss and a labelled placeholder where the run would be, rather than silence (MJXOFF-299).
     let mut painter = SvgPainter::new();
     let geometry = PlaceholderGeometry::new();
     let images = common::OnePicture::new();
@@ -313,23 +313,32 @@ fn the_svg_draws_text_as_outlines_and_says_when_it_cannot() {
     let viewport = Viewport::covering(&host);
     let frame = painter.begin(&mut host, viewport).expect("a frame opens");
     let mut resources = Resources::new(&mut glyphs, &geometry, &images);
-    painter
+    let drawn = painter
         .draw(&frame, &list, &mut resources)
         .expect("the page exports");
     painter.end(frame).expect("the frame finishes");
     let without = painter.document().expect("a document").to_owned();
-    assert!(
-        without.contains("data-mjx-unresolved-face=\"true\""),
+    assert_eq!(
+        (
+            drawn
+                .losses
+                .count(mjx_paint::PainterLossKind::GlyphRunNotEmbedded),
+            drawn.loss_placeholders
+        ),
+        (1, 1),
+        "a run whose face the caller did not supply is one counted loss under one placeholder"
+    );
+    assert_eq!(
+        without
+            .matches("data-mjx-loss=\"Text not embedded\"")
+            .count(),
+        1,
         "a run whose face the caller did not supply must say so in the file. Silence would make a \
          page with no text on it indistinguishable from a page whose face was missing."
     );
     assert!(
         !without.contains("data-mjx-glyph=\""),
         "and it must not invent outlines it does not have"
-    );
-    assert!(
-        without.contains("data-mjx-glyphs=\"8\""),
-        "the run's own metadata survives either way, so the debug view is complete"
     );
 }
 

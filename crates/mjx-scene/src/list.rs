@@ -27,8 +27,8 @@ use crate::encoding::{
     opcode, path_step, read_f32, read_i16, read_i32, read_u16, read_u32, read_u8, slice_at,
     unpack_color, ResourceIndex, SectionKind, CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE,
     GLYPH_RUN_STRIDE, GLYPH_STRIDE, GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, HEADER_BYTES,
-    IMAGE_STRIDE, MAGIC, PAINT_STRIDE, SECTION_ALIGNMENT, SECTION_ROW_BYTES, STROKE_STRIDE,
-    TRANSFORM_STRIDE, VERSION,
+    IMAGE_STRIDE, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC, PAINT_STRIDE, SECTION_ALIGNMENT,
+    SECTION_ROW_BYTES, STROKE_STRIDE, TRANSFORM_STRIDE, VERSION,
 };
 use crate::error::SceneError;
 use crate::geometry::{FillRule, Geometry, PathCommand, ScenePoint, SceneRect, SceneTransform};
@@ -36,11 +36,13 @@ use crate::glyphs::{
     direction_from_wire_value, format_from_wire_value, hinting_from_wire_value, AtlasPlacement,
     GlyphImage, SceneGlyph, SceneGlyphRun,
 };
+use crate::loss::{compose, LossCategory, Placeholder, SceneLoss, SceneLosses};
 use crate::paint::{
     CompoundStroke, DashPattern, Gradient, GradientKind, GradientStop, Image, ImageAdjustments,
     ImageFillMode, LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, Paint, PathShade,
     PatternPreset, RectangleAnchor, Stroke, StrokeAlignment, TileFlip,
 };
+use mjx_layout::{PartId, SourcePath, SourceRef};
 
 /// How many section slots the wire values occupy, so that a lookup is an array index.
 ///
@@ -461,6 +463,94 @@ impl DisplayList {
         })
     }
 
+    /// Every scene loss the list records, in paint order.
+    #[must_use]
+    pub fn losses(&self) -> SceneLosses {
+        SceneLosses::from_losses(
+            self.loss_records()
+                .filter_map(|record| match record.category {
+                    LossCategory::Scene(kind) => Some(SceneLoss {
+                        source: record.source,
+                        kind,
+                    }),
+                    LossCategory::Layout(_) => None,
+                })
+                .collect(),
+        )
+    }
+
+    /// Every placeholder the list draws, in paint order, each with its map to the page.
+    #[must_use]
+    pub fn placeholders(&self) -> Vec<Placeholder> {
+        let mut pending = self
+            .loss_records()
+            .filter_map(|record| {
+                let (command, rect) = record.placeholder?;
+                Some((command, rect, record.category, record.source))
+            })
+            .peekable();
+        let mut placed = Vec::new();
+        let mut transform = SceneTransform::IDENTITY;
+        let mut stack: Vec<SceneTransform> = Vec::new();
+        let mut index = 0_u32;
+        let mut commands = self.commands();
+        loop {
+            while pending
+                .peek()
+                .is_some_and(|(command, ..)| *command == index)
+            {
+                if let Some((command, rect, category, source)) = pending.next() {
+                    placed.push(Placeholder {
+                        rect,
+                        transform,
+                        label: category.label().to_owned(),
+                        category,
+                        source,
+                        command,
+                    });
+                }
+            }
+            let Some(next) = commands.next() else {
+                break;
+            };
+            match next {
+                Command::PushTransform(slot) => {
+                    stack.push(transform);
+                    if let Some(map) = self.transform(slot) {
+                        transform = compose(transform, map);
+                    }
+                }
+                Command::PushClip(_) | Command::PushOpacity(_) | Command::PushEffect(_) => {
+                    stack.push(transform);
+                }
+                Command::Pop => transform = stack.pop().unwrap_or(SceneTransform::IDENTITY),
+                Command::FillPath { .. }
+                | Command::StrokePath { .. }
+                | Command::DrawGlyphs { .. }
+                | Command::DrawImage { .. } => {}
+            }
+            index = index.saturating_add(1);
+        }
+        placed
+    }
+
+    /// The topmost placeholder under the page point `(x, y)`, if any.
+    #[must_use]
+    pub fn placeholder_at(&self, x: f32, y: f32) -> Option<Placeholder> {
+        self.placeholders()
+            .into_iter()
+            .rev()
+            .find(|placeholder| placeholder.contains(x, y))
+    }
+
+    // The loss records, decoded, stopping at the first that does not decode.
+    fn loss_records(&self) -> LossRecords<'_> {
+        LossRecords {
+            bytes: self.section_bytes(SectionKind::Losses),
+            offset: 0,
+        }
+    }
+
     // -------------------------------------------------------------------------------------
     // Reading the header, and validating everything
     // -------------------------------------------------------------------------------------
@@ -659,7 +749,38 @@ impl DisplayList {
         self.validate_clips()?;
         self.validate_glyphs()?;
         self.validate_glyph_runs()?;
-        self.validate_commands()
+        let commands = self.validate_commands()?;
+        self.validate_losses(commands)?;
+        Ok(commands)
+    }
+
+    // Every loss record decodes, and every placeholder sits inside the stream in paint order.
+    fn validate_losses(&self, commands: u32) -> Result<(), SceneError> {
+        let bytes = self.section_bytes(SectionKind::Losses);
+        let mut offset = 0_usize;
+        let mut previous = 0_u32;
+        while offset < bytes.len() {
+            let (record, length) = decode_loss(bytes, offset)
+                .map_err(|reason| SceneError::MalformedLoss { offset, reason })?;
+            if let Some((command, _)) = record.placeholder {
+                if command > commands {
+                    return Err(SceneError::MalformedLoss {
+                        offset,
+                        reason: "places its placeholder past the end of the command stream",
+                    });
+                }
+                if command < previous {
+                    return Err(SceneError::MalformedLoss {
+                        offset,
+                        reason:
+                            "places its placeholder before the placeholder recorded ahead of it",
+                    });
+                }
+                previous = command;
+            }
+            offset += length;
+        }
+        Ok(())
     }
 
     fn require(&self, section: SectionKind, index: u32) -> Result<(), SceneError> {
@@ -996,6 +1117,90 @@ impl DisplayList {
             None
         }
     }
+}
+
+// One decoded loss record.
+struct LossRecord {
+    category: LossCategory,
+    source: SourceRef,
+    placeholder: Option<(u32, SceneRect)>,
+}
+
+// The loss records of a list, in the order they were written.
+struct LossRecords<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl Iterator for LossRecords<'_> {
+    type Item = LossRecord;
+
+    fn next(&mut self) -> Option<LossRecord> {
+        if self.offset >= self.bytes.len() {
+            return None;
+        }
+        let (record, length) = decode_loss(self.bytes, self.offset).ok()?;
+        self.offset += length;
+        Some(record)
+    }
+}
+
+// The loss record at `at`, and how many bytes it occupies.
+fn decode_loss(bytes: &[u8], at: usize) -> Result<(LossRecord, usize), &'static str> {
+    const TRUNCATED: &str = "runs past the end of the section";
+    let length = usize::from(read_u16(bytes, at).ok_or(TRUNCATED)?);
+    if length < LOSS_RECORD_BYTES || !length.is_multiple_of(SECTION_ALIGNMENT) {
+        return Err("declares a length that is not a whole record");
+    }
+    let record = slice_at(bytes, at, length).ok_or(TRUNCATED)?;
+    let category = LossCategory::from_wire(
+        read_u8(record, 2).ok_or(TRUNCATED)?,
+        read_u8(record, 3).ok_or(TRUNCATED)?,
+    )
+    .ok_or("names a stage or a kind this version does not define")?;
+    let flags = read_u8(record, 4).ok_or(TRUNCATED)?;
+    if flags & !LOSS_FLAG_PLACEHOLDER != 0 {
+        return Err("sets a flag this version does not define");
+    }
+    if read_u8(record, 5).ok_or(TRUNCATED)? != 0 {
+        return Err("has a reserved byte that is not zero");
+    }
+    let depth = usize::from(read_u16(record, 6).ok_or(TRUNCATED)?);
+    if LOSS_RECORD_BYTES + depth * 4 != length {
+        return Err("declares a path depth its length does not hold");
+    }
+    let part = read_u32(record, 8).ok_or(TRUNCATED)?;
+    let start = read_u32(record, 12).ok_or(TRUNCATED)?;
+    let end = read_u32(record, 16).ok_or(TRUNCATED)?;
+    if start > end {
+        return Err("names a character range that ends before it starts");
+    }
+    let command = read_u32(record, 20).ok_or(TRUNCATED)?;
+    let rect = SceneRect {
+        left: read_f32(record, 24).ok_or(TRUNCATED)?,
+        top: read_f32(record, 28).ok_or(TRUNCATED)?,
+        right: read_f32(record, 32).ok_or(TRUNCATED)?,
+        bottom: read_f32(record, 36).ok_or(TRUNCATED)?,
+    };
+    let segments = (0..depth)
+        .map(|step| read_u32(record, LOSS_RECORD_BYTES + step * 4))
+        .collect::<Option<Vec<u32>>>()
+        .ok_or(TRUNCATED)?;
+    let placeholder = if flags & LOSS_FLAG_PLACEHOLDER != 0 {
+        Some((command, rect))
+    } else if command != u32::MAX {
+        return Err("names a stream position and draws no placeholder");
+    } else {
+        None
+    };
+    Ok((
+        LossRecord {
+            category,
+            source: SourceRef::new(PartId::new(part), SourcePath::new(&segments), start..end),
+            placeholder,
+        },
+        length,
+    ))
 }
 
 /// The commands of a display list, in paint order.

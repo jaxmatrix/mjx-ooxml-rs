@@ -122,7 +122,7 @@ fn a_fill_loses_it_the_same_way() {
         .expect("the shape resolves its fill");
 
     if let Some(mjx_dml::FillSpec::Solid(colour)) = &fill {
-        let resolved = color_of(colour);
+        let resolved = color_of(colour).ok();
         assert!(
             resolved.is_none_or(|resolved| resolved.alpha == 0xff),
             "a resolved fill colour arrived with an alpha channel. If `resolve_fill` now carries \
