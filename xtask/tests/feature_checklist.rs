@@ -2,10 +2,13 @@
 
 #[path = "../src/json.rs"]
 mod json;
+#[path = "../src/ticket_roster.rs"]
+mod ticket_roster;
 
 use json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use ticket_roster::{is_roster_ticket, TICKET_ROSTER};
 
 // The audit-id rosters of the 2026-09-15 renderer audits: prefix, the highest number issued, and the format audited.
 const AUDIT_ROSTERS: [(&str, u32, &str); 4] = [
@@ -13,58 +16,6 @@ const AUDIT_ROSTERS: [(&str, u32, &str); 4] = [
     ("X", 27, "xlsx"),
     ("W", 45, "docx"),
     ("C", 17, "shared"),
-];
-
-// The renderer-completion epic's (MJXOFF-295) RC label to ticket pairs; RC24 also owns sub-ticket MJXOFF-211.
-const TICKET_ROSTER: [(&str, &str); 48] = [
-    ("RC00", "MJXOFF-296"),
-    ("RC01", "MJXOFF-297"),
-    ("RC47", "MJXOFF-298"),
-    ("RC02", "MJXOFF-299"),
-    ("RC03", "MJXOFF-300"),
-    ("RC04", "MJXOFF-243"),
-    ("RC05", "MJXOFF-301"),
-    ("RC06", "MJXOFF-302"),
-    ("RC07", "MJXOFF-303"),
-    ("RC08", "MJXOFF-304"),
-    ("RC09", "MJXOFF-255"),
-    ("RC10", "MJXOFF-305"),
-    ("RC11", "MJXOFF-306"),
-    ("RC12", "MJXOFF-307"),
-    ("RC13", "MJXOFF-308"),
-    ("RC14", "MJXOFF-309"),
-    ("RC15", "MJXOFF-310"),
-    ("RC16", "MJXOFF-311"),
-    ("RC17", "MJXOFF-312"),
-    ("RC18", "MJXOFF-313"),
-    ("RC20", "MJXOFF-314"),
-    ("RC21", "MJXOFF-315"),
-    ("RC22", "MJXOFF-316"),
-    ("RC23", "MJXOFF-317"),
-    ("RC24", "MJXOFF-318"),
-    ("RC24", "MJXOFF-211"),
-    ("RC25", "MJXOFF-319"),
-    ("RC26", "MJXOFF-320"),
-    ("RC27", "MJXOFF-259"),
-    ("RC28", "MJXOFF-321"),
-    ("RC29", "MJXOFF-322"),
-    ("RC30", "MJXOFF-323"),
-    ("RC31", "MJXOFF-324"),
-    ("RC32", "MJXOFF-325"),
-    ("RC33", "MJXOFF-326"),
-    ("RC34", "MJXOFF-327"),
-    ("RC35", "MJXOFF-328"),
-    ("RC36", "MJXOFF-329"),
-    ("RC37", "MJXOFF-330"),
-    ("RC38", "MJXOFF-331"),
-    ("RC39", "MJXOFF-332"),
-    ("RC40", "MJXOFF-333"),
-    ("RC41", "MJXOFF-334"),
-    ("RC42", "MJXOFF-335"),
-    ("RC43", "MJXOFF-258"),
-    ("RC44", "MJXOFF-336"),
-    ("RC45", "MJXOFF-337"),
-    ("RC46", "MJXOFF-338"),
 ];
 
 // The only decisions that may take a row out of scope.
@@ -122,10 +73,6 @@ fn row_id(row: &Value) -> String {
     } else {
         id.to_owned()
     }
-}
-
-fn is_roster_ticket(candidate: &str) -> bool {
-    TICKET_ROSTER.iter().any(|(_, ticket)| *ticket == candidate)
 }
 
 // The parity ledger's row ids, parsed out of the constructor calls in `CAPABILITIES` rather than restated here.
