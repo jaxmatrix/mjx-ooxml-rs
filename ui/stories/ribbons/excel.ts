@@ -30,6 +30,9 @@
  * 8. **Review** followed Word's and PowerPoint's, one tab of one application: eleven groups and
  *    twenty-three commands. Comments is three generations of Office, as Data's Connections is, and every
  *    menu on the tab carries Office's whole list.
+ * 9. **View** followed Word's and PowerPoint's View, one tab of one application: seven groups and
+ *    twenty-eight commands, the tab that changes how a workbook is looked at and never the workbook. Workbook
+ *    Views is its one exclusive set, Freeze Panes and Switch Windows its two menus.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -320,11 +323,39 @@ export function excelReviewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelViewTab(): TemplateResult {
-  return placeholderTab(entry('view'));
+/**
+ * View: Sheet View, Workbook Views, Show, Zoom, Window, Night Mode, Debug, in **Office's** order where Office
+ * has one.
+ *
+ * ⚠ **Sheet View is first here and fifth in the census's declaration**, where Microsoft 365 draws it, at the
+ * tab's left edge. Night Mode and Debug stay last, where the declaration puts them, because nothing says
+ * where Office does. `GUESS:` both positions, and `dev/ribbons/census.ts` records the disagreement. Office's
+ * **Macros** is out of scope in the census and is not drawn.
+ *
+ * **Seven of the tab's twenty-eight commands are bound by the host**: the Sheet View dropdown is a field;
+ * Ruler, Gridlines, Formula Bar and Headings are checkboxes; Freeze Panes and Switch Windows are dropdowns
+ * over `stories/ribbons/view-menus.ts`. Everything else is the generic toggle or button, including the
+ * Workbook Views exclusive set.
+ *
+ * **No dialog launchers**, as in Office. **Two survivors**, 100% and Zoom to Selection, in Zoom.
+ */
+export function excelViewTab(options: TabOptions = {}): TemplateResult {
+  const view = entry('view');
+  const controls = options.controls ?? {};
+  return tab(
+    view.id,
+    view.label,
+    censusGroup(view, 'GroupNamedSheetView', {}, controls),
+    censusGroup(view, 'GroupWorkbookViews', {}, controls),
+    censusGroup(view, 'GroupViewShowHide', {}, controls),
+    censusGroup(view, 'GroupZoom', {}, controls),
+    censusGroup(view, 'GroupWindow', {}, controls),
+    censusGroup(view, 'GroupNightMode', {}, controls),
+    censusGroup(view, 'GroupViewDebug', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelPrintPreviewTab(): TemplateResult {
   return placeholderTab(entry('print-preview'));

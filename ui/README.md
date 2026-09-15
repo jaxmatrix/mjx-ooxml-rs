@@ -664,8 +664,7 @@ Translate is the only face that matches, and one shared button is not worth a fu
 
 ### Word's View
 
-**One tab of one application**, after the three Review tabs; PowerPoint's View followed, and Excel's is still
-a placeholder. Seven groups and twenty-five commands, drawn in Office's order: Document Views, Modes, Page
+**One tab of one application**, after the three Review tabs; PowerPoint's View and Excel's View followed. Seven groups and twenty-five commands, drawn in Office's order: Document Views, Modes, Page
 Movement, Show, Zoom, Window, Night Mode. The tab changes how a document is looked at and never the
 document, so almost nothing on it opens anything.
 
@@ -730,6 +729,46 @@ the Switch Windows list's shape.
 - **Office greys Arrange All, Cascade and Move Split** in some states; all are drawn available.
 - **Every command carries a glyph but the three checkboxes**, and every glyph is judged from Fluent's
   drawings. Zoom's `zoom-in` disagrees with Word's Zoom, which carries none.
+
+### Excel's View
+
+**The third View tab, one application again**, to Word's and PowerPoint's pattern. Seven groups and twenty-eight
+commands, drawn in Office's order where Office has one: Sheet View, Workbook Views, Show, Zoom, Window, Night
+Mode, Debug. Nothing is declared once with Word's or PowerPoint's: Zoom, Window, Show and Night Mode share
+census ids and not faces. Seven glyphs are shared, and so is the Switch Windows list's shape.
+
+- **One exclusive set**: Normal (pressed), Page Break Preview and Page Layout. Custom Views is a button.
+- **Toggles**: Split, View Side by Side, Synchronous Scrolling and Switch Modes, all unpressed.
+- **Checkboxes a host binds**: Ruler, Gridlines, Formula Bar and Headings, all ticked.
+- **One field a host binds**: the Sheet View dropdown, reading *Default*.
+- **Two dropdowns** over `stories/ribbons/view-menus.ts`: Freeze Panes (Freeze Panes, Freeze Top Row, Freeze
+  First Column, each with a glyph and a description) and Switch Windows (*1 Findings*).
+- **Buttons**: Keep, Exit, New, Options, Custom Views, Zoom, 100%, Zoom to Selection, New Window, Arrange All,
+  Hide, Unhide, Reset Window Position and Debug.
+- **No gallery, no split button, no dialog launcher.**
+
+**Survivors**: 100% and Zoom to Selection, in Zoom. One press each, no workbook changed. Split and Synchronous
+Scrolling pass rule 1 and fail rule 2 on their glyphs.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Sheet View is drawn first**, where Microsoft 365 draws it; the census declares it fifth. Night Mode and
+  Debug are last because nothing says where Office puts them. Macros is out of scope.
+- **Night Mode is Word's reading**, one Switch Modes toggle, and **Debug is one labelled button**, as on
+  Excel's Review. The census names both groups and describes neither.
+- **Office greys** most of Sheet View outside OneDrive and SharePoint, Ruler outside Page Layout view, Unhide
+  with nothing hidden, and Synchronous Scrolling and Reset Window Position until View Side by Side is on. All
+  are drawn available.
+- **Gridlines and Headings repeat Page Layout's View Gridlines and View Headings**, the same two options on two
+  faces, because the census declares both groups.
+- **Freeze Panes' first entry is *Freeze Panes***, because nothing is frozen; Office relabels it *Unfreeze
+  Panes* while panes are. The three descriptions are from memory of Microsoft 365.
+- **Custom Views is small where Office draws it large**, because Fluent draws `window-bullet-list` at 20 alone.
+  Page Break Preview is large with a three-word label, which may not wrap cleanly.
+- **Every glyph is judged from Fluent's drawings.** Synchronous Scrolling's up-and-down arrow and Reset Window
+  Position's two columns disagree with Word's, which carry none.
+- **The Sheet View dropdown, the four Show checkboxes and Debug carry no icon**: a field draws its value, a
+  checkbox its tick box, and Debug has no described behaviour for a glyph to show.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

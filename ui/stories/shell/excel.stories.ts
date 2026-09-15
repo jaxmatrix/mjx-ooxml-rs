@@ -46,6 +46,7 @@ import { insertMenus } from '../ribbons/insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import { excelSheetViews, viewMenus } from '../ribbons/view-menus.ts';
 import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
 /**
@@ -633,6 +634,34 @@ function ribbon(): TemplateResult {
               data-opens="shell-excel-review-ink-hide-ink"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // Excel's View. The Sheet View dropdown is a field over `excelSheetViews`, Show's four are checkboxes,
+            // all ticked as the census declares, and Freeze Panes and Switch Windows open their menus from
+            // `stories/ribbons/view-menus.ts`, with `data-opens` `commandSurfaceId('shell', <this key>)`. The Workbook
+            // Views exclusive set is the generic toggles.
+            'excel.view.sheet-view.sheet-view': html`<mjx-dropdown
+              id="xl-view-sheet-view"
+              label="Sheet View"
+              value="default"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${excelSheetViews.map((view) => html`<mjx-option value=${view.value} label=${view.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'excel.view.show.ruler': html`<mjx-checkbox id="xl-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+            'excel.view.show.gridlines': html`<mjx-checkbox id="xl-view-show-gridlines" label="Gridlines" checked="true"></mjx-checkbox>`,
+            'excel.view.show.formula-bar': html`<mjx-checkbox id="xl-view-formula-bar" label="Formula Bar" checked="true"></mjx-checkbox>`,
+            'excel.view.show.headings': html`<mjx-checkbox id="xl-view-show-headings" label="Headings" checked="true"></mjx-checkbox>`,
+            'excel.view.window.freeze-panes': html`<mjx-button
+              label="Freeze Panes"
+              icon="table-freeze-column-and-row"
+              size="large"
+              data-opens="shell-excel-view-window-freeze-panes"
+            ></mjx-button>`,
+            'excel.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-excel-view-window-switch-windows"
+            ></mjx-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -845,6 +874,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
       ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
       ${mailingsAnimationsDataMenus('excel', 'shell')} ${reviewMenus('excel', 'shell')}
+      ${viewMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

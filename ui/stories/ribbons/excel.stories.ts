@@ -30,6 +30,7 @@ import { insertMenus } from './insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
+import { excelSheetViews, viewMenus } from './view-menus.ts';
 
 /**
  * **Excel's ribbon, tab by tab** — the same functions `Shell/Excel` composes.
@@ -40,7 +41,7 @@ import { reviewMenus } from './review-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw, Page Layout, Formulas, Data and Review** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Page Layout, Formulas, Data, Review and View** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -60,7 +61,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Page Layout, Formulas, Data and Review are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw, Page Layout, Formulas, Data, Review and View are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -561,6 +562,34 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-excel-review-ink-hide-ink"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // Excel's View. The Sheet View dropdown is a field over `excelSheetViews`, Show's four are checkboxes,
+  // all ticked as the census declares, and Freeze Panes and Switch Windows open their menus from
+  // `stories/ribbons/view-menus.ts`, with `data-opens` `commandSurfaceId('ribbons', <this key>)`. The Workbook
+  // Views exclusive set is the generic toggles.
+  'excel.view.sheet-view.sheet-view': html`<mjx-dropdown
+    id="ribbons-xl-view-sheet-view"
+    label="Sheet View"
+    value="default"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${excelSheetViews.map((view) => html`<mjx-option value=${view.value} label=${view.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'excel.view.show.ruler': html`<mjx-checkbox id="ribbons-xl-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+  'excel.view.show.gridlines': html`<mjx-checkbox id="ribbons-xl-view-show-gridlines" label="Gridlines" checked="true"></mjx-checkbox>`,
+  'excel.view.show.formula-bar': html`<mjx-checkbox id="ribbons-xl-view-formula-bar" label="Formula Bar" checked="true"></mjx-checkbox>`,
+  'excel.view.show.headings': html`<mjx-checkbox id="ribbons-xl-view-show-headings" label="Headings" checked="true"></mjx-checkbox>`,
+  'excel.view.window.freeze-panes': html`<mjx-button
+    label="Freeze Panes"
+    icon="table-freeze-column-and-row"
+    size="large"
+    data-opens="ribbons-excel-view-window-freeze-panes"
+  ></mjx-button>`,
+  'excel.view.window.switch-windows': html`<mjx-button
+    label="Switch Windows"
+    icon="window-multiple"
+    size="large"
+    data-opens="ribbons-excel-view-window-switch-windows"
+  ></mjx-button>`,
 };
 
 /**
@@ -588,6 +617,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
+    ${viewMenus('excel', 'ribbons')}
   `;
 }
 
@@ -780,7 +810,31 @@ export const Data: Story = { render: () => ribbon('data') };
  */
 export const Review: Story = { render: () => ribbon('review') };
 
-/** Unit 9. */
+/**
+ * **View**: how a workbook is looked at, never the workbook itself. Authored after Word's and PowerPoint's
+ * View, one tab of one application. Seven groups: Sheet View, Workbook Views, Show, Zoom, Window, Night Mode
+ * and Debug. What to look at, least certain first:
+ *
+ * 1. ⚠ **Page Break Preview is large with a three-word label.** It should wrap to *Page Break* over
+ *    *Preview* without an ellipsis, beside Normal (pressed, a grid) and Page Layout (a printed page).
+ *    `GUESS:` that it fits.
+ * 2. ⚠ **Night Mode and Debug are `GUESS:` from end to end.** Night Mode is Word's reading, one large Switch
+ *    Modes toggle; Debug is one small labelled button with no icon, as on Excel's Review. Both are drawn
+ *    last.
+ * 3. ⚠ **Sheet View is drawn first**, where Microsoft 365 draws it; the census declares it fifth. Its
+ *    dropdown reads *Default* and lists Default alone. Keep, Exit, New and Options are small buttons with
+ *    a disk, an exit arrow, a plus and a cog, all available though Office greys most of them here.
+ * 4. ⚠ **100% and Zoom to Selection are the tab's only survivors.** Drag narrow until Zoom collapses: both
+ *    stay beside the trigger, and Zoom opens from it. `GUESS:` that *1:1* and the magnifier in fit corners
+ *    read with no label.
+ * 5. **Workbook Views is one exclusive set.** Press Page Layout and Normal releases; press Page Layout again
+ *    and it stays. Custom Views is a small button (a window with a list), not in the set.
+ * 6. **Window's two menus.** Freeze Panes (large, a grid with a held row and column): Freeze Panes, Freeze
+ *    Top Row, Freeze First Column, each with its glyph and a one-line description. Switch Windows: one
+ *    window, *1 Findings*, checked. Split, View Side by Side and Synchronous Scrolling fill while pressed;
+ *    Hide (eye struck through), Unhide (eye) and Reset Window Position (two columns) are plain buttons.
+ * 7. **Show is four checkboxes, all ticked**: Ruler, Gridlines, Formula Bar, Headings. No dialog launchers.
+ */
 export const View: Story = { render: () => ribbon('view') };
 
 /** Unit 10, and a view tab — see `dev/ribbons/census.ts`. */

@@ -133,14 +133,14 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'save',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "File verb. ⚠ **24 was added by the ribbon programme's unit 1**, which made Save the headline command of the File tab's Save group and therefore a `size=\"large\"` button. A large button draws at 24 and this row carried 20 alone, so it would have been the blank square `tests/ribbons.test.ts` exists to refuse — and did refuse, before a pixel was rendered.",
+    why: "File verb. ⚠ **24 was added by the ribbon programme's unit 1**, which made Save the headline command of the File tab's Save group and therefore a `size=\"large\"` button. A large button draws at 24 and this row carried 20 alone, so it would have been the blank square `tests/ribbons.test.ts` exists to refuse — and did refuse, before a pixel was rendered. **Since Excel's View unit, also Keep**, small, in Excel's View Sheet View group, which saves a temporary sheet view. `GUESS:`.",
   },
   { name: 'folder-open', sizes: [20, 24], variants: ['regular'], why: 'File verb.' },
   {
     name: 'add',
     sizes: [16, 20],
     variants: ['regular'],
-    why: 'Insertion, in a toolbar and inline in a list.',
+    why: "Insertion, in a toolbar and inline in a list. **Since Excel's View unit, also New**, small, in Excel's View Sheet View group: a new temporary sheet view. `GUESS:`.",
   },
   { name: 'delete', sizes: [16, 20], variants: ['regular'], why: 'Removal.' },
   {
@@ -759,9 +759,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'document-page-break',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Page Break, on Word's Pages group. Fluent draws the break itself — two page edges and the gap between them — which is Office's own picture of the command. **Since unit 5, also Breaks** on Word's Layout and Excel's Page Layout, whose first entry is that page break. Small in both.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Page Break, on Word's Pages group. Fluent draws the break itself — two page edges and the gap between them — which is Office's own picture of the command. **Since unit 5, also Breaks** on Word's Layout and Excel's Page Layout, whose first entry is that page break. Small in both. **Since Excel's View unit, also Page Break Preview**, the large toggle in Excel's View Workbook Views group, so 24 and the filled drawing: the breaks the view paints over the sheet. `GUESS:`.",
   },
   {
     name: 'image',
@@ -1285,7 +1285,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'eye',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Preview Results, on Word's Mailings tab: a large toggle, so 24 and the filled drawing. An eye is *show*; that is also why it does not survive a collapse unlabelled.",
+    why: "Preview Results, on Word's Mailings tab: a large toggle, so 24 and the filled drawing. An eye is *show*; that is also why it does not survive a collapse unlabelled. **Since Excel's View unit, also Unhide**, small, in Excel's View Window group: a hidden window brought back into sight. `GUESS:`.",
   },
   {
     name: 'previous',
@@ -1584,7 +1584,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-one-page',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Print Layout, the large toggle on Word's View tab, pressed in a new document: one printed page. `GUESS:`.",
+    why: "Print Layout, the large toggle on Word's View tab, pressed in a new document: one printed page. `GUESS:`. **Since Excel's View unit, also Page Layout**, the large toggle in Excel's Workbook Views group: the sheet as printed pages, the same idea.",
   },
   {
     name: 'list-bar-tree-offset',
@@ -1614,7 +1614,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'ratio-one-to-one',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "100%, the large button in Word's View Zoom group, and a survivor: *1:1*, actual size. Not `zoom-in`, which is a different command. `GUESS:` that it reads unlabelled.",
+    why: "100%, the large button in Word's View Zoom group, and a survivor: *1:1*, actual size. Not `zoom-in`, which is a different command. `GUESS:` that it reads unlabelled. **Since Excel's View unit, also Excel's 100%**, large and a survivor there too.",
   },
   {
     name: 'document-fit',
@@ -1632,31 +1632,31 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'window-new',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "New Window, the large button in Word's View Window group: a window with an arrow leaving it, a second window on the same document. **Since PowerPoint's View unit, also PowerPoint's New Window**, large, the same command.",
+    why: "New Window, the large button in Word's View Window group: a window with an arrow leaving it, a second window on the same document. **Since PowerPoint's View unit, also PowerPoint's New Window**, large, the same command. **Since Excel's View unit, also Excel's New Window**.",
   },
   {
     name: 'split-horizontal',
     sizes: [20, 24],
-    variants: ['regular'],
-    why: "Split, the large button in Word's View Window group: a window cut across, where Word puts the split bar. A plain button, because Office relabels it Remove Split rather than drawing it pressed, so regular alone. `GUESS:`.",
+    variants: ['regular', 'filled'],
+    why: "Split, the large button in Word's View Window group: a window cut across, where Word puts the split bar. A plain button, because Office relabels it Remove Split rather than drawing it pressed. `GUESS:`. **Since Excel's View unit, also Excel's Split**, a small toggle Excel draws pressed while the window is split, so the filled drawing too.",
   },
   {
     name: 'column-double-compare',
     sizes: [20],
     variants: ['regular', 'filled'],
-    why: "View Side by Side, the small toggle in Word's View Window group: two panes set beside each other to be compared. Fluent draws it at 20 alone, which is the size the command is. `GUESS:`.",
+    why: "View Side by Side, the small toggle in Word's View Window group: two panes set beside each other to be compared. Fluent draws it at 20 alone, which is the size the command is. `GUESS:`. **Since Excel's View unit, also Excel's View Side by Side**, the same toggle.",
   },
   {
     name: 'window-multiple',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Switch Windows, the large dropdown in Word's View Window group: windows overlapping, one of which to bring forward. `GUESS:`. **Since PowerPoint's View unit, also PowerPoint's Switch Windows**, large, the same dropdown.",
+    why: "Switch Windows, the large dropdown in Word's View Window group: windows overlapping, one of which to bring forward. `GUESS:`. **Since PowerPoint's View unit, also PowerPoint's Switch Windows**, large, the same dropdown. **Since Excel's View unit, also Excel's Switch Windows**.",
   },
   {
     name: 'dark-theme',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`.",
+    why: "Switch Modes, the large toggle in Word's View Night Mode group: a circle half dark, the page's light and dark modes. `GUESS:`. **Since Excel's View unit, also Excel's Switch Modes**, in the Night Mode group read as Word's.",
   },
   // ── View (PowerPoint's View) ──────────────────────────────────────────────
   //
@@ -1710,7 +1710,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'zoom-in',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`.",
+    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`. **Since Excel's View unit, also Excel's Zoom**, the same dialog.",
   },
   {
     name: 'page-fit',
@@ -1734,7 +1734,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'layout-column-two',
     sizes: [20],
     variants: ['regular'],
-    why: "Arrange All, in PowerPoint's View Window group: two windows side by side, as PowerPoint tiles them. `GUESS:`.",
+    why: "Arrange All, in PowerPoint's View Window group: two windows side by side, as PowerPoint tiles them. `GUESS:`. **Since Excel's View unit, also Reset Window Position**, small, in Excel's View Window group: two equal columns, the compared windows sharing the screen equally again. Excel's Arrange All draws `layout-cell-four` instead.",
   },
   {
     name: 'stack',
@@ -1759,6 +1759,74 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular', 'filled'],
     why: "Right-to-Left, the small toggle in PowerPoint's View Direction group: a letter and an arrow pointing left. `GUESS:`, as the whole group is.",
+  },
+  // ── View (Excel's View) ───────────────────────────────────────────────────
+  //
+  // Excel's View tab, one application under the one-tab-one-application rule. The same sizing as Word's and
+  // PowerPoint's View: **20 for a small command, 20 and 24 for a large one, and `filled` for every toggle.**
+  // `save`, `add`, `document-page-break`, `document-one-page`, `zoom-in`, `ratio-one-to-one`, `window-new`,
+  // `split-horizontal`, `eye`, `column-double-compare`, `layout-column-two`, `window-multiple` and
+  // `dark-theme` above gained a command rather than a row here; `settings` already says *Options*. The
+  // reasoning for every glyph is the *Excel's View* part of `dev/ribbons/census.ts`.
+  {
+    name: 'arrow-exit',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Exit, small, in Excel's View Sheet View group: an arrow leaving a frame, out of the temporary sheet view and back to Default. `GUESS:`.",
+  },
+  {
+    name: 'grid',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Normal, the large toggle in Excel's View Workbook Views group, pressed in a new workbook: cells in rows and columns, the sheet with nothing laid over it. Not `table`, Insert's Table. `GUESS:`.",
+  },
+  {
+    name: 'window-bullet-list',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Custom Views, in Excel's View Workbook Views group: a window holding a list, the named views the dialog keeps. Fluent draws it at 20 alone, so the command is small where Office draws it large. `GUESS:`.",
+  },
+  {
+    name: 'zoom-fit',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Zoom to Selection, the large button in Excel's View Zoom group, and a survivor: a magnifier inside fit corners, the selected cells fitted to the window. Not `zoom-in`, Zoom's. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'layout-cell-four',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Arrange All, the large button in Excel's View Window group: four windows tiled, the first arrangement in the Arrange Windows dialog it opens. `GUESS:`.",
+  },
+  {
+    name: 'table-freeze-column-and-row',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Freeze Panes, the large dropdown in Excel's View Window group, and the first entry of its menu: a grid with its top row and first column held, Fluent's own drawing of the command.",
+  },
+  {
+    name: 'table-freeze-row',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Freeze Top Row, the second entry of Excel's Freeze Panes menu: a grid with its top row held.",
+  },
+  {
+    name: 'table-freeze-column',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Freeze First Column, the third entry of Excel's Freeze Panes menu: a grid with its first column held.",
+  },
+  {
+    name: 'eye-off',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Hide, small, in Excel's View Window group: an eye struck through, the window put out of sight. Unhide draws `eye`. `GUESS:`.",
+  },
+  {
+    name: 'arrow-bidirectional-up-down',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Synchronous Scrolling, the small toggle in Excel's View Window group: an arrow up and down, scrolling. Not `arrow-sync`, AutoSave's, which is why Word's Synchronous Scrolling carries none. `GUESS:`.",
   },
 ];
 

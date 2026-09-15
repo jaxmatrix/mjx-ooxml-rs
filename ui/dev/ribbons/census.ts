@@ -91,7 +91,8 @@
  * see the *commands Review shows* section. **PowerPoint's Review** and **Excel's Review** followed, one tab of
  * one application each, in that section's *PowerPoint's Review* and *Excel's Review* parts. **Word's View**
  * followed, one tab of one application again; see the *commands View shows* section. **PowerPoint's View**
- * followed it, in that section's *PowerPoint's View* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * followed it, in that section's *PowerPoint's View* part, and **Excel's View** followed that, in its *Excel's View*
+ * part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -3127,8 +3128,8 @@ const excelReviewDebug: readonly RibbonCommand[] = [
 // ── the commands View shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit after the three Review tabs: **Word's View tab**, all seven in-scope groups,
-// under the one-tab-one-application rule. PowerPoint's View followed in the *PowerPoint's View* part below,
-// Excel's is still a placeholder, and nothing here is written as a function of the application. Zoom and Window carry the same census ids in
+// under the one-tab-one-application rule. PowerPoint's View and Excel's View followed in the *PowerPoint's
+// View* and *Excel's View* parts below, and nothing here is written as a function of the application. Zoom and Window carry the same census ids in
 // all three, and whether any of them is one declaration is their own units' question.
 //
 // ## The shapes, decided by what Office's popup is
@@ -3358,7 +3359,7 @@ const wordViewNightMode: readonly RibbonCommand[] = [
 // ── PowerPoint's View ────────────────────────────────────────────────────────
 //
 // **PowerPoint's View tab**, the second View tab, one tab of one application again and to Word's pattern:
-// all seven in-scope groups, twenty-four commands. Excel's View tab is still a placeholder. **Nothing is
+// all seven in-scope groups, twenty-four commands. Excel's View tab followed it. **Nothing is
 // declared once with Word's.** Zoom and Window carry the same census ids in both, and their faces differ:
 // PowerPoint's Zoom is two commands where Word's is five, and its Window has Cascade and Move Split where
 // Word's has Split and the side-by-side comparison. A function of the application would be two
@@ -3570,6 +3571,237 @@ const powerpointViewWindow: readonly RibbonCommand[] = [
 const powerpointViewViewDirection: readonly RibbonCommand[] = [
   { id: 'powerpoint.view.view-direction.left-to-right', label: 'Left-to-Right', icon: 'text-direction-horizontal-ltr', toggle: true, pressed: true, exclusive: 'powerpoint.view.view-direction' },
   { id: 'powerpoint.view.view-direction.right-to-left', label: 'Right-to-Left', icon: 'text-direction-horizontal-rtl', toggle: true, exclusive: 'powerpoint.view.view-direction' },
+];
+
+// ── Excel's View ─────────────────────────────────────────────────────────────
+//
+// **Excel's View tab**, the third View tab, one tab of one application again and to Word's and PowerPoint's
+// pattern: all seven in-scope groups, twenty-eight commands. **Nothing is declared once with Word's or
+// PowerPoint's.** Zoom, Window, Show and Night Mode carry the same census ids in two or three of them, and
+// their faces differ: Excel's Zoom is Zoom, 100% and Zoom to Selection; its Window has Freeze Panes, Hide and
+// Unhide; its Show has Formula Bar and Headings. What *is* shared is glyphs (Zoom, 100%, New Window, View
+// Side by Side, Switch Windows, Switch Modes, Page Layout's printed page) and the Switch Windows list's
+// shape in `stories/ribbons/view-menus.ts`.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Toggles in one exclusive set**, `excel.view.workbook-views`: Normal (pressed), Page Break Preview and
+// Page Layout, because Excel shows a sheet in exactly one of the three, which its status bar's three view
+// buttons also say. **Plain toggles**: Split, View Side by Side, Synchronous Scrolling and Switch Modes.
+// **Checkboxes a host binds**: Ruler, Gridlines, Formula Bar and Headings, all ticked. **One field a host
+// binds**: the Sheet View dropdown, reading *Default*. **Two dropdowns a host binds**, Freeze Panes and
+// Switch Windows, over menus in `stories/ribbons/view-menus.ts`. **Buttons**: Keep, Exit, New, Options,
+// Custom Views, Zoom, 100%, Zoom to Selection, New Window, Arrange All, Hide, Unhide, Reset Window Position
+// and Debug. **No gallery, no split button, no dialog launcher**: Office puts none on Excel's View tab.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The declaration puts Sheet View fifth; Microsoft 365 draws it first**, before Workbook Views. Office's
+//    View tab reads Sheet View, Workbook Views, Show, Zoom, Window, Macros. The group order is the tab
+//    module's decision, as it was for Word's Page Movement, so `excelViewTab` draws Sheet View, Workbook
+//    Views, Show, Zoom, Window, Night Mode, Debug. **Night Mode and Debug stay last**, in the declaration's
+//    order, because nothing this project can cite says where Office puts either. `GUESS:` both positions.
+// 2. **Macros** (`GroupMacros`, four controls) is out of scope in the census and is not drawn.
+// 3. **Sheet View is a Microsoft 365 group for a workbook saved to OneDrive or SharePoint**, and Office
+//    greys all of it but New for any other workbook, and greys Keep and Exit while *Default* is showing.
+//    Everything is drawn available, because `disabled` is loop 2's. The dropdown lists **Default** and every
+//    sheet view the workbook has saved; the catalogue's workbook has saved none, so it lists Default alone.
+//    `GUESS:` the dropdown's accessible name, *Sheet View*, which is the group's.
+// 4. **Night Mode is Word's reading, repeated.** The census names `GroupNightMode` and counts one control.
+//    It is drawn as Word's is, one large **Switch Modes** toggle, unpressed. `GUESS:` the whole group,
+//    including that Excel draws it at all outside a dark Office theme.
+// 5. **Debug is `GUESS:` in its entirety**, as Excel Review's Debug is: `GroupViewDebug` counts one control
+//    and says nothing else. One small button carrying the group's own label, and no icon.
+// 6. **Gridlines and Headings are Page Layout's View Gridlines and View Headings under another name**: one
+//    sheet option each, on two faces. Both are drawn, ticked in both places, because the census declares
+//    both groups; the repetition is recorded, not removed, as Excel Review's comment toggles are.
+// 7. **Ruler is ticked and greyed in Office outside Page Layout view**, where it has no ruler to show. It is
+//    drawn ticked and available.
+// 8. **Office relabels Freeze Panes' first entry *Unfreeze Panes* while panes are frozen.** The catalogue's
+//    sheet has none frozen, so the menu reads Freeze Panes, Freeze Top Row, Freeze First Column, each with
+//    Office's one-line description. `GUESS:` the descriptions' wording, from memory of Microsoft 365.
+// 9. **Office greys Unhide while no window is hidden, and Synchronous Scrolling and Reset Window Position
+//    until View Side by Side is on.** All three are drawn available.
+// 10. **The census's counts are larger than the faces**, and nothing is padded: Show is 8 and draws four;
+//     Workbook Views is 4, Zoom is 3, Window is 10 and Sheet View is 5, and each draws exactly that many.
+//
+// ## Survivors: 100% and Zoom to Selection, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Zoom's 100% and Zoom to Selection survive.** Each sets the zoom in one press and changes no workbook,
+//   the standard Word's zoom presets and PowerPoint's Fit to Window pass. `ratio-one-to-one` is *1:1*, actual
+//   size, and Word's 100%; `zoom-fit` is a magnifier inside fit corners, the selection fitted to the window,
+//   and no other command's glyph in this subset. Zoom stays in the popup, so the popup is never empty.
+//   `GUESS:` rule 2 on both glyphs.
+// - **Zoom** opens a dialog: rule 1.
+// - **Sheet View**: the dropdown is a field, which the gate refuses. **Keep** saves a temporary view into the
+//   workbook, **New** creates one and **Exit** leaves one, and none is taken back by a second press or an
+//   undo: rule 1. **Options** opens a dialog.
+// - **Workbook Views** are an exclusive set, which a second press does not take back; **Custom Views** opens
+//   a dialog.
+// - **Show**'s four are checkboxes a host binds, which the gate refuses.
+// - **Window**: New Window opens a window, Arrange All opens the Arrange Windows dialog, Freeze Panes and
+//   Switch Windows are menus, Unhide is a dialog, and **Hide** is taken back only through that dialog. View
+//   Side by Side asks which workbook when more than two are open, and **Reset Window Position** is undone by
+//   nothing. **Split passes rule 1 and fails rule 2**: a press splits the window into four panes at the
+//   active cell and a second press removes them, but `split-horizontal` draws one cut across, so with no
+//   label it says a different split from the one it makes. **Synchronous Scrolling passes rule 1 and fails
+//   rule 2**: `arrow-bidirectional-up-down` is *scroll*, and says nothing of *together*.
+// - **Night Mode** and **Debug** are each their group's only command, so a survivor would leave the collapsed
+//   popup empty; Debug has no glyph besides.
+//
+// ## Sizes, and every glyph
+//
+// Word's rule: `large` where Office draws it large **and** Fluent draws its glyph at 24 **and** the label
+// wraps inside `largeControlWidthUnits`. **Normal, Page Break Preview, Page Layout, Zoom, 100%, Zoom to
+// Selection, New Window, Arrange All, Freeze Panes, Switch Windows and Switch Modes** are large. **Custom
+// Views is small where Office draws it large**, because Fluent draws `window-bullet-list` at 20 alone. Sheet
+// View's five, Split, Hide, Unhide, View Side by Side, Synchronous Scrolling, Reset Window Position and Debug
+// are small, as Office draws them. `GUESS:` that *Page Break Preview*, three words, wraps to two lines
+// without clipping; `Ribbons/Excel → View` names it as the first thing to look at.
+//
+// **Every command on the tab's face carries a glyph except the Sheet View dropdown, the four Show
+// checkboxes and Debug.** The dropdown is a field and draws its value; the checkboxes draw a tick box; Debug
+// has no described behaviour, so any glyph would claim one (`bug` would say *debugger*, which nothing in the
+// census says the command opens). Every glyph below is `GUESS:`, judged from Fluent's drawings rather than
+// from a build this project can cite:
+//
+// - **Keep draws `save`**, the disk: Office's tooltip says Keep *saves* the temporary view. It is File's Save
+//   glyph, which matters only to a survivor, and Keep is not one. **Exit draws `arrow-exit`**, an arrow
+//   leaving a frame, out of the view. **New draws `add`**, a plus, a new view. **Options draws `settings`**, the
+//   cog every Options command in this subset draws.
+// - **Normal draws `grid`**, cells in rows and columns: the sheet, with nothing laid over it. Not `table`,
+//   which is Insert's Table. **Page Break Preview draws `document-page-break`**, Breaks' two page edges and the
+//   gap between them, which is what the view paints over the sheet. **Page Layout draws `document-one-page`**,
+//   Word's Print Layout, because it is the same idea: the sheet as printed pages.
+// - **Custom Views draws `window-bullet-list`**, a window holding a list: the named views the dialog keeps.
+// - **Zoom draws `zoom-in`**, PowerPoint's Zoom; **100% draws `ratio-one-to-one`**, Word's; **Zoom to Selection
+//   draws `zoom-fit`**; see the survivors above.
+// - **New Window and Switch Windows** draw Word's `window-new` and `window-multiple`. **View Side by Side**
+//   draws Word's `column-double-compare`.
+// - **Arrange All draws `layout-cell-four`**, four windows tiled, which is Excel's first arrangement in the
+//   dialog it opens. Not PowerPoint's `layout-column-two`, which Reset Window Position draws here.
+// - **Freeze Panes draws `table-freeze-column-and-row`**, a grid with its top row and first column held,
+//   Fluent's own drawing of the command; its three menu entries draw `table-freeze-column-and-row`,
+//   `table-freeze-row` and `table-freeze-column`.
+// - **Split draws `split-horizontal`**, Word's Split, filled while the window is split.
+// - **Hide draws `eye-off`** and **Unhide draws `eye`**, a window put out of sight and brought back. `eye` is
+//   Word's Preview Results, another application's tab.
+// - **Synchronous Scrolling draws `arrow-bidirectional-up-down`**, an arrow up and down: scrolling. Word's
+//   Synchronous Scrolling carries none, because `arrow-sync` is AutoSave's; this glyph is not, and a
+//   disagreement with Word's unit that this unit does not reopen.
+// - **Reset Window Position draws `layout-column-two`**, two equal columns: the two windows sharing the
+//   screen equally again, which is what the command does.
+// - **Switch Modes draws `dark-theme`**, Word's.
+
+/**
+ * Excel's `GroupNamedSheetView`, labelled **Sheet View**: the view dropdown, then Keep, Exit, New and Options.
+ *
+ * **The dropdown is a field** each host binds as `<mjx-dropdown>` reading *Default*; see disagreement 3.
+ * **Keep, Exit, New and Options are small buttons**: Keep saves the temporary view, Exit returns to Default,
+ * New starts a temporary view, and Options opens Sheet View Options. See this section's header for the glyphs.
+ *
+ * **No survivor**: a field, three commands no undo takes back, and a dialog.
+ */
+const excelViewSheetView: readonly RibbonCommand[] = [
+  { id: 'excel.view.sheet-view.sheet-view', label: 'Sheet View' },
+  { id: 'excel.view.sheet-view.keep', label: 'Keep', icon: 'save' },
+  { id: 'excel.view.sheet-view.exit', label: 'Exit', icon: 'arrow-exit' },
+  { id: 'excel.view.sheet-view.new', label: 'New', icon: 'add' },
+  { id: 'excel.view.sheet-view.options', label: 'Options', icon: 'settings' },
+];
+
+/**
+ * Excel's Workbook Views: Normal, Page Break Preview and Page Layout large, then Custom Views.
+ *
+ * **Three toggles and one exclusive set, Normal pressed**, because a workbook opens in Normal and Excel shows
+ * a sheet in exactly one view. **Custom Views is a button** opening the Custom Views dialog, small because
+ * `window-bullet-list` has no 24 drawing.
+ *
+ * **No survivor**: an exclusive set, and a dialog.
+ */
+const excelViewWorkbookViews: readonly RibbonCommand[] = [
+  { id: 'excel.view.workbook-views.normal', label: 'Normal', icon: 'grid', size: 'large', toggle: true, pressed: true, exclusive: 'excel.view.workbook-views' },
+  { id: 'excel.view.workbook-views.page-break-preview', label: 'Page Break Preview', icon: 'document-page-break', size: 'large', toggle: true, exclusive: 'excel.view.workbook-views' },
+  { id: 'excel.view.workbook-views.page-layout', label: 'Page Layout', icon: 'document-one-page', size: 'large', toggle: true, exclusive: 'excel.view.workbook-views' },
+  { id: 'excel.view.workbook-views.custom-views', label: 'Custom Views', icon: 'window-bullet-list' },
+];
+
+/**
+ * Excel's `GroupViewShowHide`, labelled **Show**: Ruler, Gridlines, Formula Bar and Headings.
+ *
+ * **Four toggles drawn as checkboxes**, bound by each host as `<mjx-checkbox>`, **all ticked**: a new
+ * workbook shows gridlines, the formula bar and headings, and the assembled shell draws all three. Office
+ * draws Ruler ticked and greyed outside Page Layout view; see disagreements 6 and 7.
+ *
+ * **No survivor**: four checkboxes.
+ */
+const excelViewShow: readonly RibbonCommand[] = [
+  { id: 'excel.view.show.ruler', label: 'Ruler', toggle: true, pressed: true },
+  { id: 'excel.view.show.gridlines', label: 'Gridlines', toggle: true, pressed: true },
+  { id: 'excel.view.show.formula-bar', label: 'Formula Bar', toggle: true, pressed: true },
+  { id: 'excel.view.show.headings', label: 'Headings', toggle: true, pressed: true },
+];
+
+/**
+ * Excel's Zoom group: Zoom, 100% and Zoom to Selection, all large.
+ *
+ * **Zoom draws `zoom-in`** and opens the Zoom dialog. **100% draws `ratio-one-to-one`** and sets the zoom to
+ * actual size. **Zoom to Selection draws `zoom-fit`** and zooms until the selected cells fill the window.
+ *
+ * **Survivors: 100% and Zoom to Selection.** See this section's header.
+ */
+const excelViewZoom: readonly RibbonCommand[] = [
+  { id: 'excel.view.zoom.zoom', label: 'Zoom', icon: 'zoom-in', size: 'large' },
+  { id: 'excel.view.zoom.one-hundred-percent', label: '100%', icon: 'ratio-one-to-one', size: 'large', essential: true },
+  { id: 'excel.view.zoom.zoom-to-selection', label: 'Zoom to Selection', icon: 'zoom-fit', size: 'large', essential: true },
+];
+
+/**
+ * Excel's Window group: New Window, Arrange All and Freeze Panes large; Split, Hide and Unhide in a column;
+ * View Side by Side, Synchronous Scrolling and Reset Window Position in a column; then Switch Windows large.
+ *
+ * **New Window** opens a second window on the workbook. **Arrange All** opens Arrange Windows (Tiled,
+ * Horizontal, Vertical, Cascade). **Freeze Panes is a dropdown** a host binds, over three entries. **Split is
+ * a toggle**, drawn pressed while the window is split; Excel does not relabel it, as Word does. **Hide** hides
+ * the window and **Unhide** opens a list of hidden windows. **View Side by Side and Synchronous Scrolling are
+ * toggles**, both unpressed, and **Reset Window Position** shares the screen equally again. **Switch Windows
+ * is a dropdown** a host binds, listing every open window. See disagreements 8 and 9.
+ *
+ * **No survivor**: see this section's header.
+ */
+const excelViewWindow: readonly RibbonCommand[] = [
+  { id: 'excel.view.window.new-window', label: 'New Window', icon: 'window-new', size: 'large' },
+  { id: 'excel.view.window.arrange-all', label: 'Arrange All', icon: 'layout-cell-four', size: 'large' },
+  { id: 'excel.view.window.freeze-panes', label: 'Freeze Panes', icon: 'table-freeze-column-and-row', size: 'large' },
+  { id: 'excel.view.window.split', label: 'Split', icon: 'split-horizontal', toggle: true },
+  { id: 'excel.view.window.hide', label: 'Hide', icon: 'eye-off' },
+  { id: 'excel.view.window.unhide', label: 'Unhide', icon: 'eye' },
+  { id: 'excel.view.window.view-side-by-side', label: 'View Side by Side', icon: 'column-double-compare', toggle: true },
+  { id: 'excel.view.window.synchronous-scrolling', label: 'Synchronous Scrolling', icon: 'arrow-bidirectional-up-down', toggle: true },
+  { id: 'excel.view.window.reset-window-position', label: 'Reset Window Position', icon: 'layout-column-two' },
+  { id: 'excel.view.window.switch-windows', label: 'Switch Windows', icon: 'window-multiple', size: 'large' },
+];
+
+/**
+ * Excel's `GroupNightMode`: Switch Modes, Word's reading. `GUESS:` the whole group; see disagreement 4.
+ *
+ * **A large toggle drawing `dark-theme`**, unpressed.
+ *
+ * **No survivor**: the only command.
+ */
+const excelViewNightMode: readonly RibbonCommand[] = [
+  { id: 'excel.view.night-mode.switch-modes', label: 'Switch Modes', icon: 'dark-theme', size: 'large', toggle: true },
+];
+
+/**
+ * Excel's `GroupViewDebug`, labelled **Debug**. `GUESS:` the whole group; see disagreement 5.
+ *
+ * **No survivor**: no glyph, and the only command.
+ */
+const excelViewDebug: readonly RibbonCommand[] = [
+  { id: 'excel.view.debug.debug', label: 'Debug' },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -4382,13 +4614,13 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabView' },
     groups: [
-      { id: 'GroupWorkbookViews', label: 'Workbook Views', priority: 'primary', controls: 4, inScope: true },
-      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 10, inScope: true },
-      { id: 'GroupNamedSheetView', label: 'Sheet View', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupNightMode', label: 'Night Mode', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupViewDebug', label: 'Debug', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupWorkbookViews', label: 'Workbook Views', priority: 'primary', controls: 4, inScope: true, commands: excelViewWorkbookViews },
+      { id: 'GroupViewShowHide', label: 'Show', priority: 'standard', controls: 8, inScope: true, commands: excelViewShow },
+      { id: 'GroupZoom', label: 'Zoom', priority: 'standard', controls: 3, inScope: true, commands: excelViewZoom },
+      { id: 'GroupWindow', label: 'Window', priority: 'standard', controls: 10, inScope: true, commands: excelViewWindow },
+      { id: 'GroupNamedSheetView', label: 'Sheet View', priority: 'standard', controls: 5, inScope: true, commands: excelViewSheetView },
+      { id: 'GroupNightMode', label: 'Night Mode', priority: 'ancillary', controls: 1, inScope: true, commands: excelViewNightMode },
+      { id: 'GroupViewDebug', label: 'Debug', priority: 'ancillary', controls: 1, inScope: true, commands: excelViewDebug },
     ],
   },
   {

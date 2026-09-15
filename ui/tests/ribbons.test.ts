@@ -793,6 +793,7 @@ describe('every exclusive set starts with exactly one member pressed', () => {
       'powerpoint.view.presentation-views': ['Normal', 'Outline View', 'Slide Sorter', 'Notes Page', 'Reading View'],
       'powerpoint.view.colour-greyscale': ['Colour', 'Greyscale', 'Black and White'],
       'powerpoint.view.view-direction': ['Left-to-Right', 'Right-to-Left'],
+      'excel.view.workbook-views': ['Normal', 'Page Break Preview', 'Page Layout'],
     });
   });
 
@@ -812,6 +813,7 @@ describe('every exclusive set starts with exactly one member pressed', () => {
       'powerpoint.view.presentation-views': ['Normal'],
       'powerpoint.view.colour-greyscale': ['Colour'],
       'powerpoint.view.view-direction': ['Left-to-Right'],
+      'excel.view.workbook-views': ['Normal'],
     });
   });
 
