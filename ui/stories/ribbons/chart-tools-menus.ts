@@ -40,7 +40,7 @@
  * - **Shape Styles**: `chartOutlineEntryOptions(application)`, Shape Outline's entries less Sketched and Arrows.
  * - **WordArt Styles**: `chartTextFillEntryOptions(application)` and `chartTextOutlineEntryOptions(application)`, each
  *   application's own Shape Format text entries.
- * - **Size**: `wordChartMeasures`, the chart Word inserts.
+ * - **Size**: `wordChartMeasures` and `powerpointChartMeasures`, the chart each application inserts.
  *
  * `GUESS:` every label, order, check and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * US spelling the census's wins (*Colours*, *Colourful*, *Centred*), as it does across the catalogue.
@@ -580,6 +580,14 @@ export function chartTextOutlineEntryOptions(application: RibbonApplication): Ou
  */
 export const wordChartMeasures = { height: '8.89', width: '15.24', step: '0.01' } as const;
 
+/**
+ * **The height and width a PowerPoint host starts a chart's Size fields on**, in centimetres: the chart PowerPoint
+ * inserts on a slide with no content placeholder, `p:graphicFrame`'s `a:ext` 8128000 × 5418667 EMU, 22.58 cm wide and
+ * 15.05 high, stepping by 0.01 cm. A chart inserted into a content placeholder takes the placeholder's size instead.
+ * `GUESS:` both numbers, the step, and which of the two to start on.
+ */
+export const powerpointChartMeasures = { height: '15.05', width: '22.58', step: '0.01' } as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -624,10 +632,34 @@ function wordChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * PowerPoint's five menus: **Word's five, under PowerPoint's ids, over the same lists**. Office's PowerPoint Chart
- * Design differs from Word's in no menu this tab opens (the census counts every group the same), so this branch writes
- * no list of its own. It is a function only because a command's id carries its application, and
- * `tests/ribbons.test.ts` reads each id from a literal `commandMenu(host, '…'` call.
+ * PowerPoint's ten Chart Format menus: **Word's twelve less Position and Wrap Text**, which a slide does not have,
+ * under PowerPoint's ids. **Insert Shapes' two**: Shapes and Change Shape, over a chart's gallery. **Shape Styles'
+ * two**: Other Theme Fills, whose id is the Theme Styles gallery's, and Shape Effects. **WordArt Styles' one**: Text
+ * Effects. **Arrange's five**, over `stories/ribbons/design-layout-menus.ts`' PowerPoint lists, as PowerPoint's Shape
+ * Format (Align to Slide ticked). The Chart Elements field is a field, and every other command a picker, a gallery, a
+ * toggle or a plain button.
+ */
+function powerpointChartFormatMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.chart-format.insert-shapes.shapes', 'Shapes', ...chartShapesEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.chart-format.insert-shapes.change-shape', 'Change Shape', ...chartChangeShapeEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.chart-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
+    ${commandMenu(host, 'powerpoint.chart-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
+    ${commandMenu(host, 'powerpoint.chart-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'powerpoint.chart-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.chart-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.chart-format.arrange.align', 'Align', ...alignEntries('powerpoint'))}
+    ${commandMenu(host, 'powerpoint.chart-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'powerpoint.chart-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+  `;
+}
+
+/**
+ * PowerPoint's fifteen menus: **Chart Design's five**, Word's five under PowerPoint's ids over the same lists, then
+ * `powerpointChartFormatMenus`' ten. Office's PowerPoint Chart Design differs from Word's in no menu that tab opens (the
+ * census counts every group the same), so its half writes no list of its own. It is a function only because a
+ * command's id carries its application, and `tests/ribbons.test.ts` reads each id from a literal
+ * `commandMenu(host, '…'` call.
  */
 function powerpointChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
@@ -636,6 +668,7 @@ function powerpointChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
     ${commandMenu(host, 'powerpoint.chart-design.chart-styles.change-colours', 'Change Colours', ...changeColoursEntries())}
     ${commandMenu(host, 'powerpoint.chart-design.data.edit-data', 'Edit Data', ...editDataEntries())}
     ${commandMenu(host, 'powerpoint.chart-design.type.change-chart-type', 'Change Chart Type', ...changeChartTypeEntries())}
+    ${powerpointChartFormatMenus(host)}
   `;
 }
 
@@ -655,8 +688,8 @@ function excelChartToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 
 /**
  * Every menu one application's Chart Tools tabs open, with ids for one host's page. **Every Chart Design is authored**:
- * Word's and PowerPoint's five, Excel's four. **Of the three Chart Formats, Word's is authored**, twelve menus;
- * PowerPoint's and Excel's add theirs in their own units.
+ * Word's and PowerPoint's five, Excel's four. **Of the three Chart Formats, Word's and PowerPoint's are
+ * authored**, twelve menus and ten; Excel's adds its own in its unit.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Chart Tools **and** binds its
  * commands: `Ribbons/Word`, `Ribbons/PowerPoint` and `Ribbons/Excel`. `Shell/Word` and `Shell/Excel` draw Table Tools

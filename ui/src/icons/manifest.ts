@@ -618,7 +618,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-reset',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "**Since PowerPoint's Recording unit, also Reset to Cameo**, the large dropdown in Recording's Edit group, the same verb, so 24 as well (`GUESS:`). Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once. **Since PowerPoint's Slide Master Home unit, also Reset there**, small, in Master Slides: Home's command. **Since Word's Chart Format unit, also Reset to Match Style**, small, in Current Selection, which discards the selected chart part's own formatting so it wears the chart style again: the same verb, every override at once. It is that tab's weakest glyph, because it says *reset* and not *to the style*. `GUESS:`.",
+    why: "**Since PowerPoint's Recording unit, also Reset to Cameo**, the large dropdown in Recording's Edit group, the same verb, so 24 as well (`GUESS:`). Reset, on PowerPoint's Slides group — the command that puts a slide's placeholders back where its layout says they go. Deliberately not `arrow-undo`, which this subset carries for the quick-access bar: undo takes back the last thing anybody did, and Reset discards every override at once. **Since PowerPoint's Slide Master Home unit, also Reset there**, small, in Master Slides: Home's command. **Since Word's Chart Format unit, also Reset to Match Style**, small, in Current Selection, which discards the selected chart part's own formatting so it wears the chart style again: the same verb, every override at once. It is that tab's weakest glyph, because it says *reset* and not *to the style*. `GUESS:`. **Since PowerPoint's Chart Format unit, also PowerPoint's Reset to Match Style**, the same command, and again that tab's weakest glyph. `GUESS:`.",
   },
   {
     name: 'font-space-tracking-out',
@@ -666,7 +666,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'shapes',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Shapes, the first command of PowerPoint's Drawing group. Three overlapping outlines, which is what the gallery underneath it contains. 24 since unit 3, where Shapes is a `size=\"large\"` command of the Insert tab's Illustrations group in all three applications. **Since PowerPoint's Shape Format unit, also Insert Shapes' Shapes**, large, standing where Office draws its in-ribbon shape gallery, and opening the same whole gallery Insert's opens. **Since Word's Shape Format unit, also Word's Insert Shapes' Shapes**, the same large dropdown. **Since Excel's Shape Format unit, also Excel's**, the same large dropdown over Excel's copy of the gallery. **Since Word's Chart Format unit, also a chart's Insert Shapes' Shapes**, the same large dropdown over the gallery less New Drawing Canvas and Action Buttons. `GUESS:`.",
+    why: "Shapes, the first command of PowerPoint's Drawing group. Three overlapping outlines, which is what the gallery underneath it contains. 24 since unit 3, where Shapes is a `size=\"large\"` command of the Insert tab's Illustrations group in all three applications. **Since PowerPoint's Shape Format unit, also Insert Shapes' Shapes**, large, standing where Office draws its in-ribbon shape gallery, and opening the same whole gallery Insert's opens. **Since Word's Shape Format unit, also Word's Insert Shapes' Shapes**, the same large dropdown. **Since Excel's Shape Format unit, also Excel's**, the same large dropdown over Excel's copy of the gallery. **Since Word's Chart Format unit, also a chart's Insert Shapes' Shapes**, the same large dropdown over the gallery less New Drawing Canvas and Action Buttons. `GUESS:`. **Since PowerPoint's Chart Format unit, also PowerPoint's**, over PowerPoint's gallery less Action Buttons. `GUESS:`.",
   },
   {
     name: 'layer',
@@ -2353,7 +2353,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'image-alt-text',
     sizes: [24],
     variants: ['regular', 'filled'],
-    why: "Alt Text, the large toggle in Picture Format's Accessibility group, which opens the Alt Text pane and draws pressed while it is open: Fluent's own picture with a text label. Filled for the pressed state. **Since PowerPoint's Shape Format unit, also Shape Format's Alt Text**, the same large toggle for a shape: Fluent draws no shape with a label, and the pane it opens is the same one. **Since Word's Shape Format unit, also Word's Shape Format Alt Text**, for PowerPoint's reason. **Since Excel's Shape Format unit, also Excel's**, for the same reason. `GUESS:`. **Since Word's Chart Format unit, also Chart Format's Alt Text**, for a chart: Fluent draws no chart with a label, and the pane is the same one. `GUESS:`.",
+    why: "Alt Text, the large toggle in Picture Format's Accessibility group, which opens the Alt Text pane and draws pressed while it is open: Fluent's own picture with a text label. Filled for the pressed state. **Since PowerPoint's Shape Format unit, also Shape Format's Alt Text**, the same large toggle for a shape: Fluent draws no shape with a label, and the pane it opens is the same one. **Since Word's Shape Format unit, also Word's Shape Format Alt Text**, for PowerPoint's reason. **Since Excel's Shape Format unit, also Excel's**, for the same reason. `GUESS:`. **Since Word's Chart Format unit, also Chart Format's Alt Text**, for a chart: Fluent draws no chart with a label, and the pane is the same one. `GUESS:`. **Since PowerPoint's Chart Format unit, also PowerPoint's**, for the same reason. `GUESS:`.",
   },
   {
     name: 'crop',
@@ -2375,7 +2375,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'bezier-curve-square',
     sizes: [20],
     variants: ['regular'],
-    why: "Edit Shape, the small dropdown in Shape Format's Insert Shapes group, which opens Change Shape, Edit Points and Reroute Connectors: a square whose corners carry Bézier handles, which is what Edit Points puts on a shape. Not `draw-shape`, a pencil drawing a new shape, which is Insert's Shapes. Fluent draws it at 12 and 20 only, and the command is small. **Since Word's Shape Format unit, also Word's Edit Shape**, the same menu. **Since Excel's Shape Format unit, also Excel's Edit Shape**, the same menu. `GUESS:`. **Since Word's Chart Format unit, also Change Shape**, small, in a chart's Insert Shapes, which opens the Change Shape list Edit Shape's first entry opens on Shape Format: on a chart it stands alone, so it draws its parent's glyph. `GUESS:`.",
+    why: "Edit Shape, the small dropdown in Shape Format's Insert Shapes group, which opens Change Shape, Edit Points and Reroute Connectors: a square whose corners carry Bézier handles, which is what Edit Points puts on a shape. Not `draw-shape`, a pencil drawing a new shape, which is Insert's Shapes. Fluent draws it at 12 and 20 only, and the command is small. **Since Word's Shape Format unit, also Word's Edit Shape**, the same menu. **Since Excel's Shape Format unit, also Excel's Edit Shape**, the same menu. `GUESS:`. **Since Word's Chart Format unit, also Change Shape**, small, in a chart's Insert Shapes, which opens the Change Shape list Edit Shape's first entry opens on Shape Format: on a chart it stands alone, so it draws its parent's glyph. `GUESS:`. **Since PowerPoint's Chart Format unit, also PowerPoint's Change Shape**, the same list less Action Buttons. `GUESS:`.",
   },
   {
     name: 'shape-union',
@@ -2403,7 +2403,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'data-bar-vertical-edit',
     sizes: [20],
     variants: ['regular'],
-    why: "Format Selection, the small button in Chart Format's Current Selection group, which opens the Format pane at the chart part the Chart Elements field names: a column chart with a pencil, formatting one part of a chart. Not `panel-right-cursor`, which says *a pane* and not which, nor `table-edit`, Chart Design's Edit Data, a table with a pencil: editing the numbers rather than their look. Small alone, so 20 alone. `GUESS:`.",
+    why: "Format Selection, the small button in Chart Format's Current Selection group, which opens the Format pane at the chart part the Chart Elements field names: a column chart with a pencil, formatting one part of a chart. Not `panel-right-cursor`, which says *a pane* and not which, nor `table-edit`, Chart Design's Edit Data, a table with a pencil: editing the numbers rather than their look. Small alone, so 20 alone. `GUESS:`. **Since PowerPoint's Chart Format unit, also PowerPoint's Format Selection**, the same small button. `GUESS:`.",
   },
 ];
 

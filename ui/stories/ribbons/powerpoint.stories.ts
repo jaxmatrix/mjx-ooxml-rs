@@ -37,7 +37,15 @@ import {
   themeGalleryItems,
   variantGalleryItems,
 } from './design-layout-menus.ts';
-import { chartStyleGalleryItems, chartToolsMenus } from './chart-tools-menus.ts';
+import {
+  chartOutlineEntryOptions,
+  chartSelectionOptions,
+  chartStyleGalleryItems,
+  chartTextFillEntryOptions,
+  chartTextOutlineEntryOptions,
+  chartToolsMenus,
+  powerpointChartMeasures,
+} from './chart-tools-menus.ts';
 import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { drawMenus } from './draw-menus.ts';
 import {
@@ -92,11 +100,11 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs.** **Table Design, Layout, Picture Format, Shape Format and Chart Design
- * are authored**, PowerPoint's first five. **The last is a placeholder** at the census's own priorities: Chart Tools'
- * Format. Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools
- * alone, which is why Table Design's, Layout's, Shape Format's and Chart Design's bindings and menus are written here and
- * nowhere else, and why
+ * **Six more stories are the contextual tabs, and all six are authored**: Table Design, Layout, Picture Format, Shape
+ * Format, Chart Design and Chart Tools' Format. Each was a placeholder at the census's own priorities until its unit.
+ * Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone, which
+ * is why Table Design's, Layout's, Shape Format's, Chart Design's and Chart Format's bindings and menus are written here
+ * and nowhere else, and why
  * Picture Format's are written in both hosts.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
@@ -120,9 +128,8 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout, Picture Format, Shape ' +
-          'Format and Chart Design are authored; Chart Tools’ Format is a placeholder carrying the census’s own ' +
-          'priorities.',
+          'Greyscale. Of the contextual tabs of the four common sets, all six are authored: Table Design, Layout, ' +
+          'Picture Format, Shape Format, Chart Design and Chart Tools’ Format.',
       },
     },
     mjx: conventions,
@@ -1454,6 +1461,169 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-chart-design-type-change-chart-type"
   ></mjx-button>`,
+  // Chart Format (a contextual tab, in Chart Tools). `Shell/PowerPoint` draws Picture Tools and not Chart Tools, so these
+  // eighteen bindings and the Chart Format half of `chartToolsMenus('powerpoint', …)` are written here alone, for Table
+  // Design's reason. They are `Ribbons/Word`'s twenty-one less Position and Wrap Text, under PowerPoint's ids, and differ
+  // only where Office does: every picker's entries carry an Eyedropper (the `powerpoint` branches of the entry options),
+  // Shape Fill and Shape Outline start on none (a chart on a slide is transparent), and the measures are a slide's. The
+  // Chart Elements field's options, a chart's Shapes and Change Shape, the entry options and the starting measures are
+  // `stories/ribbons/chart-tools-menus.ts`'s; the Theme Styles gallery, Other Theme Fills, Shape Effects and Shape Fill's
+  // entries `stories/ribbons/drawing-tools-menus.ts`'; the WordArt gallery `stories/ribbons/wordart-styles-menus.ts`';
+  // the four pickers and both galleries' pictures read this deck's palette. Format Selection and Reset to Match Style are
+  // the generic button, and Alt Text and Selection Pane the generic toggle; none is bound.
+  'powerpoint.chart-format.current-selection.chart-elements': html`<mjx-dropdown
+    id="ribbons-powerpoint-chart-format-chart-elements"
+    label="Chart Elements"
+    value="chart-area"
+    style=${ribbonFieldStyle}
+  >
+    ${chartSelectionOptions()}
+  </mjx-dropdown>`,
+  'powerpoint.chart-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-powerpoint-chart-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'powerpoint.chart-format.insert-shapes.change-shape': html`<mjx-button
+    label="Change Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-insert-shapes-change-shape"
+  ></mjx-button>`,
+  'powerpoint.chart-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-chart-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-powerpoint-chart-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'powerpoint.chart-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-powerpoint-chart-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="none"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.chart-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-powerpoint-chart-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="none"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(chartOutlineEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.chart-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'powerpoint.chart-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-chart-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'powerpoint.chart-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-powerpoint-chart-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:text1/lighter40"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Fill', fillEntries(chartTextFillEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.chart-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-powerpoint-chart-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Outline', outlineEntries(chartTextOutlineEntryOptions('powerpoint')))}
+  </mjx-color-picker>`,
+  'powerpoint.chart-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'powerpoint.chart-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.chart-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.chart-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-arrange-align"
+  ></mjx-button>`,
+  'powerpoint.chart-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-arrange-group"
+  ></mjx-button>`,
+  'powerpoint.chart-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-powerpoint-chart-format-arrange-rotate"
+  ></mjx-button>`,
+  'powerpoint.chart-format.size.height': html`<mjx-measure-input
+    id="ribbons-powerpoint-chart-format-height"
+    label="Height"
+    value=${powerpointChartMeasures.height}
+    unit="cm"
+    step=${powerpointChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.chart-format.size.width': html`<mjx-measure-input
+    id="ribbons-powerpoint-chart-format-width"
+    label="Width"
+    value=${powerpointChartMeasures.width}
+    unit="cm"
+    step=${powerpointChartMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -2229,7 +2399,42 @@ export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 export const ChartDesign: Story = { render: () => ribbon('chart-design') };
 
 /**
- * **Format** — Chart Tools' second tab, a placeholder. Seven groups: Current Selection, Insert Shapes, Shape Styles,
- * WordArt Styles, Accessibility, Arrange and Size.
+ * **Chart Format**: which part of a chart on a slide is selected and how to format or reset it, a shape drawn over the
+ * chart, how that part is filled, outlined and given effects, how its text is dressed, how the chart is described, where
+ * it sits among the slide's objects, and its size. Chart Tools' second tab, and PowerPoint's sixth and last contextual
+ * tab authored; Office shows it only while a chart is selected, and its accessible name, *Format, Chart Tools*, is what
+ * tells it from Shape Format. Seven groups: Current Selection, Insert Shapes, Shape Styles, WordArt Styles,
+ * Accessibility, Arrange and Size. **It is `Ribbons/Word`'s Chart Format less Position and Wrap Text, under
+ * PowerPoint's ids**, so judge the two side by side: every difference other than the ones named below is a defect.
+ * `ShapeFormat` covers the Theme Styles pictures, Other Theme Fills, Shape Effects and Text Effects. What to look at
+ * here, least certain first:
+ *
+ * 1. ⚠ **Shape Fill and Shape Outline start on *No Fill* and *No Outline***, where Word's start on white and a light
+ *    grey: a chart PowerPoint inserts is transparent on the slide. Open both and check the *none* chip is the one
+ *    marked. `GUESS:` both starts.
+ * 2. ⚠ **Every colour picker carries an Eyedropper**, second under the palette: Shape Fill (More Fill Colours…,
+ *    Eyedropper, Picture…, Gradient ▸, Texture ▸), Shape Outline (More Outline Colours…, Eyedropper, Weight ▸, Dashes ▸,
+ *    **still no Sketched or Arrows**), Text Fill (Shape Fill's five, starting on *Text 1, Lighter 40%*) and Text Outline
+ *    (More Outline Colours…, Eyedropper, Weight ▸, **Sketched ▸**, Dashes ▸, starting on none). `GUESS:` every entry.
+ * 3. ⚠ **Height 15.05 cm and Width 22.58 cm**, the chart PowerPoint inserts on a slide with no content placeholder,
+ *    stepping by 0.01. A chart put into a content placeholder takes its size instead. `GUESS:` both.
+ * 4. ⚠ **Chart Elements**, the field at the head of Current Selection, starts on *Chart Area* and lists Word's ten parts
+ *    of the inserted Clustered Column, alphabetically, the three series before the vertical axis. Check the field is
+ *    wide enough for *Vertical (Value) Axis Major Gridlines*. `GUESS:` the order and every label.
+ * 5. ⚠ **Reset to Match Style's glyph is still the weakest on the tab**: Reset's loop, which says *reset* without *to
+ *    the chart's style*. Judge it beside Format Selection's column chart with a pencil; both are plain small buttons.
+ * 6. **Arrange is PowerPoint's Shape Format's six**, all small: Bring Forward and Send Backward split buttons, Selection
+ *    Pane with no glyph, Align with **Align to Slide ticked**, Group and Rotate. **No Position and no Wrap Text.** The
+ *    census counts 46 here against Shape Format's 24; nothing is added to meet it.
+ * 7. **Shapes** opens the shape gallery with **no Action Buttons**; **Change Shape**, small, opens Change Shape's list,
+ *    drawn available, with Edit Shape's glyph. No Edit Points, Text Box or Merge Shapes.
+ * 8. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', **Size and
+ *    Position** at Size's, where Word's says *Layout*. `GUESS:` all three; none on Current Selection.
+ * 9. **Text Effects keeps Transform**, which Office may grey on chart text; **Alt Text** is a large toggle, unpressed.
+ * 10. **No survivor anywhere.** Drag narrow: Insert Shapes (`ancillary`) gives way first, then Accessibility
+ *     (`secondary`), then Current Selection, WordArt Styles, Arrange and Size (`standard`), and Shape Styles (`primary`)
+ *     last; each collapses to a trigger with nothing beside it.
+ * 11. **Not in `Shell/PowerPoint`**: its strip draws Picture Tools, so there is no Chart Tools band there and none of
+ *     these menus is on that page.
  */
 export const ChartFormat: Story = { render: () => ribbon('chart-format') };

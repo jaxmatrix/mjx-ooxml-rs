@@ -165,6 +165,10 @@
  * `sizeCommands`) and adding the one group only a chart has, Current Selection (`chartCurrentSelectionCommands`), and
  * Alt Text for a chart (`chartFormatAccessibilityCommands`), both written for PowerPoint's and Excel's Chart Format to
  * call; its own menus are in `stories/ribbons/chart-tools-menus.ts`; see the *commands Chart Format shows* section.
+ * **PowerPoint's Chart Format** followed, the sixteenth and PowerPoint's second of Chart Tools, calling every function
+ * Word's did with `'powerpoint'` and differing from Word's only where Office does: no Position or Wrap Text, an
+ * Eyedropper under all four colour pickers, a chart with no fill and no outline, a slide's starting measures and Size's
+ * *Size and Position* launcher; see that section's *PowerPoint's Chart Format* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -213,9 +217,9 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Fifteen contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format, Shape
- * Format and Chart Design, Excel's Table Design, Picture Format, Shape Format and Chart Design, and Word's Chart
- * Format.** Each
+ * **Sixteen contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format, Shape
+ * Format, Chart Design and Chart Format, and Excel's Table Design, Picture Format, Shape Format and Chart Design.**
+ * Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -1697,8 +1701,9 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
  * the application, the tab and the object arranged, because the shared commands carry the same names and glyphs
  * everywhere. A picture is a `drawing` here, and Word's Picture Format gets exactly Office's eight. Every Picture
  * Format and every Shape Format call it too (a shape is a `drawing`: Word's gets the same eight, and PowerPoint's and
- * Excel's the same six as their Picture Format); so does Word's Chart Format (a chart is a `drawing`, and Word's gets
- * the same eight), and PowerPoint's and Excel's Chart Format are expected to.
+ * Excel's the same six as their Picture Format); so do Word's and PowerPoint's Chart Format (a chart is a `drawing`:
+ * Word's gets the same eight, and PowerPoint's the same six as its Shape Format), and Excel's Chart Format is expected
+ * to.
  *
  * - **Word** leads with Position and Wrap Text, large, and draws the six small beside them.
  * - **Excel** has no Position or Wrap Text (a cell does not wrap around a picture), and draws Bring
@@ -9123,6 +9128,108 @@ export function chartFormatAccessibilityCommands(application: RibbonApplication,
   return [{ id: `${application}.${tab}.accessibility.alt-text`, label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true }];
 }
 
+// ## PowerPoint's Chart Format
+//
+// The unit after Word's Chart Format, one tab of one application: **PowerPoint's `TabChartToolsFormatNew`, in
+// `TabSetChartTools`**, all seven in-scope groups and twenty-two commands, and **the sixteenth contextual tab
+// authored**, PowerPoint's sixth and last, and its second of Chart Tools. Office shows it under the *Chart Tools* band
+// while a chart on a slide is selected: which part of the chart is selected and how to format or reset it, a shape
+// drawn over the chart, how the selected part is filled, outlined and given effects, how its text is dressed, how the
+// chart is described, where it sits among the slide's objects, and its size.
+//
+// ## Office's groups, read onto the census's seven
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupChartCurrentSelection` (3) | Current Selection | Chart Elements; Format Selection, Reset to Match Style |
+// | `GroupShapesChart` (2) | Insert Shapes | Shapes; Change Shape |
+// | `GroupChartShapeStyles` (38) | Shape Styles | the Theme Styles gallery; Shape Fill, Shape Outline, Shape Effects; the Format Shape launcher |
+// | `GroupWordArtStyles` (33) | WordArt Styles | Quick Styles, Text Fill, Text Outline, Text Effects; the Format Text Effects launcher |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrange` (46) | Arrange | Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupSize` (3) | Size | Height, Width; the Size and Position launcher |
+//
+// **The brief's seven groups map one to one onto the census's seven, in the same order**, and every id, label and
+// priority is the contextual unit's, unchanged and identical to Word's: Shape Styles `primary`, Insert Shapes
+// `ancillary`, Accessibility `secondary`, the other four `standard`. Three counts differ from Word's (Shape Styles 38
+// against 35, WordArt Styles 33 against 30, Arrange 46 against 65), and each is read below.
+//
+// ## Written once, reused, and PowerPoint's own
+//
+// - **Reused, every command function as it stands**: `chartCurrentSelectionCommands`, `insertShapesCommands(…, 'chart')`,
+//   `shapeStylesCommands`, `wordArtStylesCommands`, `chartFormatAccessibilityCommands`, `arrangeCommands` (PowerPoint's
+//   six, no Position or Wrap Text) and `sizeCommands(…, 'drawing')`, all with `'powerpoint'`. **No command list is
+//   PowerPoint's own.**
+// - **Reused lists**: in `stories/ribbons/chart-tools-menus.ts`, `chartSelectionOptions`, `chartShapesEntries` and
+//   `chartChangeShapeEntries`, `chartOutlineEntryOptions`, and the `powerpoint` branches Word's unit already wrote into
+//   `chartTextFillEntryOptions` and `chartTextOutlineEntryOptions`; in `stories/ribbons/drawing-tools-menus.ts`, the
+//   shape styles and their pictures, Other Theme Fills, `shapeEffectsEntries` and `shapeFillEntryOptions`;
+//   `wordart-styles-menus.ts`' gallery and Text Effects; `design-layout-menus.ts`' five PowerPoint Arrange lists.
+// - **PowerPoint's own, each where Office differs from Word**: `powerpointChartMeasures` and the `powerpoint` Chart
+//   Format menus (`powerpointChartFormatMenus`) in `stories/ribbons/chart-tools-menus.ts`, `powerpointChartFormatTab`
+//   (the *Size and Position* launcher) in `stories/ribbons/powerpoint.ts`, and the eighteen bindings (the pickers'
+//   starts) in `Ribbons/PowerPoint`. **No new glyph.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// Word's Chart Format's disagreements 1 (Chart Elements' alphabetical ten), 2 (Format Selection and Reset to Match Style
+// plain and available), 3 (Shapes a large dropdown with no Action Buttons), 4 (Change Shape drawn available, Edit
+// Shape's glyph) and 7's reading (WordArt Styles is the application's Shape Format text, Transform kept) hold here
+// unchanged, and are not restated. PowerPoint's Shape Format's 2 (the Theme Styles gallery) and 8 (Shape Effects is
+// Picture Effects' menu) hold too.
+//
+// 1. **An Eyedropper under all four colour pickers.** Shape Fill carries More Fill Colours…, Eyedropper, Picture…,
+//    Gradient ▸ and Texture ▸; Shape Outline More Outline Colours…, Eyedropper, Weight ▸ and Dashes ▸ (still no Sketched
+//    or Arrows, Word's disagreement 5); Text Fill PowerPoint's Shape Format's five and Text Outline its five, Sketched
+//    included. The census's Shape Styles counts 38 against Word's 35 and WordArt Styles 33 against Word's 30, three more
+//    on each, which is the indirect support, as on Shape Format (40 against 37, 33 against 30). `GUESS:` the entries.
+// 2. **The chart area starts with no fill and no outline**: Shape Fill and Shape Outline both start on *none*, where
+//    Word's start on Background 1 and a light grey. A chart PowerPoint inserts is transparent on the slide, so the
+//    slide's background shows through it (`c:chartSpace`'s `a:noFill`, and an `a:ln` with `a:noFill`). **Text Fill
+//    starts on Text 1, Lighter 40%**, as Word's, the nearest swatch to Office's grey chart text; Text Outline on none.
+//    `GUESS:` all four, and that the chart area is what Chart Elements names first.
+// 3. **Arrange is PowerPoint's Shape Format's six**: Bring Forward, Send Backward, Selection Pane, Align (Align to Slide
+//    ticked), Group, Rotate, all small, no Position or Wrap Text, because a slide has no running text. **The census
+//    names this `GroupArrange` (46) rather than Shape Format's `GroupArrangeWith3DEditor` (24)**; no reading of six
+//    commands and their menus reaches 46, and a count does not name its members, so nothing is added to meet it.
+//    `GUESS:` that the larger count is the same six with their menus counted another way.
+// 4. **Height 15.05 cm and Width 22.58 cm**, the chart PowerPoint inserts on a slide with no content placeholder
+//    (`p:graphicFrame`'s `a:ext` 5418667 × 8128000 EMU), stepping by 0.01 cm. A chart inserted into a content
+//    placeholder takes the placeholder's size instead. `GUESS:` both numbers, the step, and which of the two to start on.
+// 5. **The launchers**: *Format Shape* on Shape Styles, *Format Text Effects* on WordArt Styles, **Size and Position** on
+//    Size, as PowerPoint's Shape Format, where Word's Size says *Layout*. `GUESS:` all three; Office's may name the
+//    selected element's pane (*Format Chart Area*).
+// 6. **The counts.** **Current Selection (3), Insert Shapes (2), Accessibility (1) and Size (3, reading Height, Width and
+//    the launcher) are met.** **Shape Styles counts 38 and draws 4 and a launcher**, **WordArt Styles 33 and draws 4 and
+//    a launcher**, and **Arrange 46 and draws 6** (disagreement 3). Nothing is padded.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws; Word's readings hold, group by
+// group, and Arrange's is PowerPoint's Shape Format's:
+//
+// - **Current Selection**: none. Chart Elements is a field and Format Selection opens a pane (rule 1); Reset to Match
+//   Style's glyph is Reset's, another command a person reaches for on this ribbon (rule 2).
+// - **Insert Shapes**: none. A gallery and a menu (rule 1).
+// - **Shape Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **WordArt Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **Accessibility**: none. Alt Text opens a pane, and it is the group's only command.
+// - **Arrange**: none. Two split buttons and three menus (rule 1), and Selection Pane opens a pane.
+// - **Size**: none. Height and Width are fields.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**, as Word's Chart Format, with Arrange's six small as on PowerPoint's Shape
+// Format. **Twelve of the twenty-two commands carry a glyph, every one reused and every one `GUESS:`**: Format Selection
+// `data-bar-vertical-edit` and Reset to Match Style `arrow-reset` (**still the weakest on the tab**: *reset*, not *to the
+// style*), Shapes `shapes`, Change Shape `bezier-curve-square`, Shape Effects `square-shadow`, Text Effects
+// `text-effects`, Alt Text `image-alt-text`, and Bring Forward, Send Backward, Align, Group and Rotate,
+// `arrangeCommands`' own.
+//
+// **Ten carry none, and say why**: Chart Elements is a field; the Theme Styles and Quick Styles galleries are their
+// pictures; Shape Fill, Shape Outline, Text Fill and Text Outline are colour pickers, which draw a swatch; Height and
+// Width are fields; Selection Pane for `arrangeCommands`' reason.
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -9365,13 +9472,13 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetChartTools', tab: 'TabChartToolsFormatNew' },
         groups: [
-          { id: 'GroupChartCurrentSelection', label: 'Current Selection', priority: 'standard', controls: 3, inScope: true },
-          { id: 'GroupShapesChart', label: 'Insert Shapes', priority: 'ancillary', controls: 2, inScope: true },
-          { id: 'GroupChartShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 38, inScope: true },
-          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true },
-          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupChartCurrentSelection', label: 'Current Selection', priority: 'standard', controls: 3, inScope: true, commands: chartCurrentSelectionCommands('powerpoint', 'chart-format') },
+          { id: 'GroupShapesChart', label: 'Insert Shapes', priority: 'ancillary', controls: 2, inScope: true, commands: insertShapesCommands('powerpoint', 'chart-format', 'chart') },
+          { id: 'GroupChartShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 38, inScope: true, commands: shapeStylesCommands('powerpoint', 'chart-format') },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true, commands: wordArtStylesCommands('powerpoint', 'chart-format') },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: chartFormatAccessibilityCommands('powerpoint', 'chart-format') },
+          { id: 'GroupArrange', label: 'Arrange', priority: 'standard', controls: 46, inScope: true, commands: arrangeCommands('powerpoint', 'chart-format') },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true, commands: sizeCommands('powerpoint', 'chart-format', 'drawing') },
         ],
       },
     ],
