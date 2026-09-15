@@ -670,6 +670,7 @@ fn resolve(
     // family means an equation in a Times document is set in Times, which is wrong in the same
     // direction for every glyph and is legible. Naming a font the machine may not have would
     // substitute silently and be wrong in a different direction per glyph.
+    // Owned by MJXOFF-334 (RC41), which sets equations in their math font.
     let request = FontRequest::new(&context.style.family)
         .with_weight(if bold {
             FontWeight::BOLD
@@ -812,6 +813,7 @@ fn fraction(
         // linear one, and marked: the diagonal needs a transform and this crate resolves none.
         // **`GUESS:`** a skewed fraction reads as a linear one, which is legible and is what a
         // renderer without transforms can honestly produce.
+        // Owned by MJXOFF-334 (RC41), the math typesetter.
         Some(FractionType::Skewed) => {
             return beside(vec![numerator, quad(context, 4), denominator]);
         }
@@ -903,6 +905,7 @@ fn radical(
     // rule thickness plus a quarter of the excess of the surd's height over the radicand's, which
     // needs a surd whose height is a function of what it encloses — which is exactly the
     // `MathVariants` ladder this module does not have.
+    // Owned by MJXOFF-334 (RC41), which reads the OpenType MATH table.
     let clearance = thickness.times(2);
     let inner_ascent = radicand.ascent + clearance;
     let index_width = index.as_ref().map_or(Emu::ZERO, |content| content.width);
@@ -1239,6 +1242,7 @@ fn matrix(
     // `m:cGp`/`m:rSp` state them in twentieths of a point when a document says so and are the
     // spacing overrides `crate::math` declares it does not read; these are what a matrix that states
     // nothing gets, which is every matrix Word's own editor writes.
+    // Owned by MJXOFF-334 (RC41), the math typesetter.
     let column_gap = context.em();
     let row_gap = context.em().divided_by(3);
     let width = widths.iter().fold(Emu::ZERO, |total, entry| total + *entry)

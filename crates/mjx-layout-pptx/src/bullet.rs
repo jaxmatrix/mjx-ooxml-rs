@@ -176,6 +176,7 @@ pub fn bullet_size(size: BulletSize, text_size: FontSize) -> FontSize {
 /// Hebrew and Devanagari sequences each need their own numeral system, and a wrong glyph in the
 /// right place is worse than a legible stand-in. The scheme is still carried on the paragraph, so
 /// nothing is lost from the document.
+/// Owned by MJXOFF-323 (RC30), non-Latin automatic numbering.
 #[must_use]
 pub fn auto_number_text(bullet: AutoNumberBullet, number: u32) -> String {
     use AutonumberScheme as Scheme;

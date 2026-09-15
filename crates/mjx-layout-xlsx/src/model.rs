@@ -1486,6 +1486,7 @@ impl SheetBoxModel {
                         // axis, no border, no gradient and no negative fill — all four are
                         // `x14:dataBar`, in the `extLst` this workspace preserves and does not
                         // model — so this is Excel 2007's bar and not Excel 2010's.
+                        // Owned by MJXOFF-258 (RC43), modern data bars.
                         fill: Some(CellFill {
                             pattern: Some(PatternType::Solid),
                             foreground: bar.colour.clone(),

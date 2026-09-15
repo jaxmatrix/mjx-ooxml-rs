@@ -1021,6 +1021,7 @@ fn align_offset(line: &PendingLine, wrap: TextWrapping) -> Emu {
         // justification expands the spaces inside a line, which needs a second pass over the shaped
         // glyphs that this box model does not make; a flush-left line is where the text starts
         // either way, so nothing moves *backwards* when justification arrives.
+        // Owned by MJXOFF-330 (RC37), which justifies and distributes lines.
         TextAlignment::Left
         | TextAlignment::Justified
         | TextAlignment::JustifiedLow

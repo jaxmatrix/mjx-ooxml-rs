@@ -104,6 +104,7 @@ impl ResourceResolver for SlideResources {
         // run's `CharacterPropertiesSpec` is already read — and it is not built yet, so this is a
         // stated gap rather than a silent one. `DEFAULT_TEXT_COLOR` is named here so a reader can
         // see what the answer collapses to.
+        // Owned by MJXOFF-311 (RC16), run colour.
         let _ = DEFAULT_TEXT_COLOR;
         None
     }

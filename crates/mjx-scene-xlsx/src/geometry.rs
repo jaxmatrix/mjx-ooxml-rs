@@ -23,6 +23,7 @@
 //! handle appeared from anywhere. It is not the same weight of evidence as PowerPoint's, where the
 //! number is the count of shapes whose `a:prstGeom` this build has no table for, and this paragraph
 //! is here so that nobody reads it as if it were.
+//! Owned by MJXOFF-321 (RC28), shapes on a worksheet.
 //!
 //! # Where the drawings arrive — and why they still register nothing
 //!

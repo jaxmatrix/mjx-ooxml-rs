@@ -35,6 +35,7 @@
 //! GUESS: that a conditional code no section matches falls back to `General`. Excel fills the cell
 //! with `#` instead, which needs a *width*, and a width in this engine would put the column's
 //! geometry into the cache key of every formatted value on the sheet.
+//! Owned by MJXOFF-326 (RC33), width-dependent number formats.
 //!
 //! # What is implemented, and what deliberately is not
 //!

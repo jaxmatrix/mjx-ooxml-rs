@@ -48,6 +48,7 @@ pub fn color_of(spec: &ColorSpec) -> Option<Color> {
         // underneath, not a different kind of colour. `mjx_dml::Color::from_spec` flattens the
         // chain, but it builds *markup*: it answers what to write, not what to paint, so there is
         // nothing here to read a resolved channel out of.
+        // Owned by MJXOFF-243 (RC04), transformed colours.
         //
         // The two things this could do instead are both worse. Painting `base` and dropping the
         // transforms puts a shape on screen in a colour the document does not state — the exact

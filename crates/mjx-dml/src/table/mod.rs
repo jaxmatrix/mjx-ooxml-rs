@@ -42,6 +42,7 @@
 //!
 //! A table's style (`a:tableStyle` / `a:tableStyleId`, and the `tableStyles.xml` part the latter
 //! names) is **preserved but not yet modeled** — it is its own piece of work.
+//! Owned by MJXOFF-328 (RC35), which draws table style bands.
 
 mod cell;
 mod grid;

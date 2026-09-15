@@ -623,6 +623,7 @@ fn stack_lines(
             // than centring the block. Doing that needs the per-line gap to be a property of the
             // line rather than of the stack, which is a change to `PlacedLine`; centring is the
             // closer of the two available answers and is marked so the sitting can settle it.
+            // Owned by MJXOFF-327 (RC34), justify and distributed alignment.
             VerticalAlignment::Bottom | VerticalAlignment::Justify => slack,
         };
 

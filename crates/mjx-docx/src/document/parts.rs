@@ -118,7 +118,7 @@ pub struct DocumentParts {
     /// because it is still part of the main document part's own part graph.
     pub theme: Option<PartName>,
     /// Every related header part, in relationship order (not reading order — headers are reached by
-    /// `r:id` from individual `w:sectPr`s, which are not yet modeled).
+    /// `r:id` from each `w:sectPr`'s `w:headerReference`).
     pub headers: Vec<PartName>,
     /// Every related footer part, in relationship order (see [`headers`](Self::headers)).
     pub footers: Vec<PartName>,

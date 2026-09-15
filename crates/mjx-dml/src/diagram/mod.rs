@@ -16,6 +16,7 @@
 //! `colorsDefHdrLst`, `styleDefHdr`, `styleDefHdrLst`, and their `layoutDef` equivalents), which
 //! belong to a diagram-gallery catalog part this project neither authors nor reads and so are not
 //! given their own Rust type.
+//! Owned by MJXOFF-335 (RC42), which lays diagram nodes out and styles them.
 //!
 //! # The load-bearing part
 //!

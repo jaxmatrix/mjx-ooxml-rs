@@ -163,6 +163,7 @@ pub fn pattern_preset(pattern: PatternType) -> Option<PatternPreset> {
         // `darkTrellis` and `lightTrellis` are drawn identically. Telling them apart needs a hatch
         // mask `mjx-paint`'s fifty-four-entry `PATTERN_MASKS` does not have, which is a change to
         // the single source of truth every painter reads and not something to invent here.
+        // Owned by MJXOFF-327 (RC34), distinct trellis hatches.
         PatternType::DarkTrellis | PatternType::LightTrellis => PatternPreset::Trellis,
     })
 }

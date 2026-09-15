@@ -26,6 +26,7 @@
 //! needs a shaper, and this crate measures text through [`crate::text::TextMetrics`] precisely so
 //! that it needs neither. A host that hands in a real metric can shape the same strings; the
 //! placements this module emits are where they go.
+//! Owned by MJXOFF-320 (RC26), which shapes chart text.
 
 use mjx_layout::{
     BoxFragment, DecorationRef, Fragment, FragmentId, FragmentTreeBuilder, GeometryRef,

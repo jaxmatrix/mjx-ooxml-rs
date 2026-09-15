@@ -67,6 +67,7 @@
 //! which classify items from `paragraph.content().iter()` directly — a bookmark, comment range, or
 //! field marker sequence wrapped entirely inside a revision container is not found by this crate's
 //! scanning today, a stated limitation (not silent corruption: the markup itself is never touched).
+//! Owned by MJXOFF-325 (RC32) for comment ranges and MJXOFF-297 (RC01) for fields.
 //!
 //! The consequence is the strongest possible fidelity guarantee with the least code: **no mutation
 //! path in this crate can ever rewrite, relocate, or drop a byte of tracked-change history**,

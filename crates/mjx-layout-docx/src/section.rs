@@ -206,6 +206,7 @@ fn body_of(page: LayoutSize, margins: PageMargins, mirrored: bool, page_number: 
     // **GUESS:** `w:rtlGutter` moves it to the other side and is not honoured here; a document that
     // sets it has its binding space on the wrong edge, which is a visible half-inch and is named in
     // the provenance ledger rather than hidden.
+    // Owned by MJXOFF-316 (RC22), which honours a right-to-left gutter.
     if mirrored && even {
         right += gutter;
     } else {

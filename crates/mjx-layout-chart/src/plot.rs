@@ -663,6 +663,7 @@ fn lines(
 /// `GUESS:` Office's default marker is about seven points across, which is what this is half of. No
 /// schema states a default marker size; `c:marker > c:size` does when a file carries one, and this
 /// engine does not yet read it.
+/// Owned by MJXOFF-302 (RC06), which draws series formatting.
 const MARKER_RADIUS: Emu = Emu::from_emu(44_450);
 
 // =================================================================================================

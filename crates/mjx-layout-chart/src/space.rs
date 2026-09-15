@@ -52,6 +52,7 @@ use crate::text::{ChartTextRole, TextMetrics};
 /// `GUESS:` five points on every side. `c:plotArea > c:layout` states an explicit plot rectangle when
 /// a reader has dragged one, and this engine does not read it (see the crate docs' limits); this is
 /// what a chart with no stated layout is inset by.
+/// Owned by MJXOFF-302 (RC06), which places a chart's marks.
 const FRAME_MARGIN: Emu = Emu::from_emu(63_500);
 
 /// The gap between one piece of chart furniture and the next.

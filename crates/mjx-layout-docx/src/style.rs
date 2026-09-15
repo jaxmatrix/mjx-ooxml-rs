@@ -70,6 +70,7 @@ impl LineHeight {
 /// `ST_Jc` has twelve members and four of them are Arabic kashida elongation, which needs a shaper
 /// feature this project does not yet drive. They are mapped rather than dropped — see
 /// [`Alignment::of`] — and the mapping is marked where it is made.
+/// Owned by MJXOFF-332 (RC39), kashida and numeric-tab justification.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Alignment {
     /// The line starts at the leading margin. `start`, and `left` in a left-to-right paragraph.
@@ -121,6 +122,7 @@ impl Alignment {
             // is numbering and therefore R22's. Both are *justified* in Word, so justifying them is
             // the closest wrong answer rather than an arbitrary one — and it is wrong, visibly, for
             // an Arabic paragraph.
+            // Owned by MJXOFF-332 (RC39), kashida and numeric-tab justification.
             Some(
                 Justification::MediumKashida
                 | Justification::WidestKashida

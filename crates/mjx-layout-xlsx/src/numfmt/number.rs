@@ -543,6 +543,7 @@ fn push_other(
         // GUESS, and a reported one: `*c` repeats `c` until the cell is full, and this engine has no
         // cell. The character reaches the caller on `FormattedValue::repeat` instead of being
         // expanded to a width that would be wrong.
+        // Owned by MJXOFF-326 (RC33), the accounting fill.
         Element::Repeat(_) => {}
         // A number in a section whose only content is `@` — the built-in `Text` format, id 49 — is
         // shown as `General`. `@` substitutes a *string*, and a number has none.
