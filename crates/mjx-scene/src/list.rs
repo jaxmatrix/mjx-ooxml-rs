@@ -27,8 +27,8 @@ use crate::encoding::{
     opcode, path_step, read_f32, read_i16, read_i32, read_u16, read_u32, read_u8, slice_at,
     unpack_color, ResourceIndex, SectionKind, CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE,
     GLYPH_RUN_STRIDE, GLYPH_STRIDE, GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, HEADER_BYTES,
-    IMAGE_STRIDE, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC, PAINT_STRIDE, SECTION_ALIGNMENT,
-    SECTION_ROW_BYTES, STROKE_STRIDE, TRANSFORM_STRIDE, VERSION,
+    IMAGE_STRIDE, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC, OLDEST_READABLE_VERSION,
+    PAINT_STRIDE, SECTION_ALIGNMENT, SECTION_ROW_BYTES, STROKE_STRIDE, TRANSFORM_STRIDE, VERSION,
 };
 use crate::error::SceneError;
 use crate::geometry::{FillRule, Geometry, PathCommand, ScenePoint, SceneRect, SceneTransform};
@@ -92,7 +92,7 @@ impl DisplayList {
     /// The four bytes every display list begins with.
     pub const MAGIC: [u8; 4] = MAGIC;
 
-    /// The encoding version this build writes and reads.
+    /// The encoding version this build writes; it also reads [`OLDEST_READABLE_VERSION`].
     pub const VERSION: u16 = VERSION;
 
     /// Read and fully validate a display list.
@@ -463,17 +463,14 @@ impl DisplayList {
         })
     }
 
-    /// Every scene loss the list records, in paint order.
+    /// Every loss the list records, layout and scene alike, in the order they were written.
     #[must_use]
     pub fn losses(&self) -> SceneLosses {
         SceneLosses::from_losses(
             self.loss_records()
-                .filter_map(|record| match record.category {
-                    LossCategory::Scene(kind) => Some(SceneLoss {
-                        source: record.source,
-                        kind,
-                    }),
-                    LossCategory::Layout(_) => None,
+                .map(|record| SceneLoss {
+                    source: record.source,
+                    category: record.category,
                 })
                 .collect(),
         )
@@ -577,7 +574,7 @@ impl DisplayList {
                 available,
             });
         };
-        if version != VERSION {
+        if !(OLDEST_READABLE_VERSION..=VERSION).contains(&version) {
             return Err(SceneError::UnsupportedVersion {
                 found: version,
                 supported: VERSION,
@@ -727,6 +724,17 @@ impl DisplayList {
                 });
             };
             *slot = Some(Span { offset, length });
+        }
+        // Version 1 defined no losses section, so a list that carries one is not a version 1 list.
+        let losses = sections
+            .get(usize::from(SectionKind::Losses.wire_value()))
+            .copied()
+            .flatten();
+        if version == OLDEST_READABLE_VERSION && losses.is_some() {
+            return Err(SceneError::MalformedHeader {
+                reason:
+                    "a version 1 list declares a losses section, which version 1 does not define",
+            });
         }
 
         Ok(Self {

@@ -69,6 +69,7 @@ pub mod encoding;
 pub mod error;
 pub mod geometry;
 pub mod glyphs;
+pub mod label;
 pub mod list;
 pub mod loss;
 pub mod mesh_cache;
@@ -83,15 +84,19 @@ pub use diff::{diff_frames, FrameDiff, RecordChange, RecordChangeKind};
 pub use effect::{BlendMode, Effect, EffectKind, EffectStyle};
 pub use encoding::{
     ResourceIndex, SectionKind, HEADER_BYTES, LOSS_FLAG_PLACEHOLDER, LOSS_RECORD_BYTES, MAGIC,
-    SECTION_ROW_BYTES, VERSION,
+    OLDEST_READABLE_VERSION, SECTION_ROW_BYTES, VERSION,
 };
 pub use error::SceneError;
 pub use geometry::{
     finite, pixels_from_emu, FillRule, Geometry, PathCommand, ScenePoint, SceneRect, SceneTransform,
 };
 pub use glyphs::{AtlasPlacement, GlyphImage, SceneGlyph, SceneGlyphRun};
+pub use label::{placeholder_lettering, PlaceholderLettering};
 pub use list::{Commands, DisplayList};
-pub use loss::{LossCategory, Placeholder, Resolved, SceneLoss, SceneLossKind, SceneLosses};
+pub use loss::{
+    LossCategory, PainterLossKind, PainterLosses, Placeholder, Resolved, SceneLoss, SceneLossKind,
+    SceneLosses,
+};
 pub use mesh_cache::MeshCache;
 pub use paint::{
     CompoundStroke, DashPattern, FillStyle, Gradient, GradientKind, GradientStop, Image,

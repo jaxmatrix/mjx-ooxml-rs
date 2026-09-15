@@ -32,7 +32,20 @@ fn a_page_built_without_losses_reports_none_and_one_built_with_them_reports_them
     assert_eq!(page.losses().count(kind), 1);
     let loss = page.losses().iter().next().expect("one loss");
     assert_eq!((&loss.source, loss.area), (&frame, Some(area)));
-    assert_eq!(kind.label(), "Diagram not rendered");
-    assert!(kind.draws_placeholder());
-    assert_eq!(FrameContent::ALL.len(), 5);
+    assert_eq!(
+        (loss.kind.label(), loss.kind.draws_placeholder()),
+        ("Diagram not rendered", true),
+        "the recorded loss reads as the diagram it stands for and draws over it"
+    );
+    assert!(
+        FrameContent::ALL.iter().all(|content| {
+            LayoutLossKind::FrameContentNotLaidOut(*content).draws_placeholder()
+                && FrameContent::ALL
+                    .iter()
+                    .filter(|other| other.label() == content.label())
+                    .count()
+                    == 1
+        }),
+        "every frame content not laid out draws a placeholder under a label of its own"
+    );
 }

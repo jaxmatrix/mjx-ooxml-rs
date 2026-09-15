@@ -39,7 +39,7 @@
 //! `0x4420_0000` is the IEEE-754 bit pattern of 640.0 written down independently, which is what a
 //! specification says.
 
-use mjx_layout::{FrameContent, LayoutLossKind, PartId, SourcePath, SourceRef};
+use mjx_layout::{LayoutLossKind, PartId, SourcePath, SourceRef};
 use mjx_scene::encoding::{
     CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE, GLYPH_RUN_STRIDE, GLYPH_STRIDE,
     GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, IMAGE_STRIDE, PAINT_STRIDE, SECTION_ALIGNMENT,
@@ -132,7 +132,7 @@ fn the_smallest_scene_is_one_hundred_and_twenty_eight_bytes_of_specification() {
     let expected: Vec<u8> = vec![
         // --- header, 32 bytes ---
         b'M', b'J', b'X', b'S',   // magic
-        0x01, 0x00,               // version 1
+        0x02, 0x00,               // version 2, though the scene carries no losses
         0x20, 0x00,               // header length 32
         0x00, 0x00, 0x00, 0x40,   // device scale 2.0        (0x4000_0000)
         0x00, 0x00, 0x20, 0x44,   // page width 640.0        (0x4420_0000)
@@ -821,12 +821,12 @@ fn an_empty_table_costs_no_bytes_at_all() {
 #[test]
 fn the_header_states_the_version_this_build_writes() {
     let list = finish_with_a_pop(SceneBuilder::new(two_pixels_per_point(), 1.0, 1.0));
-    assert_eq!(DisplayList::VERSION, 1);
+    assert_eq!(DisplayList::VERSION, 2);
     assert_eq!(&DisplayList::MAGIC, b"MJXS");
     assert_eq!(
         list.as_bytes().get(4..6),
-        Some(&[0x01, 0x00][..]),
-        "the version is the fifth and sixth bytes, before anything a wrong version could misread"
+        Some(&[0x02, 0x00][..]),
+        "the version is the fifth and sixth bytes, before anything a wrong version could misread; a list with no losses is still written as version 2"
     );
     assert!((list.device_scale().pixels_per_point() - 2.0).abs() < f32::EPSILON);
     assert_eq!(list.page_size(), (1.0, 1.0));
@@ -1128,10 +1128,31 @@ fn a_loss_record_is_a_length_a_category_a_source_a_position_and_a_rectangle() {
         expected,
     );
     assert_eq!(
-        LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
-            FrameContent::Picture
-        ))
-        .label(),
-        "Picture not rendered"
+        list.as_bytes().get(4..6),
+        Some(&[0x02, 0x00][..]),
+        "a list with losses is version 2, the version that defines the section"
     );
+    assert_eq!(
+        list.placeholders()
+            .into_iter()
+            .map(|placeholder| placeholder.label)
+            .collect::<Vec<_>>(),
+        ["Content not read"],
+        "the one placeholder reads its category's label"
+    );
+}
+
+#[test]
+fn a_version_1_list_with_no_losses_still_reads() {
+    let mut builder = SceneBuilder::new(two_pixels_per_point(), 8.0, 8.0);
+    builder.add_paint(Paint::Solid(INK)).expect("a paint");
+    let mut bytes = finish_with_a_pop(builder).into_bytes();
+    assert_eq!(bytes.get(4..6), Some(&[0x02, 0x00][..]));
+    if let Some(version) = bytes.get_mut(4..6) {
+        version.copy_from_slice(&[0x01, 0x00]);
+    }
+    let list = DisplayList::from_bytes(bytes).expect("version 1 has no losses section to miss");
+    assert_eq!(list.paint(ResourceIndex::new(0)), Some(Paint::Solid(INK)));
+    assert!(list.losses().is_empty());
+    assert_eq!(mjx_scene::OLDEST_READABLE_VERSION, 1);
 }

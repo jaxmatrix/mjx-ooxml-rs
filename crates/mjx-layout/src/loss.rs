@@ -17,16 +17,19 @@ pub enum FrameContent {
     Ink,
     /// A picture, such as a conditional-format icon.
     Picture,
+    /// A drawn shape, such as an autoshape, a connector or a group of them.
+    Shape,
 }
 
 impl FrameContent {
     /// Every kind, in declaration order.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Chart,
         Self::Diagram,
         Self::EmbeddedObject,
         Self::Ink,
         Self::Picture,
+        Self::Shape,
     ];
 
     /// What a placeholder for this content reads.
@@ -38,6 +41,7 @@ impl FrameContent {
             Self::EmbeddedObject => "Embedded object not rendered",
             Self::Ink => "Ink not rendered",
             Self::Picture => "Picture not rendered",
+            Self::Shape => "Shape not rendered",
         }
     }
 }
@@ -57,12 +61,13 @@ pub enum LayoutLossKind {
 
 impl LayoutLossKind {
     /// Every kind, frame contents first in their own order.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::FrameContentNotLaidOut(FrameContent::Chart),
         Self::FrameContentNotLaidOut(FrameContent::Diagram),
         Self::FrameContentNotLaidOut(FrameContent::EmbeddedObject),
         Self::FrameContentNotLaidOut(FrameContent::Ink),
         Self::FrameContentNotLaidOut(FrameContent::Picture),
+        Self::FrameContentNotLaidOut(FrameContent::Shape),
         Self::TextMeasuredNotShaped,
         Self::DroppedByReader,
         Self::ValueApproximated,
@@ -212,7 +217,10 @@ mod tests {
             .iter()
             .map(|kind| kind.draws_placeholder())
             .collect();
-        assert_eq!(drawn, [true, true, true, true, true, false, true, false]);
+        assert_eq!(
+            drawn,
+            [true, true, true, true, true, true, false, true, false]
+        );
     }
 
     #[test]

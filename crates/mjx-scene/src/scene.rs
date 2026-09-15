@@ -197,7 +197,7 @@ impl SceneOptions {
     }
 }
 
-/// Build the display list for one laid-out page: its fragments, and a placeholder for every layout loss that has an area.
+/// Build the display list for one laid-out page: its fragments, every layout loss, and a placeholder for each over missing content with an area.
 ///
 /// # Errors
 ///
@@ -289,12 +289,16 @@ fn build(
             Fragment::Box(_) => resolver.unanswerable_content(node.source()),
             _ => None,
         };
-        let (decoration, decoration_loss) = match content_loss {
-            Some(_) => (None, None),
+        let (decoration, decoration_losses) = match content_loss {
+            Some(_) => (None, Vec::new()),
             None => match decoration_of(node.fragment(), resolver) {
-                Resolved::Answered(decoration) => (Some(decoration), None),
-                Resolved::NothingToDraw => (None, None),
-                Resolved::Unanswerable(kind) => (None, Some(kind)),
+                Resolved::Answered(decoration) => (Some(decoration), Vec::new()),
+                Resolved::NothingToDraw => (None, Vec::new()),
+                Resolved::Unanswerable(kind) => (None, vec![kind]),
+                // What survives is drawn, and a decoration with nothing left in it draws nothing.
+                Resolved::Partial(decoration, lost) => {
+                    ((!decoration.is_invisible()).then_some(decoration), lost)
+                }
             },
         };
         let mut pops = 0_usize;
@@ -340,17 +344,23 @@ fn build(
                 node_id,
                 rect,
                 decoration.as_ref(),
-                decoration_loss,
                 resolver,
                 rasteriser,
                 atlas,
                 options,
             )?;
+            record_losses(
+                &mut builder,
+                &decoration_losses,
+                node.source(),
+                rect,
+                decoration.is_none(),
+            )?;
         }
 
         stack.push(Step::Leave { pops });
         if content_loss.is_some_and(SceneLossKind::replaces_content)
-            || decoration_loss.is_some_and(SceneLossKind::replaces_content)
+            || decoration_losses.iter().any(|kind| kind.replaces_content())
         {
             continue;
         }
@@ -367,15 +377,17 @@ fn build(
         }
     }
 
-    // Layout losses are drawn last, each in its element's own space, so nothing on the page covers one.
+    // Every layout loss is carried; the ones over missing content are drawn last, each in its element's own space.
     for loss in layout_losses {
-        let Some(area) = loss.area.filter(|_| loss.kind.draws_placeholder()) else {
+        let drawn = loss
+            .area
+            .filter(|_| loss.kind.draws_placeholder())
+            .map(|area| (area, SceneRect::from_layout(area.rect, scale)))
+            .filter(|(_, rect)| !rect.is_empty());
+        let Some((area, rect)) = drawn else {
+            builder.add_loss(LossCategory::Layout(loss.kind), &loss.source, None)?;
             continue;
         };
-        let rect = SceneRect::from_layout(area.rect, scale);
-        if rect.is_empty() {
-            continue;
-        }
         let mut pops = 0_usize;
         let transform = tree.transform(area.transform);
         if !transform.is_identity() {
@@ -474,7 +486,6 @@ fn draw(
     node_id: FragmentId,
     rect: SceneRect,
     decoration: Option<&Decoration>,
-    decoration_loss: Option<SceneLossKind>,
     resolver: &dyn ResourceResolver,
     rasteriser: &mut GlyphRasteriser,
     atlas: &mut GlyphAtlas,
@@ -490,14 +501,14 @@ fn draw(
         Fragment::Line(_) | Fragment::Table(_) => Ok(()),
         Fragment::Box(_) => {
             let Some(decoration) = decoration else {
-                return record_decoration_loss(builder, decoration_loss, node.source(), rect);
+                return Ok(());
             };
             let geometry = builder.add_geometry(&Geometry::Rectangle(rect))?;
             paint_geometry(builder, geometry, decoration)
         }
         Fragment::Shape(shape) => {
             let Some(decoration) = decoration else {
-                return record_decoration_loss(builder, decoration_loss, node.source(), rect);
+                return Ok(());
             };
             let geometry = builder.add_geometry(&unresolved_geometry(shape.geometry, rect))?;
             paint_geometry(builder, geometry, decoration)
@@ -512,6 +523,10 @@ fn draw(
                         node.source(),
                         placeholder_over(kind, rect),
                     )
+                }
+                Resolved::Partial(image, lost) => {
+                    record_losses(builder, &lost, node.source(), rect, false)?;
+                    image
                 }
             };
             // A fragment's crop is the box model's answer and outranks the resolver's, because it
@@ -590,21 +605,25 @@ fn draw(
     }
 }
 
-// Counts a decoration the resolver could not answer, with a placeholder over the element when something is missing.
-fn record_decoration_loss(
+// Counts each part the resolver could not answer; when nothing was drawn, the first missing part places the element's one placeholder.
+fn record_losses(
     builder: &mut SceneBuilder,
-    loss: Option<SceneLossKind>,
+    losses: &[SceneLossKind],
     source: &SourceRef,
     rect: SceneRect,
+    nothing_drawn: bool,
 ) -> Result<(), SceneError> {
-    match loss {
-        Some(kind) => builder.add_loss(
-            LossCategory::Scene(kind),
-            source,
-            placeholder_over(kind, rect),
-        ),
-        None => Ok(()),
+    let mut placed = !nothing_drawn;
+    for kind in losses {
+        let over = if placed {
+            None
+        } else {
+            placeholder_over(*kind, rect)
+        };
+        placed |= over.is_some();
+        builder.add_loss(LossCategory::Scene(*kind), source, over)?;
     }
+    Ok(())
 }
 
 /// A shape's outline, as the handle a box model issued and the box it is resolved against.
@@ -651,6 +670,14 @@ fn text_paint(
                 placeholder_over(kind, rect),
             )?;
             FillStyle::Solid(DEFAULT_TEXT_COLOR)
+        }
+        Resolved::Partial(decoration, lost) => {
+            record_losses(builder, &lost, source, rect, false)?;
+            if decoration.fill.is_none() {
+                FillStyle::Solid(DEFAULT_TEXT_COLOR)
+            } else {
+                decoration.fill
+            }
         }
     };
     // The filter above removed the one fill that interns to no paint, so the `ok_or` cannot fire.
@@ -925,9 +952,14 @@ mod tests {
         );
         assert_eq!(placeholders[0].transform.scale_x, 2.0);
         assert!(list.placeholder_at(150.0, 80.0).is_some());
-        assert!(
-            list.losses().is_empty(),
-            "a layout loss is not a scene loss"
+        assert_eq!(
+            (
+                list.losses().count(LayoutLossKind::DroppedByReader),
+                list.losses().count(LayoutLossKind::ValueApproximated),
+                list.losses().len()
+            ),
+            (1, 1, 2),
+            "both layout losses are carried, and only the dropped content draws"
         );
     }
 }

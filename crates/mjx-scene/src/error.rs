@@ -36,7 +36,10 @@ pub enum SceneError {
     },
 
     /// The list was written by a different version of this encoding.
-    #[error("this display list is version {found}; this build reads version {supported}")]
+    #[error(
+        "this display list is version {found}; this build reads versions {} to {supported}",
+        crate::encoding::OLDEST_READABLE_VERSION
+    )]
     UnsupportedVersion {
         /// What the header says.
         found: u16,

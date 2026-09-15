@@ -9,21 +9,21 @@
 //! │ kind │ stride │ offset │ length │   … one row per non-empty section …    │
 //! ├──────────────────────────── the sections ────────────────────────────────┤
 //! │ commands · transforms · clips · paints · gradients · stops · strokes ·   │
-//! │ effects · geometries · path data · glyph runs · glyphs · images          │
+//! │ effects · geometries · path data · glyph runs · glyphs · images · losses │
 //! └──────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
 //! Everything is little-endian, every section starts on a four-byte boundary, and every table but
 //! three has a **fixed stride**, so entry *n* of a table is at `offset + n * stride` and reading it
 //! costs no allocation and no deserialisation. The three variable-length sections — the command
-//! stream, the path data and nothing else — are walked, and each carries enough length in its own
+//! stream, the path data and the losses — are walked, and each carries enough length in its own
 //! records to be walked safely.
 //!
 //! # Why a section table and not a fixed set of offsets
 //!
 //! An empty table costs **no bytes at all**: only sections that hold something get a row. A page of
-//! prose with no shapes, no images and no effects therefore carries four sections, not thirteen, and
-//! the header of a small list is 68 bytes rather than 188. It also makes the format additive — a
+//! prose with no shapes, no images and no effects therefore carries four sections, not fourteen, and
+//! the header of a small list is 68 bytes rather than 200. It also makes the format additive — a
 //! later version may write a section this one has never heard of, and a reader that skips unknown
 //! kinds still gets every record it does understand.
 //!
@@ -216,8 +216,11 @@ impl ResourceIndex {
 /// The four bytes every display list begins with.
 pub const MAGIC: [u8; 4] = *b"MJXS";
 
-/// The encoding this build writes and the only one it reads.
-pub const VERSION: u16 = 1;
+/// The encoding this build writes: version 2, which added the losses section.
+pub const VERSION: u16 = 2;
+
+/// The oldest encoding this build still reads: version 1, the same layout with no losses section.
+pub const OLDEST_READABLE_VERSION: u16 = 1;
 
 /// How long the fixed header is, in bytes.
 pub const HEADER_BYTES: usize = 32;
