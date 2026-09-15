@@ -17,6 +17,8 @@
  *    `tableLineWeights` (Line Weight and Pen Weight), which each host maps onto `<mjx-option>`s, as `ribbon-parts.ts`'s
  *    shared field lists are.
  * 3. **No colour list.** Shading and Pen Colour are colour pickers over the document's palette, which a host owns.
+ *    The entries beneath their palettes (More Colours…, Gradient ▸, Weight ▸) are
+ *    `stories/ribbons/colour-picker-entries.ts`'s, which reads `tableLineWeights` and `presetLineDashes` from here.
  *
  * **PowerPoint's WordArt Styles group is not here**: its gallery and effect lists are
  * `stories/ribbons/wordart-styles-menus.ts`'s, because Shape Format and Chart Format carry the same group. Its Text
@@ -498,15 +500,29 @@ function wordAutoFitEntries(): TemplateResult[] {
  */
 export const powerpointPenStyles: readonly { readonly value: string; readonly label: string }[] = [
   { value: 'none', label: 'No Border' },
-  { value: 'solid', label: 'Solid' },
-  { value: 'sysDot', label: 'Round Dot' },
-  { value: 'sysDash', label: 'Square Dot' },
-  { value: 'dash', label: 'Dash' },
-  { value: 'dashDot', label: 'Dash Dot' },
-  { value: 'lgDash', label: 'Long Dash' },
-  { value: 'lgDashDot', label: 'Long Dash Dot' },
-  { value: 'lgDashDotDot', label: 'Long Dash Dot Dot' },
+  ...presetLineDashesList(),
 ];
+
+/**
+ * **PowerPoint's eight dashes**, in Office's order, each `value` its `ST_PresetLineDashVal` token. Shared: Pen Style
+ * lists them after No Border, and a colour picker's **Dashes ▸** entry lists them alone
+ * (`stories/ribbons/colour-picker-entries.ts`).
+ */
+export const presetLineDashes: readonly { readonly value: string; readonly label: string }[] = presetLineDashesList();
+
+/** A function rather than a constant read by `powerpointPenStyles`, because that constant is declared first. */
+function presetLineDashesList(): { readonly value: string; readonly label: string }[] {
+  return [
+    { value: 'solid', label: 'Solid' },
+    { value: 'sysDot', label: 'Round Dot' },
+    { value: 'sysDash', label: 'Square Dot' },
+    { value: 'dash', label: 'Dash' },
+    { value: 'dashDot', label: 'Dash Dot' },
+    { value: 'lgDash', label: 'Long Dash' },
+    { value: 'lgDashDot', label: 'Long Dash Dot' },
+    { value: 'lgDashDotDot', label: 'Long Dash Dot Dot' },
+  ];
+}
 
 /**
  * **Borders' arrow, PowerPoint's**: twelve entries, No Border and All Borders first, as the header records. No

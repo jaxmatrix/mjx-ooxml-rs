@@ -16,6 +16,8 @@
  *   `commandMenu(host, '<its id>', …)` and fills it from here. A shared function that built the menu from a computed id
  *   would be a menu the gate cannot see.
  * - **No colour list.** Text Fill and Text Outline are colour pickers over the document's palette, which a host owns.
+ *   The entries beneath their palettes are `stories/ribbons/colour-picker-entries.ts`'s `fillEntries` and
+ *   `outlineEntries`.
  *
  * `GUESS:` every name below, from memory of Microsoft 365. The WordArt style names are the Office theme's, as
  * Insert's WordArt menu names them; Office names each from the document's own theme colours. Where a label differs

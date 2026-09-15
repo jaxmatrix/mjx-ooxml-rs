@@ -42,6 +42,7 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
+import { colourPickerEntries, fillEntries, outlineEntries } from '../ribbons/colour-picker-entries.ts';
 import { designLayoutMenus, styleSetGalleryItems } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
@@ -846,10 +847,13 @@ function ribbon(): TemplateResult {
               style=${ribbonColourFieldStyle}
               label="Shading"
               show-no-fill
+              no-fill-label="No Colour"
               .themePalette=${documentThemePalette}
               .standardColors=${standardColors}
               .recentColors=${recentColors}
-            ></mjx-color-picker>`,
+            >
+              ${colourPickerEntries('Shading', fillEntries({ moreColours: 'More Colours…' }))}
+            </mjx-color-picker>`,
             'word.table-design.borders.border-styles': html`<mjx-button
               label="Border Styles"
               icon="line-style"
@@ -884,7 +888,9 @@ function ribbon(): TemplateResult {
               .themePalette=${documentThemePalette}
               .standardColors=${standardColors}
               .recentColors=${recentColors}
-            ></mjx-color-picker>`,
+            >
+              ${colourPickerEntries('Pen Colour', outlineEntries({ moreColours: 'More Colours…' }))}
+            </mjx-color-picker>`,
             'word.table-design.borders.borders': html`<mjx-split-button
               label="Borders"
               icon="border-all"

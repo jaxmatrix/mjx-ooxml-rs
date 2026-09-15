@@ -952,6 +952,18 @@ export const menuCss = `
     padding-inline-start: var(${densityProperties.gutter});
   }
 
+  /* An embedded menu: inline, and flush on a surface that already is a card, so it is rows rather
+   * than a card inside a card. The colour picker's entries are the one use today; the picker sets
+   * the attribute on the menu slotted into it. Only an inline menu can be embedded: a floating
+   * menu is its own card by definition, so the rule names the attribute and not the host alone. */
+  :host([embedded]) .menu:not([${floatingAttribute}]) {
+    inline-size: 100%;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
   /* One frame of entry, removed on the next. Only the sheet travels: a floating list appears where
    * it was aimed, and a list that slid into place would be a list a pointer arrives before. */
   .menu[data-entering] {

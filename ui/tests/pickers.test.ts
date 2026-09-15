@@ -25,6 +25,10 @@ import {
   indicatorSweepColors,
   isSubstituted,
   nextSwatchIndex,
+  paletteMovesIntoEntries,
+  paletteReturnIndex,
+  entriesReturnToPalette,
+  swatchActionNames,
   parseColorChoice,
   quoteFamily,
   resolveColorChoice,
@@ -583,6 +587,73 @@ describe('the swatch grid', () => {
   });
 });
 
+// ── the entries beneath the palette ──────────────────────────────────────────
+
+describe('the entries beneath the palette', () => {
+  const sections = swatchSections(gridFixture);
+  /** A last section of twelve, ten wide: rows 10…19 and a ragged 20…21. */
+  const ragged = swatchSections(
+    options([
+      ['Theme colours', 10],
+      ['Recent colours', 12],
+    ]),
+  );
+
+  test('Arrow Down leaves the palette only from its last drawn row', () => {
+    // The fixture's last section is the three recent colours, 42…44, one row.
+    for (const index of [42, 43, 44]) expect(paletteMovesIntoEntries('rowNext', index, sections), `${String(index)}`).toBe(true);
+    for (const index of [0, 1, 2, 25, 31, 39, 41]) expect(paletteMovesIntoEntries('rowNext', index, sections), `${String(index)}`).toBe(false);
+  });
+
+  test('no movement but Arrow Down ever leaves, even from the last cell', () => {
+    for (const action of swatchActionNames) {
+      if (action === 'rowNext') continue;
+      expect(paletteMovesIntoEntries(action, 44, sections), action).toBe(false);
+    }
+  });
+
+  test('a ragged tail is a row of its own, so the cell above it does not skip it', () => {
+    // ⚠ From 15, the row below holds only 20 and 21. A rule of "no cell directly below" would leave
+    // the palette from 15 and a keyboard user could never reach 20 or 21 by Arrow Down.
+    expect(paletteMovesIntoEntries('rowNext', 15, ragged)).toBe(false);
+    expect(paletteMovesIntoEntries('rowNext', 19, ragged)).toBe(false);
+    expect(paletteMovesIntoEntries('rowNext', 20, ragged)).toBe(true);
+    expect(paletteMovesIntoEntries('rowNext', 21, ragged)).toBe(true);
+  });
+
+  test('an empty palette moves straight into the entries', () => {
+    expect(paletteMovesIntoEntries('rowNext', -1, [])).toBe(true);
+    expect(paletteReturnIndex([], 3)).toBe(-1);
+  });
+
+  test('Arrow Up on the first entry returns to the palette, and nothing else does', () => {
+    expect(entriesReturnToPalette('ArrowUp', 0)).toBe(true);
+    expect(entriesReturnToPalette('ArrowUp', 1)).toBe(false);
+    for (const key of ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape', 'Enter']) {
+      expect(entriesReturnToPalette(key, 0), key).toBe(false);
+    }
+  });
+
+  test('the return lands on the swatch the keyboard left, or on the row above the entries', () => {
+    expect(paletteReturnIndex(sections, 43)).toBe(43);
+    // Reached with the pointer, so nothing was left: the first cell of the last row.
+    expect(paletteReturnIndex(sections, undefined)).toBe(42);
+    // A remembered index that no longer exists (the palette shrank) is not trusted.
+    expect(paletteReturnIndex(sections, 99)).toBe(42);
+    expect(paletteReturnIndex(ragged, undefined)).toBe(20);
+  });
+
+  test('down then up is a round trip from every cell that can leave', () => {
+    for (const fixture of [sections, ragged]) {
+      const total = fixture.at(-1)?.end ?? 0;
+      for (let index = 0; index < total; index += 1) {
+        if (!paletteMovesIntoEntries('rowNext', index, fixture)) continue;
+        expect(paletteReturnIndex(fixture, index)).toBe(index);
+      }
+    }
+  });
+});
+
 // ── the swatch's states ──────────────────────────────────────────────────────
 
 describe('a swatch’s states', () => {
@@ -704,6 +775,14 @@ describe('the picker stylesheets', () => {
     expect(propertiesOf(colorPickerCss, '.preview')).toContain('border-color');
     expect(propertiesOf(colorPickerCss, '.palette')).toContain('box-shadow');
     expect(propertiesOf(colorPickerCss, '.swatch-paint')).toContain('box-shadow');
+  });
+
+  test('the entries region restates [hidden], because its own display is an author rule', () => {
+    // MJXOFF-274's lesson: an author `display` beats the user agent's hidden rule, so a picker with
+    // no entries would draw an empty hairline under every palette in the catalogue.
+    expect(propertiesOf(colorPickerCss, '.entries')).toContain('display');
+    expect(propertiesOf(colorPickerCss, '.entries[hidden]')).toEqual(['display']);
+    expect(colorPickerCss).toMatch(/\.entries\[hidden\]\s*\{\s*display:\s*none;/);
   });
 
   test('every state rule is wrapped in :where(), so source order is not the cascade', () => {

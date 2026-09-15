@@ -101,7 +101,16 @@ export interface ListSurfaceHost {
  * of eighty swatches does not virtualise and should not be made to pretend it does.
  */
 export interface PopupSurface {
+  /** The popup: what is shown, placed and hidden. */
   readonly element: HTMLElement;
+  /**
+   * The `role="listbox"` element the field's `aria-controls` names, when it is not `element`.
+   *
+   * Absent for a popup that is the listbox. A colour picker's popup also holds the entries beneath
+   * its palette, which are a menu, and a menu may not be a child of a listbox, so its listbox is an
+   * element inside the popup.
+   */
+  readonly controlledElement?: HTMLElement;
   readonly open: boolean;
   readonly options: readonly OptionDescriptor[];
   readonly activeIndex: number;

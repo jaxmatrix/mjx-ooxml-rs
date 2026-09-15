@@ -89,6 +89,7 @@ interface BuiltCell {
 
 export class SwatchSurface implements PopupSurface {
   readonly #palette: HTMLElement;
+  readonly #listbox: HTMLElement;
   readonly #host: SwatchSurfaceHost;
   readonly #idPrefix: string;
 
@@ -107,18 +108,40 @@ export class SwatchSurface implements PopupSurface {
     this.#host = host;
     this.#idPrefix = idPrefix;
 
+    // ⚠ **Two elements, and the listbox is the inner one.** The popup holds the swatches and, when
+    // a host slots them, the entries beneath them. The entries are a `role="menu"`, and a menu is
+    // not an allowed child of a listbox, so the popup has no role of its own and the swatches are a
+    // listbox inside it. `controlledElement` names that listbox for the field's `aria-controls`.
     const palette = document.createElement('div');
     palette.className = `palette ${pickerMotionClass}`;
     palette.setAttribute('part', 'palette');
-    palette.setAttribute('role', 'listbox');
     palette.dataset['open'] = 'false';
-    palette.addEventListener('pointerdown', this.#onPointerDown);
-    palette.addEventListener('pointerover', this.#onPointerOver);
+
+    const listbox = document.createElement('div');
+    listbox.className = 'swatches';
+    listbox.setAttribute('part', 'swatches');
+    listbox.setAttribute('role', 'listbox');
+    listbox.id = `${idPrefix}-swatches`;
+    listbox.addEventListener('pointerdown', this.#onPointerDown);
+    listbox.addEventListener('pointerover', this.#onPointerOver);
+    palette.append(listbox);
+
     this.#palette = palette;
+    this.#listbox = listbox;
   }
 
+  /**
+   * The popup: shown, placed and hidden. Its first child is the listbox; anything an owner appends
+   * after it (the colour picker's entries) is drawn beneath the swatches and is never touched by a
+   * render, which rebuilds the listbox alone.
+   */
   get element(): HTMLElement {
     return this.#palette;
+  }
+
+  /** The `role="listbox"` of swatches inside the popup, which the field's `aria-controls` names. */
+  get controlledElement(): HTMLElement {
+    return this.#listbox;
   }
 
   get open(): boolean {
@@ -263,7 +286,7 @@ export class SwatchSurface implements PopupSurface {
 
   #cellIn(path: readonly EventTarget[]): BuiltCell | undefined {
     for (const node of path) {
-      if (node === this.#palette) return undefined;
+      if (node === this.#listbox) return undefined;
       const found = this.#built.find((cell) => cell.element === node);
       if (found !== undefined) return found;
     }
@@ -273,7 +296,7 @@ export class SwatchSurface implements PopupSurface {
   // ── rendering ──────────────────────────────────────────────────────────────
 
   #render(): void {
-    const palette = this.#palette;
+    const palette = this.#listbox;
     palette.replaceChildren();
     this.#built = [];
 

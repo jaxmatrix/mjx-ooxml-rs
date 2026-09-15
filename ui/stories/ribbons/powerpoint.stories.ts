@@ -37,6 +37,7 @@ import {
   themeGalleryItems,
   variantGalleryItems,
 } from './design-layout-menus.ts';
+import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import {
@@ -902,10 +903,23 @@ const bindings: ControlOverrides = {
     style=${ribbonColourFieldStyle}
     label="Shading"
     show-no-fill
+    no-fill-label="No Fill"
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries(
+      'Shading',
+      fillEntries({
+        moreColours: 'More Fill Colours…',
+        eyedropper: true,
+        picture: true,
+        gradient: true,
+        texture: true,
+        tableBackground: true,
+      }),
+    )}
+  </mjx-color-picker>`,
   'powerpoint.table-design.table-styles.borders': html`<mjx-split-button
     label="Borders"
     icon="border-all"
@@ -933,19 +947,31 @@ const bindings: ControlOverrides = {
     label="Text Fill"
     value="theme:text1"
     show-no-fill
+    no-fill-label="No Fill"
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries(
+      'Text Fill',
+      fillEntries({ moreColours: 'More Fill Colours…', eyedropper: true, picture: true, gradient: true, texture: true }),
+    )}
+  </mjx-color-picker>`,
   'powerpoint.table-design.wordart-styles.text-outline': html`<mjx-color-picker
     id="ribbons-powerpoint-table-design-text-outline"
     style=${ribbonColourFieldStyle}
     label="Text Outline"
     show-no-fill
+    no-fill-label="No Outline"
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries(
+      'Text Outline',
+      outlineEntries({ moreColours: 'More Outline Colours…', eyedropper: true, weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
   'powerpoint.table-design.wordart-styles.text-effects': html`<mjx-button
     label="Text Effects"
     icon="text-effects"
@@ -976,7 +1002,9 @@ const bindings: ControlOverrides = {
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries('Pen Colour', outlineEntries({ moreColours: 'More Colours…', eyedropper: true }))}
+  </mjx-color-picker>`,
 };
 
 /**
@@ -1524,9 +1552,13 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
  * first:
  *
  * 1. ⚠ **Text Fill, Text Outline, Shading and Pen Colour are colour fields**, where Office draws a small button with a
- *    coloured bar. Open each: the document's theme colours, standard colours and recent colours, with *No fill* on
- *    the first three. **Office's Eyedropper, More Colours, Picture, Gradient and Texture are not there, and nor are
- *    Text Outline's Weight, Sketched and Dashes.** Judge whether that loss is acceptable; it is the weakest part.
+ *    coloured bar. Open each: the document's theme colours, standard colours and recent colours, with *No Fill* on
+ *    Shading and Text Fill and *No Outline* on Text Outline, and **Office's entries beneath the palette**. Shading:
+ *    More Fill Colours…, Eyedropper, Picture…, then Gradient, Texture and Table Background, each a submenu. Text
+ *    Fill: the same without Table Background. Text Outline: More Outline Colours…, Eyedropper, then Weight, Sketched
+ *    and Dashes. Pen Colour: More Colours… and Eyedropper. Arrow Down from the last row of recent colours moves onto
+ *    the first entry; Arrow Up returns; Arrow Right opens a submenu; choosing anything closes the picker. `GUESS:`
+ *    every entry and label. **Table Background's own colour grid is not drawn**, only its four commands.
  * 2. ⚠ **The Quick Styles pictures.** Expand Quick Styles: twenty letters *A*, four rows of five, drawn in the
  *    document's palette, with Clear WordArt under them. Judge whether the shadow, glow, bevel, reflection, gradient
  *    and pattern styles read as different styles. Nothing is selected: text wears no WordArt. `GUESS:` every name and

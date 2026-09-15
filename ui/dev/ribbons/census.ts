@@ -6637,7 +6637,8 @@ export const ribbonCensus: Readonly<Record<RibbonApplication, readonly RibbonTab
 //    as a large split button with a paint bucket, and Pen Color as a small dropdown with a pen, each opening a colour
 //    grid. The picker is the catalogue's one colour control and the one that reads a document's palette, so it is
 //    used for both, as Home's Font Colour and Design's Page Colour already are. Shading offers *No Colour*, Pen
-//    Colour *Automatic*.
+//    Colour *Automatic*, and both carry **More Colours…** beneath the palette, the picker's slotted entries.
+//    `GUESS:` that Word's carry nothing else (no Eyedropper, Picture, Gradient or Texture).
 // 7. **Line Style and Line Weight carry names.** Office draws each entry as a picture of the line with no text. The
 //    style names are `GUESS:`, from the Borders and Shading dialog, and each value is the style's `ST_Border` token.
 //    Line Style starts on Single and Line Weight on ½ pt, a new table's border.
@@ -6782,11 +6783,12 @@ const wordTableDesignBorders: readonly RibbonCommand[] = [
 //    spelling; none of the 74 has a *colour* in it.
 // 6. **Shading, Text Fill, Text Outline and Pen Colour are drawn as the catalogue's colour picker**, as Word's Shading
 //    and Pen Colour are. Office draws each as a small split button or dropdown with a coloured bar, opening a colour
-//    grid **with entries the picker does not carry**: Eyedropper and More Colours on all four; Picture, Gradient,
-//    Texture and Table Background on Shading; Picture, Gradient and Texture on Text Fill; **Weight, Sketched and
-//    Dashes on Text Outline**. Those entries are lost on this face, and that is the weakest part of the tab. Shading,
-//    Text Fill and Text Outline offer the picker's *No fill* (Office's *No Fill* and *No Outline*); Pen Colour starts
-//    on Text 1.
+//    grid with entries beneath it, which the picker carries as a slotted menu (`stories/ribbons/colour-picker-entries.ts`):
+//    Eyedropper and More Colours on all four; Picture, Gradient, Texture and Table Background on Shading; Picture,
+//    Gradient and Texture on Text Fill; Weight, Sketched and Dashes on Text Outline. Shading and Text Fill name the
+//    picker's *none* chip *No Fill*, Text Outline *No Outline*; Pen Colour starts on Text 1. `GUESS:` which entries
+//    each carries and every label. **Table Background's own colour grid is not drawn**: a menu holds commands, not
+//    swatches, so its submenu lists No Fill, More Fill Colours…, Eyedropper and Picture… alone.
 // 7. **Pen Style and Pen Weight carry names.** Office draws each entry as a picture of the line. The style names are
 //    PowerPoint's dash names and each value is its `ST_PresetLineDashVal` token, except *No Border*, which is not a
 //    dash (`none`). Pen Style starts on Solid and Pen Weight on 1 pt, an inserted table's border. `GUESS:` both starts.

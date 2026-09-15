@@ -1476,7 +1476,7 @@ is Format Painter's.
 - **The counts.** Table Style Options counts 13 and draws 6; Table Styles counts 6 and draws 2; Borders counts 13 and
   draws 6 and a launcher. `GUESS:` each reading, in `dev/ribbons/census.ts`. Nothing is padded.
 - **Shading and Pen Colour are the catalogue's colour picker**, where Office draws a bucket split button and a pen
-  dropdown.
+  dropdown. Both carry **More Colours…** beneath the palette. `GUESS:` that Word's carry nothing else.
 - **Line Style and Line Weight carry names**, where Office draws pictures of lines. `GUESS:` the style names.
 - **Every gallery picture**, the footer's order, the border styles' three weights, the Borders menu's separators, the
   checkboxes' columns and View Gridlines ticked are `GUESS:`.
@@ -1574,7 +1574,7 @@ binds seventeen commands and renders `tableToolsMenus('powerpoint', 'ribbons')`.
   are ticked**, PowerPoint's `<a:tblPr firstRow="1" bandRow="1">` for an inserted table.
 - **Table Styles**: the gallery in-ribbon, PowerPoint's 74 built-in styles by their own names under *Best Match for
   Document* (14), *Light* (21), *Medium* (28) and *Dark* (11), starting on Medium Style 2 - Accent 1, with Clear Table
-  under it. Then Shading (a colour picker, *No fill*), **Borders** (a small split button: twelve entries, No Border
+  under it. Then Shading (a colour picker, *No Fill*, with entries), **Borders** (a small split button: twelve entries, No Border
   and All Borders first) and **Effects** (a small dropdown: Cell Bevel, Shadow and Reflection, each a submenu with
   Office's whole preset list).
 - **WordArt Styles**: Quick Styles (a gallery of twenty WordArt styles, each a letter drawn in the document's
@@ -1603,8 +1603,11 @@ a menu; three lists and two gestures.
 ⚠ **What is not Office's shape, or is `GUESS:`.**
 
 - **Shading, Text Fill, Text Outline and Pen Colour are the catalogue's colour picker**, where Office draws small
-  buttons with a colour bar. **Office's Eyedropper, More Colours, Picture, Gradient, Texture and Table Background are
-  lost on this face, and so are Text Outline's Weight, Sketched and Dashes.** The weakest part of the tab.
+  buttons with a colour bar. Office's entries beneath each grid are the picker's slotted entries (see *The entries
+  beneath a colour picker's palette* below): More Colours and Eyedropper on all four, Picture, Gradient, Texture and
+  Table Background on Shading, Picture, Gradient and Texture on Text Fill, Weight, Sketched and Dashes on Text
+  Outline. `GUESS:` which entries each carries and every label. **Table Background's own colour grid is not drawn**,
+  only its commands: a menu holds commands, not swatches.
 - **The counts.** Table Styles counts 33 and draws 4; WordArt Styles counts 33 and draws 4 and a launcher. No reading
   reaches either. Draw Borders counts 6 and draws 5 and a launcher, the reading that makes 6. Nothing is padded.
 - **Best Match for Document holds the fourteen *No Style* and *Themed* styles** and Light begins at Light Style 1.
@@ -1620,6 +1623,31 @@ a menu; three lists and two gestures.
 - **Glyphs**, all reused and all `GUESS:`: `border-all` (Borders), `square-shadow` (Effects), `text-effects` (Text
   Effects), `table-edit` (Draw Table) and `eraser` (Eraser). No glyph is new, so the subset is unchanged. The
   checkboxes, both galleries, the four colour pickers and both fields carry none.
+
+### The entries beneath a colour picker's palette
+
+**Office's colour grids carry commands under the swatches, and `<mjx-color-picker>` now draws them.** A host slots
+one `<mjx-menu slot="entries">` inside the picker; the picker draws it beneath the palette, in the same popup, and
+sets `embedded` on it so its rows sit flush on the palette rather than as a card inside a card. It is the
+catalogue's own menu, so submenus, checkable rows, unavailable rows and `mjx-menu-activate` all work as on any menu.
+Choosing an entry closes the picker and returns focus to the field. `no-fill-label` names the picker's *none* chip
+(*No Fill*, *No Outline*, *No Colour*); the value stays `none`.
+
+- **The keyboard crosses at one seam.** Arrow Down on the palette's last drawn row moves focus onto the first entry,
+  and the grid drops its cursor. Arrow Up on the first entry returns to the swatch it left. Both rules are pure
+  functions in `src/pickers/picker-model.ts` (`paletteMovesIntoEntries`, `entriesReturnToPalette`,
+  `paletteReturnIndex`), tested in `tests/pickers.test.ts`. Escape on an entry closes the picker; Tab leaves.
+- **The popup is no longer the listbox.** A menu is not an allowed child of a listbox, so the swatches are a
+  `role="listbox"` inside the popup, and `PopupSurface.controlledElement` names it for the field's `aria-controls`.
+- **The lists are written once**, in `stories/ribbons/colour-picker-entries.ts`: `fillEntries` and `outlineEntries`
+  take options for each entry, over `lineWeightEntries` (`tableLineWeights`), `lineDashEntries` (`presetLineDashes`,
+  which Pen Style now also reads), `lineSketchEntries`, `lineArrowEntries`, `gradientEntries`, `textureEntries` and
+  `tableBackgroundEntries`. Shape Format's Shape Fill and Shape Outline are expected to call the same two functions.
+- **Bound today**: Word's Table Design Shading and Pen Colour (both hosts), PowerPoint's Table Design Shading, Text
+  Fill, Text Outline and Pen Colour. `GUESS:` which entries each carries, every label and preset, and that Word's
+  carry More Colours… alone.
+- ⚠ **Table Background's colour grid is not drawn.** Its submenu lists its four commands; a menu holds commands, not
+  swatches.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

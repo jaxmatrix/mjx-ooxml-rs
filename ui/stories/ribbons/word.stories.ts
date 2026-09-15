@@ -26,6 +26,7 @@ import {
   ribbonTokenDependencies,
   type ControlOverrides,
 } from './ribbon-parts.ts';
+import { colourPickerEntries, fillEntries, outlineEntries } from './colour-picker-entries.ts';
 import { designLayoutMenus, styleSetGalleryItems } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
@@ -756,10 +757,13 @@ const bindings: ControlOverrides = {
     style=${ribbonColourFieldStyle}
     label="Shading"
     show-no-fill
+    no-fill-label="No Colour"
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries('Shading', fillEntries({ moreColours: 'More Colours…' }))}
+  </mjx-color-picker>`,
   'word.table-design.borders.border-styles': html`<mjx-button
     label="Border Styles"
     icon="line-style"
@@ -790,7 +794,9 @@ const bindings: ControlOverrides = {
     .themePalette=${documentThemePalette}
     .standardColors=${standardColors}
     .recentColors=${recentColors}
-  ></mjx-color-picker>`,
+  >
+    ${colourPickerEntries('Pen Colour', outlineEntries({ moreColours: 'More Colours…' }))}
+  </mjx-color-picker>`,
   'word.table-design.borders.borders': html`<mjx-split-button
     label="Borders"
     icon="border-all"
@@ -1240,7 +1246,9 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
  *    New Table Style…. `GUESS:` every picture.
  * 5. ⚠ **Shading and Pen Colour are colour fields**, where Office draws a paint bucket split button and a small pen
  *    dropdown. Open each: the document's theme colours, standard colours and recent colours, with *No Colour* on
- *    Shading and *Automatic* on Pen Colour.
+ *    Shading and *Automatic* on Pen Colour, and **More Colours…** beneath the palette on both. Arrow Down from the
+ *    last row of recent colours moves onto it; Arrow Up returns. `GUESS:` that Word's two carry no Eyedropper,
+ *    Picture, Gradient or Texture, which PowerPoint's do.
  * 6. **Six checkboxes, two columns of three**: Header Row, Total Row and Banded Rows down the first; First Column, Last
  *    Column and Banded Columns down the second. Header Row, Banded Rows and First Column are ticked, the look Word
  *    writes on an inserted table. `GUESS:` the start.

@@ -37,6 +37,7 @@ import {
   menuPresentationOrder,
   menuPresentations,
   menuSecondaryTextIsSizeNotColour,
+  menuSheet,
   menuSheetAtOrBelow,
   nextTypeaheadIndex,
   sheetBoundaryFraction,
@@ -305,6 +306,18 @@ describe('the presentation rules', () => {
     expect(base).toBeGreaterThanOrEqual(0);
     expect(floating).toBeGreaterThan(base);
     expect(sheet).toBeGreaterThan(floating);
+  });
+
+  test('an embedded menu drops its card, and only while it is inline', () => {
+    // The colour picker's entries sit on the palette, which is already a card. The rule is scoped
+    // to a box that is not floating: a submenu opened from an embedded menu is a popup and keeps
+    // its own background, border and shadow, or it would be transparent over the page.
+    const embedded = /:host\(\[embedded\]\) \.menu:not\(\[data-floating\]\)\s*\{([^}]*)\}/.exec(menuSheet);
+    expect(embedded, 'no embedded rule in the menu sheet').not.toBeNull();
+    const body = embedded?.[1] ?? '';
+    expect(body).toMatch(/background:\s*none/);
+    expect(body).toMatch(/border:\s*0/);
+    expect(body).toMatch(/box-shadow:\s*none/);
   });
 
   test('the sheet block is a container query on the harness frame, at the ribbon’s own width', () => {
