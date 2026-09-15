@@ -57,7 +57,15 @@ import { recordingMenus } from './recording-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { masterViewMenus } from './slide-master-menus.ts';
 import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
+import {
+  powerpointPenStyles,
+  powerpointTableStyleGalleryFooter,
+  powerpointTableStyleGalleryItems,
+  tableLineWeights,
+  tableToolsMenus,
+} from './table-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
+import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-styles-menus.ts';
 
 /**
  * **PowerPoint's ribbon, tab by tab** — the same functions `Shell/PowerPoint` composes.
@@ -73,9 +81,10 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs, and every one is a placeholder** at the census's own priorities: Table
- * Design and Layout, Picture Format, Shape Format, Chart Design and Format. Every story draws all four contextual
- * sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone.
+ * **Six more stories are the contextual tabs.** **Table Design is authored**, PowerPoint's first. **The other five are
+ * placeholders** at the census's own priorities: Layout, Picture Format, Shape Format, Chart Design and Format. Every
+ * story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools alone, which is
+ * why Table Design's bindings and menus are written here and nowhere else.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
  * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
@@ -98,8 +107,8 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. The contextual tabs of the four common sets — Table Design, Layout, Picture Format, Shape ' +
-          'Format, Chart Design and Format — are placeholders carrying the census’s own priorities.',
+          'Greyscale. Of the contextual tabs of the four common sets, Table Design is authored; Layout, Picture ' +
+          'Format, Shape Format, Chart Design and Format are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -868,6 +877,106 @@ const bindings: ControlOverrides = {
     id="ribbons-powerpoint-notes-master-hide-background-graphics"
     label="Hide Background Graphics"
   ></mjx-checkbox>`,
+  // Table Design (a contextual tab, in Table Tools). `Shell/PowerPoint` draws Picture Tools and not Table Tools, so
+  // these seventeen bindings and `tableToolsMenus('powerpoint', …)` are written here alone: a binding in a shell that
+  // never draws the tab would be a binding to nothing. The two galleries and the two fields are filled from
+  // `stories/ribbons/table-tools-menus.ts` and `stories/ribbons/wordart-styles-menus.ts`, the four pickers and every
+  // picture from the document's palette; Borders, Effects and Text Effects open that file's menus. Draw Table and
+  // Eraser are the generic toggles, one exclusive set that may hold none, and are not bound.
+  'powerpoint.table-design.table-style-options.header-row': html`<mjx-checkbox id="ribbons-powerpoint-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+  'powerpoint.table-design.table-style-options.total-row': html`<mjx-checkbox id="ribbons-powerpoint-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+  'powerpoint.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="ribbons-powerpoint-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+  'powerpoint.table-design.table-style-options.first-column': html`<mjx-checkbox id="ribbons-powerpoint-table-design-first-column" label="First Column"></mjx-checkbox>`,
+  'powerpoint.table-design.table-style-options.last-column': html`<mjx-checkbox id="ribbons-powerpoint-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+  'powerpoint.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="ribbons-powerpoint-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+  'powerpoint.table-design.table-styles.gallery': html`<mjx-gallery
+    id="ribbons-powerpoint-table-styles"
+    label="Table Styles"
+    value="medium-style-2-accent-1"
+    style=${ribbonGalleryStyle}
+  >
+    ${powerpointTableStyleGalleryItems(documentThemePalette)} ${powerpointTableStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'powerpoint.table-design.table-styles.shading': html`<mjx-color-picker
+    id="ribbons-powerpoint-table-design-shading"
+    style=${ribbonColourFieldStyle}
+    label="Shading"
+    show-no-fill
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'powerpoint.table-design.table-styles.borders': html`<mjx-split-button
+    label="Borders"
+    icon="border-all"
+    size="small"
+    menu-label="Borders"
+    data-opens="ribbons-powerpoint-table-design-table-styles-borders"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.table-design.table-styles.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-table-design-table-styles-effects"
+  ></mjx-button>`,
+  'powerpoint.table-design.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-table-design-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'powerpoint.table-design.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-powerpoint-table-design-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:text1"
+    show-no-fill
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'powerpoint.table-design.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-powerpoint-table-design-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'powerpoint.table-design.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-powerpoint-table-design-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'powerpoint.table-design.draw-borders.pen-style': html`<mjx-dropdown
+    id="ribbons-powerpoint-table-design-pen-style"
+    label="Pen Style"
+    value="solid"
+    style=${ribbonFieldStyle}
+  >
+    ${powerpointPenStyles.map((penStyle) => html`<mjx-option value=${penStyle.value} label=${penStyle.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'powerpoint.table-design.draw-borders.pen-weight': html`<mjx-dropdown
+    id="ribbons-powerpoint-table-design-pen-weight"
+    label="Pen Weight"
+    value="1"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${tableLineWeights.map((weight) => html`<mjx-option value=${weight.value} label=${weight.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'powerpoint.table-design.draw-borders.pen-colour': html`<mjx-color-picker
+    id="ribbons-powerpoint-table-design-pen-colour"
+    style=${ribbonColourFieldStyle}
+    label="Pen Colour"
+    value="theme:text1"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
 };
 
 /**
@@ -880,7 +989,7 @@ function ribbon(selected: string): TemplateResult {
   return html`
     <mjx-ribbon label="PowerPoint" selected=${selected} @mjx-activate=${openDeclaredSurface}>
       ${powerpointTabs({ controls: bindings, includeViewTabs: true })}
-      ${powerpointContextualSets()}
+      ${powerpointContextualSets({ controls: bindings })}
     </mjx-ribbon>
     <mjx-menu id="ribbons-ppt-paste" label="Paste options" floating>
       <mjx-menu-section label="Paste">
@@ -897,7 +1006,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
     ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
-    ${masterViewMenus('powerpoint', 'ribbons')}
+    ${masterViewMenus('powerpoint', 'ribbons')} ${tableToolsMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -1408,10 +1517,48 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
 
 /**
- * **Table Design** — Table Tools' first tab, a contextual placeholder until its unit authors it. See
- * `Ribbons/Word → Table Design` for what to look at on a contextual story. Four groups are declared: Table Style
- * Options, Table Styles, WordArt Styles and Draw Borders, with Table Styles primary. WordArt Styles is the census's
- * `GroupTextStylesTable`.
+ * **Table Design**: the style a table on a slide wears, the WordArt its text wears, and the pen Draw Table draws with.
+ * Table Tools' first tab, and PowerPoint's first contextual tab authored; Office shows it only while a table is
+ * selected. Four groups: Table Style Options, Table Styles, WordArt Styles and Draw Borders. See `Ribbons/Word → Table
+ * Design` for the band and the collapse order, which hold on every contextual story. What to look at, least certain
+ * first:
+ *
+ * 1. ⚠ **Text Fill, Text Outline, Shading and Pen Colour are colour fields**, where Office draws a small button with a
+ *    coloured bar. Open each: the document's theme colours, standard colours and recent colours, with *No fill* on
+ *    the first three. **Office's Eyedropper, More Colours, Picture, Gradient and Texture are not there, and nor are
+ *    Text Outline's Weight, Sketched and Dashes.** Judge whether that loss is acceptable; it is the weakest part.
+ * 2. ⚠ **The Quick Styles pictures.** Expand Quick Styles: twenty letters *A*, four rows of five, drawn in the
+ *    document's palette, with Clear WordArt under them. Judge whether the shadow, glow, bevel, reflection, gradient
+ *    and pattern styles read as different styles. Nothing is selected: text wears no WordArt. `GUESS:` every name and
+ *    picture.
+ * 3. ⚠ **The Table Styles pictures and sections.** Expand Table Styles: *Best Match for Document* (14: the No Style
+ *    and Themed styles), *Light* (21), *Medium* (28) and *Dark* (11), one family to a row of seven, **Medium Style 2 -
+ *    Accent 1 selected**. No style appears twice. Under the list: Clear Table. `GUESS:` the Best Match reading and
+ *    every picture.
+ * 4. ⚠ **Draw Table and Eraser are one set that may hold none.** Neither starts pressed. Press Draw Table, then
+ *    Eraser: Draw Table releases. Press Eraser again: it releases and neither holds.
+ * 5. **Effects and Text Effects open menus of submenus.** Effects: Cell Bevel (No Bevel and twelve bevels), Shadow (No
+ *    Shadow, Outer nine, Inner nine, Perspective five, Shadow Options…) and Reflection (No Reflection, nine
+ *    variations, Reflection Options…). Text Effects: Shadow and Reflection again, then Glow (twenty-four variations,
+ *    More Glow Colours, Glow Options…), Bevel (ending in 3-D Options…), 3-D Rotation (Parallel, Perspective, Oblique)
+ *    and Transform (Follow Path four, Warp thirty-two). Hover an entry with a submenu to open it.
+ * 6. **Borders is a split button**, small. The face does nothing here; the arrow opens twelve entries, No Border and
+ *    All Borders first, then Outside, Inside, the four edges, the two inside lines and the two diagonals.
+ * 7. **Six checkboxes, two columns of three**: Header Row, Total Row and Banded Rows down the first; First Column, Last
+ *    Column and Banded Columns down the second. **Header Row and Banded Rows are ticked**, PowerPoint's look for an
+ *    inserted table, unlike Word's, which also ticks First Column. `GUESS:` the start.
+ * 8. **Pen Style and Pen Weight are fields with names.** Pen Style lists No Border and eight dashes, Solid selected;
+ *    Pen Weight lists ¼ pt to 6 pt, 1 pt selected. Pen Colour starts on Text 1.
+ * 9. **Two launchers**: *Format Text Effects* at WordArt Styles' corner and *Format Shape* at Draw Borders'. `GUESS:`
+ *    both, and that Table Style Options and Table Styles have none.
+ * 10. **No survivor anywhere.** Drag narrow: each group collapses to a trigger with nothing beside it. The collapse
+ *     order is the census's: Table Style Options, WordArt Styles and Draw Borders are `standard` and give way first,
+ *     Table Styles `primary` last.
+ * 11. **Glyphs to judge**, all reused and all `GUESS:`: Borders' grid, Home's Borders; Effects' shadowed square, Home's
+ *     Shape Effects; Text Effects' outlined letter, Insert's WordArt; Draw Table's pencil and Eraser, Word's Table
+ *     Layout pair, filled when pressed.
+ * 12. **Not in `Shell/PowerPoint`**: its strip draws Picture Tools, so there is no Table Design tab and none of its
+ *     menus is on that page.
  */
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 

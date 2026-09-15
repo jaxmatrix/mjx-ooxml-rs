@@ -120,8 +120,12 @@
  * application at a time. **Word's Table Design** was the first, its menus and gallery art written once in
  * `stories/ribbons/table-tools-menus.ts` for PowerPoint's and Excel's Table Design units; see the *commands Table
  * Design shows* section. **Word's Table Layout** followed, the second, its Select and Delete lists written in that
- * file for PowerPoint's Table Layout to reuse; see the *commands Table Layout shows* section. `commands` stays optional rather than required, because an empty array would claim a tab
- * had been authored and found to hold nothing.
+ * file for PowerPoint's Table Layout to reuse; see the *commands Table Layout shows* section. **PowerPoint's Table
+ * Design** followed, the third, reusing that file's gallery art and line weights and adding PowerPoint's own lists
+ * there; its WordArt Styles group is written once as a function of the application and tab, for Shape Format and
+ * Chart Format to call; see the *commands Table Design shows* section's *PowerPoint's Table Design* part. `commands`
+ * stays optional rather than required, because an empty array would claim a tab had been authored and found to hold
+ * nothing.
  *
  * ## The contextual tab sets
  *
@@ -168,7 +172,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Two contextual tabs carry commands: Word's Table Design and Table Layout.** Each per-tab unit authors one tab of one application,
+ * **Three contextual tabs carry commands: Word's Table Design and Table Layout, and PowerPoint's Table Design.** Each
+ * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
  * the one set its document's selection would show (Word's and Excel's Table Tools, PowerPoint's Picture Tools),
@@ -6715,6 +6720,194 @@ const wordTableDesignBorders: readonly RibbonCommand[] = [
   { id: 'word.table-design.borders.border-painter', label: 'Border Painter', icon: 'paint-brush', size: 'large', toggle: true },
 ];
 
+// ## PowerPoint's Table Design
+//
+// The unit after Word's Table Layout, one tab of one application: **PowerPoint's `TabTableToolsDesign`, in
+// `TabSetTableTools`**, all four in-scope groups and nineteen commands, and **the third contextual tab authored**.
+// Office shows it under the *Table Tools* band while a table on a slide is selected: which parts of the table its
+// style sets apart, which style it wears and what effects its cells carry, how the text in it is dressed, and the pen
+// Draw Table draws borders with.
+//
+// ## Office's four groups, read onto the census's four
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupTableStyleOptionsPowerPoint` (6) | Table Style Options | Header Row, Total Row, Banded Rows, First Column, Last Column, Banded Columns |
+// | `GroupTableStylesPowerPoint` (33) | Table Styles | the Table Styles gallery, Shading, Borders, Effects |
+// | `GroupTextStylesTable` (33) | WordArt Styles | Quick Styles, Text Fill, Text Outline, Text Effects; the Format Text Effects launcher |
+// | `GroupDrawBorders` (6) | Draw Borders | Pen Style, Pen Weight, Pen Colour, Draw Table, Eraser; the Format Shape launcher |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and every group's identity is plain from its id
+// and count except `GroupTextStylesTable`, whose label the contextual unit already read as WordArt Styles (its header's
+// item 2). Table Style Options is the one group whose count matches what is drawn (6).
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Six toggles drawn as checkboxes**, bound by a host. **Two in-ribbon galleries**: Table Styles, over PowerPoint's
+// 74 built-in table styles, and Quick Styles, over the twenty WordArt styles. **Four colour pickers**: Shading, Text
+// Fill, Text Outline and Pen Colour, over the document's palette. **Two fields**, Pen Style and Pen Weight. **Two
+// dropdowns**, Effects and Text Effects, each a menu of submenus. **One split button**, Borders. **Two toggles in one
+// exclusive set that may hold none**, Draw Table and Eraser. **Two dialog launchers**, Format Text Effects on WordArt
+// Styles and Format Shape on Draw Borders.
+//
+// Where PowerPoint's entries are Word's, the lists are Word's: the table picture and gallery item builder and the nine
+// line weights, in `stories/ribbons/table-tools-menus.ts`, which now also carries PowerPoint's own lists (the 74
+// styles, Pen Style, Borders' twelve entries). **WordArt Styles is written once**, as `wordArtStylesCommands`, a
+// function of the application and the tab, because Shape Format and Chart Format repeat it in all three
+// applications; its gallery and its effect menus are in `stories/ribbons/wordart-styles-menus.ts`, and Table Design's
+// Effects menu reuses that file's Bevel, Shadow and Reflection lists.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The counts.** **Table Styles counts 33 and draws 4.** `GUESS:` no reading this unit found reaches 33: the
+//    gallery, its two scroll arrows and its More button, the two halves of Shading and of Borders, and Effects make 9.
+//    **WordArt Styles counts 33 and draws 4 and a launcher.** `GUESS:` the same: the gallery's four parts, the two
+//    halves of Text Fill and of Text Outline, Text Effects and the launcher make 10. **Draw Borders counts 6 and draws
+//    5 and a launcher**, which is the reading that makes 6 and the reason the launcher is drawn. `GUESS:` that
+//    reading. Nothing is padded.
+// 2. **The six checkboxes are declared down each column**, as Word's are: Header Row, Total Row, Banded Rows, then
+//    First Column, Last Column, Banded Columns. The brief lists them across the rows (Header Row, First Column, …).
+//    `GUESS:` the columns.
+// 3. **Header Row and Banded Rows start ticked**, and the other four unticked. That is the look PowerPoint writes on
+//    an inserted table, `<a:tblPr firstRow="1" bandRow="1">`, and it differs from Word's, which also sets the first
+//    column apart. `GUESS:` that the checkboxes show exactly that look.
+// 4. **The gallery starts on Medium Style 2 - Accent 1**, the style PowerPoint inserts a table in
+//    (`{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}`), and draws PowerPoint's 74 built-in styles by their own names in the
+//    brief's four sections. **Best Match for Document holds the fourteen *Themed* and *No Style* styles**, the ones
+//    drawn only from the document's theme, and **Light begins at Light Style 1**. Office may repeat styles under Best
+//    Match; a gallery that listed one value twice would select two cells, so no style is listed twice here. `GUESS:`
+//    that reading of Best Match, every picture, the order inside each section, and the footer (Clear Table).
+// 5. **The census's spelling wins**: *Pen Colour*, where Office writes *Pen Color*, and *colour* in the WordArt style
+//    names, as Insert's WordArt menu already spells them. Style names that are document data keep PowerPoint's
+//    spelling; none of the 74 has a *colour* in it.
+// 6. **Shading, Text Fill, Text Outline and Pen Colour are drawn as the catalogue's colour picker**, as Word's Shading
+//    and Pen Colour are. Office draws each as a small split button or dropdown with a coloured bar, opening a colour
+//    grid **with entries the picker does not carry**: Eyedropper and More Colours on all four; Picture, Gradient,
+//    Texture and Table Background on Shading; Picture, Gradient and Texture on Text Fill; **Weight, Sketched and
+//    Dashes on Text Outline**. Those entries are lost on this face, and that is the weakest part of the tab. Shading,
+//    Text Fill and Text Outline offer the picker's *No fill* (Office's *No Fill* and *No Outline*); Pen Colour starts
+//    on Text 1.
+// 7. **Pen Style and Pen Weight carry names.** Office draws each entry as a picture of the line. The style names are
+//    PowerPoint's dash names and each value is its `ST_PresetLineDashVal` token, except *No Border*, which is not a
+//    dash (`none`). Pen Style starts on Solid and Pen Weight on 1 pt, an inserted table's border. `GUESS:` both starts.
+// 8. **Draw Table and Eraser are one exclusive set that may hold none**, `powerpoint.table-design.draw-borders.tools`,
+//    neither pressed, as Word's pair on Table Layout is. **Office presses Draw Table itself** once a pen style, weight
+//    or colour is chosen; nothing here dispatches, so it stays where a person leaves it.
+// 9. **Effects and Text Effects are menus of submenus**, Office's shape: Cell Bevel, Shadow and Reflection; and
+//    Shadow, Reflection, Glow, Bevel, 3-D Rotation and Transform. Each submenu carries Office's whole preset list and
+//    its Options entry, which opens the Format Shape pane in Office and nothing here. `GUESS:` every preset's name, and
+//    that a table cell's Shadow list is the same as text's.
+// 10. **The WordArt style names are the Office theme's** (*Blue, Accent colour 1*), as Insert's WordArt menu names
+//    them. Office names each from the document's theme colours; the pictures are drawn in the document's palette.
+//    `GUESS:` the twenty names, their order, and the footer (Clear WordArt).
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Table Style Options**: none. All six are checkboxes, which the gate refuses.
+// - **Table Styles**: none. The gallery and Shading open a gallery and a colour grid, Borders is a split button and
+//   Effects a menu, all rule 1.
+// - **WordArt Styles**: none. Quick Styles is a gallery, Text Fill and Text Outline open colour grids and Text Effects
+//   a menu, all rule 1.
+// - **Draw Borders**: none. Pen Style, Pen Weight and Pen Colour open lists, rule 1, and Draw Table and Eraser arm a
+//   gesture rather than doing one thing in one press, as on Word's Table Layout.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: the six checkboxes are two columns of three; the Table Styles gallery is
+// in-ribbon with Shading, Borders and Effects small in a column; the Quick Styles gallery is in-ribbon with Text Fill,
+// Text Outline and Text Effects small in a column; Pen Style, Pen Weight and Pen Colour are stacked in a column, then
+// Draw Table and Eraser large. **Five commands carry a glyph, every one reused and every one `GUESS:`**:
+//
+// - **Borders draws `border-all`**, Home's Borders and Word's Table Design Borders, small.
+// - **Effects draws `square-shadow`**, Home's Shape Effects: a shape with a shadow, one of the three effects the menu
+//   offers, the same idea applied to cells.
+// - **Text Effects draws `text-effects`**, Word's Text Effects and Typography and Insert's WordArt: an outlined,
+//   shadowed letter, which is what the menu makes.
+// - **Draw Table draws `table-edit`** and **Eraser draws `eraser`**, Word's Table Layout's pair, large, filled while
+//   pressed.
+//
+// **Fourteen commands carry no glyph, and say why**: the six checkboxes draw their tick box; the two galleries are
+// their pictures; Shading, Text Fill, Text Outline and Pen Colour are colour pickers, which draw a swatch; Pen Style
+// and Pen Weight are fields.
+
+/**
+ * **WordArt Styles, as Office draws it on PowerPoint's Table Design and on every Shape Format and Chart Format**:
+ * Quick Styles, Text Fill, Text Outline and Text Effects, under `<application>.<tab>.wordart-styles`.
+ *
+ * Written once because the group repeats: `GroupTextStylesTable` here, `GroupWordArtStyles` on the Drawing Tools and
+ * Chart Tools tabs of all three applications. The census counts Word's and Excel's 30 and PowerPoint's 33; the four
+ * commands Office draws are the same four. Each unit that calls it records its own disagreements.
+ *
+ * **Quick Styles is a gallery**, over `stories/ribbons/wordart-styles-menus.ts`'s styles. **Text Fill and Text Outline
+ * are colour pickers**, and **Text Effects is a dropdown** over that file's effect submenus; all four are bound by a
+ * host. Text Effects draws `text-effects`.
+ *
+ * **No survivor**: a gallery, two colour grids and a menu.
+ */
+export function wordArtStylesCommands(application: RibbonApplication, tab: string): readonly RibbonCommand[] {
+  return [
+    { id: `${application}.${tab}.wordart-styles.quick-styles`, label: 'Quick Styles' },
+    { id: `${application}.${tab}.wordart-styles.text-fill`, label: 'Text Fill' },
+    { id: `${application}.${tab}.wordart-styles.text-outline`, label: 'Text Outline' },
+    { id: `${application}.${tab}.wordart-styles.text-effects`, label: 'Text Effects', icon: 'text-effects' },
+  ];
+}
+
+/**
+ * PowerPoint's `GroupTableStyleOptionsPowerPoint` on Table Design, labelled **Table Style Options**: six checkboxes,
+ * two columns of three read down each column. See disagreements 2 and 3.
+ *
+ * **All six are toggles drawn as checkboxes** a host binds; Header Row and Banded Rows start ticked.
+ *
+ * **No survivor**: six checkboxes.
+ */
+const powerpointTableDesignTableStyleOptions: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-design.table-style-options.header-row', label: 'Header Row', toggle: true, pressed: true },
+  { id: 'powerpoint.table-design.table-style-options.total-row', label: 'Total Row', toggle: true },
+  { id: 'powerpoint.table-design.table-style-options.banded-rows', label: 'Banded Rows', toggle: true, pressed: true },
+  { id: 'powerpoint.table-design.table-style-options.first-column', label: 'First Column', toggle: true },
+  { id: 'powerpoint.table-design.table-style-options.last-column', label: 'Last Column', toggle: true },
+  { id: 'powerpoint.table-design.table-style-options.banded-columns', label: 'Banded Columns', toggle: true },
+];
+
+/**
+ * PowerPoint's `GroupTableStylesPowerPoint`, labelled **Table Styles**: the gallery in-ribbon, then Shading, Borders
+ * and Effects small in a column. See disagreements 1, 4, 6 and 9.
+ *
+ * **The gallery** and **Shading**, a colour picker, carry no glyph. **Borders is a split button** and **Effects a
+ * dropdown**. All four are bound by a host.
+ *
+ * **No survivor**: a gallery, a colour grid, a split button and a menu.
+ */
+const powerpointTableDesignTableStyles: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-design.table-styles.gallery', label: 'Table Styles' },
+  { id: 'powerpoint.table-design.table-styles.shading', label: 'Shading' },
+  { id: 'powerpoint.table-design.table-styles.borders', label: 'Borders', icon: 'border-all' },
+  { id: 'powerpoint.table-design.table-styles.effects', label: 'Effects', icon: 'square-shadow' },
+];
+
+/** The set Draw Table and Eraser share on PowerPoint's Table Design. It may hold none. See disagreement 8. */
+const powerpointTableDesignDrawTools = 'powerpoint.table-design.draw-borders.tools';
+
+/**
+ * PowerPoint's `GroupDrawBorders`, labelled **Draw Borders**: Pen Style, Pen Weight and Pen Colour in a column, then
+ * Draw Table and Eraser large, and the Format Shape launcher the tab module passes. See disagreements 1, 5, 6, 7 and 8.
+ *
+ * **Pen Style and Pen Weight are fields** and **Pen Colour a colour picker**, bound by a host. **Draw Table and
+ * Eraser are one exclusive set that may hold none**, neither pressed, both the generic toggle.
+ *
+ * **No survivor**: three lists and two gestures.
+ */
+const powerpointTableDesignDrawBorders: readonly RibbonCommand[] = [
+  { id: 'powerpoint.table-design.draw-borders.pen-style', label: 'Pen Style' },
+  { id: 'powerpoint.table-design.draw-borders.pen-weight', label: 'Pen Weight' },
+  { id: 'powerpoint.table-design.draw-borders.pen-colour', label: 'Pen Colour' },
+  { id: 'powerpoint.table-design.draw-borders.draw-table', label: 'Draw Table', icon: 'table-edit', size: 'large', toggle: true, exclusive: powerpointTableDesignDrawTools, exclusiveAllowsNone: true },
+  { id: 'powerpoint.table-design.draw-borders.eraser', label: 'Eraser', icon: 'eraser', size: 'large', toggle: true, exclusive: powerpointTableDesignDrawTools, exclusiveAllowsNone: true },
+];
+
 // ── the commands Table Layout shows ──────────────────────────────────────────
 //
 // ## Word's Table Layout
@@ -7119,10 +7312,10 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsDesign' },
         groups: [
-          { id: 'GroupTableStyleOptionsPowerPoint', label: 'Table Style Options', priority: 'standard', controls: 6, inScope: true },
-          { id: 'GroupTableStylesPowerPoint', label: 'Table Styles', priority: 'primary', controls: 33, inScope: true },
-          { id: 'GroupTextStylesTable', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true },
-          { id: 'GroupDrawBorders', label: 'Draw Borders', priority: 'standard', controls: 6, inScope: true },
+          { id: 'GroupTableStyleOptionsPowerPoint', label: 'Table Style Options', priority: 'standard', controls: 6, inScope: true, commands: powerpointTableDesignTableStyleOptions },
+          { id: 'GroupTableStylesPowerPoint', label: 'Table Styles', priority: 'primary', controls: 33, inScope: true, commands: powerpointTableDesignTableStyles },
+          { id: 'GroupTextStylesTable', label: 'WordArt Styles', priority: 'standard', controls: 33, inScope: true, commands: wordArtStylesCommands('powerpoint', 'table-design') },
+          { id: 'GroupDrawBorders', label: 'Draw Borders', priority: 'standard', controls: 6, inScope: true, commands: powerpointTableDesignDrawBorders },
         ],
       },
       {

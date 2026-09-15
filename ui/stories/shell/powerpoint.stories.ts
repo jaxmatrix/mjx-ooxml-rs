@@ -193,7 +193,10 @@ const shapeCommands: readonly MiniCommand[] = [
  * four masters, Print Preview and Background Removal — because Office shows none of them in the
  * ordinary strip. That is also why **Print Preview's bindings and menus are in `Ribbons/PowerPoint` and
  * not here**: a binding for a tab this strip never draws would be a binding to nothing, and
- * `tests/ribbons.test.ts` refuses a shell that opens a view tab's menu. The contextual set stays here as a call rather than as markup, for the reason it
+ * `tests/ribbons.test.ts` refuses a shell that opens a view tab's menu. **Table Design's bindings and menus are in
+ * `Ribbons/PowerPoint` and not here for the same reason**: this deck's selection is a picture, so this strip draws
+ * Picture Tools alone and never Table Tools, and the same test refuses a shell that opens a menu of a contextual set
+ * it never draws. The contextual set stays here as a call rather than as markup, for the reason it
  * always had: a coloured band naming a set of tabs is the most obviously *compositional* thing in
  * a ribbon, and whether it belongs to this chrome is not a question a component's own story can put.
  */

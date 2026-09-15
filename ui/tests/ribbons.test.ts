@@ -1161,6 +1161,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
         'Align Bottom Right',
       ],
       'powerpoint.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
+      'powerpoint.table-design.draw-borders.tools': ['Draw Table', 'Eraser'],
       'excel.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
     });
   });
@@ -1174,6 +1175,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'word.background-removal.refine',
       'word.table-layout.draw.tools',
       'powerpoint.background-removal.refine',
+      'powerpoint.table-design.draw-borders.tools',
       'excel.background-removal.refine',
     ]);
   });
@@ -1201,6 +1203,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'word.table-layout.draw.tools': [],
       'word.table-layout.alignment.cell-alignment': ['Align Top Left'],
       'powerpoint.background-removal.refine': [],
+      'powerpoint.table-design.draw-borders.tools': [],
       'excel.background-removal.refine': [],
     });
   });
@@ -1714,6 +1717,56 @@ export function dataOpensIn(source: string): { readonly key: string | undefined;
  */
 export const hostDrawsViewTabs: Readonly<Record<RibbonSurfaceHost, boolean>> = { ribbons: true, shell: false };
 
+/**
+ * **Which contextual sets each host draws, per application**: every built set, or the named ones.
+ *
+ * `Ribbons/*` calls `<app>ContextualSets` with no `sets`, so every contextual tab has a story. `Shell/*` names the one
+ * set its document's selection would show, because Office never shows four at once: Table Tools in Word and Excel,
+ * Picture Tools in PowerPoint. A contextual command's menu is therefore required only of the hosts that draw its set,
+ * exactly as a view tab's is required only of the hosts that draw view tabs, and a host that opens the menu of a set
+ * it never draws has written a binding to nothing. `every surface a binding opens exists` holds this table to the
+ * hosts' own source.
+ */
+export const hostContextualSets: Readonly<
+  Record<RibbonSurfaceHost, Readonly<Record<RibbonApplication, 'every' | readonly string[]>>>
+> = {
+  ribbons: { word: 'every', powerpoint: 'every', excel: 'every' },
+  shell: { word: ['table-tools'], powerpoint: ['picture-tools'], excel: ['table-tools'] },
+};
+
+/** The contextual set holding the tab a command id names, or `undefined` for a command on a core, File or view tab. */
+export function contextualSetOfCommand(command: string): string | undefined {
+  const [application, tabId] = command.split('.');
+  const known = ribbonApplicationNames.find((name) => name === application);
+  if (known === undefined) return undefined;
+  return ribbonContextualSets[known].find((set) => set.tabs.some((tab) => tab.id === tabId))?.id;
+}
+
+/**
+ * **Whether a host draws the tab a command lives on**: a view tab only where `hostDrawsViewTabs` says, a contextual
+ * tab only where `hostContextualSets` names its set, and every other tab everywhere.
+ */
+export function hostDrawsTabOf(host: RibbonSurfaceHost, application: RibbonApplication, command: string): boolean {
+  const appearance = appearanceOfCommand(command);
+  if (appearance === 'view') return hostDrawsViewTabs[host];
+  if (appearance !== 'contextual') return true;
+  const drawn = hostContextualSets[host][application];
+  const set = contextualSetOfCommand(command);
+  return drawn === 'every' || (set !== undefined && drawn.includes(set));
+}
+
+/**
+ * **The contextual sets an assembly source draws**, read from its `<app>ContextualSets(…)` calls: the ids of a literal
+ * `sets: [...]` written as the call's first option, or `every` for a call that names none. `undefined` for a source
+ * with no call at all.
+ */
+export function contextualSetsDrawnIn(source: string): 'every' | readonly string[] | undefined {
+  const calls = [...source.matchAll(/\b[a-z][A-Za-z]*ContextualSets\(\s*(?:\{\s*sets:\s*\[([^\]]*)\])?/g)];
+  if (calls.length === 0) return undefined;
+  if (calls.some((call) => call[1] === undefined)) return 'every';
+  return [...new Set(calls.flatMap((call) => [...(call[1] ?? '').matchAll(/'([a-z][a-z0-9-]*)'/g)].map((id) => id[1] ?? '')))];
+}
+
 /** The appearance of the tab a command id names, or `always` for an id the census does not declare. */
 export function appearanceOfCommand(command: string): TabAppearance {
   const [application, tabId] = command.split('.');
@@ -1744,7 +1797,8 @@ interface HostSource {
  *    slip that opens Footer's menu from Header;
  * 3. a declared menu that a host of its application **which draws the command's tab** never opens from
  *    that command's own binding — a view tab's menu is required of `Ribbons/*` alone, because `Shell/*`
- *    never draws the tab (`hostDrawsViewTabs`);
+ *    never draws the tab (`hostDrawsViewTabs`), and a contextual tab's menu only of the hosts that draw its
+ *    set (`hostContextualSets`);
  * 4. a host that binds declared menus and never renders them;
  * 5. a host that opens the menu of a tab it never draws, which is a binding to nothing.
  */
@@ -1761,10 +1815,14 @@ export function surfaceFindings(
     for (const { key, opens } of opened) {
       const menu = menuForId.get(opens);
       if (menu !== undefined) {
-        if (!hostDrawsViewTabs[file.host] && appearanceOfCommand(menu) === 'view') {
+        if (!hostDrawsTabOf(file.host, file.application, menu)) {
+          const tab =
+            appearanceOfCommand(menu) === 'view'
+              ? 'a view tab'
+              : `in the ${contextualSetOfCommand(menu) ?? '(unknown)'} contextual set`;
           findings.push(
             `${file.name}: the binding for ${key ?? '(no command)'} opens the menu declared for ${menu}, ` +
-              'whose tab is a view tab this host never draws, so the binding is a binding to nothing.',
+              `whose tab is ${tab}, which this host never draws, so the binding is a binding to nothing.`,
           );
         }
         if (key !== menu) {
@@ -1780,9 +1838,7 @@ export function surfaceFindings(
       }
     }
     const ownMenus = menus.filter(
-      (command) =>
-        command.split('.')[0] === file.application &&
-        (hostDrawsViewTabs[file.host] || appearanceOfCommand(command) !== 'view'),
+      (command) => command.split('.')[0] === file.application && hostDrawsTabOf(file.host, file.application, command),
     );
     for (const command of ownMenus) {
       const wanted = commandSurfaceId(file.host, command);
@@ -1844,6 +1900,37 @@ describe('every surface a binding opens exists', () => {
 
   it('finds a view tab with declared menus, or the view-tab exemption is exempting nothing', () => {
     expect(menuSources.flatMap(commandMenusIn).some((command) => appearanceOfCommand(command) === 'view')).toBe(true);
+  });
+
+  it('draws contextual sets in exactly the hosts `hostContextualSets` says, read from their source', () => {
+    for (const file of hosts) {
+      expect(contextualSetsDrawnIn(file.source), file.name).toEqual(hostContextualSets[file.host][file.application]);
+    }
+  });
+
+  it('names only built sets in `hostContextualSets`', () => {
+    for (const host of ribbonSurfaceHostNames) {
+      for (const application of ribbonApplicationNames) {
+        const drawn = hostContextualSets[host][application];
+        const built = ribbonContextualSets[application].map((set) => set.id);
+        if (drawn !== 'every') expect(drawn.filter((id) => !built.includes(id)), `${host}/${application}`).toEqual([]);
+      }
+    }
+  });
+
+  it('finds a contextual menu a shell does not draw, or the contextual exemption is exempting nothing', () => {
+    expect(
+      menuSources
+        .flatMap(commandMenusIn)
+        .some((command) => {
+          const application = ribbonApplicationNames.find((name) => name === command.split('.')[0]);
+          return (
+            application !== undefined &&
+            appearanceOfCommand(command) === 'contextual' &&
+            !hostDrawsTabOf('shell', application, command)
+          );
+        }),
+    ).toBe(true);
   });
 });
 
@@ -1926,6 +2013,73 @@ describe('the surface rule can reject', () => {
       [viewMenu],
     );
     expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('a binding to nothing');
+  });
+
+  it('reads the contextual sets a host draws from its calls', () => {
+    expect(contextualSetsDrawnIn("${powerpointContextualSets({ sets: ['picture-tools'] })}")).toEqual(['picture-tools']);
+    expect(contextualSetsDrawnIn("${wordContextualSets({\n  sets: ['table-tools'],\n  controls: {} })}")).toEqual([
+      'table-tools',
+    ]);
+    expect(contextualSetsDrawnIn('${excelContextualSets({ controls: bindings })}')).toBe('every');
+    expect(contextualSetsDrawnIn('${wordContextualSets()}')).toBe('every');
+    expect(contextualSetsDrawnIn('${wordTabs()}')).toBeUndefined();
+  });
+
+  it("requires a contextual menu of the hosts that draw its set, and of no other", () => {
+    const tableMenu =
+      "commandMenu(host, 'powerpoint.table-design.table-styles.borders', 'Borders', item('No Border'))";
+    const pptBinding = (host: RibbonSurfaceHost, key: string, opens: string): HostSource => ({
+      name: `${host}/powerpoint.stories.ts`,
+      application: 'powerpoint',
+      host,
+      source:
+        `const bindings = {\n  '${key}': html\`<mjx-button data-opens="${opens}"></mjx-button>\`,\n};\n` +
+        `html\`\${tableToolsMenus('powerpoint', '${host}')}\``,
+    });
+    expect(appearanceOfCommand('powerpoint.table-design.table-styles.borders')).toBe('contextual');
+    expect(contextualSetOfCommand('powerpoint.table-design.table-styles.borders')).toBe('table-tools');
+    expect(hostDrawsTabOf('shell', 'powerpoint', 'powerpoint.table-design.table-styles.borders')).toBe(false);
+    expect(hostDrawsTabOf('shell', 'word', 'word.table-design.borders.borders')).toBe(true);
+    expect(
+      surfaceFindings(
+        [
+          pptBinding(
+            'ribbons',
+            'powerpoint.table-design.table-styles.borders',
+            'ribbons-powerpoint-table-design-table-styles-borders',
+          ),
+          pptBinding('shell', 'powerpoint.insert.text.text-box', 'shell-ppt-paste'),
+        ],
+        [tableMenu],
+      ).filter((finding) => !finding.includes('names no element')),
+    ).toEqual([]);
+    expect(
+      surfaceFindings([pptBinding('ribbons', 'powerpoint.insert.text.text-box', 'ribbons-ppt-paste')], [tableMenu]).some(
+        (finding) => finding.includes('never opens the menu declared for powerpoint.table-design.table-styles.borders'),
+      ),
+    ).toBe(true);
+  });
+
+  it('refuses a shell that opens the menu of a contextual set it never draws', () => {
+    const tableMenu =
+      "commandMenu(host, 'powerpoint.table-design.table-styles.borders', 'Borders', item('No Border'))";
+    const findings = surfaceFindings(
+      [
+        {
+          name: 'shell/powerpoint.stories.ts',
+          application: 'powerpoint',
+          host: 'shell',
+          source:
+            "const controls = {\n  'powerpoint.table-design.table-styles.borders': html`<mjx-split-button " +
+            'data-opens="shell-powerpoint-table-design-table-styles-borders"></mjx-split-button>`,\n};\n' +
+            "html`${tableToolsMenus('powerpoint', 'shell')}`",
+        },
+      ],
+      [tableMenu],
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('in the table-tools contextual set');
     expect(findings[0]).toContain('a binding to nothing');
   });
 

@@ -1,6 +1,7 @@
 /**
  * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's Table Design and
- * Table Layout today, and PowerPoint's and Excel's Table Design and PowerPoint's Table Layout when their units land.
+ * Table Layout and PowerPoint's Table Design today, and Excel's Table Design and PowerPoint's Table Layout when their
+ * units land.
  *
  * The pattern is `stories/ribbons/slide-master-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -9,11 +10,17 @@
  *
  * ## Three things here are not menus
  *
- * 1. **The Table Styles gallery.** Both Word hosts bind `<mjx-gallery>` and fill it from
- *    `wordTableStyleGalleryItems(palette)` and `wordTableStyleGalleryFooter()`.
- * 2. **The two field lists**, `wordBorderLineStyles` (Line Style) and `tableLineWeights` (Line Weight), which each
- *    host maps onto `<mjx-option>`s, as `ribbon-parts.ts`'s shared field lists are.
+ * 1. **The Table Styles galleries.** Both Word hosts bind `<mjx-gallery>` and fill it from
+ *    `wordTableStyleGalleryItems(palette)` and `wordTableStyleGalleryFooter()`; `Ribbons/PowerPoint` fills its own from
+ *    `powerpointTableStyleGalleryItems(palette)` and `powerpointTableStyleGalleryFooter()`.
+ * 2. **The field lists**, `wordBorderLineStyles` (Line Style), `powerpointPenStyles` (Pen Style) and
+ *    `tableLineWeights` (Line Weight and Pen Weight), which each host maps onto `<mjx-option>`s, as `ribbon-parts.ts`'s
+ *    shared field lists are.
  * 3. **No colour list.** Shading and Pen Colour are colour pickers over the document's palette, which a host owns.
+ *
+ * **PowerPoint's WordArt Styles group is not here**: its gallery and effect lists are
+ * `stories/ribbons/wordart-styles-menus.ts`'s, because Shape Format and Chart Format carry the same group. Its Text
+ * Effects menu is rendered here, beside Table Design's other menus, because its id is Table Design's.
  *
  * ## Shaped for three Table Design tabs
  *
@@ -26,10 +33,12 @@
  *   Dark. So each application's unit writes its own style list as `TableStyleSpec`s and reuses the picture and the
  *   item builder, which is where the work is.
  * - **`tableLineWeights` is shared.** PowerPoint's Pen Weight offers the same nine weights from ¼ pt to 6 pt, and its
- *   values are points here for that reason, rather than Word's eighths of a point (`w:sz`).
+ *   values are points here for that reason, rather than Word's eighths of a point (`w:sz`). **PowerPoint's Table Design
+ *   now calls it.**
  * - **The line styles, the Borders menu and the Border Styles menu are Word's.** PowerPoint's Pen Style is a shorter
  *   list of dashes, its Borders menu lists No Border and All Borders first and has no Horizontal Line, Draw Table or
- *   View Gridlines, and it has no Border Styles. Excel's Table Design has no borders at all.
+ *   View Gridlines, and it has no Border Styles. Excel's Table Design has no borders at all. **PowerPoint's are written
+ *   below as its own**: `powerpointPenStyles`, `powerpointBorderEntries`, its 74 styles and its Effects menu.
  * - **`tableSelectEntries` and `tableDeleteEntries` are shared by the two Table Layout tabs**, and take the
  *   application: Word's lists start with a cell (Select Cell, Delete Cells…) and PowerPoint's cannot select or delete
  *   one cell. **AutoFit's list is Word's**: PowerPoint's Table Layout has no AutoFit. Excel has no Table Layout.
@@ -60,7 +69,15 @@ import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 
 import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
 import type { ThemeColorPalette, ThemeColorSlot } from '../../src/pickers/picker-model.ts';
+import { hexColour } from './palette-art.ts';
 import { commandMenu } from './ribbon-parts.ts';
+import {
+  bevelPresetEntries,
+  reflectionPresetEntries,
+  shadowPresetEntries,
+  submenu,
+  wordArtTextEffectsEntries,
+} from './wordart-styles-menus.ts';
 
 // ── the entries ──────────────────────────────────────────────────────────────
 
@@ -221,17 +238,6 @@ export interface TableStyleSpec {
   /** The document colour the style is drawn in. `text1` is a style with no accent. */
   readonly tint: ThemeColorSlot;
   readonly picture: TableStylePicture;
-}
-
-/**
- * A palette value **only if it is a hex colour**, and otherwise `undefined`.
- *
- * The one gate between a host-supplied string and a static markup string. `ThemeColorPalette` is `string`-typed, so a
- * value such as `red;background:url(…)` or `"><script>` is representable; a style attribute built from it would be
- * an injection. A document colour is `#rrggbb` in every palette this catalogue has, so nothing else is let through.
- */
-function hexColour(value: string | undefined): string | undefined {
-  return value !== undefined && /^#[0-9a-fA-F]{3,8}$/.test(value) ? value : undefined;
 }
 
 /** The colours one picture is drawn in, every one either a checked hex colour or a token. */
@@ -479,6 +485,164 @@ function wordAutoFitEntries(): TemplateResult[] {
   return [item('AutoFit Contents'), item('AutoFit Window'), item('Fixed Column Width')];
 }
 
+// ── PowerPoint's Table Design: Pen Style, Borders, Effects and the 74 styles ──
+
+/**
+ * **PowerPoint's Pen Style list**: No Border, then PowerPoint's eight dashes, in Office's order. A host starts on
+ * `solid`.
+ *
+ * Each `value` is the dash's `ST_PresetLineDashVal` token (`a:prstDash`), so a later unit that dispatches one needs no
+ * second table, **except No Border**, which is not a dash but a line with no fill, and is `none`. Office draws each
+ * entry as a picture of the line; the labels are PowerPoint's dash names. `GUESS:` that the list is exactly these,
+ * in this order.
+ */
+export const powerpointPenStyles: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'none', label: 'No Border' },
+  { value: 'solid', label: 'Solid' },
+  { value: 'sysDot', label: 'Round Dot' },
+  { value: 'sysDash', label: 'Square Dot' },
+  { value: 'dash', label: 'Dash' },
+  { value: 'dashDot', label: 'Dash Dot' },
+  { value: 'lgDash', label: 'Long Dash' },
+  { value: 'lgDashDot', label: 'Long Dash Dot' },
+  { value: 'lgDashDotDot', label: 'Long Dash Dot Dot' },
+];
+
+/**
+ * **Borders' arrow, PowerPoint's**: twelve entries, No Border and All Borders first, as the header records. No
+ * Horizontal Line, Draw Table, View Gridlines or dialog: Draw Table is on the tab itself, and a slide has no page
+ * gridlines for a table. No entry carries a glyph, for Word's reason. `GUESS:` the order and that there is no
+ * separator.
+ */
+function powerpointBorderEntries(): TemplateResult[] {
+  return [
+    'No Border',
+    'All Borders',
+    'Outside Borders',
+    'Inside Borders',
+    'Top Border',
+    'Bottom Border',
+    'Left Border',
+    'Right Border',
+    'Inside Horizontal Border',
+    'Inside Vertical Border',
+    'Diagonal Down Border',
+    'Diagonal Up Border',
+  ].map((label) => item(label));
+}
+
+/**
+ * **Effects' menu, PowerPoint's**: Cell Bevel, Shadow and Reflection, each a submenu. Shadow and Reflection are the
+ * lists Text Effects shows, from `stories/ribbons/wordart-styles-menus.ts`; Cell Bevel is Bevel's twelve with No Bevel
+ * and no options entry. `GUESS:` that a table's Shadow list is text's, and that Cell Bevel has no options entry.
+ */
+function powerpointTableEffectsEntries(): TemplateResult[] {
+  return [
+    submenu('Cell Bevel', ...bevelPresetEntries()),
+    submenu('Shadow', ...shadowPresetEntries()),
+    submenu('Reflection', ...reflectionPresetEntries()),
+  ];
+}
+
+/** One PowerPoint style in one section. */
+function powerpointStyle(category: string, label: string, tint: ThemeColorSlot, picture: TableStylePicture): TableStyleSpec {
+  return { value: styleValue(label), label, category, tint, picture };
+}
+
+/** A row of seven: one style with no accent (its own name), then one family in each accent. */
+function powerpointRow(
+  category: string,
+  lead: { readonly label: string; readonly picture: TableStylePicture },
+  family: { readonly label: string; readonly picture: TableStylePicture },
+): TableStyleSpec[] {
+  return [
+    powerpointStyle(category, lead.label, 'text1', lead.picture),
+    ...accents.map((accent) =>
+      powerpointStyle(category, `${family.label} - ${accent.suffix}`, accent.slot, family.picture),
+    ),
+  ];
+}
+
+/** A family drawn without an accent under its own name, then in the six accents. */
+const powerpointFamily = (category: string, family: { readonly label: string; readonly picture: TableStylePicture }) =>
+  powerpointRow(category, family, family);
+
+/**
+ * **PowerPoint's four families of Light styles and Medium styles, and Dark Style 1.** `GUESS:` each look, from memory
+ * of the gallery's thumbnails; the names are PowerPoint's built-in style names.
+ */
+const powerpointLight = {
+  one: { label: 'Light Style 1', picture: look({ header: 'ruled', banded: true }) },
+  two: { label: 'Light Style 2', picture: look({ header: 'filled', lines: 'outline', lineStrength: 'full' }) },
+  three: { label: 'Light Style 3', picture: look({ header: 'ruled', lines: 'grid', banded: true, tintedText: true }) },
+} as const;
+
+const powerpointMedium = {
+  one: { label: 'Medium Style 1', picture: look({ header: 'filled', lines: 'rows', lineStrength: 'full', banded: true }) },
+  two: { label: 'Medium Style 2', picture: look({ header: 'filled', lines: 'grid', bodyFilled: true, banded: true }) },
+  three: { label: 'Medium Style 3', picture: look({ header: 'filled', lines: 'outline', lineStrength: 'full', banded: true }) },
+  four: { label: 'Medium Style 4', picture: look({ header: 'ruled', lines: 'grid', lineStrength: 'full', bodyFilled: true, banded: true }) },
+} as const;
+
+const powerpointDarkOne = {
+  label: 'Dark Style 1',
+  picture: look({ header: 'filled', bodyFilled: true, banded: true, firstColumn: 'filled' }),
+};
+
+const powerpointDarkTwo = look({ header: 'filled', bodyFilled: true, banded: true });
+
+/**
+ * **PowerPoint's whole built-in Table Styles gallery**: 74 styles, in the brief's four sections.
+ *
+ * - *Best Match for Document* (14): No Style, No Grid and the six *Themed Style 1*; No Style, Table Grid and the six
+ *   *Themed Style 2*. These are the styles drawn from the document's theme alone.
+ * - *Light* (21): Light Style 1, 2 and 3, each without an accent and in the six accents.
+ * - *Medium* (28): Medium Style 1 to 4, the same way.
+ * - *Dark* (11): Dark Style 1 the same way, then Dark Style 2 and its three accent pairs.
+ *
+ * ⚠ **`GUESS:` the Best Match reading.** Office may repeat styles under Best Match for Document; a gallery that listed
+ * one value twice would select two cells for one style, so no style is listed twice and the sections add to 74. The
+ * order inside each section is Office's, one family to a row of seven. **A Dark Style 2 pair is drawn in its first
+ * accent**, because a `TableStylePicture` carries one tint.
+ */
+export const powerpointTableStyles: readonly TableStyleSpec[] = [
+  ...powerpointRow(
+    'Best Match for Document',
+    { label: 'No Style, No Grid', picture: look({}) },
+    { label: 'Themed Style 1', picture: look({ header: 'filled', lines: 'grid', lineStrength: 'full', banded: true }) },
+  ),
+  ...powerpointRow(
+    'Best Match for Document',
+    { label: 'No Style, Table Grid', picture: look({ lines: 'grid', lineStrength: 'full' }) },
+    { label: 'Themed Style 2', picture: look({ header: 'filled', lines: 'outline', lineStrength: 'full', bodyFilled: true }) },
+  ),
+  ...powerpointFamily('Light', powerpointLight.one),
+  ...powerpointFamily('Light', powerpointLight.two),
+  ...powerpointFamily('Light', powerpointLight.three),
+  ...powerpointFamily('Medium', powerpointMedium.one),
+  ...powerpointFamily('Medium', powerpointMedium.two),
+  ...powerpointFamily('Medium', powerpointMedium.three),
+  ...powerpointFamily('Medium', powerpointMedium.four),
+  ...powerpointFamily('Dark', powerpointDarkOne),
+  powerpointStyle('Dark', 'Dark Style 2', 'text1', powerpointDarkTwo),
+  powerpointStyle('Dark', 'Dark Style 2 - Accent 1/Accent 2', 'accent1', powerpointDarkTwo),
+  powerpointStyle('Dark', 'Dark Style 2 - Accent 3/Accent 4', 'accent3', powerpointDarkTwo),
+  powerpointStyle('Dark', 'Dark Style 2 - Accent 5/Accent 6', 'accent5', powerpointDarkTwo),
+];
+
+/**
+ * PowerPoint's Table Styles gallery items, in the document's palette. A host starts the gallery on
+ * `medium-style-2-accent-1`, the style PowerPoint inserts a table in.
+ */
+export function powerpointTableStyleGalleryItems(palette: ThemeColorPalette): TemplateResult[] {
+  return tableStyleGalleryItems(powerpointTableStyles, palette);
+}
+
+/** **The command under PowerPoint's expanded Table Styles gallery**: Clear Table. `slot="footer"`. `GUESS:`. */
+export function powerpointTableStyleGalleryFooter(): TemplateResult[] {
+  return [html`<mjx-button slot="footer" label="Clear Table" size="small"></mjx-button>`];
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -496,12 +660,30 @@ function wordTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
+ * PowerPoint's three menus, all on Table Design: Borders and Effects in Table Styles, and Text Effects in WordArt
+ * Styles, whose entries are `stories/ribbons/wordart-styles-menus.ts`'s. Every other Table Design command is a field, a
+ * picker, a gallery, a box or a toggle.
+ */
+function powerpointTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.table-design.table-styles.borders', 'Borders', ...powerpointBorderEntries())}
+    ${commandMenu(host, 'powerpoint.table-design.table-styles.effects', 'Effects', ...powerpointTableEffectsEntries())}
+    ${commandMenu(host, 'powerpoint.table-design.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+  `;
+}
+
+/**
  * Every menu one application's Table Tools tabs open, with ids for one host's page. Word's Table Design and Table
- * Layout are authored; PowerPoint's and Excel's units add their own function here, and until then render nothing.
+ * Layout and PowerPoint's Table Design are authored; Excel's unit and PowerPoint's Table Layout add theirs here, and
+ * until then Excel renders nothing.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, exactly as `masterViewMenus` is, by every host that draws
- * the Table Tools set: both Word hosts do.
+ * the Table Tools set: both Word hosts do, and `Ribbons/PowerPoint`. **`Shell/PowerPoint` does not**: it draws Picture
+ * Tools, so it renders none of these, and `tests/ribbons.test.ts` requires PowerPoint's menus of `Ribbons/PowerPoint`
+ * alone.
  */
 export function tableToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult | typeof nothing {
-  return application === 'word' ? wordTableToolsMenus(host) : nothing;
+  if (application === 'word') return wordTableToolsMenus(host);
+  if (application === 'powerpoint') return powerpointTableToolsMenus(host);
+  return nothing;
 }

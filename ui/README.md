@@ -1347,8 +1347,8 @@ is drawn:
 
 ### The contextual tab sets (the four common sets)
 
-**Declared, then authored one tab of one application at a time; Word's Table Design is the first, and Word's Table
-Layout the second.** A contextual tab
+**Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
+Layout the second, and PowerPoint's Table Design the third.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1384,7 +1384,8 @@ placeholder priority and the id checks now sweep contextual tabs too.
 `<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
 `sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
 was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
-Table Design* below, and **Word's Table Layout the second**, see *Word's Table Layout*.
+Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, and **PowerPoint's Table Design
+the third**, see *PowerPoint's Table Design*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1407,12 +1408,21 @@ line with a `<app><Tab>Tab` function, and binds and documents it as every earlie
 - **The rubric binds small counts.** Word's and PowerPoint's Chart Styles and Excel's Chart Data count 2, so they are
   `secondary`.
 
-⚠ **What the menu gate will meet.** `appearanceOfCommand` in `tests/ribbons.test.ts` answers `contextual` for a
-contextual tab's command, and `surfaceFindings` treats that like `always`: a menu declared for a contextual command is
-required of both hosts. A shell draws only one set, so the first unit that declares a menu on a set its shell does
-not draw must decide whether that shell draws the set or the gate learns which sets each host draws. **Word's Table
-Design did not have to decide**: both Word hosts draw Table Tools, so both bind its menus and the gate is unchanged.
-The question is still open for PowerPoint's Table Design, whose shell draws Picture Tools.
+⚠ **The menu gate knows which contextual sets each host draws.** Until PowerPoint's Table Design, `surfaceFindings`
+treated a contextual command like an `always` one and required its menu of both hosts; Word's two Table Tools tabs
+never met the difference, because both Word hosts draw Table Tools. PowerPoint's shell draws Picture Tools, so
+**PowerPoint's Table Design taught the gate**, as Word's Print Preview did for view tabs:
+
+- **`hostContextualSets`** in `tests/ribbons.test.ts` says which sets each host draws per application: every built
+  set for `Ribbons/*`, Table Tools for `Shell/Word` and `Shell/Excel`, Picture Tools for `Shell/PowerPoint`.
+- **`hostDrawsTabOf(host, application, command)`** combines it with `hostDrawsViewTabs`. A contextual command's menu
+  is required only of the hosts that draw its set, and a host that opens the menu of a set it never draws is refused
+  as a binding to nothing.
+- **The table is held to the hosts' source**: `contextualSetsDrawnIn` reads each `<app>ContextualSets(…)` call's
+  literal `sets: [...]`, or *every* for a call with none, and must equal the table. Every set it names must be built.
+- **Self-tests** watch it read the calls, require a Table Design menu of `Ribbons/PowerPoint` and not of
+  `Shell/PowerPoint`, and refuse a PowerPoint shell that opens one. A further check requires at least one declared
+  contextual menu that a shell does not draw, so the exemption is known to exempt something.
 
 ### Word's Table Design
 
@@ -1543,6 +1553,73 @@ PowerPoint's (`GUESS:`) have none. AutoFit's list is Word's alone. The two exclu
   `eraser`, `table-dismiss` (now at 24), `table-cells-merge`, `text-direction-rotate-90-right` (now at 24),
   `arrow-sort` and `math-formula`. **Cell Margins' `padding-left` is the weakest.** Height and Width are fields and
   carry none.
+
+### PowerPoint's Table Design
+
+**One tab of one application, and the third contextual tab authored**, PowerPoint's first. Four groups and nineteen
+commands, in Office's order, which is also the census's: Table Style Options, Table Styles, WordArt Styles, Draw
+Borders. It is `TabTableToolsDesign` in `TabSetTableTools`, under the *Table Tools* band while a table on a slide is
+selected: which parts of the table its style sets apart, which style and cell effects it wears, how its text is
+dressed, and the pen Draw Table draws with.
+
+**The census's groups, read.** `GroupTableStyleOptionsPowerPoint` (6) Table Style Options,
+`GroupTableStylesPowerPoint` (33) Table Styles, `GroupTextStylesTable` (33) WordArt Styles, `GroupDrawBorders` (6)
+Draw Borders. The ids, labels and priorities are the contextual unit's, unchanged.
+
+**It renders in `Ribbons/PowerPoint` alone.** `Shell/PowerPoint` draws Picture Tools, so it binds none of the tab and
+renders none of its menus; see *The menu gate knows which contextual sets each host draws* above. `Ribbons/PowerPoint`
+binds seventeen commands and renders `tableToolsMenus('powerpoint', 'ribbons')`.
+
+- **Table Style Options**: six checkboxes, two columns of three read down each column. **Header Row and Banded Rows
+  are ticked**, PowerPoint's `<a:tblPr firstRow="1" bandRow="1">` for an inserted table.
+- **Table Styles**: the gallery in-ribbon, PowerPoint's 74 built-in styles by their own names under *Best Match for
+  Document* (14), *Light* (21), *Medium* (28) and *Dark* (11), starting on Medium Style 2 - Accent 1, with Clear Table
+  under it. Then Shading (a colour picker, *No fill*), **Borders** (a small split button: twelve entries, No Border
+  and All Borders first) and **Effects** (a small dropdown: Cell Bevel, Shadow and Reflection, each a submenu with
+  Office's whole preset list).
+- **WordArt Styles**: Quick Styles (a gallery of twenty WordArt styles, each a letter drawn in the document's
+  palette, with Clear WordArt under it), Text Fill and Text Outline (colour pickers) and **Text Effects** (a small
+  dropdown: Shadow, Reflection, Glow, Bevel, 3-D Rotation and Transform, each a submenu). Launcher: *Format Text
+  Effects*.
+- **Draw Borders**: Pen Style (No Border and PowerPoint's eight dashes, each value its `ST_PresetLineDashVal` token,
+  on Solid), Pen Weight (¼ pt to 6 pt, on 1 pt) and Pen Colour (a colour picker, on Text 1) in a column, then **Draw
+  Table and Eraser**, large toggles in **one exclusive set that may hold none**,
+  `powerpoint.table-design.draw-borders.tools`, neither pressed. Launcher: *Format Shape*.
+
+**Reused, and added.** `stories/ribbons/table-tools-menus.ts` gives the tab Word's table picture, gallery item builder
+and nine line weights, and now carries PowerPoint's own lists beside Word's: `powerpointTableStyles`,
+`powerpointPenStyles`, the Borders and Effects menus and the gallery footer. **WordArt Styles is written once for the
+tabs that repeat it**: `wordArtStylesCommands(application, tab)` in `dev/ribbons/census.ts`, which Shape Format and
+Chart Format will call in all three applications, and `stories/ribbons/wordart-styles-menus.ts`, which holds the
+WordArt gallery, its pictures and every effect preset list. Table Design's Effects menu takes its Shadow, Reflection
+and Cell Bevel lists from there. The menu itself is always written by the tab's own menus function, because the gate
+reads a menu's command id only where it is spelt literally. `hexColour`, the one gate between a palette value and a
+static picture, moved to `stories/ribbons/palette-art.ts`, so both galleries' pictures pass through one copy of it.
+The new exclusive set is added to `tests/ribbons.test.ts`' named lists.
+
+**No survivors.** Six checkboxes; a gallery, a colour grid, a split button and a menu; a gallery, two colour grids and
+a menu; three lists and two gestures.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Shading, Text Fill, Text Outline and Pen Colour are the catalogue's colour picker**, where Office draws small
+  buttons with a colour bar. **Office's Eyedropper, More Colours, Picture, Gradient, Texture and Table Background are
+  lost on this face, and so are Text Outline's Weight, Sketched and Dashes.** The weakest part of the tab.
+- **The counts.** Table Styles counts 33 and draws 4; WordArt Styles counts 33 and draws 4 and a launcher. No reading
+  reaches either. Draw Borders counts 6 and draws 5 and a launcher, the reading that makes 6. Nothing is padded.
+- **Best Match for Document holds the fourteen *No Style* and *Themed* styles** and Light begins at Light Style 1.
+  Office may repeat styles under Best Match; a gallery listing one value twice would select two cells, so none is
+  repeated. `GUESS:` that reading, every table and WordArt picture, the twenty WordArt names (the Office theme's, as
+  Insert's WordArt menu names them) and both footers.
+- **Every effect preset name**, that a table's Shadow list is text's, that Cell Bevel has no options entry, and that
+  More Glow Colours is an entry rather than a colour grid, are `GUESS:`.
+- **The checkboxes' columns** (the brief lists them across the rows), **the starting states**, both launchers and the
+  Borders menu's order are `GUESS:`.
+- **The census's spelling wins**: *Pen Colour*, and *colour* and *Centre* in menu and WordArt names.
+- **Office presses Draw Table** when a pen style, weight or colour is chosen. Nothing dispatches here, so it does not.
+- **Glyphs**, all reused and all `GUESS:`: `border-all` (Borders), `square-shadow` (Effects), `text-effects` (Text
+  Effects), `table-edit` (Draw Table) and `eraser` (Eraser). No glyph is new, so the subset is unchanged. The
+  checkboxes, both galleries, the four colour pickers and both fields carry none.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

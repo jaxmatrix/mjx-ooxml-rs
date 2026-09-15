@@ -80,9 +80,15 @@
  *
  * No core or view tab is a placeholder any more: Greyscale was the last.
  *
- * **Six contextual tabs in four sets are declared, and every one is a placeholder**: Table Design and Layout, Picture
- * Format, Shape Format, and Chart Design and Format. `dev/ribbons/census.ts` carries their groups and no commands;
- * `powerpointContextualSets` draws them, one set or all.
+ * **Six contextual tabs in four sets are declared**: Table Design and Layout, Picture Format, Shape Format, and Chart
+ * Design and Format. `powerpointContextualSets` draws them, one set or all.
+ *
+ * **Table Design is authored**, PowerPoint's first contextual tab: four groups and nineteen commands, the style a
+ * table wears, the WordArt its text wears and the pen Draw Table draws with. Its gallery, fields and menus are in
+ * `stories/ribbons/table-tools-menus.ts`, over Word's table art, and its WordArt Styles group's in
+ * `stories/ribbons/wordart-styles-menus.ts`, written for Shape Format and Chart Format. **`Ribbons/PowerPoint` alone
+ * binds it**, because `Shell/PowerPoint` draws Picture Tools. **The other five are placeholders**, each until its own
+ * unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -703,9 +709,44 @@ export function powerpointTabs(
 
 // ── the contextual tabs ──────────────────────────────────────────────────────
 
-/** Which function builds which contextual tab. **Every entry is `placeholderTab` today** — see Word's. */
+/**
+ * Table Design: Table Style Options, Table Styles, WordArt Styles, Draw Borders — PowerPoint's first contextual tab
+ * authored, in **Office's** order, which is also the census's. It sits under the *Table Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a table on a slide is selected.** `Ribbons/PowerPoint` draws every
+ * contextual set and binds it; **`Shell/PowerPoint` draws Picture Tools alone**, so it binds none of this tab and
+ * renders none of its menus, and `tests/ribbons.test.ts` refuses a shell that opens a menu of a set it never draws.
+ * `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Fourteen of the tab's nineteen commands are bound by a host**: the six Table Style Options checkboxes; the Table
+ * Styles and Quick Styles galleries; Shading, Text Fill, Text Outline and Pen Colour, colour pickers; Pen Style and
+ * Pen Weight, fields. Borders, Effects and Text Effects open menus from `stories/ribbons/table-tools-menus.ts`, as a
+ * split button and two dropdowns, which makes seventeen. Draw Table and Eraser are the generic toggles, one exclusive
+ * set that may hold none.
+ *
+ * **WordArt Styles is the census's shared `wordArtStylesCommands`**, which Shape Format and Chart Format will call.
+ *
+ * **Two dialog launchers**: Format Text Effects on WordArt Styles and Format Shape on Draw Borders. **No survivor.**
+ */
+export function powerpointTableDesignTab(options: TabOptions = {}): TemplateResult {
+  const tableDesign = entry('table-design');
+  const controls = options.controls ?? {};
+  return tab(
+    tableDesign.id,
+    tableDesign.label,
+    censusGroup(tableDesign, 'GroupTableStyleOptionsPowerPoint', {}, controls),
+    censusGroup(tableDesign, 'GroupTableStylesPowerPoint', {}, controls),
+    censusGroup(tableDesign, 'GroupTextStylesTable', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(tableDesign, 'GroupDrawBorders', { launcher: 'Format Shape' }, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design is authored; every other entry is `placeholderTab`
+ * today** — see Word's.
+ */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
-  'table-design': () => placeholderTab(entry('table-design')),
+  'table-design': powerpointTableDesignTab,
   'table-layout': () => placeholderTab(entry('table-layout')),
   'picture-format': () => placeholderTab(entry('picture-format')),
   'shape-format': () => placeholderTab(entry('shape-format')),
