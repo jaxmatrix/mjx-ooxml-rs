@@ -1148,6 +1148,18 @@ describe('every exclusive set starts with exactly one member pressed, or at most
         "Don't Show",
       ],
       'word.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
+      'word.table-layout.draw.tools': ['Draw Table', 'Eraser'],
+      'word.table-layout.alignment.cell-alignment': [
+        'Align Top Left',
+        'Align Centre Left',
+        'Align Bottom Left',
+        'Align Top Centre',
+        'Align Centre',
+        'Align Bottom Centre',
+        'Align Top Right',
+        'Align Centre Right',
+        'Align Bottom Right',
+      ],
       'powerpoint.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
       'excel.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
     });
@@ -1158,7 +1170,12 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       [...sets]
         .filter(([, members]) => members.every((member) => member.command.exclusiveAllowsNone === true))
         .map(([set]) => set),
-    ).toEqual(['word.background-removal.refine', 'powerpoint.background-removal.refine', 'excel.background-removal.refine']);
+    ).toEqual([
+      'word.background-removal.refine',
+      'word.table-layout.draw.tools',
+      'powerpoint.background-removal.refine',
+      'excel.background-removal.refine',
+    ]);
   });
 
   it('starts each on the member a new document or a fresh tab is in', () => {
@@ -1181,6 +1198,8 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'powerpoint.black-and-white.colour-mode': ['Automatic'],
       'powerpoint.greyscale.colour-mode': ['Automatic'],
       'word.background-removal.refine': [],
+      'word.table-layout.draw.tools': [],
+      'word.table-layout.alignment.cell-alignment': ['Align Top Left'],
       'powerpoint.background-removal.refine': [],
       'excel.background-removal.refine': [],
     });

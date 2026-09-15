@@ -1347,7 +1347,8 @@ is drawn:
 
 ### The contextual tab sets (the four common sets)
 
-**Declared, then authored one tab of one application at a time; Word's Table Design is the first.** A contextual tab
+**Declared, then authored one tab of one application at a time; Word's Table Design is the first, and Word's Table
+Layout the second.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1383,7 +1384,7 @@ placeholder priority and the id checks now sweep contextual tabs too.
 `<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
 `sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
 was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
-Table Design* below.
+Table Design* below, and **Word's Table Layout the second**, see *Word's Table Layout*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1476,6 +1477,72 @@ is Format Painter's.
 - **Glyphs**, all `GUESS:`. One is new: `line-style` (Border Styles). Reused: `border-all` (Borders, now at 24) and
   `paint-brush` (Border Painter, now at 24 and filled). The six checkboxes, the gallery, both colour pickers and both
   fields carry none.
+
+### Word's Table Layout
+
+**One tab of one application, and the second contextual tab authored.** Seven groups and thirty-three commands, in
+Office's order, which is also the census's: Table, Draw, Rows & Columns, Merge, Cell Size, Alignment, Data. It is
+`TabTableToolsLayout` in `TabSetTableTools`, beside Table Design under the *Table Tools* band: a table's structure,
+its cells' sizes and alignment, and its data. Its label is Office's *Layout*; the accessible name *Layout, Table
+Tools* tells it from the core Layout tab.
+
+**The census's groups, read.** `GroupTable` (7) Table, `GroupTableDraw` (2) Draw, `GroupTableRowsAndColumns` (10)
+Rows & Columns, `GroupTableMerge` (3) Merge, `GroupTableCellSize` (9) Cell Size, `GroupTableAlignment` (21)
+Alignment, `GroupTableData` (4) Data. Every id names its group plainly, and the ids, labels and priorities are the
+contextual unit's, unchanged.
+
+**It renders in both Word hosts**, for Table Design's reason. Each binds five commands and renders the same
+`tableToolsMenus('word', host)`, which now carries Table Layout's three menus too.
+
+- **Table**: Select (a dropdown: Select Cell, Column, Row, Table), View Gridlines (a toggle, pressed) and Properties.
+- **Draw**: Draw Table and Eraser, large toggles in **one exclusive set that may hold none**,
+  `word.table-layout.draw.tools`, neither pressed.
+- **Rows & Columns**: Delete (a large dropdown: Delete Cells…, Columns, Rows, Table), Insert Above large, then
+  Insert Below, Insert Left and Insert Right; the *Insert Cells* launcher.
+- **Merge**: Merge Cells, Split Cells and Split Table.
+- **Cell Size**: AutoFit (a large dropdown: AutoFit Contents, AutoFit Window, Fixed Column Width), Height and Width
+  (measure fields, 0.5 cm and 3.18 cm), Distribute Rows and Distribute Columns; the *Table Properties* launcher.
+- **Alignment**: the nine cell alignments, icon-only toggles in **one exclusive set of exactly one**,
+  `word.table-layout.alignment.cell-alignment`, Align Top Left pressed and declared down each column; then Text
+  Direction and Cell Margins, large.
+- **Data**: Sort large, then Repeat Header Rows (a toggle), Convert to Text and Formula.
+
+**Written for PowerPoint's Table Layout to reuse**, in `stories/ribbons/table-tools-menus.ts`:
+`tableSelectEntries(application)` and `tableDeleteEntries(application)`. Word's lists start with a cell, and
+PowerPoint's (`GUESS:`) have none. AutoFit's list is Word's alone. The two exclusive sets are added to
+`tests/ribbons.test.ts`' named lists of sets, starting states and sets that may hold none.
+
+**Eleven survivors in five groups**, each passing all four demotion rules on the shape Office draws:
+
+- **Rows & Columns**: Insert Above, Insert Below and Insert Right. Insert Left is the ceiling's cost.
+- **Merge**: Merge Cells and Split Table. Split Cells opens a dialog.
+- **Cell Size**: Distribute Rows and Distribute Columns.
+- **Alignment**: the top row, Align Top Left, Top Centre and Top Right. Unlike a view set, one undo takes a press
+  back.
+- **Data**: Repeat Header Rows.
+- **Table and Draw keep none.** Select opens a menu and Properties a dialog, and View Gridlines' glyph reads as Inside
+  Borders (rule 2). Draw Table and Eraser arm a gesture.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The counts.** Table counts 7 and draws 3; Rows & Columns counts 10 and draws 5 and a launcher; Cell Size counts 9
+  and draws 5 and a launcher; Alignment counts 21 and draws 11. `GUESS:` each reading, in `dev/ribbons/census.ts`.
+  Nothing is padded.
+- **Both sets**: that Draw Table and Eraser release each other and start empty, that Align Top Left starts pressed,
+  and the column order of the nine.
+- **Which survivors**: which three of the four inserts, and which three of the nine alignments.
+- **The census's spelling wins**: *Align Top Centre*, *Align Centre* and the rest, where Office writes *Center*.
+- **Text Direction is a plain button**, Word's shape; PowerPoint's opens a list. **Height and Width's starting sizes**
+  and step, **View Gridlines pressed**, AutoFit ticking none, PowerPoint's Select and Delete lists, and the two
+  launchers' names are `GUESS:`.
+- **Split Cells, Properties, Cell Margins, Sort, Convert to Text, Formula and both launchers open dialogs in Office**
+  and open nothing here: no dialog is wired on the Table Tools tabs.
+- **Glyphs**, all `GUESS:`. Twenty-four are new: `table-cursor`, `border-inside`, `table-edit`, the four
+  `table-stack-*`, `table-cells-split`, `table-split`, `arrow-autofit-content`, the two `align-space-evenly-*`, the
+  nine `textbox-align-*`, `padding-left` and `table-arrow-repeat-all`, `table-switch`. Reused: `table-settings`,
+  `eraser`, `table-dismiss` (now at 24), `table-cells-merge`, `text-direction-rotate-90-right` (now at 24),
+  `arrow-sort` and `math-formula`. **Cell Margins' `padding-left` is the weakest.** Height and Width are fields and
+  carry none.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

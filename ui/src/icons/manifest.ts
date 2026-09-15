@@ -552,7 +552,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-sort',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Sort on Word's Paragraph group and Sort & Filter on Excel's Editing group. The plain two-way arrow rather than `arrow-sort-down`: both commands open a surface where the direction is chosen, so a glyph that had already chosen one would be wrong half the time. **Since unit 7, also Sort** on Excel's Data tab, large, which opens exactly that surface — so 24 as well.",
+    why: "Sort on Word's Paragraph group and Sort & Filter on Excel's Editing group. The plain two-way arrow rather than `arrow-sort-down`: both commands open a surface where the direction is chosen, so a glyph that had already chosen one would be wrong half the time. **Since unit 7, also Sort** on Excel's Data tab, large, which opens exactly that surface — so 24 as well. **Since Word's Table Layout unit, also Sort** in the Data group, large: Home's Sort, applied to the table. `GUESS:`.",
   },
   {
     name: 'text-paragraph',
@@ -634,9 +634,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'text-direction-rotate-90-right',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Text Direction on PowerPoint's Paragraph group and Orientation on Excel's Alignment group — the same command in two vocabularies, and Fluent's rotated glyph is what both applications draw.",
+    why: "Text Direction on PowerPoint's Paragraph group and Orientation on Excel's Alignment group — the same command in two vocabularies, and Fluent's rotated glyph is what both applications draw. **Since Word's Table Layout unit, also Text Direction** in Alignment, large, which turns the selected cells' text a quarter further with each press: the same command, so the same glyph, and 24 too. `GUESS:`.",
   },
   {
     name: 'align-center-vertical',
@@ -684,7 +684,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-cells-merge',
     sizes: [20],
     variants: ['regular'],
-    why: "Merge & Centre, on Excel's Alignment group — replacing a bare `table`. Two cells becoming one is the command's whole content, and it is what separates it from every other table glyph in this subset.",
+    why: "Merge & Centre, on Excel's Alignment group — replacing a bare `table`. Two cells becoming one is the command's whole content, and it is what separates it from every other table glyph in this subset. **Since Word's Table Layout unit, also Merge Cells** in the Merge group, small and a survivor: the same act in Word, and rule 2's standard refuses only a glyph that is a *different* command's. `GUESS:`.",
   },
   {
     name: 'text-percent',
@@ -718,15 +718,15 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'table-dismiss',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: 'Delete, beside it, and refused the same two specific alternatives for the same reason. A table with a dismiss mark is as broad as the command is.',
+    why: 'Delete, beside it, and refused the same two specific alternatives for the same reason. A table with a dismiss mark is as broad as the command is. **Since Word\'s Table Layout unit, also Delete** in Rows & Columns, a large dropdown whose menu deletes cells, columns, rows or the table: as broad as Excel\'s, so the same glyph, and 24 too. `GUESS:`.',
   },
   {
     name: 'table-settings',
     sizes: [20],
     variants: ['regular'],
-    why: "Format, the third of Excel's Cells group — row height, column width, hide and unhide, protection. A cog on a table, which is the only honest thing to draw for a menu that broad.",
+    why: "Format, the third of Excel's Cells group — row height, column width, hide and unhide, protection. A cog on a table, which is the only honest thing to draw for a menu that broad. **Since Word's Table Layout unit, also Properties** in the Table group, small, which opens Table Properties: a table's settings, the same picture. `GUESS:`.",
   },
   {
     name: 'autosum',
@@ -738,7 +738,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'eraser',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike. **Since unit 4, also Eraser** on the Draw tab's Write group in all three applications: a large toggle, so 24, and `filled` for its pressed state — in Word and PowerPoint the face of a `<mjx-split-button toggle>`, in Excel a plain toggle. Two commands with one eraser, and no collision: neither is a survivor, so rule 2's glyph standard never asks which one a bare eraser means.",
+    why: "Clear, on Excel's Editing group — the command that removes contents, formats, comments or all three. Distinct from `clear-formatting` one group away, which removes formatting alone; see that row on why the two are not drawn alike. **Since unit 4, also Eraser** on the Draw tab's Write group in all three applications: a large toggle, so 24, and `filled` for its pressed state — in Word and PowerPoint the face of a `<mjx-split-button toggle>`, in Excel a plain toggle. Two commands with one eraser, and no collision: neither is a survivor, so rule 2's glyph standard never asks which one a bare eraser means. **Since Word's Table Layout unit, also Eraser** in Table Layout's Draw group, a large plain toggle that erases cell borders, in one set with Draw Table that may hold none; no survivor either, so the same holds. `GUESS:`.",
   },
   {
     name: 'arrow-down',
@@ -860,7 +860,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'math-formula',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Equation, the large first command of the Symbols group in all three applications. Fluent draws a formula with an operator in it. Deliberately not `math-symbols`, which is a calculator's four operators and would read as *calculate*. **Since unit 6, also Insert Function** on Excel's Formulas tab, large: the drawing is *fx*, which is Office's own mark for that command.",
+    why: "Equation, the large first command of the Symbols group in all three applications. Fluent draws a formula with an operator in it. Deliberately not `math-symbols`, which is a calculator's four operators and would read as *calculate*. **Since unit 6, also Insert Function** on Excel's Formulas tab, large: the drawing is *fx*, which is Office's own mark for that command. **Since Word's Table Layout unit, also Formula** in the Data group, small, which opens the Formula dialog: *fx* again, the command that writes a field computing a cell. `GUESS:`.",
   },
   {
     name: 'image-multiple',
@@ -2128,6 +2128,156 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [24],
     variants: ['regular'],
     why: "Border Styles, the large dropdown in Word's Table Design, which loads the pen with one of the theme's borders: three lines in three dashes, a border's style chosen from a set. Not `border-all`, which Borders draws beside it, nor `line-thickness`, which is one line's weight. Large alone, so 24 alone. `GUESS:`.",
+  },
+  // ── Table Layout (Word's) ─────────────────────────────────────────────────
+  //
+  // Twenty-four new glyphs. Delete reuses `table-dismiss` and Text Direction `text-direction-rotate-90-right`, each now
+  // at 24; Properties reuses `table-settings`, Eraser `eraser`, Merge Cells `table-cells-merge`, Sort `arrow-sort` and
+  // Formula `math-formula`, each of which says so. Height and Width are fields and carry none.
+  // `dev/ribbons/census.ts` gives the reasoning.
+  {
+    name: 'table-cursor',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Select, small, in Word's Table Layout Table group, which opens Select Cell, Column, Row and Table: a table with a pointer, Office's own picture. Not `select-all-on`, Home's Select. `GUESS:`.",
+  },
+  {
+    name: 'border-inside',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "View Gridlines, the small toggle in Word's Table Layout Table group, pressed: a dashed box with its inside lines, the lines that show where a borderless table's cells are. Filled while pressed. Unlabelled it reads as Inside Borders, which is why it is no survivor. `GUESS:`.",
+  },
+  {
+    name: 'table-edit',
+    sizes: [24],
+    variants: ['regular', 'filled'],
+    why: "Draw Table, the large toggle in Word's Table Layout Draw group, which arms a pencil that draws cell borders: a table with a pencil. In one set with Eraser that may hold none, so filled while armed. `GUESS:`.",
+  },
+  {
+    name: 'table-stack-above',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Insert Above, the large button in Word's Table Layout Rows & Columns group, and a survivor: a table with a new line above it. `GUESS:`.",
+  },
+  {
+    name: 'table-stack-below',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Insert Below, small, in Word's Table Layout Rows & Columns group, and a survivor: a table with a new line below it. `GUESS:`.",
+  },
+  {
+    name: 'table-stack-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Insert Left, small, in Word's Table Layout Rows & Columns group: a table with a new line to its left. The one insert that gives way to the survivor ceiling. `GUESS:`.",
+  },
+  {
+    name: 'table-stack-right',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Insert Right, small, in Word's Table Layout Rows & Columns group, and a survivor: a table with a new line to its right. `GUESS:`.",
+  },
+  {
+    name: 'table-cells-split',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Split Cells, small, in Word's Table Layout Merge group, which opens Split Cells: one cell divided, the reverse of `table-cells-merge` beside it. `GUESS:`.",
+  },
+  {
+    name: 'table-split',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Split Table, small, in Word's Table Layout Merge group, and a survivor: a table cut in two along a row. `GUESS:`.",
+  },
+  {
+    name: 'arrow-autofit-content',
+    sizes: [24],
+    variants: ['regular'],
+    why: "AutoFit, the large dropdown in Word's Table Layout Cell Size group, which opens AutoFit Contents, AutoFit Window and Fixed Column Width: content with arrows out to its edges. Not `auto-fit-width`, View's Page Width. 24 alone. `GUESS:`.",
+  },
+  {
+    name: 'align-space-evenly-vertical',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Distribute Rows, small, in Word's Table Layout Cell Size group, and a survivor: three equal bars stacked, rows given one height. `GUESS:`.",
+  },
+  {
+    name: 'align-space-evenly-horizontal',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Distribute Columns, small, in Word's Table Layout Cell Size group, and a survivor: three equal bars side by side, columns given one width. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-top-left',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Top Left, first of the nine icon-only cell-alignment toggles in Word's Table Layout Alignment group, one exclusive set, pressed in a new table, and a survivor: a box with its two lines at the top left. Filled while pressed. `GUESS:` for all nine.",
+  },
+  {
+    name: 'textbox-align-middle-left',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Centre Left, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the middle left. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-bottom-left',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Bottom Left, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the bottom left. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-top-center',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Top Centre, a cell-alignment toggle in Word's Table Layout Alignment group, and a survivor: two lines at the top centre. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-center',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Centre, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the centre of the box. Fluent's name for the middle of the grid; `textbox-align-middle` is the same box with lines spanning its width. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-bottom-center',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Bottom Centre, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the bottom centre. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-top-right',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Top Right, a cell-alignment toggle in Word's Table Layout Alignment group, and a survivor: two lines at the top right. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-middle-right',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Centre Right, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the middle right. `GUESS:`.",
+  },
+  {
+    name: 'textbox-align-bottom-right',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Align Bottom Right, a cell-alignment toggle in Word's Table Layout Alignment group: two lines at the bottom right. `GUESS:`.",
+  },
+  {
+    name: 'padding-left',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Cell Margins, the large button in Word's Table Layout Alignment group, which opens Table Options: an edge, a dashed inner guide and the space between them, the room between a cell's border and its text. Not `document-margins`, which is a page's. The weakest glyph on the tab. `GUESS:`.",
+  },
+  {
+    name: 'table-arrow-repeat-all',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Repeat Header Rows, the small toggle in Word's Table Layout Data group, and a survivor: a table with a loop, its header row repeated on every page. Not `table-freeze-row`, Excel's Freeze Top Row, which holds a row still. Filled while pressed. `GUESS:`.",
+  },
+  {
+    name: 'table-switch',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Convert to Text, small, in Word's Table Layout Data group, which opens Convert Table to Text: a table with a turn arrow. Not `convert-range`, which Excel's Table Design will want for Convert to Range. `GUESS:`.",
   },
 ];
 

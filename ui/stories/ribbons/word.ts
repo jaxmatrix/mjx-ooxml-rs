@@ -70,7 +70,12 @@
  * **Table Design is authored**, the first contextual tab: three groups and fourteen commands, the style a table wears
  * and the pen its borders are drawn with. Its gallery, fields and two menus are in
  * `stories/ribbons/table-tools-menus.ts`, written for PowerPoint's and Excel's Table Design units to reuse, and both
- * Word hosts bind it, because both draw Table Tools. **The other five are placeholders**, each until its own unit.
+ * Word hosts bind it, because both draw Table Tools.
+ *
+ * **Table Layout is authored**, the second: seven groups and thirty-three commands, the table's structure, its cells'
+ * sizes and alignment, and its data. Its Select, Delete and AutoFit menus are in the same file, Select's and Delete's
+ * written for PowerPoint's Table Layout to reuse, and both Word hosts bind it. **The other four are placeholders**,
+ * each until its own unit.
  *
  * ## The three view tabs
  *
@@ -560,15 +565,47 @@ export function wordTableDesignTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
+ * Table Layout: Table, Draw, Rows & Columns, Merge, Cell Size, Alignment, Data — the second contextual tab authored,
+ * in **Office's** order, which is also the census's. It sits under the *Table Tools* band beside Table Design, and
+ * its label is Office's *Layout*.
+ *
+ * ⚠ **A contextual tab: Office shows it only while the insertion point is in a table.** Both Word hosts draw Table
+ * Tools, so both bind it, for Table Design's reason. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Five of the tab's thirty-three commands are bound by a host**: Select, Delete and AutoFit, dropdowns that open
+ * their menus from `stories/ribbons/table-tools-menus.ts`, and Height and Width, measure fields. Every other command
+ * is the generic toggle or button: two exclusive sets (Draw Table and Eraser, which may hold none; the nine cell
+ * alignments, which hold one), View Gridlines and Repeat Header Rows, and fifteen buttons.
+ *
+ * **Two dialog launchers**: Insert Cells on Rows & Columns, Table Properties on Cell Size. **Eleven survivors in five
+ * groups**, each group's reason in the census.
+ */
+export function wordTableLayoutTab(options: TabOptions = {}): TemplateResult {
+  const tableLayout = entry('table-layout');
+  const controls = options.controls ?? {};
+  return tab(
+    tableLayout.id,
+    tableLayout.label,
+    censusGroup(tableLayout, 'GroupTable', {}, controls),
+    censusGroup(tableLayout, 'GroupTableDraw', {}, controls),
+    censusGroup(tableLayout, 'GroupTableRowsAndColumns', { launcher: 'Insert Cells' }, controls),
+    censusGroup(tableLayout, 'GroupTableMerge', {}, controls),
+    censusGroup(tableLayout, 'GroupTableCellSize', { launcher: 'Table Properties' }, controls),
+    censusGroup(tableLayout, 'GroupTableAlignment', {}, controls),
+    censusGroup(tableLayout, 'GroupTableData', {}, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Table Design is authored; every other entry is `placeholderTab` today.** The four common sets are declared in
- * `dev/ribbons/census.ts` with their groups, and each tab's unit replaces its one line here with a `word<Tab>Tab`
- * function, as Table Design's did.
+ * **Table Design and Table Layout are authored; every other entry is `placeholderTab` today.** The four common sets
+ * are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaces its one line here with a
+ * `word<Tab>Tab` function, as Table Design's and Table Layout's did.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,
-  'table-layout': () => placeholderTab(entry('table-layout')),
+  'table-layout': wordTableLayoutTab,
   'picture-format': () => placeholderTab(entry('picture-format')),
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),

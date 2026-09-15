@@ -1,6 +1,6 @@
 /**
- * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's Table Design today,
- * and PowerPoint's and Excel's Table Design when their units land.
+ * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's Table Design and
+ * Table Layout today, and PowerPoint's and Excel's Table Design and PowerPoint's Table Layout when their units land.
  *
  * The pattern is `stories/ribbons/slide-master-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -30,6 +30,9 @@
  * - **The line styles, the Borders menu and the Border Styles menu are Word's.** PowerPoint's Pen Style is a shorter
  *   list of dashes, its Borders menu lists No Border and All Borders first and has no Horizontal Line, Draw Table or
  *   View Gridlines, and it has no Border Styles. Excel's Table Design has no borders at all.
+ * - **`tableSelectEntries` and `tableDeleteEntries` are shared by the two Table Layout tabs**, and take the
+ *   application: Word's lists start with a cell (Select Cell, Delete Cells…) and PowerPoint's cannot select or delete
+ *   one cell. **AutoFit's list is Word's**: PowerPoint's Table Layout has no AutoFit. Excel has no Table Layout.
  *
  * ## The pictures are the document's colours, not the chrome's
  *
@@ -433,19 +436,68 @@ export function wordTableStyleGalleryFooter(): TemplateResult[] {
   );
 }
 
+// ── the menus: Select, Delete and AutoFit, for Table Layout ──────────────────
+
+/** The two applications with a Table Layout tab. Excel's Table Tools set has Table Design alone. */
+export type TableLayoutApplication = Extract<RibbonApplication, 'word' | 'powerpoint'>;
+
+/**
+ * **Select's list**, shared by Word's and PowerPoint's Table Layout. Word's is Select Cell, Select Column, Select Row
+ * and Select Table, in Office's order. PowerPoint selects no single cell from the ribbon, so its list is Select
+ * Table, Select Column and Select Row.
+ *
+ * Nothing is checked: a selection is where the insertion point is, not a state the table keeps. No entry carries a
+ * glyph, as none of Table Design's menus does. `GUESS:` PowerPoint's list and its order, which its own unit should
+ * check before calling this.
+ */
+export function tableSelectEntries(application: TableLayoutApplication): TemplateResult[] {
+  return application === 'word'
+    ? [item('Select Cell'), item('Select Column'), item('Select Row'), item('Select Table')]
+    : [item('Select Table'), item('Select Column'), item('Select Row')];
+}
+
+/**
+ * **Delete's list**, shared by Word's and PowerPoint's Table Layout. Word's is Delete Cells…, which opens the Delete
+ * Cells dialog to choose how the others shift, then Delete Columns, Delete Rows and Delete Table. PowerPoint's table
+ * cannot lose one cell, so its list is Delete Columns, Delete Rows and Delete Table.
+ *
+ * `GUESS:` PowerPoint's list and its order, which its own unit should check before calling this.
+ */
+export function tableDeleteEntries(application: TableLayoutApplication): TemplateResult[] {
+  const shared = [item('Delete Columns'), item('Delete Rows'), item('Delete Table')];
+  return application === 'word' ? [item('Delete Cells…'), ...shared] : shared;
+}
+
+/**
+ * **AutoFit's list, Word's**: AutoFit Contents, AutoFit Window and Fixed Column Width, in Office's order. PowerPoint
+ * has no AutoFit.
+ *
+ * **Nothing is checked**, although a table is in exactly one of the three: Office draws the list as three commands
+ * rather than a radio set. `GUESS:` that it ticks none.
+ */
+function wordAutoFitEntries(): TemplateResult[] {
+  return [item('AutoFit Contents'), item('AutoFit Window'), item('Fixed Column Width')];
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
-/** Word's two menus: Border Styles and Borders. Every other Table Design command is a field, a picker or a box. */
+/**
+ * Word's five menus: Border Styles and Borders on Table Design; Select, Delete and AutoFit on Table Layout. Every other
+ * Table Tools command is a field, a picker, a box, a toggle or a plain button.
+ */
 function wordTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
     ${commandMenu(host, 'word.table-design.borders.border-styles', 'Border Styles', ...wordBorderStyleEntries())}
     ${commandMenu(host, 'word.table-design.borders.borders', 'Borders', ...wordBorderEntries())}
+    ${commandMenu(host, 'word.table-layout.table.select', 'Select', ...tableSelectEntries('word'))}
+    ${commandMenu(host, 'word.table-layout.rows-and-columns.delete', 'Delete', ...tableDeleteEntries('word'))}
+    ${commandMenu(host, 'word.table-layout.cell-size.autofit', 'AutoFit', ...wordAutoFitEntries())}
   `;
 }
 
 /**
- * Every menu one application's Table Tools tabs open, with ids for one host's page. Word's Table Design is authored;
- * PowerPoint's and Excel's units add their own function here, and until then render nothing.
+ * Every menu one application's Table Tools tabs open, with ids for one host's page. Word's Table Design and Table
+ * Layout are authored; PowerPoint's and Excel's units add their own function here, and until then render nothing.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, exactly as `masterViewMenus` is, by every host that draws
  * the Table Tools set: both Word hosts do.

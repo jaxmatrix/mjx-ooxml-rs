@@ -322,8 +322,8 @@ export function commandMenu(
 /**
  * A tab whose unit has not landed yet: one group carrying the tab's name, and one honest button.
  *
- * **Every core and view tab has landed, and so has Word's Table Design; the other contextual tabs of the four common
- * sets are what still draw through this**, each until its own unit authors it.
+ * **Every core and view tab has landed, and so have Word's Table Design and Table Layout; the other contextual tabs of
+ * the four common sets are what still draw through this**, each until its own unit authors it.
  *
  * ⚠ **The priority is the census's, not a constant**, and that is the whole point of the
  * placeholder being built from the entry rather than from a tab id and a label alone — which is what the

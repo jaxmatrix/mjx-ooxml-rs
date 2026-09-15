@@ -893,6 +893,45 @@ function ribbon(): TemplateResult {
               data-opens="shell-word-table-design-borders-borders"
               @mjx-menu-request=${openDeclaredSurface}
             ></mjx-split-button>`,
+            // Table Layout (a contextual tab), in the same set. The same five commands `Ribbons/Word` binds, under
+            // the shell's own ids: Select, Delete and AutoFit open `stories/ribbons/table-tools-menus.ts`'s menus,
+            // Height and Width are measures. Both exclusive sets are the generic toggles.
+            'word.table-layout.table.select': html`<mjx-button
+              label="Select"
+              icon="table-cursor"
+              size="small"
+              data-opens="shell-word-table-layout-table-select"
+            ></mjx-button>`,
+            'word.table-layout.rows-and-columns.delete': html`<mjx-button
+              label="Delete"
+              icon="table-dismiss"
+              size="large"
+              data-opens="shell-word-table-layout-rows-and-columns-delete"
+            ></mjx-button>`,
+            'word.table-layout.cell-size.autofit': html`<mjx-button
+              label="AutoFit"
+              icon="arrow-autofit-content"
+              size="large"
+              data-opens="shell-word-table-layout-cell-size-autofit"
+            ></mjx-button>`,
+            'word.table-layout.cell-size.height': html`<mjx-measure-input
+              id="word-table-layout-height"
+              label="Height"
+              value="0.5"
+              unit="cm"
+              step="0.1"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.table-layout.cell-size.width': html`<mjx-measure-input
+              id="word-table-layout-width"
+              label="Width"
+              value="3.18"
+              unit="cm"
+              step="0.1"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
           },
         })}
       </mjx-ribbon>

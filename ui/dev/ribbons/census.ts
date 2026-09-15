@@ -119,7 +119,8 @@
  * see *The contextual tab sets* below, which declares their groups so each can be authored one tab of one
  * application at a time. **Word's Table Design** was the first, its menus and gallery art written once in
  * `stories/ribbons/table-tools-menus.ts` for PowerPoint's and Excel's Table Design units; see the *commands Table
- * Design shows* section. `commands` stays optional rather than required, because an empty array would claim a tab
+ * Design shows* section. **Word's Table Layout** followed, the second, its Select and Delete lists written in that
+ * file for PowerPoint's Table Layout to reuse; see the *commands Table Layout shows* section. `commands` stays optional rather than required, because an empty array would claim a tab
  * had been authored and found to hold nothing.
  *
  * ## The contextual tab sets
@@ -167,7 +168,7 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **One contextual tab carries commands: Word's Table Design.** Each per-tab unit authors one tab of one application,
+ * **Two contextual tabs carry commands: Word's Table Design and Table Layout.** Each per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
  * the one set its document's selection would show (Word's and Excel's Table Tools, PowerPoint's Picture Tools),
@@ -6714,6 +6715,259 @@ const wordTableDesignBorders: readonly RibbonCommand[] = [
   { id: 'word.table-design.borders.border-painter', label: 'Border Painter', icon: 'paint-brush', size: 'large', toggle: true },
 ];
 
+// ── the commands Table Layout shows ──────────────────────────────────────────
+//
+// ## Word's Table Layout
+//
+// The unit after Word's Table Design, one tab of one application: **Word's `TabTableToolsLayout`, in
+// `TabSetTableTools`**, all seven in-scope groups and thirty-three commands, and **the second contextual tab
+// authored**. Office shows it beside Table Design while the insertion point is in a table: the table's structure
+// (which cells, rows and columns it has, and how they are merged), its cells' sizes, where text sits in a cell, and
+// the table's data. Its label is Office's *Layout*, and the band and the accessible name *Layout, Table Tools* tell it
+// from the core Layout tab.
+//
+// ## Office's seven groups, read onto the census's seven
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupTable` (7) | Table | Select, View Gridlines, Properties |
+// | `GroupTableDraw` (2) | Draw | Draw Table, Eraser |
+// | `GroupTableRowsAndColumns` (10) | Rows & Columns | Delete, Insert Above, Insert Below, Insert Left, Insert Right; the Insert Cells launcher |
+// | `GroupTableMerge` (3) | Merge | Merge Cells, Split Cells, Split Table |
+// | `GroupTableCellSize` (9) | Cell Size | AutoFit, Height, Width, Distribute Rows, Distribute Columns; the Table Properties launcher |
+// | `GroupTableAlignment` (21) | Alignment | the nine cell alignments, Text Direction, Cell Margins |
+// | `GroupTableData` (4) | Data | Sort, Repeat Header Rows, Convert to Text, Formula |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and every group's identity is plain from its
+// id, so unlike Table Design's `GroupTableLayout` no reading here is a guess. Draw, Merge and Data are the three
+// whose counts match what is drawn (2, 3 and 4).
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Three dropdowns** a host binds, each opening its menu from `stories/ribbons/table-tools-menus.ts`: Select, Delete
+// and AutoFit. **Two fields**, Height and Width, measure inputs in centimetres. **Thirteen toggles** in two exclusive
+// sets and one on its own: Draw Table and Eraser, **one set that may hold none**, neither pressed; the nine cell
+// alignments, **one set of exactly one**, Align Top Left pressed; and View Gridlines and Repeat Header Rows, plain
+// toggles. **Fifteen plain buttons**, and **two dialog launchers**, Insert Cells on Rows & Columns and Table
+// Properties on Cell Size. **No gallery, no split button, no split toggle, no colour picker, no checkbox.**
+//
+// Select's and Delete's lists are **written for PowerPoint's Table Layout to reuse** (`tableSelectEntries` and
+// `tableDeleteEntries`, which take the application); AutoFit's is Word's.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The counts.** **Table counts 7 and draws 3.** `GUESS:` the three commands and Select's four entries make 7.
+//    **Rows & Columns counts 10 and draws 5 and a launcher.** `GUESS:` the five, Delete's four entries and the
+//    launcher make 10. **Cell Size counts 9 and draws 5 and a launcher.** `GUESS:` the five, AutoFit's three entries
+//    and the launcher make 9. **Alignment counts 21 and draws 11.** `GUESS:` no reading this unit found reaches 21.
+//    Nothing is padded anywhere.
+// 2. **The nine alignments are one exclusive set of exactly one**, `word.table-layout.alignment.cell-alignment`.
+//    Office presses the alignment the selected cells are in, and a cell is always in one: pressing Align Centre
+//    releases Align Top Left, and pressing the one that holds keeps it. **Align Top Left starts pressed**: an inserted
+//    table's cells align top (`w:vAlign` absent) and its paragraphs left. `GUESS:` that start.
+// 3. **The nine are declared down each column**, as Table Design's checkboxes and Notes Master's placeholders are:
+//    Top Left, Centre Left, Bottom Left, then the centre column, then the right. Office draws a grid of three by
+//    three; `GUESS:` the column order.
+// 4. **The census's spelling wins**: *Align Top Centre*, *Align Centre Left*, *Align Centre*, *Align Centre Right*
+//    and *Align Bottom Centre*, where Office writes *Center*.
+// 5. **Draw Table and Eraser are one exclusive set that may hold none**, `word.table-layout.draw.tools`, neither
+//    pressed. Each arms a gesture: Draw Table turns the pointer into a pencil that draws cell borders, Eraser into an
+//    eraser that removes them. Office arms at most one, and pressing the armed one gives back the pointer, as
+//    Background Removal's pencils do; the tab has no Select Objects to stand for *no tool*. `GUESS:` that the two
+//    release each other, and that neither starts pressed. **Eraser is a plain toggle here**, where Draw's Eraser is a
+//    split toggle: this one has no sizes behind it.
+// 6. **Text Direction is a plain button**, as Word draws it: each press turns the selected cells' text a quarter
+//    further (horizontal, then down, then up). PowerPoint's Text Direction opens a list; Word's does not. `GUESS:`.
+// 7. **Height and Width start on 0.5 cm and 3.18 cm**, a row of an inserted five-column table on an A4 page with
+//    2.54 cm margins. Office shows the selected cell's size; `GUESS:` both numbers, and the 0.1 cm step.
+// 8. **View Gridlines starts pressed**, which Table Design's Borders menu also ticks. `GUESS:` that a new install
+//    shows gridlines. The two are one state in Office; nothing here dispatches, so ticking one does not press the
+//    other, which is loop 2's.
+// 9. **Split Cells, Properties, Sort, Convert to Text, Formula and Cell Margins open dialogs in Office**, and the two
+//    launchers do too. They are plain buttons here, because no dialog is wired on this tab, as none was on Table
+//    Design. `GUESS:` that Cell Margins opens Table Options, and that Rows & Columns' launcher is Insert Cells.
+//
+// ## Survivors, judged group by group
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Table: none.** Select opens a menu and Properties a dialog, rule 1. **View Gridlines passes rule 1 and fails
+//   rule 2**: unlabelled, its dashed box crossed by solid lines is Inside Borders, a border a person reaches for on
+//   Table Design. `GUESS:`.
+// - **Draw: none.** Draw Table and Eraser arm a gesture, which is not one press doing one thing: Draw's standard.
+// - **Rows & Columns: Insert Above, Insert Below and Insert Right.** Each inserts one row or column in one press, one
+//   undo takes it back, and each draws a glyph no other command draws. Delete opens a menu. **Insert Left is the
+//   ceiling's cost**: all four pass and only three survive, and a row or column added after the selection is the one
+//   reached for most, so Left gives way as Justify does on Home. `GUESS:` which of the four.
+// - **Merge: Merge Cells and Split Table.** Both are one press and one undo. Merge Cells' glyph is also Excel's Merge
+//   & Centre, the same act in another application, which rule 2's standard does not refuse. Split Cells opens a
+//   dialog.
+// - **Cell Size: Distribute Rows and Distribute Columns.** One press, one undo, and three equal bars no other command
+//   draws. AutoFit opens a menu, and Height and Width are fields.
+// - **Alignment: Align Top Left, Align Top Centre and Align Top Right**, the top row. Each is one press and one undo,
+//   unlike a view set, whose presses no undo takes back. The nine glyphs are drawn by no other command. **Six pass
+//   and give way to the ceiling**, as Justify does; the top row is the vertical alignment an inserted table is in,
+//   so it is the row a person changes horizontally. `GUESS:` which three. Text Direction passes too and gives way to
+//   the ceiling; Cell Margins opens a dialog.
+// - **Data: Repeat Header Rows.** One press, one undo, a table with a loop that no other command draws. Sort, Convert
+//   to Text and Formula open dialogs.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Select, View Gridlines and Properties small in a column; Draw Table and
+// Eraser large; Delete and Insert Above large, then Insert Below, Left and Right small; Merge's three small; AutoFit
+// large, then Height and Width, then the two Distribute commands small; the nine alignments icon-only in a grid, then
+// Text Direction and Cell Margins large; Sort large, then Repeat Header Rows, Convert to Text and Formula small.
+// **Thirty-one of the thirty-three commands carry a glyph**, every one `GUESS:`:
+//
+// - **Select draws `table-cursor`**, a table with a pointer, Office's picture. Not `select-all-on`, Home's Select.
+// - **View Gridlines draws `border-inside`**, a dashed box with its inside lines: the lines that show where a
+//   borderless table's cells are. Filled while pressed.
+// - **Properties draws `table-settings`**, a table with a cog, also Excel's Format.
+// - **Draw Table draws `table-edit`**, a table with a pencil, and **Eraser draws `eraser`**, Draw's.
+// - **Delete draws `table-dismiss`**, the broad table-with-a-cross Excel's Delete draws, now large: the menu deletes
+//   cells, columns, rows or the table, so no one of those glyphs is honest on the face.
+// - **Insert Above, Below, Left and Right draw `table-stack-above`, `-below`, `-left` and `-right`**, a table with a
+//   new line on that side.
+// - **Merge Cells draws `table-cells-merge`**, Excel's Merge & Centre, **Split Cells `table-cells-split`** and
+//   **Split Table `table-split`**, a table cut in two.
+// - **AutoFit draws `arrow-autofit-content`**, content with arrows to its edges. Not `auto-fit-width`, View's Page
+//   Width.
+// - **Distribute Rows draws `align-space-evenly-vertical`** and **Distribute Columns
+//   `align-space-evenly-horizontal`**, three equal bars.
+// - **The nine alignments draw `textbox-align-top-left` to `textbox-align-bottom-right`**, a box with two lines where
+//   the text sits; Align Centre is `textbox-align-center`. Filled while pressed.
+// - **Text Direction draws `text-direction-rotate-90-right`**, PowerPoint's Text Direction, now large.
+// - **Cell Margins draws `padding-left`**, an edge, a dashed inner guide and the space between them. Not
+//   `document-margins`, which is a page's. The weakest glyph on the tab.
+// - **Sort draws `arrow-sort`**, Home's Sort, now large here as on Excel's Data tab.
+// - **Repeat Header Rows draws `table-arrow-repeat-all`**, a table with a loop. Not `table-freeze-row`, Excel's
+//   Freeze Top Row, which holds a row still rather than repeating it on each page.
+// - **Convert to Text draws `table-switch`**, a table with a turn arrow.
+// - **Formula draws `math-formula`**, the *fx* of Equation and Insert Function.
+//
+// **Two commands carry no glyph, and say why**: Height and Width are fields.
+
+/**
+ * Word's `GroupTable` on Table Layout, labelled **Table**: Select, View Gridlines and Properties, small in a column.
+ * See disagreements 1, 8 and 9.
+ *
+ * **Select is a dropdown** a host binds. **View Gridlines is the generic toggle**, pressed. **Properties is a plain
+ * button**, whose dialog is not wired.
+ *
+ * **No survivor**: a menu, a dialog, and a glyph that reads as Inside Borders.
+ */
+const wordTableLayoutTable: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.table.select', label: 'Select', icon: 'table-cursor' },
+  { id: 'word.table-layout.table.view-gridlines', label: 'View Gridlines', icon: 'border-inside', toggle: true, pressed: true },
+  { id: 'word.table-layout.table.properties', label: 'Properties', icon: 'table-settings' },
+];
+
+/** The set Draw Table and Eraser share. It may hold none. See disagreement 5. */
+const wordTableLayoutDrawTools = 'word.table-layout.draw.tools';
+
+/**
+ * Word's `GroupTableDraw`, labelled **Draw**: Draw Table and Eraser, large. See disagreement 5.
+ *
+ * **One exclusive set that may hold none**, neither pressed, both the generic toggle.
+ *
+ * **No survivor**: each arms a gesture.
+ */
+const wordTableLayoutDraw: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.draw.draw-table', label: 'Draw Table', icon: 'table-edit', size: 'large', toggle: true, exclusive: wordTableLayoutDrawTools, exclusiveAllowsNone: true },
+  { id: 'word.table-layout.draw.eraser', label: 'Eraser', icon: 'eraser', size: 'large', toggle: true, exclusive: wordTableLayoutDrawTools, exclusiveAllowsNone: true },
+];
+
+/**
+ * Word's `GroupTableRowsAndColumns`, labelled **Rows & Columns**: Delete and Insert Above large, then Insert Below,
+ * Insert Left and Insert Right small in a column, and the Insert Cells launcher the tab module passes. See
+ * disagreements 1 and 9.
+ *
+ * **Delete is a large dropdown** a host binds. The four inserts are plain buttons.
+ *
+ * **Three survivors**: Insert Above, Insert Below and Insert Right. Insert Left is the ceiling's cost.
+ */
+const wordTableLayoutRowsAndColumns: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.rows-and-columns.delete', label: 'Delete', icon: 'table-dismiss', size: 'large' },
+  { id: 'word.table-layout.rows-and-columns.insert-above', label: 'Insert Above', icon: 'table-stack-above', size: 'large', essential: true },
+  { id: 'word.table-layout.rows-and-columns.insert-below', label: 'Insert Below', icon: 'table-stack-below', essential: true },
+  { id: 'word.table-layout.rows-and-columns.insert-left', label: 'Insert Left', icon: 'table-stack-left' },
+  { id: 'word.table-layout.rows-and-columns.insert-right', label: 'Insert Right', icon: 'table-stack-right', essential: true },
+];
+
+/**
+ * Word's `GroupTableMerge`, labelled **Merge**: Merge Cells, Split Cells and Split Table, small in a column. See
+ * disagreement 9.
+ *
+ * **Three plain buttons.** Split Cells' dialog is not wired.
+ *
+ * **Two survivors**: Merge Cells and Split Table. Split Cells opens a dialog.
+ */
+const wordTableLayoutMerge: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.merge.merge-cells', label: 'Merge Cells', icon: 'table-cells-merge', essential: true },
+  { id: 'word.table-layout.merge.split-cells', label: 'Split Cells', icon: 'table-cells-split' },
+  { id: 'word.table-layout.merge.split-table', label: 'Split Table', icon: 'table-split', essential: true },
+];
+
+/**
+ * Word's `GroupTableCellSize`, labelled **Cell Size**: AutoFit large, then Height and Width, then Distribute Rows and
+ * Distribute Columns small, and the Table Properties launcher the tab module passes. See disagreements 1 and 7.
+ *
+ * **AutoFit is a large dropdown** a host binds. **Height and Width are measure fields** a host binds. The two
+ * Distribute commands are plain buttons.
+ *
+ * **Two survivors**: Distribute Rows and Distribute Columns.
+ */
+const wordTableLayoutCellSize: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.cell-size.autofit', label: 'AutoFit', icon: 'arrow-autofit-content', size: 'large' },
+  { id: 'word.table-layout.cell-size.height', label: 'Height' },
+  { id: 'word.table-layout.cell-size.width', label: 'Width' },
+  { id: 'word.table-layout.cell-size.distribute-rows', label: 'Distribute Rows', icon: 'align-space-evenly-vertical', essential: true },
+  { id: 'word.table-layout.cell-size.distribute-columns', label: 'Distribute Columns', icon: 'align-space-evenly-horizontal', essential: true },
+];
+
+/** The set the nine cell alignments share. It holds exactly one. See disagreement 2. */
+const wordTableLayoutCellAlignment = 'word.table-layout.alignment.cell-alignment';
+
+/**
+ * Word's `GroupTableAlignment`, labelled **Alignment**: the nine cell alignments icon-only in a grid, declared down
+ * each column, then Text Direction and Cell Margins large. See disagreements 1 to 4, 6 and 9.
+ *
+ * **One exclusive set of exactly one**, the nine generic toggles, Align Top Left pressed. **Text Direction and Cell
+ * Margins are plain buttons.**
+ *
+ * **Three survivors**: the top row, Align Top Left, Align Top Centre and Align Top Right.
+ */
+const wordTableLayoutAlignment: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.alignment.align-top-left', label: 'Align Top Left', icon: 'textbox-align-top-left', size: 'icon', toggle: true, pressed: true, exclusive: wordTableLayoutCellAlignment, essential: true },
+  { id: 'word.table-layout.alignment.align-centre-left', label: 'Align Centre Left', icon: 'textbox-align-middle-left', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.align-bottom-left', label: 'Align Bottom Left', icon: 'textbox-align-bottom-left', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.align-top-centre', label: 'Align Top Centre', icon: 'textbox-align-top-center', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment, essential: true },
+  { id: 'word.table-layout.alignment.align-centre', label: 'Align Centre', icon: 'textbox-align-center', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.align-bottom-centre', label: 'Align Bottom Centre', icon: 'textbox-align-bottom-center', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.align-top-right', label: 'Align Top Right', icon: 'textbox-align-top-right', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment, essential: true },
+  { id: 'word.table-layout.alignment.align-centre-right', label: 'Align Centre Right', icon: 'textbox-align-middle-right', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.align-bottom-right', label: 'Align Bottom Right', icon: 'textbox-align-bottom-right', size: 'icon', toggle: true, exclusive: wordTableLayoutCellAlignment },
+  { id: 'word.table-layout.alignment.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right', size: 'large' },
+  { id: 'word.table-layout.alignment.cell-margins', label: 'Cell Margins', icon: 'padding-left', size: 'large' },
+];
+
+/**
+ * Word's `GroupTableData`, labelled **Data**: Sort large, then Repeat Header Rows, Convert to Text and Formula small
+ * in a column. See disagreement 9.
+ *
+ * **Repeat Header Rows is the generic toggle**, unpressed. The other three are plain buttons, whose dialogs are not
+ * wired.
+ *
+ * **One survivor**: Repeat Header Rows.
+ */
+const wordTableLayoutData: readonly RibbonCommand[] = [
+  { id: 'word.table-layout.data.sort', label: 'Sort', icon: 'arrow-sort', size: 'large' },
+  { id: 'word.table-layout.data.repeat-header-rows', label: 'Repeat Header Rows', icon: 'table-arrow-repeat-all', toggle: true, essential: true },
+  { id: 'word.table-layout.data.convert-to-text', label: 'Convert to Text', icon: 'table-switch' },
+  { id: 'word.table-layout.data.formula', label: 'Formula', icon: 'math-formula' },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -6759,13 +7013,13 @@ export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsLayout' },
         groups: [
-          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 7, inScope: true },
-          { id: 'GroupTableDraw', label: 'Draw', priority: 'ancillary', controls: 2, inScope: true },
-          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 10, inScope: true },
-          { id: 'GroupTableMerge', label: 'Merge', priority: 'standard', controls: 3, inScope: true },
-          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 9, inScope: true },
-          { id: 'GroupTableAlignment', label: 'Alignment', priority: 'primary', controls: 21, inScope: true },
-          { id: 'GroupTableData', label: 'Data', priority: 'standard', controls: 4, inScope: true },
+          { id: 'GroupTable', label: 'Table', priority: 'secondary', controls: 7, inScope: true, commands: wordTableLayoutTable },
+          { id: 'GroupTableDraw', label: 'Draw', priority: 'ancillary', controls: 2, inScope: true, commands: wordTableLayoutDraw },
+          { id: 'GroupTableRowsAndColumns', label: 'Rows & Columns', priority: 'primary', controls: 10, inScope: true, commands: wordTableLayoutRowsAndColumns },
+          { id: 'GroupTableMerge', label: 'Merge', priority: 'standard', controls: 3, inScope: true, commands: wordTableLayoutMerge },
+          { id: 'GroupTableCellSize', label: 'Cell Size', priority: 'standard', controls: 9, inScope: true, commands: wordTableLayoutCellSize },
+          { id: 'GroupTableAlignment', label: 'Alignment', priority: 'primary', controls: 21, inScope: true, commands: wordTableLayoutAlignment },
+          { id: 'GroupTableData', label: 'Data', priority: 'standard', controls: 4, inScope: true, commands: wordTableLayoutData },
         ],
       },
     ],

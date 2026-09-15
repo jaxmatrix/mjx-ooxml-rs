@@ -56,9 +56,9 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * ## What is authored and what is not
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
- * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design is authored**, the
- * first. **The other five are placeholders** — Table Tools' Layout, Picture Format, Shape Format, Chart Design and
- * Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
+ * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design and Table Tools'
+ * Layout are authored**, the first two. **The other four are placeholders** — Picture Format, Shape Format, Chart
+ * Design and Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
  * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
  *
@@ -71,8 +71,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
- * Mailings, Review, View, Print Preview and Table Design tabs' menus open, the pickers open, the galleries preview —
- * and no document changes, because command dispatch is loop 2.
+ * Mailings, Review, View, Print Preview, Table Design and Table Layout tabs' menus open, the pickers open, the
+ * galleries preview — and no document changes, because command dispatch is loop 2.
  */
 
 const conventions = storyConventions({
@@ -92,8 +92,8 @@ const meta: Meta = {
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
           'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
-          'four common sets, Table Design is authored; Layout, Picture Format, Shape Format, Chart Design and Format ' +
-          'are placeholders carrying the census’s own priorities.',
+          'four common sets, Table Design and Layout are authored; Picture Format, Shape Format, Chart Design and ' +
+          'Format are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -799,6 +799,46 @@ const bindings: ControlOverrides = {
     data-opens="ribbons-word-table-design-borders-borders"
     @mjx-menu-request=${openDeclaredSurface}
   ></mjx-split-button>`,
+  // Table Layout (a contextual tab, in Table Tools). Both Word hosts draw Table Tools, so `Shell/Word` binds the same
+  // five commands under its own ids. Select, Delete and AutoFit open their menus from
+  // `stories/ribbons/table-tools-menus.ts`; Height and Width are measures in centimetres. Every other command, both
+  // exclusive sets included, is the generic toggle or button and is not bound.
+  'word.table-layout.table.select': html`<mjx-button
+    label="Select"
+    icon="table-cursor"
+    size="small"
+    data-opens="ribbons-word-table-layout-table-select"
+  ></mjx-button>`,
+  'word.table-layout.rows-and-columns.delete': html`<mjx-button
+    label="Delete"
+    icon="table-dismiss"
+    size="large"
+    data-opens="ribbons-word-table-layout-rows-and-columns-delete"
+  ></mjx-button>`,
+  'word.table-layout.cell-size.autofit': html`<mjx-button
+    label="AutoFit"
+    icon="arrow-autofit-content"
+    size="large"
+    data-opens="ribbons-word-table-layout-cell-size-autofit"
+  ></mjx-button>`,
+  'word.table-layout.cell-size.height': html`<mjx-measure-input
+    id="ribbons-word-table-layout-height"
+    label="Height"
+    value="0.5"
+    unit="cm"
+    step="0.1"
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.table-layout.cell-size.width': html`<mjx-measure-input
+    id="ribbons-word-table-layout-width"
+    label="Width"
+    value="3.18"
+    unit="cm"
+    step="0.1"
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1221,9 +1261,53 @@ export const BackgroundRemoval: Story = { render: () => ribbon('background-remov
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 
 /**
- * **Layout** — Table Tools' second tab, a placeholder. Seven groups are declared: Table, Draw, Rows & Columns, Merge,
- * Cell Size, Alignment and Data, with Rows & Columns and Alignment primary. Its label is Office's *Layout*, the same
- * as the core Layout tab's; the band and the accessible name *Layout, Table Tools* are what tell them apart.
+ * **Layout**: a table's structure, its cells' sizes and alignment, and its data. Table Tools' second tab, and the
+ * second contextual tab authored; Office shows it only while the insertion point is in a table. Seven groups: Table,
+ * Draw, Rows & Columns, Merge, Cell Size, Alignment and Data. Its label is Office's *Layout*, the same as the core
+ * Layout tab's; the band and the accessible name *Layout, Table Tools* tell them apart. What to look at, least certain
+ * first:
+ *
+ * 1. ⚠ **Cell Margins' glyph**, `padding-left`: an edge, a dashed guide and an arrow between them, for the room
+ *    between a cell's border and its text. The weakest glyph on the tab; judge whether it reads as margins at all.
+ * 2. ⚠ **The nine alignments are one set that holds one.** Align Top Left starts pressed. Press Align Centre: it
+ *    fills and Top Left releases. Press Align Centre again: nothing changes. They are declared down each column (Top
+ *    Left, Centre Left, Bottom Left, then the centre column, then the right); check they draw as Office's grid of
+ *    three by three, top row across the top. `GUESS:` the start and the column order.
+ * 3. ⚠ **Draw Table and Eraser are one set that may hold none.** Neither starts pressed. Press Draw Table, then
+ *    Eraser: Draw Table releases. Press Eraser again: it releases and neither holds. Eraser is a plain toggle here,
+ *    with no sizes behind it, unlike Draw's split Eraser.
+ * 4. **Eleven survivors, in five groups.** Drag narrow until each group collapses:
+ *    - Rows & Columns keeps Insert Above, Insert Below and Insert Right, in that order, with Delete and Insert Left in
+ *      its popup. Insert Above keeps its large size beside the trigger.
+ *    - Merge keeps Merge Cells and Split Table, with Split Cells in the popup.
+ *    - Cell Size keeps Distribute Rows and Distribute Columns, with AutoFit, Height and Width in the popup.
+ *    - Alignment keeps Align Top Left, Align Top Centre and Align Top Right, with the other six, Text Direction and
+ *      Cell Margins in the popup.
+ *    - Data keeps Repeat Header Rows, with Sort, Convert to Text and Formula in the popup.
+ *    - Table and Draw keep nothing.
+ *
+ *    `GUESS:` which three inserts and which three alignments.
+ * 5. **The collapse order is the census's.** Draw is `ancillary` and goes first, Table `secondary` next, then Merge,
+ *    Cell Size and Data, and Rows & Columns and Alignment last.
+ * 6. **Three dropdowns.** Select opens Select Cell, Select Column, Select Row and Select Table. Delete opens Delete
+ *    Cells…, Delete Columns, Delete Rows and Delete Table. AutoFit opens AutoFit Contents, AutoFit Window and Fixed
+ *    Column Width, none ticked.
+ * 7. **Height and Width are measure fields**, 0.5 cm and 3.18 cm, stepping by 0.1. `GUESS:` both numbers.
+ * 8. **View Gridlines starts pressed**, as Table Design's Borders menu ticks it. The two do not follow each other
+ *    here, because nothing dispatches. **Repeat Header Rows starts unpressed**; press it and it fills.
+ * 9. **Two launchers**: *Insert Cells* at Rows & Columns' corner and *Table Properties* at Cell Size's. No other group
+ *    has one.
+ * 10. **The census's spelling**: *Align Top Centre*, *Align Centre* and the rest, where Office writes *Center*. Hover
+ *     an alignment to read its name.
+ * 11. **Glyphs to judge**, all `GUESS:`. Select's table with a pointer; View Gridlines' dashed box; Properties' cog;
+ *     Draw Table's pencil; Delete's cross, now large; the four inserts' tables with a new line on one side; Merge
+ *     Cells, Split Cells and Split Table; AutoFit's arrows; the two Distribute commands' three equal bars; the nine
+ *     boxes with two lines; Text Direction's turned *A*, now large; Sort's arrows; Repeat Header Rows' table with a
+ *     loop; Convert to Text's table with a turn arrow; Formula's *fx*. Height and Width carry none.
+ * 12. **Split Cells, Properties, Text Direction, Cell Margins, Sort, Convert to Text and Formula are plain buttons**:
+ *     pressing one does nothing, because no dialog is wired and nothing dispatches.
+ * 13. **Also in `Shell/Word`**, which draws Table Tools: select Layout under the *Table Tools* band there and every
+ *     list, field, set and survivor above is the same, under the shell's own ids.
  */
 export const TableLayout: Story = { render: () => ribbon('table-layout') };
 
