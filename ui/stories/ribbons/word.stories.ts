@@ -43,7 +43,15 @@ import {
   wordTableStyleGalleryItems,
 } from './table-tools-menus.ts';
 import { pictureStyleGalleryItems, pictureToolsMenus, wordPictureMeasures } from './picture-tools-menus.ts';
+import {
+  drawingToolsMenus,
+  shapeFillEntryOptions,
+  shapeOutlineEntryOptions,
+  shapeStyleGalleryItems,
+  wordShapeMeasures,
+} from './drawing-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
+import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-styles-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
 /**
@@ -59,7 +67,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
  * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design, Table Tools'
- * Layout and Picture Format are authored**, the first three. **The other three are placeholders** — Shape Format, Chart
+ * Layout, Picture Format and Shape Format are authored**, the first four. **The other two are placeholders** — Chart
  * Design and Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
  * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -73,8 +81,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
- * Mailings, Review, View, Print Preview, Table Design, Table Layout and Picture Format tabs' menus open, the pickers
- * open, the
+ * Mailings, Review, View, Print Preview, Table Design, Table Layout, Picture Format and Shape Format tabs' menus open,
+ * the pickers open, the
  * galleries preview — and no document changes, because command dispatch is loop 2.
  */
 
@@ -95,7 +103,7 @@ const meta: Meta = {
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
           'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
-          'four common sets, Table Design, Layout and Picture Format are authored; Shape Format, Chart Design and ' +
+          'four common sets, Table Design, Layout, Picture Format and Shape Format are authored; Chart Design and ' +
           'Format are placeholders carrying the census’s own priorities.',
       },
     },
@@ -995,6 +1003,193 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
+  // Shape Format (a contextual tab, in Drawing Tools). `Shell/Word` draws Table Tools alone, so these twenty-two
+  // bindings and `drawingToolsMenus('word', …)` are written here and nowhere else. Every menu, the Theme Styles
+  // gallery, the entry options and the starting measures are `stories/ribbons/drawing-tools-menus.ts`'s; the WordArt
+  // gallery is `stories/ribbons/wordart-styles-menus.ts`'; the four pickers and both galleries' pictures read this
+  // document's palette. Other Theme Fills, under the Theme Styles gallery, opens the menu declared for the gallery's own
+  // command. Create Link is the generic button, and Alt Text and Selection Pane the generic toggle; none is bound.
+  'word.shape-format.insert-shapes.shapes': html`<mjx-button
+    label="Shapes"
+    icon="shapes"
+    size="large"
+    data-opens="ribbons-word-shape-format-insert-shapes-shapes"
+  ></mjx-button>`,
+  'word.shape-format.insert-shapes.edit-shape': html`<mjx-button
+    label="Edit Shape"
+    icon="bezier-curve-square"
+    size="small"
+    data-opens="ribbons-word-shape-format-insert-shapes-edit-shape"
+  ></mjx-button>`,
+  'word.shape-format.insert-shapes.draw-text-box': html`<mjx-split-button
+    label="Draw Text Box"
+    icon="textbox"
+    size="small"
+    menu-label="Draw Text Box"
+    data-opens="ribbons-word-shape-format-insert-shapes-draw-text-box"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.shape-format.shape-styles.theme-styles': html`<mjx-gallery
+    id="ribbons-word-shape-format-theme-styles"
+    label="Theme Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${shapeStyleGalleryItems(documentThemePalette)}
+    <mjx-button
+      slot="footer"
+      label="Other Theme Fills"
+      size="small"
+      data-opens="ribbons-word-shape-format-shape-styles-theme-styles"
+    ></mjx-button>
+  </mjx-gallery>`,
+  'word.shape-format.shape-styles.shape-fill': html`<mjx-color-picker
+    id="ribbons-word-shape-format-shape-fill"
+    style=${ribbonColourFieldStyle}
+    label="Shape Fill"
+    value="theme:accent1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Fill', fillEntries(shapeFillEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.shape-format.shape-styles.shape-outline': html`<mjx-color-picker
+    id="ribbons-word-shape-format-shape-outline"
+    style=${ribbonColourFieldStyle}
+    label="Shape Outline"
+    value="theme:accent1/darker50"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Shape Outline', outlineEntries(shapeOutlineEntryOptions('word')))}
+  </mjx-color-picker>`,
+  'word.shape-format.shape-styles.shape-effects': html`<mjx-button
+    label="Shape Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-word-shape-format-shape-styles-shape-effects"
+  ></mjx-button>`,
+  'word.shape-format.wordart-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-word-shape-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordArtStyleGalleryItems(documentThemePalette)} ${wordArtStyleGalleryFooter()}
+  </mjx-gallery>`,
+  // Word's Text Fill and Text Outline carry fewer entries than PowerPoint's: no Eyedropper, no Picture… or Texture ▸
+  // under the fill, no Sketched ▸ under the outline. See the census's Word's Shape Format disagreement 7.
+  'word.shape-format.wordart-styles.text-fill': html`<mjx-color-picker
+    id="ribbons-word-shape-format-text-fill"
+    style=${ribbonColourFieldStyle}
+    label="Text Fill"
+    value="theme:background1"
+    show-no-fill
+    no-fill-label="No Fill"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries('Text Fill', fillEntries({ moreColours: 'More Fill Colours…', gradient: true }))}
+  </mjx-color-picker>`,
+  'word.shape-format.wordart-styles.text-outline': html`<mjx-color-picker
+    id="ribbons-word-shape-format-text-outline"
+    style=${ribbonColourFieldStyle}
+    label="Text Outline"
+    show-no-fill
+    no-fill-label="No Outline"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Text Outline',
+      outlineEntries({ moreColours: 'More Outline Colours…', weight: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'word.shape-format.wordart-styles.text-effects': html`<mjx-button
+    label="Text Effects"
+    icon="text-effects"
+    size="small"
+    data-opens="ribbons-word-shape-format-wordart-styles-text-effects"
+  ></mjx-button>`,
+  'word.shape-format.text.text-direction': html`<mjx-button
+    label="Text Direction"
+    icon="text-direction-rotate-90-right"
+    size="small"
+    data-opens="ribbons-word-shape-format-text-text-direction"
+  ></mjx-button>`,
+  'word.shape-format.text.align-text': html`<mjx-button
+    label="Align Text"
+    icon="align-center-vertical"
+    size="small"
+    data-opens="ribbons-word-shape-format-text-align-text"
+  ></mjx-button>`,
+  'word.shape-format.arrange.position': html`<mjx-button
+    label="Position"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-position"
+  ></mjx-button>`,
+  'word.shape-format.arrange.wrap-text': html`<mjx-button
+    label="Wrap Text"
+    icon="text-position-square"
+    size="large"
+    data-opens="ribbons-word-shape-format-arrange-wrap-text"
+  ></mjx-button>`,
+  'word.shape-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.shape-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.shape-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-align"
+  ></mjx-button>`,
+  'word.shape-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-group"
+  ></mjx-button>`,
+  'word.shape-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-word-shape-format-arrange-rotate"
+  ></mjx-button>`,
+  'word.shape-format.size.height': html`<mjx-measure-input
+    id="ribbons-word-shape-format-height"
+    label="Height"
+    value=${wordShapeMeasures.height}
+    unit="cm"
+    step=${wordShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'word.shape-format.size.width': html`<mjx-measure-input
+    id="ribbons-word-shape-format-width"
+    label="Width"
+    value=${wordShapeMeasures.width}
+    unit="cm"
+    step=${wordShapeMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1027,6 +1222,7 @@ function ribbon(selected: string): TemplateResult {
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
     ${viewMenus('word', 'ribbons')} ${printPreviewMenus('word', 'ribbons')}
     ${tableToolsMenus('word', 'ribbons')} ${pictureToolsMenus('word', 'ribbons')}
+    ${drawingToolsMenus('word', 'ribbons')}
   `;
 }
 
@@ -1519,8 +1715,46 @@ export const TableLayout: Story = { render: () => ribbon('table-layout') };
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 
 /**
- * **Shape Format** — Drawing Tools' one tab, a placeholder. Seven groups are declared: Insert Shapes, Shape Styles,
- * WordArt Styles, Text, Accessibility, Arrange and Size, with Shape Styles primary. Text is Word's alone.
+ * **Shape Format**: which shape a shape in the document is, how it is filled, outlined and given effects, how its text
+ * is dressed and laid inside it, how it is described, where it sits among the text, and its size. Drawing Tools' one
+ * tab, and Word's fourth contextual tab authored; Office shows it only while a shape, a text box or a WordArt is
+ * selected. Seven groups: Insert Shapes, Shape Styles, WordArt Styles, Text, Accessibility, Arrange and Size. **It is
+ * PowerPoint's Shape Format wherever Office's Word is**, so `Ribbons/PowerPoint`'s `ShapeFormat` story covers the Theme
+ * Styles pictures, Other Theme Fills, the Shapes list and Edit Shape; and Arrange is `PictureFormat`'s. What to look at
+ * here, least certain first:
+ *
+ * 1. ⚠ **The Text group, Word's alone.** **Text Direction** opens *Horizontal* (checked), *Rotate all text 90°*, *Rotate
+ *    all text 270°* and *Text Direction Options…*: **no Stacked**, which PowerPoint's has. **Align Text** opens *Top*
+ *    (checked), *Middle* and *Bottom*, one set: choosing one moves the tick. **Create Link** is a plain small button;
+ *    in Office the same button reads *Break Link* on a linked text box, and only the unlinked state is drawn. `GUESS:`
+ *    every label and both starts.
+ * 2. ⚠ **Create Link's chain is the weakest glyph on the tab**: it says *hyperlink* before it says *flow this text into
+ *    the next box*. Judge it beside Text Direction's rotated letters and Align Text's centred bar, both reused.
+ * 3. ⚠ **Draw Text Box is a split button**, where PowerPoint's Text Box is a plain one. Press its face: nothing opens,
+ *    because it arms a drawing gesture. Press its arrow: *Draw Text Box* and *Draw Vertical Text Box*. `GUESS:` the
+ *    label, the shape and both entries. **No Merge Shapes** beside it.
+ * 4. ⚠ **Text Fill and Text Outline carry fewer entries than PowerPoint's.** Text Fill starts on Background 1 (the white
+ *    text of an inserted shape), with *No Fill*, More Fill Colours… and Gradient ▸ beneath the palette; Text Outline
+ *    starts on none, with *No Outline*, More Outline Colours…, Weight ▸ and Dashes ▸. `GUESS:` all of it.
+ * 5. **Shape Fill and Shape Outline have no Eyedropper.** Shape Fill starts on Accent 1 with More Fill Colours…,
+ *    Picture…, Gradient ▸ and Texture ▸; Shape Outline on Accent 1, Darker 50%, with More Outline Colours…, Weight ▸,
+ *    Sketched ▸, Dashes ▸ and Arrows ▸. `GUESS:` both starts.
+ * 6. **Shapes** opens the whole gallery with **no Action Buttons** and **New Drawing Canvas** under it, the list
+ *    `Insert → Shapes` opens. **Edit Shape**'s Change Shape has no Action Buttons either.
+ * 7. **Arrange is Picture Format's eight**: Position small with no glyph, Wrap Text large, Bring Forward and Send
+ *    Backward split buttons with *in Front of Text* and *Behind Text*, Selection Pane with no glyph, Align with **Align
+ *    to Margin ticked**, Group and Rotate.
+ * 8. **Theme Styles and Quick Styles** are PowerPoint's galleries in this document's palette, Other Theme Fills in the
+ *    first one's footer; **Shape Effects** opens Picture Effects' seven submenus.
+ * 9. **Height and Width start on 2.54 cm**, stepping by 0.01. `GUESS:` both.
+ * 10. **Three launchers**: *Format Shape* at Shape Styles' corner, *Format Text Effects* at WordArt Styles', and
+ *     **Layout** at Size's, where PowerPoint's says *Size and Position*. `GUESS:` all three.
+ * 11. **Alt Text** is a large toggle, unpressed.
+ * 12. **No survivor anywhere.** Drag narrow: Accessibility (`secondary`) gives way first, then Insert Shapes, WordArt
+ *     Styles, Text, Arrange and Size (`standard`), and Shape Styles (`primary`) last; each collapses to a trigger with
+ *     nothing beside it.
+ * 13. **Not in `Shell/Word`**, which draws Table Tools: there is no Drawing Tools band there and none of these menus is
+ *     on that page.
  */
 export const ShapeFormat: Story = { render: () => ribbon('shape-format') };
 

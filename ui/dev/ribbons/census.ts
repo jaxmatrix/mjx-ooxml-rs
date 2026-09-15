@@ -144,6 +144,9 @@
  * tab, for Word's and Excel's Shape Format and for Chart Format to call, and calling `wordArtStylesCommands`,
  * `arrangeCommands` and `sizeCommands` for a drawing; its menus and gallery are in
  * `stories/ribbons/drawing-tools-menus.ts`; see the *commands Shape Format shows* section.
+ * **Word's Shape Format** followed, the tenth and Word's first of Drawing Tools, calling the same functions and
+ * differing from PowerPoint's only where Office does: no Merge Shapes, a Draw Text Box split button, the Text group,
+ * Position and Wrap Text, no Eyedropper and the Layout launcher; see that section's *Word's Shape Format* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
  *
@@ -192,8 +195,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Nine contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format,
- * Excel's Table Design and Picture Format, and PowerPoint's Shape Format.** Each
+ * **Ten contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout, Picture Format and Shape
+ * Format, and Excel's Table Design and Picture Format.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -1673,8 +1676,9 @@ const wordDrawDrawingCanvas: readonly RibbonCommand[] = [
 /**
  * Arrange, in Word's Layout, Excel's Page Layout, PowerPoint's Table Layout and Word's Picture Format: one function of
  * the application, the tab and the object arranged, because the shared commands carry the same names and glyphs
- * everywhere. A picture is a `drawing` here, and Word's Picture Format gets exactly Office's eight. The Shape and Chart
- * Format units and the other Picture Format units are expected to call it too.
+ * everywhere. A picture is a `drawing` here, and Word's Picture Format gets exactly Office's eight. Every Picture
+ * Format and PowerPoint's and Word's Shape Format call it too (a shape is a `drawing`, and Word's gets the same eight);
+ * the Chart Format units and Excel's Shape Format are expected to.
  *
  * - **Word** leads with Position and Wrap Text, large, and draws the six small beside them.
  * - **Excel** has no Position or Wrap Text (a cell does not wrap around a picture), and draws Bring
@@ -8250,11 +8254,15 @@ const excelPictureFormatImagePlay: readonly RibbonCommand[] = [
 // Pane for `arrangeCommands`' reason (Fluent draws no selection pane).
 
 /**
- * **Insert Shapes, as Office draws it on Shape Format**: Shapes large, then Edit Shape, Text Box and, in PowerPoint,
- * Merge Shapes small, under `<application>.<tab>.insert-shapes`. See disagreements 1, 3, 4, 5 and 6.
+ * **Insert Shapes, as Office draws it on Shape Format**: Shapes large, then Edit Shape, the text box command and, in
+ * PowerPoint, Merge Shapes small, under `<application>.<tab>.insert-shapes`. See disagreements 1, 3, 4, 5 and 6, and
+ * Word's Shape Format's disagreement 2.
  *
  * Written once because the group repeats on Word's and Excel's Shape Format. **Shapes, Edit Shape and Merge Shapes are
- * dropdowns** a host binds over `stories/ribbons/drawing-tools-menus.ts`' lists; **Text Box is a plain button**.
+ * dropdowns** a host binds over `stories/ribbons/drawing-tools-menus.ts`' lists. **The text box command is the one
+ * place the applications' Office differs**: PowerPoint's (and, until its unit says otherwise, Excel's) is **Text Box**,
+ * a plain button; **Word's is Draw Text Box**, a split button whose arrow offers Draw Text Box and Draw Vertical Text
+ * Box, so it carries its own id.
  *
  * **No survivor**: a gallery, two menus and a drawing gesture.
  */
@@ -8263,10 +8271,14 @@ export function insertShapesCommands(application: RibbonApplication, tab: string
     application === 'powerpoint'
       ? [{ id: `powerpoint.${tab}.insert-shapes.merge-shapes`, label: 'Merge Shapes', icon: 'shape-union' }]
       : [];
+  const textBox: RibbonCommand =
+    application === 'word'
+      ? { id: `word.${tab}.insert-shapes.draw-text-box`, label: 'Draw Text Box', icon: 'textbox' }
+      : { id: `${application}.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' };
   return [
     { id: `${application}.${tab}.insert-shapes.shapes`, label: 'Shapes', icon: 'shapes', size: 'large' },
     { id: `${application}.${tab}.insert-shapes.edit-shape`, label: 'Edit Shape', icon: 'bezier-curve-square' },
-    { id: `${application}.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' },
+    textBox,
     ...powerpointOnly,
   ];
 }
@@ -8300,6 +8312,153 @@ export function shapeStylesCommands(application: RibbonApplication, tab: string)
  */
 const powerpointShapeFormatAccessibility: readonly RibbonCommand[] = [
   { id: 'powerpoint.shape-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
+];
+
+// ## Word's Shape Format
+//
+// The unit after PowerPoint's Shape Format, one tab of one application: **Word's `TabDrawingToolsFormat`, in
+// `TabSetDrawingTools`**, all seven in-scope groups and twenty-five commands, and **the tenth contextual tab
+// authored**, Word's fourth and Word's first of Drawing Tools. Office shows it under the *Drawing Tools* band while a
+// shape, a text box or a WordArt in the document is selected: which shape it is, how it is filled, outlined and given
+// effects, how its text is dressed and laid inside it, how it is described, where it sits among the text and the other
+// objects, and its size.
+//
+// ## Office's groups, read onto the census's seven
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupShapes` (12) | Insert Shapes | Shapes; Edit Shape, Draw Text Box |
+// | `GroupShapeStyles` (37) | Shape Styles | the Theme Styles gallery; Shape Fill, Shape Outline, Shape Effects; the Format Shape launcher |
+// | `GroupWordArtStyles` (30) | WordArt Styles | Quick Styles, Text Fill, Text Outline, Text Effects; the Format Text Effects launcher |
+// | `GroupTextbox` (5) | Text | Text Direction, Align Text, Create Link |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrangeWith3DEditor` (65) | Arrange | Position, Wrap Text, Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupSize` (3) | Size | Height, Width; the Layout launcher |
+//
+// **Office's seven groups map one to one onto the census's seven, in the same order**, and every id, label and
+// priority is the contextual unit's, unchanged. `GroupTextbox` is the one group PowerPoint's and Excel's Shape Format
+// do not carry, and it is Office's *Text*, as the contextual unit's header item 2 already read it.
+// `GroupArrangeWith3DEditor` counts 65, as on Word's Layout and Picture Format, and holds the same eight.
+//
+// ## Written once, reused, and Word's own
+//
+// - **Reused as they stand**: `insertShapesCommands('word', 'shape-format')`, which gives Word no Merge Shapes;
+//   `shapeStylesCommands('word', 'shape-format')`; `wordArtStylesCommands('word', 'shape-format')` with its gallery
+//   and Text Effects lists; `arrangeCommands('word', 'shape-format')`, exactly Office's eight, Position and Wrap Text
+//   first; `sizeCommands('word', 'shape-format', 'drawing')`, Height and Width with no Crop. In
+//   `stories/ribbons/drawing-tools-menus.ts`: the whole shape gallery (with Word's New Drawing Canvas and no Action
+//   Buttons), Edit Shape and Change Shape, the forty-nine shape styles, Other Theme Fills, Shape Effects (Picture
+//   Effects' seven), `shapeFillEntryOptions('word')` and `shapeOutlineEntryOptions('word')` (no Eyedropper). In
+//   `stories/ribbons/design-layout-menus.ts`: Word's seven Arrange lists, as on Picture Format. `fillEntries` and
+//   `outlineEntries`. Alt Text is Picture Format's command under this tab's id.
+// - **Word's own, because Office's Word differs**: the text box command is **Draw Text Box**, a split button, where
+//   PowerPoint's is a plain Text Box (`insertShapesCommands` now branches on it, disagreement 2); the **Text** group,
+//   `wordShapeFormatText` below, with its two menus in `drawing-tools-menus.ts`; Text Fill's and Text Outline's entries
+//   (disagreement 7); the starting measures (`wordShapeMeasures`); and Size's launcher, *Layout*.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// PowerPoint's disagreements 1 (Shapes is a large dropdown over names), 2 (the Theme Styles gallery, its forty-nine
+// styles and Other Theme Fills), 3 (Insert's Shapes is no longer shallow), 5 (Edit Shape, Change Shape and Reroute
+// Connectors unavailable) and 8 (Shape Effects is Picture Effects' menu) hold here unchanged, and are not restated.
+//
+// 1. **No Merge Shapes.** The brief says so and `insertShapesCommands` already gave it to PowerPoint alone. `GUESS:`
+//    that Microsoft 365's Word still lacks it.
+// 2. **Draw Text Box is a split button**, small, whose face arms the horizontal text box and whose arrow opens *Draw
+//    Text Box* and *Draw Vertical Text Box*, where PowerPoint's Text Box is a plain button. It is not a toggle: arming a
+//    drawing gesture is not a state the ribbon keeps. Its id is `draw-text-box`, the label's, rather than PowerPoint's
+//    `text-box`. It draws `textbox`, Insert's Text Box. `GUESS:` the label, the split shape and both entries.
+// 3. **The Text group's three**, `GUESS:` each. **Text Direction** is a small dropdown over *Horizontal* (checked),
+//    *Rotate all text 90°*, *Rotate all text 270°* and *Text Direction Options…*: no *Stacked*, which is PowerPoint's
+//    alone, so it is not PowerPoint's Table Layout list. **Align Text** is a small dropdown over *Top* (checked),
+//    *Middle* and *Bottom*, the brief's three: an inserted text box anchors its text at the top. **Create Link** is a
+//    plain button, small. In Office it arms a gesture (the next text box clicked receives the overflow) and, on a text
+//    box already linked, **the same button reads Break Link**; the catalogue draws the unlinked state, because nothing
+//    here dispatches a link, and records *Break Link* here rather than drawing a second command Office never shows
+//    beside the first.
+// 4. **The counts.** **Accessibility (1) and Size (3, reading Height, Width and the launcher) are met.** **Insert Shapes
+//    counts 12 and draws 3**, and one reading reaches 12: the gallery's four parts, Edit Shape and its three entries,
+//    and Draw Text Box's face, arrow and two entries. **Text counts 5 and draws 3**; reading Create Link and Break Link
+//    as two controls makes 4, and nothing seen reaches 5. **Shape Styles counts 37 and draws 4 and a launcher**,
+//    **WordArt Styles 30 and draws 4 and a launcher**, and **Arrange 65 and draws 8**, as on Picture Format. `GUESS:`
+//    every reading. Nothing is padded.
+// 5. **Shape Fill starts on Accent 1 and Shape Outline on Accent 1, Darker 50%**, as in PowerPoint: Word 2013 and later
+//    give an inserted shape the same look. Shape Fill carries More Fill Colours…, Picture…, Gradient ▸ and Texture ▸;
+//    Shape Outline More Outline Colours…, Weight ▸, Sketched ▸, Dashes ▸ and Arrows ▸. **No Eyedropper**, which is
+//    PowerPoint's (the census's 37 against PowerPoint's 40 is indirect support). `GUESS:` both starts and every entry.
+// 6. **WordArt Styles' Text Fill starts on Background 1**, the white text of an inserted shape, and Text Outline on none,
+//    as in PowerPoint. `GUESS:` both.
+// 7. **Text Fill and Text Outline carry fewer entries than PowerPoint's**: Text Fill More Fill Colours… and Gradient ▸;
+//    Text Outline More Outline Colours…, Weight ▸ and Dashes ▸. Word fills text with no picture or texture and draws no
+//    sketched text line, and has no Eyedropper. `GUESS:` all of it.
+// 8. **Height and Width start on 2.54 cm**, a shape inserted with one click, one inch square, stepping by 0.01 cm, as
+//    PowerPoint's; they are Word's own constant because Word's units are its own. `GUESS:` both numbers and the step.
+// 9. **The launchers**: *Format Shape* on Shape Styles, *Format Text Effects* on WordArt Styles, and **Layout** on
+//    Size, which is Word's Picture Format's (Office opens the Layout dialog's Size tab), where PowerPoint's is *Size and
+//    Position*. No launcher on Insert Shapes, Text, Accessibility or Arrange. `GUESS:` all.
+// 10. **Arrange is Word's Picture Format's eight**: Position small with no glyph where Microsoft 365 draws it large,
+//    Wrap Text large, and Align ticking Word's *Align to Margin*. `GUESS:` as there.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Insert Shapes**: none. Shapes is a gallery and Edit Shape opens a menu (rule 1); Draw Text Box is a split button
+//   (rule 1) whose face arms a drawing gesture rather than doing one thing in one press.
+// - **Shape Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **WordArt Styles**: none. A gallery, two colour grids and a menu (rule 1).
+// - **Text**: none. Text Direction and Align Text open menus (rule 1), and Create Link arms a gesture on the next text
+//   box clicked, with no glyph a person reads as *link these boxes* without its label (rule 3).
+// - **Accessibility**: none. Alt Text opens a pane, and it is the group's only command.
+// - **Arrange**: none, for `arrangeCommands`' reason: six menus or split buttons (rule 1), and Selection Pane opens a
+//   pane.
+// - **Size**: none. Height and Width are fields.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Shapes large where the gallery stands, then Edit Shape and Draw Text Box
+// small in a column; the Theme Styles gallery in-ribbon, then Shape Fill, Shape Outline and Shape Effects small; the
+// Quick Styles gallery in-ribbon, then Text Fill, Text Outline and Text Effects small; Text Direction, Align Text and
+// Create Link small in a column; Alt Text large; Arrange as on Picture Format; Height and Width in a column. **Fifteen
+// of the twenty-five commands carry a glyph, every one reused and every one `GUESS:`**:
+//
+// - **Insert Shapes**: Shapes `shapes`, Edit Shape `bezier-curve-square` and Draw Text Box `textbox`, PowerPoint's
+//   Shape Format's own.
+// - **Shape Styles and WordArt Styles**: Shape Effects `square-shadow` and Text Effects `text-effects`, as there.
+// - **Text**: Text Direction `text-direction-rotate-90-right`, Word's Table Layout Text Direction; Align Text
+//   `align-center-vertical`, PowerPoint's Home Align Text, the same command; Create Link `link`, Insert's Link, a chain,
+//   which is what the command makes between two boxes. **Create Link's chain is the weakest glyph on the tab**: it says
+//   *hyperlink* first.
+// - **Accessibility**: Alt Text `image-alt-text`, a picture with a label on a shape's tab, as on PowerPoint's.
+// - **Arrange**: Wrap Text, Bring Forward, Send Backward, Align, Group and Rotate, `arrangeCommands`' own.
+//
+// **Ten carry none, and say why**: the Theme Styles and Quick Styles galleries are their pictures; Shape Fill, Shape
+// Outline, Text Fill and Text Outline are colour pickers, which draw a swatch; Height and Width are fields; **Position
+// and Selection Pane** for `arrangeCommands`' reason (Fluent draws no position preset and no selection pane).
+
+/**
+ * Word's `GroupTextbox` on Shape Format, labelled **Text**: Text Direction, Align Text and Create Link, small in a
+ * column. See Word's Shape Format's disagreements 3 and 4.
+ *
+ * **Text Direction and Align Text are dropdowns** a host binds over `stories/ribbons/drawing-tools-menus.ts`' lists;
+ * **Create Link is a plain button** (it reads *Break Link* on a linked text box in Office).
+ *
+ * **No survivor**: two menus and a gesture with no self-evident glyph.
+ */
+const wordShapeFormatText: readonly RibbonCommand[] = [
+  { id: 'word.shape-format.text.text-direction', label: 'Text Direction', icon: 'text-direction-rotate-90-right' },
+  { id: 'word.shape-format.text.align-text', label: 'Align Text', icon: 'align-center-vertical' },
+  { id: 'word.shape-format.text.create-link', label: 'Create Link', icon: 'link' },
+];
+
+/**
+ * Word's `GroupAltText` on Shape Format, labelled **Accessibility**: Alt Text, large, a generic toggle, unpressed, as
+ * Picture Format's and PowerPoint's Shape Format's, drawing the same glyph.
+ *
+ * **No survivor**: it opens a pane, and it is the group's only command.
+ */
+const wordShapeFormatAccessibility: readonly RibbonCommand[] = [
+  { id: 'word.shape-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
 ];
 
 // ── the contextual tab sets ──────────────────────────────────────────────────
@@ -8392,13 +8551,13 @@ export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetDrawingTools', tab: 'TabDrawingToolsFormat' },
         groups: [
-          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 12, inScope: true },
-          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 37, inScope: true },
-          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true },
-          { id: 'GroupTextbox', label: 'Text', priority: 'standard', controls: 5, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true },
-          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true },
+          { id: 'GroupShapes', label: 'Insert Shapes', priority: 'standard', controls: 12, inScope: true, commands: insertShapesCommands('word', 'shape-format') },
+          { id: 'GroupShapeStyles', label: 'Shape Styles', priority: 'primary', controls: 37, inScope: true, commands: shapeStylesCommands('word', 'shape-format') },
+          { id: 'GroupWordArtStyles', label: 'WordArt Styles', priority: 'standard', controls: 30, inScope: true, commands: wordArtStylesCommands('word', 'shape-format') },
+          { id: 'GroupTextbox', label: 'Text', priority: 'standard', controls: 5, inScope: true, commands: wordShapeFormatText },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: wordShapeFormatAccessibility },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 65, inScope: true, commands: arrangeCommands('word', 'shape-format') },
+          { id: 'GroupSize', label: 'Size', priority: 'standard', controls: 3, inScope: true, commands: sizeCommands('word', 'shape-format', 'drawing') },
         ],
       },
     ],

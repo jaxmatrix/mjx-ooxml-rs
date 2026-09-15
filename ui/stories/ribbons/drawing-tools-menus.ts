@@ -1,7 +1,12 @@
 /**
  * **The menus, gallery and starting measures the Shape Format tab opens**, written once for all three applications:
- * PowerPoint's Shape Format today, and Word's and Excel's when their units land. Insert's Shapes menu reads the same
+ * PowerPoint's and Word's Shape Format today, and Excel's when its unit lands. Insert's Shapes menu reads the same
  * shape gallery (`insertShapesEntries`), so the gallery Office repeats on two tabs is written once.
+ *
+ * **Word's differs from PowerPoint's only where Office's Word does**, and those pieces are written here beside the
+ * shared ones: `drawTextBoxEntries()`, Draw Text Box's arrow, where PowerPoint has a plain Text Box and Merge Shapes;
+ * the **Text** group's `wordTextDirectionEntries()` and `alignTextEntries()`; `wordShapeMeasures`; and Word's
+ * Position and Wrap Text menus, rendered from `design-layout-menus.ts`.
  *
  * The pattern is `stories/ribbons/picture-tools-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -27,7 +32,8 @@
  *   id is Shape Format's.
  * - **Arrange is not here either**: its commands are `arrangeCommands` and its lists are
  *   `stories/ribbons/design-layout-menus.ts`'. The menus are rendered here, under Shape Format's ids.
- * - **Size**: `powerpointShapeMeasures`, the height and width a PowerPoint host starts its two fields on.
+ * - **Size**: `powerpointShapeMeasures` and `wordShapeMeasures`, the height and width each host starts its two fields
+ *   on.
  *
  * `GUESS:` every label, order and preset below, from memory of Microsoft 365. Where a label differs from Office's
  * spelling the census's wins (*Coloured*, *Centre*).
@@ -55,8 +61,10 @@ import {
   alignEntries,
   bringForwardEntries,
   groupEntries,
+  positionEntries,
   rotateEntries,
   sendBackwardEntries,
+  wrapTextEntries,
 } from './design-layout-menus.ts';
 import { paletteSlotColour, spacingStep } from './palette-art.ts';
 import { cropShapes, pictureEffectsEntries } from './picture-tools-menus.ts';
@@ -205,6 +213,46 @@ export function editShapeEntries(application: RibbonApplication): TemplateResult
  */
 export function mergeShapesEntries(): TemplateResult[] {
   return [item('Union'), item('Combine'), item('Fragment'), item('Intersect'), item('Subtract')];
+}
+
+/**
+ * **Draw Text Box's arrow, Word's**: *Draw Text Box* and *Draw Vertical Text Box*, the two text boxes the Shapes
+ * gallery leads Basic Shapes with, under the names Word's split button gives them. Nothing is checked: each arms a
+ * drawing gesture. PowerPoint's Text Box is a plain button and has no such menu. `GUESS:` both labels.
+ */
+export function drawTextBoxEntries(): TemplateResult[] {
+  return [item('Draw Text Box'), item('Draw Vertical Text Box')];
+}
+
+// ── Text: Word's alone ───────────────────────────────────────────────────────
+
+/** One of a set, radio-checked. */
+function choice(label: string, checked = false): TemplateResult {
+  return html`<mjx-menu-item kind="radio" label=${label} ?checked=${checked}></mjx-menu-item>`;
+}
+
+/**
+ * **Text Direction's menu, Word's, for a text box or a shape's text**: *Horizontal* (checked, an inserted text box's
+ * direction), *Rotate all text 90°*, *Rotate all text 270°*, then *Text Direction Options…*. **No *Stacked***, which
+ * PowerPoint's list (`table-tools-menus.ts`' `powerpointTextDirectionEntries`) carries and Word's text boxes do not, so
+ * that list is not reused. `GUESS:` every label, that Stacked is absent, and the dialog entry's name.
+ */
+export function wordTextDirectionEntries(): TemplateResult[] {
+  return [
+    choice('Horizontal', true),
+    choice('Rotate all text 90°'),
+    choice('Rotate all text 270°'),
+    separator(),
+    item('Text Direction Options…'),
+  ];
+}
+
+/**
+ * **Align Text's menu**: *Top* (checked, where an inserted text box anchors its text), *Middle* and *Bottom*, one set.
+ * `GUESS:` that Top is where it starts, and that Word's menu holds these three and no options entry.
+ */
+export function alignTextEntries(): TemplateResult[] {
+  return [choice('Top', true), choice('Middle'), choice('Bottom')];
 }
 
 // ── Shape Styles: the menus and the picker entries ───────────────────────────
@@ -384,6 +432,13 @@ export function shapeStyleGalleryItems(palette: ThemeColorPalette): TemplateResu
  */
 export const powerpointShapeMeasures = { height: '2.54', width: '2.54', step: '0.01' } as const;
 
+/**
+ * **The height and width a Word host starts Size's two fields on**, in centimetres: a shape Word inserts with one click,
+ * one inch square, as PowerPoint's. Its own constant because Word's measures are Word's, as `wordPictureMeasures` is
+ * beside PowerPoint's. `GUESS:` both numbers and the 0.01 cm step.
+ */
+export const wordShapeMeasures = { height: '2.54', width: '2.54', step: '0.01' } as const;
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -411,15 +466,44 @@ function powerpointDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Shape Format tab opens, with ids for one host's page. **PowerPoint's is authored**;
- * Word's and Excel's render nothing until their units, exactly as `pictureToolsMenus` rendered nothing before theirs.
- * Their units add a branch here and call the lists above with their application.
+ * Word's fifteen menus. **Insert Shapes' three**: Shapes (the whole gallery, with New Drawing Canvas and no Action
+ * Buttons), Edit Shape, and **Draw Text Box's arrow**, where PowerPoint has Merge Shapes. **Shape Styles' two** and
+ * **WordArt Styles' one**, as PowerPoint's. **Text's two**: Text Direction and Align Text. **Arrange's seven**, over
+ * `stories/ribbons/design-layout-menus.ts`' Word lists, as Word's Picture Format: Position and Wrap Text, then the five
+ * PowerPoint's has. Every other Shape Format command is a field, a picker, a gallery, a toggle or a plain button.
+ */
+function wordDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'word.shape-format.insert-shapes.shapes', 'Shapes', ...insertShapesEntries('word'))}
+    ${commandMenu(host, 'word.shape-format.insert-shapes.edit-shape', 'Edit Shape', ...editShapeEntries('word'))}
+    ${commandMenu(host, 'word.shape-format.insert-shapes.draw-text-box', 'Draw Text Box', ...drawTextBoxEntries())}
+    ${commandMenu(host, 'word.shape-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
+    ${commandMenu(host, 'word.shape-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
+    ${commandMenu(host, 'word.shape-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}
+    ${commandMenu(host, 'word.shape-format.text.text-direction', 'Text Direction', ...wordTextDirectionEntries())}
+    ${commandMenu(host, 'word.shape-format.text.align-text', 'Align Text', ...alignTextEntries())}
+    ${commandMenu(host, 'word.shape-format.arrange.position', 'Position', ...positionEntries())}
+    ${commandMenu(host, 'word.shape-format.arrange.wrap-text', 'Wrap Text', ...wrapTextEntries())}
+    ${commandMenu(host, 'word.shape-format.arrange.bring-forward', 'Bring Forward', ...bringForwardEntries('word'))}
+    ${commandMenu(host, 'word.shape-format.arrange.send-backward', 'Send Backward', ...sendBackwardEntries('word'))}
+    ${commandMenu(host, 'word.shape-format.arrange.align', 'Align', ...alignEntries('word'))}
+    ${commandMenu(host, 'word.shape-format.arrange.group', 'Group', ...groupEntries())}
+    ${commandMenu(host, 'word.shape-format.arrange.rotate', 'Rotate', ...rotateEntries())}
+  `;
+}
+
+/**
+ * Every menu one application's Shape Format tab opens, with ids for one host's page. **PowerPoint's and Word's are
+ * authored**; Excel's renders nothing until its unit, exactly as `pictureToolsMenus` rendered nothing before it. That
+ * unit adds a branch here and calls the lists above with its application.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, by every host that draws Drawing Tools **and** binds its
- * commands: `Ribbons/PowerPoint` today. `Shell/PowerPoint` draws Picture Tools alone, so it renders none of these,
- * and `tests/ribbons.test.ts` requires PowerPoint's menus of `Ribbons/PowerPoint` alone.
+ * commands: `Ribbons/PowerPoint` and `Ribbons/Word`. `Shell/PowerPoint` draws Picture Tools and `Shell/Word` Table
+ * Tools, so neither renders these, and `tests/ribbons.test.ts` requires each application's menus of its `Ribbons/*`
+ * host alone.
  */
 export function drawingToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult {
   if (application === 'powerpoint') return powerpointDrawingToolsMenus(host);
+  if (application === 'word') return wordDrawingToolsMenus(host);
   return html``;
 }

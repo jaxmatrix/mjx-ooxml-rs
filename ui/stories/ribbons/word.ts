@@ -79,8 +79,16 @@
  * **Picture Format is authored**, the third: six groups and twenty-five commands, how a picture is corrected, framed,
  * described, placed, cropped and sized. Its menus, gallery and measures are in `stories/ribbons/picture-tools-menus.ts`,
  * written for PowerPoint's and Excel's Picture Format to reuse; its Arrange is `arrangeCommands` and its Size is
- * `sizeCommands`. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table Tools. **The other three are
- * placeholders**, each until its own unit.
+ * `sizeCommands`. **`Ribbons/Word` alone binds it**, because `Shell/Word` draws Table Tools.
+ *
+ * **Shape Format is authored**, the fourth and Word's first of Drawing Tools: seven groups and twenty-five commands,
+ * how a shape in the document is drawn and changed, styled, dressed as WordArt, how its text is laid inside it, how it
+ * is described, placed and sized. It calls PowerPoint's Shape Format code (`insertShapesCommands`,
+ * `shapeStylesCommands`, `wordArtStylesCommands`, `arrangeCommands`, `sizeCommands` and
+ * `stories/ribbons/drawing-tools-menus.ts`) and differs only where Office's Word does: no Merge Shapes, Draw Text Box a
+ * split button, the Text group, Position and Wrap Text, no Eyedropper and the Layout launcher. **`Ribbons/Word` alone
+ * binds it**, because `Shell/Word` draws Table Tools. **The other two, Chart Design and Format, are placeholders**, each
+ * until its own unit.
  *
  * ## The three view tabs
  *
@@ -636,17 +644,53 @@ export function wordPictureFormatTab(options: TabOptions = {}): TemplateResult {
 }
 
 /**
+ * Shape Format: Insert Shapes, Shape Styles, WordArt Styles, Text, Accessibility, Arrange, Size — Word's fourth
+ * contextual tab authored and the tenth of all, in **Office's** order, which is also the census's. It sits under the
+ * *Drawing Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a shape, a text box or a WordArt is selected.** `Ribbons/Word` draws
+ * every contextual set and binds it; **`Shell/Word` draws Table Tools alone**, so it binds none of this tab and renders
+ * none of its menus. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Twenty-two of the tab's twenty-five commands are bound by the host**: Shapes, Edit Shape, Shape Effects, Text
+ * Effects, Text Direction, Align Text, Position, Wrap Text, Align, Group and Rotate, dropdowns; Draw Text Box, Bring
+ * Forward and Send Backward, split buttons; the Theme Styles and Quick Styles galleries, the first with Other Theme
+ * Fills under it; Shape Fill, Shape Outline, Text Fill and Text Outline, colour pickers; Height and Width, measure
+ * fields. Every menu is in `stories/ribbons/drawing-tools-menus.ts`. Create Link is a plain button, and Alt Text and
+ * Selection Pane generic toggles.
+ *
+ * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, Layout on Size.
+ * **No survivor.**
+ */
+export function wordShapeFormatTab(options: TabOptions = {}): TemplateResult {
+  const shapeFormat = entry('shape-format');
+  const controls = options.controls ?? {};
+  return tab(
+    shapeFormat.id,
+    shapeFormat.label,
+    censusGroup(shapeFormat, 'GroupShapes', {}, controls),
+    censusGroup(shapeFormat, 'GroupShapeStyles', { launcher: 'Format Shape' }, controls),
+    censusGroup(shapeFormat, 'GroupWordArtStyles', { launcher: 'Format Text Effects' }, controls),
+    censusGroup(shapeFormat, 'GroupTextbox', {}, controls),
+    censusGroup(shapeFormat, 'GroupAltText', {}, controls),
+    censusGroup(shapeFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(shapeFormat, 'GroupSize', { launcher: 'Layout' }, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Table Design, Table Layout and Picture Format are authored; every other entry is `placeholderTab` today.** The four common sets
- * are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaces its one line here with a
- * `word<Tab>Tab` function, as Table Design's, Table Layout's and Picture Format's did.
+ * **Table Design, Table Layout, Picture Format and Shape Format are authored; every other entry is `placeholderTab`
+ * today.** The four common sets are declared in `dev/ribbons/census.ts` with their groups, and each tab's unit replaces
+ * its one line here with a `word<Tab>Tab` function, as Table Design's, Table Layout's, Picture Format's and Shape
+ * Format's did.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': wordTableDesignTab,
   'table-layout': wordTableLayoutTab,
   'picture-format': wordPictureFormatTab,
-  'shape-format': () => placeholderTab(entry('shape-format')),
+  'shape-format': wordShapeFormatTab,
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),
 };
