@@ -52,6 +52,7 @@ import {
   mailingsAnimationsDataMenus,
   startingAnimation,
 } from './mailings-animations-data-menus.ts';
+import { pictureStyleGalleryItems, pictureToolsMenus, powerpointPictureMeasures } from './picture-tools-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 import { powerpointPrintColourModes, powerpointPrintWhat, printPreviewMenus } from './print-preview-menus.ts';
 import { recordingMenus } from './recording-menus.ts';
@@ -83,10 +84,11 @@ import { wordArtStyleGalleryFooter, wordArtStyleGalleryItems } from './wordart-s
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **Six more stories are the contextual tabs.** **Table Design and Layout are authored**, PowerPoint's first two.
- * **The other four are placeholders** at the census's own priorities: Picture Format, Shape Format, Chart Design and
+ * **Six more stories are the contextual tabs.** **Table Design, Layout and Picture Format are authored**, PowerPoint's
+ * first three. **The other three are placeholders** at the census's own priorities: Shape Format, Chart Design and
  * Format. Every story draws all four contextual sets so each can be reached; `Shell/PowerPoint` draws Picture Tools
- * alone, which is why Table Design's and Layout's bindings and menus are written here and nowhere else.
+ * alone, which is why Table Design's and Layout's bindings and menus are written here and nowhere else, and why Picture
+ * Format's are written in both hosts.
  *
  * **All nineteen core, view and File tabs are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
  * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
@@ -109,8 +111,8 @@ const meta: Meta = {
         component:
           'PowerPoint’s eighteen core tabs, its File tab and its six contextual tabs, each shown selected inside the ' +
           'whole ribbon. All nineteen core, view and File tabs are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
-          'Greyscale. Of the contextual tabs of the four common sets, Table Design and Layout are authored; Picture ' +
-          'Format, Shape Format, Chart Design and Format are placeholders carrying the census’s own priorities.',
+          'Greyscale. Of the contextual tabs of the four common sets, Table Design, Layout and Picture Format are ' +
+          'authored; Shape Format, Chart Design and Format are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -1096,6 +1098,143 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-powerpoint-table-layout-arrange-align"
   ></mjx-button>`,
+  // Picture Format (a contextual tab, in Picture Tools). `Shell/PowerPoint` draws Picture Tools, so it binds the same
+  // eighteen commands under its own ids. Every menu, the gallery's styles and the two starting measures are
+  // `stories/ribbons/picture-tools-menus.ts`'s; Arrange's menus are Arrange's PowerPoint lists under this tab's ids.
+  // Remove Background, Compress Pictures, Alt Text, Selection Pane and Play Animation are the generic button or toggle
+  // and are not bound.
+  'powerpoint.picture-format.adjust.corrections': html`<mjx-button
+    label="Corrections"
+    icon="brightness-high"
+    size="large"
+    data-opens="ribbons-powerpoint-picture-format-adjust-corrections"
+  ></mjx-button>`,
+  'powerpoint.picture-format.adjust.colour': html`<mjx-button
+    label="Colour"
+    icon="color"
+    size="large"
+    data-opens="ribbons-powerpoint-picture-format-adjust-colour"
+  ></mjx-button>`,
+  'powerpoint.picture-format.adjust.artistic-effects': html`<mjx-button
+    label="Artistic Effects"
+    icon="photo-filter"
+    size="large"
+    data-opens="ribbons-powerpoint-picture-format-adjust-artistic-effects"
+  ></mjx-button>`,
+  'powerpoint.picture-format.adjust.transparency': html`<mjx-button
+    label="Transparency"
+    icon="transparency-square"
+    size="large"
+    data-opens="ribbons-powerpoint-picture-format-adjust-transparency"
+  ></mjx-button>`,
+  'powerpoint.picture-format.adjust.change-picture': html`<mjx-button
+    label="Change Picture"
+    icon="image-arrow-forward"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-adjust-change-picture"
+  ></mjx-button>`,
+  'powerpoint.picture-format.adjust.reset-picture': html`<mjx-split-button
+    label="Reset Picture"
+    icon="image-arrow-counterclockwise"
+    size="small"
+    menu-label="Reset Picture"
+    data-opens="ribbons-powerpoint-picture-format-adjust-reset-picture"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.picture-format.picture-styles.quick-styles': html`<mjx-gallery
+    id="ribbons-powerpoint-picture-format-quick-styles"
+    label="Quick Styles"
+    style=${ribbonGalleryStyle}
+  >
+    ${pictureStyleGalleryItems(documentThemePalette)}
+  </mjx-gallery>`,
+  'powerpoint.picture-format.picture-styles.picture-border': html`<mjx-color-picker
+    id="ribbons-powerpoint-picture-format-picture-border"
+    style=${ribbonColourFieldStyle}
+    label="Picture Border"
+    show-no-fill
+    no-fill-label="No Outline"
+    value="none"
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  >
+    ${colourPickerEntries(
+      'Picture Border',
+      outlineEntries({ moreColours: 'More Outline Colours…', eyedropper: true, weight: true, sketched: true, dashes: true }),
+    )}
+  </mjx-color-picker>`,
+  'powerpoint.picture-format.picture-styles.picture-effects': html`<mjx-button
+    label="Picture Effects"
+    icon="image-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-picture-styles-picture-effects"
+  ></mjx-button>`,
+  'powerpoint.picture-format.picture-styles.convert-to-smartart': html`<mjx-button
+    label="Convert to SmartArt"
+    icon="diagram"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-picture-styles-convert-to-smartart"
+  ></mjx-button>`,
+  'powerpoint.picture-format.arrange.bring-forward': html`<mjx-split-button
+    label="Bring Forward"
+    icon="position-forward"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-arrange-bring-forward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.picture-format.arrange.send-backward': html`<mjx-split-button
+    label="Send Backward"
+    icon="position-backward"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-arrange-send-backward"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.picture-format.arrange.align': html`<mjx-button
+    label="Align"
+    icon="align-left"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-arrange-align"
+  ></mjx-button>`,
+  'powerpoint.picture-format.arrange.group': html`<mjx-button
+    label="Group"
+    icon="group"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-arrange-group"
+  ></mjx-button>`,
+  'powerpoint.picture-format.arrange.rotate': html`<mjx-button
+    label="Rotate"
+    icon="rotate-right"
+    size="small"
+    data-opens="ribbons-powerpoint-picture-format-arrange-rotate"
+  ></mjx-button>`,
+  'powerpoint.picture-format.size.crop': html`<mjx-split-button
+    toggle
+    label="Crop"
+    icon="crop"
+    size="large"
+    menu-label="Crop"
+    data-opens="ribbons-powerpoint-picture-format-size-crop"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.picture-format.size.height': html`<mjx-measure-input
+    id="ribbons-powerpoint-picture-format-height"
+    label="Height"
+    value=${powerpointPictureMeasures.height}
+    unit="cm"
+    step=${powerpointPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
+  'powerpoint.picture-format.size.width': html`<mjx-measure-input
+    id="ribbons-powerpoint-picture-format-width"
+    label="Width"
+    value=${powerpointPictureMeasures.width}
+    unit="cm"
+    step=${powerpointPictureMeasures.step}
+    min="0"
+    style=${ribbonNarrowFieldStyle}
+  ></mjx-measure-input>`,
 };
 
 /**
@@ -1126,6 +1265,7 @@ function ribbon(selected: string): TemplateResult {
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
     ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
     ${masterViewMenus('powerpoint', 'ribbons')} ${tableToolsMenus('powerpoint', 'ribbons')}
+    ${pictureToolsMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -1740,8 +1880,45 @@ export const TableDesign: Story = { render: () => ribbon('table-design') };
 export const TableLayout: Story = { render: () => ribbon('table-layout') };
 
 /**
- * **Picture Format** — a placeholder. Six groups: Adjust, Picture Styles, Accessibility, Arrange, Size and Image
- * Play, with Adjust and Picture Styles primary.
+ * **Picture Format**: how a picture on a slide is corrected, framed, described, placed among the slide's objects,
+ * cropped and sized. Picture Tools' one tab, and PowerPoint's third contextual tab authored; Office shows it only while
+ * a picture is selected. Six groups: Adjust, Picture Styles, Accessibility, Arrange, Size and Image Play. **It is Word's
+ * tab through Word's functions**, so see `Ribbons/Word → Picture Format` for every list; what to look at here is where
+ * PowerPoint's differs, and what is still least certain, least certain first:
+ *
+ * 1. ⚠ **Convert to SmartArt, where Word says Picture Layout.** Same place (third in Picture Styles' small column),
+ *    same glyph as Home's Convert to SmartArt, same thirty-one picture layouts. `GUESS:` that Microsoft 365's PowerPoint
+ *    labels the button this way.
+ * 2. ⚠ **Image Play is the census's, not the brief's.** Play Animation, a large toggle, starts pressed. `GUESS:` all of
+ *    it, as on Word's.
+ * 3. ⚠ **Arrange has six commands, not Word's eight**: no Position and no Wrap Text, because a slide has no text for a
+ *    picture to sit in. Bring Forward's and Send Backward's arrows list Bring Forward and Bring to Front, and Send
+ *    Backward and Send to Back, **without Word's text layers**. Align opens the six alignments and two distributions,
+ *    then **Align to Slide ticked** and Align Selected Objects. Group opens Group, Regroup and Ungroup; Rotate its four
+ *    turns and flips and More Rotation Options…. All six are small; Selection Pane is a toggle with no glyph.
+ * 4. ⚠ **Picture Border has an Eyedropper**: open it, and beneath the palette read More Outline Colours…, Eyedropper,
+ *    Weight ▸, Sketched ▸ and Dashes ▸. *No Outline* is the chip, starting on none. Word's has no Eyedropper.
+ * 5. ⚠ **Height and Width start on 19.05 cm and 25.4 cm**, a 4:3 photograph scaled to the height of a 16:9 slide,
+ *    stepping by 0.01. `GUESS:` both numbers. They do not follow each other, because nothing dispatches.
+ * 6. **Two launchers**: *Format Picture* at Picture Styles' corner, and **Size and Position** at Size's, where Word's
+ *    says Layout. `GUESS:` both labels.
+ * 7. **Adjust is Word's**: Remove Background, Corrections, Colour, Artistic Effects and Transparency large; Compress
+ *    Pictures, Change Picture and Reset Picture small. Press Corrections, Colour, Artistic Effects and Transparency:
+ *    each is Word's whole list with the unchanged state checked. Remove Background is a plain button, and in Office
+ *    opens the Background Removal tab, which is authored (`BackgroundRemoval`).
+ * 8. **The Quick Styles gallery is Word's twenty-eight**, drawn in this deck's palette. Nothing is selected. `GUESS:`
+ *    every look.
+ * 9. **Crop is a split toggle.** Press its face: it fills; again, it releases. Its arrow opens Crop, Crop to Shape (147
+ *    shapes), Aspect Ratio and Fill and Fit.
+ * 10. **Picture Effects** opens Preset, Shadow, Reflection, Glow, Soft Edges, Bevel and 3-D Rotation.
+ * 11. **Alt Text is a large toggle**, unpressed. No pane opens, nor does Selection Pane's, Compress Pictures' dialog or
+ *     either launcher's.
+ * 12. **Glyphs**: every one is Word's Picture Format's or Arrange's, reused; **Remove Background's is still the
+ *     weakest**. The gallery, Picture Border, Height, Width and Selection Pane carry none.
+ * 13. **No survivor anywhere.** Drag narrow: Image Play (`ancillary`) gives way first, Accessibility (`secondary`) next,
+ *     then Arrange and Size, and Adjust and Picture Styles last; each collapses to a trigger with nothing beside it.
+ * 14. **Also in `Shell/PowerPoint`**, which draws Picture Tools: select Picture Format under the *Picture Tools* band
+ *     there, and every list, field, gallery and picker above is the same, under the shell's own ids.
  */
 export const PictureFormat: Story = { render: () => ribbon('picture-format') };
 

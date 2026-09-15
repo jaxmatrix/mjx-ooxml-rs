@@ -43,6 +43,12 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
+import { colourPickerEntries, outlineEntries } from '../ribbons/colour-picker-entries.ts';
+import {
+  pictureStyleGalleryItems,
+  pictureToolsMenus,
+  powerpointPictureMeasures,
+} from '../ribbons/picture-tools-menus.ts';
 import {
   backgroundStyleEntries,
   designLayoutMenus,
@@ -196,7 +202,9 @@ const shapeCommands: readonly MiniCommand[] = [
  * `tests/ribbons.test.ts` refuses a shell that opens a view tab's menu. **Table Design's and Table Layout's bindings
  * and menus are in `Ribbons/PowerPoint` and not here for the same reason**: this deck's selection is a picture, so this strip draws
  * Picture Tools alone and never Table Tools, and the same test refuses a shell that opens a menu of a contextual set
- * it never draws. The contextual set stays here as a call rather than as markup, for the reason it
+ * it never draws. **Picture Format's bindings and menus are here**, for the same reason turned round: this strip does
+ * draw Picture Tools, so its Picture Format is the authored tab and binds exactly what `Ribbons/PowerPoint` binds, under
+ * this page's ids. The contextual set stays here as a call rather than as markup, for the reason it
  * always had: a coloured band naming a set of tabs is the most obviously *compositional* thing in
  * a ribbon, and whether it belongs to this chrome is not a question a component's own story can put.
  */
@@ -708,7 +716,148 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${powerpointContextualSets({ sets: ['picture-tools'] })}
+        ${powerpointContextualSets({
+          sets: ['picture-tools'],
+          controls: {
+            // Picture Format (a contextual tab). This deck's selection is a picture, so the shell draws Picture Tools
+            // and binds the same eighteen commands `Ribbons/PowerPoint` binds, under its own ids. Every menu, the
+            // gallery's styles and the two starting measures are `stories/ribbons/picture-tools-menus.ts`'s; the
+            // gallery's pictures and Picture Border read this deck's palette. Remove Background, Compress Pictures, Alt
+            // Text, Selection Pane and Play Animation are the generic button or toggle.
+            'powerpoint.picture-format.adjust.corrections': html`<mjx-button
+              label="Corrections"
+              icon="brightness-high"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-corrections"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.colour': html`<mjx-button
+              label="Colour"
+              icon="color"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-colour"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.artistic-effects': html`<mjx-button
+              label="Artistic Effects"
+              icon="photo-filter"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-artistic-effects"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.transparency': html`<mjx-button
+              label="Transparency"
+              icon="transparency-square"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-transparency"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.change-picture': html`<mjx-button
+              label="Change Picture"
+              icon="image-arrow-forward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-adjust-change-picture"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.reset-picture': html`<mjx-split-button
+              label="Reset Picture"
+              icon="image-arrow-counterclockwise"
+              size="small"
+              menu-label="Reset Picture"
+              data-opens="shell-powerpoint-picture-format-adjust-reset-picture"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.picture-styles.quick-styles': html`<mjx-gallery
+              id="ppt-picture-format-quick-styles"
+              label="Quick Styles"
+              style=${ribbonGalleryStyle}
+            >
+              ${pictureStyleGalleryItems(documentThemePalette)}
+            </mjx-gallery>`,
+            'powerpoint.picture-format.picture-styles.picture-border': html`<mjx-color-picker
+              id="ppt-picture-format-picture-border"
+              style=${ribbonColourFieldStyle}
+              label="Picture Border"
+              show-no-fill
+              no-fill-label="No Outline"
+              value="none"
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            >
+              ${colourPickerEntries(
+                'Picture Border',
+                outlineEntries({ moreColours: 'More Outline Colours…', eyedropper: true, weight: true, sketched: true, dashes: true }),
+              )}
+            </mjx-color-picker>`,
+            'powerpoint.picture-format.picture-styles.picture-effects': html`<mjx-button
+              label="Picture Effects"
+              icon="image-shadow"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-picture-styles-picture-effects"
+            ></mjx-button>`,
+            'powerpoint.picture-format.picture-styles.convert-to-smartart': html`<mjx-button
+              label="Convert to SmartArt"
+              icon="diagram"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-picture-styles-convert-to-smartart"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-align"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-group"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-rotate"
+            ></mjx-button>`,
+            'powerpoint.picture-format.size.crop': html`<mjx-split-button
+              toggle
+              label="Crop"
+              icon="crop"
+              size="large"
+              menu-label="Crop"
+              data-opens="shell-powerpoint-picture-format-size-crop"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.size.height': html`<mjx-measure-input
+              id="ppt-picture-format-height"
+              label="Height"
+              value=${powerpointPictureMeasures.height}
+              unit="cm"
+              step=${powerpointPictureMeasures.step}
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'powerpoint.picture-format.size.width': html`<mjx-measure-input
+              id="ppt-picture-format-width"
+              label="Width"
+              value=${powerpointPictureMeasures.width}
+              unit="cm"
+              step=${powerpointPictureMeasures.step}
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -958,7 +1107,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
       ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
       ${viewMenus('powerpoint', 'shell')} ${slideShowMenus('powerpoint', 'shell')}
-      ${recordingMenus('powerpoint', 'shell')}
+      ${recordingMenus('powerpoint', 'shell')} ${pictureToolsMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

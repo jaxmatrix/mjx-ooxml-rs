@@ -1,7 +1,8 @@
 /**
  * **The entries beneath a colour picker's palette**, written once for every colour command the ribbon binds: Word's
  * Table Design Shading and Pen Colour, PowerPoint's Table Design Shading, Text Fill, Text Outline and Pen Colour, Word's
- * Picture Format Picture Border, and Shape Format's Shape Fill and Shape Outline when their units land.
+ * and PowerPoint's Picture Format Picture Border (PowerPoint's with an Eyedropper), and Shape Format's Shape Fill and
+ * Shape Outline when their units land.
  *
  * `<mjx-color-picker>` draws one slotted `<mjx-menu slot="entries">` beneath its swatches; its module note says why it
  * is a real menu and how the keyboard crosses into it. A binding writes the menu inside its picker:

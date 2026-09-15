@@ -132,8 +132,12 @@
  * followed, the sixth, calling `arrangeCommands` for a picture and writing Size once as `sizeCommands`, a function of
  * the application, the tab and the object, for Shape Format and Chart Format to call; its menus and gallery are in
  * `stories/ribbons/picture-tools-menus.ts`, for PowerPoint's and Excel's Picture Format; see the *commands Picture
- * Format shows* section. `commands` stays optional rather than required, because an empty array would claim a tab had
- * been authored and found to hold nothing.
+ * Format shows* section. **PowerPoint's Picture Format** followed, the seventh and PowerPoint's third, calling
+ * `arrangeCommands`, `sizeCommands` and every list in that file, and differing from Word's only where Office does:
+ * no Position or Wrap Text, an Eyedropper under Picture Border, Convert to SmartArt for Picture Layout, a slide's
+ * starting measures and the Size and Position launcher; see that section's *PowerPoint's Picture Format* part.
+ * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
+ * to hold nothing.
  *
  * ## The contextual tab sets
  *
@@ -180,8 +184,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Six contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout, Excel's Table Design,
- * and Word's Picture Format.** Each
+ * **Seven contextual tabs carry commands: Word's and PowerPoint's Table Design, Table Layout and Picture Format, and
+ * Excel's Table Design.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -7809,6 +7813,152 @@ const wordPictureFormatImagePlay: readonly RibbonCommand[] = [
   { id: 'word.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
 ];
 
+// ## PowerPoint's Picture Format
+//
+// The unit after Word's Picture Format, one tab of one application: **PowerPoint's `TabPictureToolsFormat`, in
+// `TabSetPictureTools`**, all six in-scope groups and twenty-three commands, and **the seventh contextual tab
+// authored**, PowerPoint's third. Office shows it under the *Picture Tools* band while a picture on a slide is
+// selected. It is Word's tab with a picture on a canvas rather than in a run of text: no Position or Wrap Text, an
+// Eyedropper under Picture Border, and Picture Layout named *Convert to SmartArt*.
+//
+// ## Office's groups, read onto the census's six
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupPictureTools` (31) | Adjust | Remove Background, Corrections, Colour, Artistic Effects, Transparency; Compress Pictures, Change Picture, Reset Picture |
+// | `GroupPictureStyles` (30) | Picture Styles | the Quick Styles gallery; Picture Border, Picture Effects, Convert to SmartArt; the Format Picture launcher |
+// | `GroupAltText` (1) | Accessibility | Alt Text |
+// | `GroupArrangeWith3DEditor` (24) | Arrange | Bring Forward, Send Backward, Selection Pane, Align, Group, Rotate |
+// | `GroupPictureSize` (20) | Size | Crop; Height, Width; the Size and Position launcher |
+// | `GroupImagePlay` (1) | Image Play | Play Animation |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and the reading is Word's: the same six
+// groups in the same order, `GroupPictureTools` as Adjust and `GroupArrangeWith3DEditor` as Arrange.
+//
+// ## Reused, and what is PowerPoint's own
+//
+// **Reused as they stand**: `sizeCommands('powerpoint', 'picture-format', 'picture')`;
+// `arrangeCommands('powerpoint', 'picture-format')`, which for a PowerPoint drawing already gives exactly Office's six
+// (no Position or Wrap Text, the layer commands small); and every list, the gallery and the thumbnail builder in
+// `stories/ribbons/picture-tools-menus.ts`, whose PowerPoint branch this unit fills. Arrange's menus are
+// `design-layout-menus.ts`' lists for PowerPoint (Bring Forward and Send Backward without Word's text layers, Align to
+// Slide or to the selected objects); Picture Border's entries are `outlineEntries`; Picture Effects' five text lists are
+// `wordart-styles-menus.ts`'. **The commands are declared here rather than called from Word's**, because a command's
+// id carries its application and Word's lists are literals; the shapes, sizes and glyphs are Word's.
+//
+// **PowerPoint's own, each because Office's entries genuinely differ:**
+//
+// - **Convert to SmartArt**, `powerpoint.picture-format.picture-styles.convert-to-smartart`, where Word says Picture
+//   Layout. The list it opens is the same thirty-one picture layouts (`pictureLayoutEntries`), and its glyph is Home's
+//   Convert to SmartArt's own, `diagram`.
+// - **Picture Border carries an Eyedropper**, between More Outline Colours… and Weight ▸, as PowerPoint's Text Outline
+//   and Pen Colour already do. Word's carries none.
+// - **No Position or Wrap Text**: a slide has no text for a picture to sit in or wrap around.
+// - **Height and Width start on 19.05 cm and 25.4 cm** (`powerpointPictureMeasures`): a 4:3 photograph PowerPoint has
+//   scaled to the height of a 16:9 slide. Word's starts on a picture scaled to a column.
+// - **Size's launcher is *Size and Position***, which opens the Format Picture pane at that section; Word's opens the
+//   Layout dialog.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Six groups, not five.** The brief lists Adjust, Picture Styles, Accessibility, Arrange and Size; the census also
+//    carries `GroupImagePlay` in scope, and the census wins. **Image Play draws Word's Play Animation**, a large
+//    toggle, pressed. `GUESS:` the command, its label, glyph, size and start, as on Word's.
+// 2. **The counts.** **Accessibility (1) and Image Play (1) are met. Size counts 20**, and Word's reading makes 20
+//    again. **Picture Styles counts 30**, two more than Word's 28, which Word's reading took for the gallery alone; the
+//    two may be PowerPoint's Eyedropper and one more entry, but no reading is certain. **Adjust counts 31 and draws
+//    8**, two more than Word's 29, and no reading reaches it. **Arrange counts 24 and draws 6**; the lists behind the
+//    six hold 22 entries (Bring Forward 2, Send Backward 2, Align 10, Group 3, Rotate 5), and no principled reading
+//    makes 24. `GUESS:` every reading. Nothing is padded.
+// 3. **Convert to SmartArt is the brief's name**, where Word's tab says Picture Layout. `GUESS:` that Microsoft 365's
+//    PowerPoint labels this button Convert to SmartArt rather than Picture Layout; the list is the same either way.
+// 4. **Everything Word's disagreements 3 to 11 record holds here unchanged**: the four galleries and Convert to
+//    SmartArt as menus of names, the census's spelling (*Colour*, *Recolour*, *Greyscale*, *Centre*), the stand-in
+//    photograph in Quick Styles, Picture Effects' seven submenus, Crop as a split toggle, Remove Background opening a
+//    view tab in Office (PowerPoint's Background Removal is authored), dialogs and panes opening nothing, and Change
+//    Picture's and Reset Picture's lists. `GUESS:` that each of PowerPoint's lists is Word's.
+// 5. **Height and Width start on 19.05 cm and 25.4 cm**, stepping by 0.01 cm. `GUESS:` both numbers and the step.
+// 6. **The launchers**: *Format Picture* on Picture Styles and *Size and Position* on Size. `GUESS:` both labels. No
+//    launcher on Adjust, Accessibility, Arrange or Image Play.
+// 7. **Align ticks Align to Slide**, PowerPoint's own tick with one object selected. `GUESS:`, as on Table Layout.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Adjust**: none. Four galleries, a menu and a split button (rule 1); Remove Background opens a view tab and
+//   Compress Pictures a dialog that discards cropped pixels for good.
+// - **Picture Styles**: none. A gallery, a colour grid and two menus (rule 1).
+// - **Accessibility**: none. Alt Text opens a pane, and it is the group's only command.
+// - **Arrange**: none. Two split buttons and three menus (rule 1); Selection Pane opens a pane.
+// - **Size**: none. Crop is a split button (rule 1), and Height and Width are fields.
+// - **Image Play**: none. Play Animation is its group's only command, so a survivor would leave the popup empty.
+//
+// ## Sizes, and every glyph
+//
+// **Word's sizes**, less Position and Wrap Text: Adjust's five large and three small; the gallery in-ribbon, then
+// Picture Border, Picture Effects and Convert to SmartArt small in a column; Alt Text large; Arrange's six small; Crop
+// large, then Height and Width; Play Animation large. **Eighteen of the twenty-three commands carry a glyph** (Adjust
+// 8, Picture Styles 2, Accessibility 1, Arrange 5, Size 1, Image Play 1), every one reused from Word's Picture Format,
+// Home's Convert to SmartArt or `arrangeCommands`, and all `GUESS:`; no icon is new.
+//
+// **Five carry none, and say why**: the Quick Styles gallery is its pictures; Picture Border is a colour picker, which
+// draws a swatch; Height and Width are fields; Selection Pane for `arrangeCommands`' reason (Fluent draws no selection
+// pane).
+
+/**
+ * PowerPoint's `GroupPictureTools` on Picture Format, labelled **Adjust**: Word's eight, in Word's shapes, sizes and
+ * glyphs. See disagreements 2 and 4.
+ *
+ * **No survivor**: four galleries, a menu, a split button, a view tab and a dialog.
+ */
+const powerpointPictureFormatAdjust: readonly RibbonCommand[] = [
+  { id: 'powerpoint.picture-format.adjust.remove-background', label: 'Remove Background', icon: 'video-background-effect', size: 'large' },
+  { id: 'powerpoint.picture-format.adjust.corrections', label: 'Corrections', icon: 'brightness-high', size: 'large' },
+  { id: 'powerpoint.picture-format.adjust.colour', label: 'Colour', icon: 'color', size: 'large' },
+  { id: 'powerpoint.picture-format.adjust.artistic-effects', label: 'Artistic Effects', icon: 'photo-filter', size: 'large' },
+  { id: 'powerpoint.picture-format.adjust.transparency', label: 'Transparency', icon: 'transparency-square', size: 'large' },
+  { id: 'powerpoint.picture-format.adjust.compress-pictures', label: 'Compress Pictures', icon: 'arrow-minimize' },
+  { id: 'powerpoint.picture-format.adjust.change-picture', label: 'Change Picture', icon: 'image-arrow-forward' },
+  { id: 'powerpoint.picture-format.adjust.reset-picture', label: 'Reset Picture', icon: 'image-arrow-counterclockwise' },
+];
+
+/**
+ * PowerPoint's `GroupPictureStyles`, labelled **Picture Styles**: the Quick Styles gallery in-ribbon, then Picture
+ * Border, Picture Effects and **Convert to SmartArt** small in a column, and the Format Picture launcher the tab module
+ * passes. See disagreements 2, 3 and 4.
+ *
+ * **Picture Border** is a colour picker with an Eyedropper beneath it, which Word's lacks. **Convert to SmartArt** is
+ * Word's Picture Layout under PowerPoint's name, drawing Home's Convert to SmartArt glyph.
+ *
+ * **No survivor**: a gallery, a colour grid and two menus.
+ */
+const powerpointPictureFormatPictureStyles: readonly RibbonCommand[] = [
+  { id: 'powerpoint.picture-format.picture-styles.quick-styles', label: 'Quick Styles' },
+  { id: 'powerpoint.picture-format.picture-styles.picture-border', label: 'Picture Border' },
+  { id: 'powerpoint.picture-format.picture-styles.picture-effects', label: 'Picture Effects', icon: 'image-shadow' },
+  { id: 'powerpoint.picture-format.picture-styles.convert-to-smartart', label: 'Convert to SmartArt', icon: 'diagram' },
+];
+
+/**
+ * PowerPoint's `GroupAltText`, labelled **Accessibility**: Alt Text, large, a generic toggle, unpressed, as Word's.
+ *
+ * **No survivor**: it opens a pane, and it is the group's only command.
+ */
+const powerpointPictureFormatAccessibility: readonly RibbonCommand[] = [
+  { id: 'powerpoint.picture-format.accessibility.alt-text', label: 'Alt Text', icon: 'image-alt-text', size: 'large', toggle: true },
+];
+
+/**
+ * PowerPoint's `GroupImagePlay`, labelled **Image Play**: Play Animation, large, a generic toggle, pressed, as Word's.
+ * See disagreement 1. `GUESS:` all of it.
+ *
+ * **No survivor**: the group's only command.
+ */
+const powerpointPictureFormatImagePlay: readonly RibbonCommand[] = [
+  { id: 'powerpoint.picture-format.image-play.play-animation', label: 'Play Animation', icon: 'play', size: 'large', toggle: true, pressed: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -7995,12 +8145,12 @@ export const powerpointRibbonContextualSets: readonly RibbonContextualSetEntry[]
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetPictureTools', tab: 'TabPictureToolsFormat' },
         groups: [
-          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 31, inScope: true },
-          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 30, inScope: true },
-          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true },
-          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true },
-          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true },
-          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true },
+          { id: 'GroupPictureTools', label: 'Adjust', priority: 'primary', controls: 31, inScope: true, commands: powerpointPictureFormatAdjust },
+          { id: 'GroupPictureStyles', label: 'Picture Styles', priority: 'primary', controls: 30, inScope: true, commands: powerpointPictureFormatPictureStyles },
+          { id: 'GroupAltText', label: 'Accessibility', priority: 'secondary', controls: 1, inScope: true, commands: powerpointPictureFormatAccessibility },
+          { id: 'GroupArrangeWith3DEditor', label: 'Arrange', priority: 'standard', controls: 24, inScope: true, commands: arrangeCommands('powerpoint', 'picture-format') },
+          { id: 'GroupPictureSize', label: 'Size', priority: 'standard', controls: 20, inScope: true, commands: sizeCommands('powerpoint', 'picture-format', 'picture') },
+          { id: 'GroupImagePlay', label: 'Image Play', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointPictureFormatImagePlay },
         ],
       },
     ],

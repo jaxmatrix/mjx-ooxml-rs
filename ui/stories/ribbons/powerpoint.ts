@@ -92,8 +92,15 @@
  * **Table Layout is authored**, the second: seven groups and twenty-eight commands, the table's rows, columns and
  * cells, their sizes and alignment, the table's size and its place among the slide's objects. Its Select and Delete
  * menus are Word's shared lists, its Text Direction and Cell Margins menus are in the same file, and its Arrange group
- * is the census's `arrangeCommands` for a table. `Ribbons/PowerPoint` alone binds it. **The other four are
- * placeholders**, each until its own unit.
+ * is the census's `arrangeCommands` for a table. `Ribbons/PowerPoint` alone binds it.
+ *
+ * **Picture Format is authored**, the third: six groups and twenty-three commands, how a picture on a slide is
+ * corrected, framed, described, placed, cropped and sized. It is Word's tab through Word's functions: every menu, the
+ * gallery and the thumbnails in `stories/ribbons/picture-tools-menus.ts`, Arrange from `arrangeCommands` and Size from
+ * `sizeCommands`. It differs where Office does: no Position or Wrap Text, an Eyedropper under Picture Border, Convert to
+ * SmartArt for Picture Layout, a slide's starting measures and Size's *Size and Position* launcher. **Both PowerPoint
+ * hosts bind it**, because `Shell/PowerPoint` draws Picture Tools. **The other three are placeholders**, each until its
+ * own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -783,13 +790,47 @@ export function powerpointTableLayoutTab(options: TabOptions = {}): TemplateResu
 }
 
 /**
- * Which function builds which contextual tab. **Table Design and Table Layout are authored; every other entry is
- * `placeholderTab` today** — see Word's.
+ * Picture Format: Adjust, Picture Styles, Accessibility, Arrange, Size, Image Play — PowerPoint's third contextual tab
+ * authored and the seventh of all, in **Office's** order, which is also the census's. It sits under the *Picture Tools*
+ * band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while a picture on a slide is selected.** `Ribbons/PowerPoint` draws every
+ * contextual set and binds it, and **`Shell/PowerPoint` draws Picture Tools alone and binds it too**, because its deck's
+ * selection is a picture: it is PowerPoint's first contextual tab the shell shows authored. `dev/ribbons/census.ts`
+ * records every disagreement.
+ *
+ * **Eighteen of the tab's twenty-three commands are bound by a host**: Corrections, Colour, Artistic Effects,
+ * Transparency, Change Picture, Picture Effects, Convert to SmartArt, Align, Group and Rotate, dropdowns; Reset
+ * Picture, Bring Forward and Send Backward, split buttons, and Crop, a split toggle; the Quick Styles gallery; Picture
+ * Border, a colour picker with an Eyedropper beneath it; Height and Width, measure fields. Every menu is in
+ * `stories/ribbons/picture-tools-menus.ts`. Remove Background and Compress Pictures are plain buttons, and Alt Text,
+ * Selection Pane and Play Animation generic toggles.
+ *
+ * **Two dialog launchers**: Format Picture on Picture Styles, Size and Position on Size. **No survivor.**
+ */
+export function powerpointPictureFormatTab(options: TabOptions = {}): TemplateResult {
+  const pictureFormat = entry('picture-format');
+  const controls = options.controls ?? {};
+  return tab(
+    pictureFormat.id,
+    pictureFormat.label,
+    censusGroup(pictureFormat, 'GroupPictureTools', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureStyles', { launcher: 'Format Picture' }, controls),
+    censusGroup(pictureFormat, 'GroupAltText', {}, controls),
+    censusGroup(pictureFormat, 'GroupArrangeWith3DEditor', {}, controls),
+    censusGroup(pictureFormat, 'GroupPictureSize', { launcher: 'Size and Position' }, controls),
+    censusGroup(pictureFormat, 'GroupImagePlay', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design, Table Layout and Picture Format are authored; every other
+ * entry is `placeholderTab` today** — see Word's.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
   'table-design': powerpointTableDesignTab,
   'table-layout': powerpointTableLayoutTab,
-  'picture-format': () => placeholderTab(entry('picture-format')),
+  'picture-format': powerpointPictureFormatTab,
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),
   'chart-format': () => placeholderTab(entry('chart-format')),

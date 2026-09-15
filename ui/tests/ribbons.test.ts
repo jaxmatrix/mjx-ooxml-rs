@@ -932,14 +932,17 @@ describe('a split button whose face is a state draws pressed, in every host', ()
       .flatMap((file) => boundControlsIn(file.source))
       .filter((bound) => bound.tag === 'mjx-split-button' && /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes));
     // Word's Eraser, Track Changes, Show Comments and Hide Ink, PowerPoint's Eraser, Show Comments and Hide
-    // Ink, and Excel's Hide Ink, each in two hosts; and Word's Picture Format Crop, in `Ribbons/Word` alone, because
-    // `Shell/Word` draws Table Tools.
+    // Ink, and Excel's Hide Ink, each in two hosts; Word's Picture Format Crop, in `Ribbons/Word` alone, because
+    // `Shell/Word` draws Table Tools; and PowerPoint's Picture Format Crop, in both hosts, because `Shell/PowerPoint`
+    // draws Picture Tools.
     expect(toggling.map((bound) => bound.key).sort()).toEqual(
       [
         'excel.review.ink.hide-ink',
         'excel.review.ink.hide-ink',
         'powerpoint.draw.write.eraser',
         'powerpoint.draw.write.eraser',
+        'powerpoint.picture-format.size.crop',
+        'powerpoint.picture-format.size.crop',
         'powerpoint.review.comments.show-comments',
         'powerpoint.review.comments.show-comments',
         'powerpoint.review.ink.hide-ink',
