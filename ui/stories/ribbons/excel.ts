@@ -33,6 +33,9 @@
  * 9. **View** followed Word's and PowerPoint's View, one tab of one application: seven groups and
  *    twenty-eight commands, the tab that changes how a workbook is looked at and never the workbook. Workbook
  *    Views is its one exclusive set, Freeze Panes and Switch Windows its two menus.
+ * 10. **Background Removal** followed Word's and PowerPoint's, Excel's first view tab authored: Word's two groups
+ *     and four commands under Excel's ids, from the census's shared functions. It binds nothing and opens no
+ *     menu.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -355,14 +358,35 @@ export function excelViewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
+/**
+ * Background Removal: Refine, Close — the first Excel view tab authored, in **Office's** order, which is also
+ * the census's.
+ *
+ * **Word's tab with Excel's ids**: the census row calls `backgroundRemovalRefineCommands('excel')` and
+ * `backgroundRemovalCloseCommands('excel')`, so the shape and every disagreement are `wordBackgroundRemovalTab`'s,
+ * recorded once in `dev/ribbons/census.ts`. Excel adds none.
+ *
+ * ⚠ **A view tab: Office shows it only while a picture's background is being removed**, so `excelTabs()`
+ * leaves it out unless `includeViewTabs` is asked for.
+ *
+ * **Nothing is bound by the host**: two generic toggles in one exclusive set that may hold none, and two generic
+ * buttons. **No menus, no dialog launchers, no survivors.**
+ */
+export function excelBackgroundRemovalTab(options: TabOptions = {}): TemplateResult {
+  const backgroundRemoval = entry('background-removal');
+  const controls = options.controls ?? {};
+  return tab(
+    backgroundRemoval.id,
+    backgroundRemoval.label,
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalMode', {}, controls),
+    censusGroup(backgroundRemoval, 'GroupBackgroundRemovalClose', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelPrintPreviewTab(): TemplateResult {
   return placeholderTab(entry('print-preview'));
-}
-
-export function excelBackgroundRemovalTab(): TemplateResult {
-  return placeholderTab(entry('background-removal'));
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

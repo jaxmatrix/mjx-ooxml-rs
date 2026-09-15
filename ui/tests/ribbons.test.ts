@@ -827,6 +827,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'excel.view.workbook-views': ['Normal', 'Page Break Preview', 'Page Layout'],
       'word.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
       'powerpoint.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
+      'excel.background-removal.refine': ['Mark Areas to Keep', 'Mark Areas to Remove'],
     });
   });
 
@@ -835,7 +836,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       [...sets]
         .filter(([, members]) => members.every((member) => member.command.exclusiveAllowsNone === true))
         .map(([set]) => set),
-    ).toEqual(['word.background-removal.refine', 'powerpoint.background-removal.refine']);
+    ).toEqual(['word.background-removal.refine', 'powerpoint.background-removal.refine', 'excel.background-removal.refine']);
   });
 
   it('starts each on the member a new document or a fresh tab is in', () => {
@@ -857,6 +858,7 @@ describe('every exclusive set starts with exactly one member pressed, or at most
       'excel.view.workbook-views': ['Normal'],
       'word.background-removal.refine': [],
       'powerpoint.background-removal.refine': [],
+      'excel.background-removal.refine': [],
     });
   });
 

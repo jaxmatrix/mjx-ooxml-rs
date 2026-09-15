@@ -977,6 +977,19 @@ renders in `Ribbons/PowerPoint` alone and binds nothing. No glyph, binding or me
   labels, priorities, counts 3 and 2), and Office draws the same four commands. Everything under *Word's
   Background Removal* above, `GUESS:` items included, applies unchanged and is not restated.
 
+### Excel's Background Removal
+
+**One tab of one application, and Excel's first view tab authored**, after PowerPoint's Background Removal. It
+is Word's tab under Excel's ids: the census row calls `backgroundRemovalRefineCommands('excel')` and
+`backgroundRemovalCloseCommands('excel')`, and `excelBackgroundRemovalTab` renders the two groups. It renders in
+`Ribbons/Excel` alone and binds nothing. No glyph, binding or menu was added.
+
+- **Its pencils are their own set**, `excel.background-removal.refine`, and may hold none, as Word's and
+  PowerPoint's do. `tests/ribbons.test.ts` lists all three sets.
+- **No Excel-specific disagreement.** The census's Excel row is Word's to the field (group ids, labels,
+  priorities, counts 3 and 2), and Office draws the same four commands. Everything under *Word's Background
+  Removal* above, `GUESS:` items included, applies unchanged and is not restated.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.
