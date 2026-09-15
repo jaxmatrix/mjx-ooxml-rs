@@ -7,16 +7,16 @@
  * `printPreviewMenus(application, host)` once beside its ribbon. Every `commandMenu(host, '…'` call below
  * spells its command id literally, so `tests/ribbons.test.ts` can read it.
  *
- * ## Shaped for three applications, authored for two
+ * ## Shaped for three applications, authored for all three
  *
  * All three applications carry a Print Preview tab in the census, and each is its own unit. So the file is
  * keyed by application exactly as `view-menus.ts` is: **each unit adds one function to `menusByApplication`**
  * and reaches for the shared entries, rather than writing a second file. **PowerPoint's unit** added
  * `powerpointPrintPreviewMenus`, which reuses `orientationEntries()` alone (PowerPoint has no Margins or Size),
  * and the option lists of its two fields, `powerpointPrintWhat` and `powerpointPrintColourModes`, which
- * `Ribbons/PowerPoint` renders inside its own `<mjx-dropdown>`s. Until Excel's unit lands,
- * `printPreviewMenus('excel', …)` renders nothing, which is the absence of a menu set rather than a claim that
- * one was found empty.
+ * `Ribbons/PowerPoint` renders inside its own `<mjx-dropdown>`s. **Excel's unit** added
+ * `excelPrintPreviewMenus`, which is **authored and empty**: Excel's tab opens no menu, so its entry is present
+ * and renders nothing, which is the claim that the set was found empty.
  *
  * ## The entries are Layout's, not copies
  *
@@ -34,9 +34,9 @@
  *
  * Print Preview is `appearance: 'view'`: Office shows it only inside Print Preview, so `tabsFor` leaves it
  * out of a strip unless `includeViewTabs` is asked for, and only the `Ribbons/*` hosts ask. **So
- * `stories/ribbons/word.stories.ts` and `stories/ribbons/powerpoint.stories.ts` are the hosts that bind and
- * render these.** Neither shell draws the tab, and `tests/ribbons.test.ts` refuses a shell that opens one of
- * these menus.
+ * `stories/ribbons/word.stories.ts`, `stories/ribbons/powerpoint.stories.ts` and
+ * `stories/ribbons/excel.stories.ts` are the hosts that bind and render these**, Excel's an empty set. No shell
+ * draws the tab, and `tests/ribbons.test.ts` refuses a shell that opens one of these menus.
  *
  * **Nothing here dispatches a command.** A menu opens and an entry can be chosen; no page changes, because
  * command dispatch is loop 2.
@@ -128,12 +128,28 @@ function powerpointPrintPreviewMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── Excel's Print Preview ────────────────────────────────────────────────────
+
+/**
+ * **No menus, and that is a finding rather than a gap.** Excel 2007's tab opens none: Print and Page Setup open
+ * dialogs, Zoom switches the preview's magnification, Next Page and Previous Page move it, Show Margins is a
+ * checkbox `Ribbons/Excel` binds, and Close Print Preview leaves the view. So Excel's entry is present, and renders
+ * an empty set, where an absent entry would have said the tab was still unauthored.
+ *
+ * **No shared list is reused**, because no Excel command opens one: Excel's tab has no Margins, Orientation or
+ * Size, which Page Layout carries instead.
+ */
+function excelPrintPreviewMenus(): TemplateResult {
+  return html``;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /** Every application's Print Preview menus, as each application's unit authors them. */
 const menusByApplication: Partial<Record<RibbonApplication, (host: RibbonSurfaceHost) => TemplateResult>> = {
   word: wordPrintPreviewMenus,
   powerpoint: powerpointPrintPreviewMenus,
+  excel: excelPrintPreviewMenus,
 };
 
 /**

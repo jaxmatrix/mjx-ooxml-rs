@@ -28,6 +28,7 @@ import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
+import { printPreviewMenus } from './print-preview-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { excelSheetViews, viewMenus } from './view-menus.ts';
@@ -41,7 +42,7 @@ import { excelSheetViews, viewMenus } from './view-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View and Background Removal** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View, Print Preview and Background Removal** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -61,7 +62,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View and Background Removal are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View, Print Preview and Background Removal are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -590,6 +591,9 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-excel-view-window-switch-windows"
   ></mjx-button>`,
+  // Print Preview (a view tab). `Shell/Excel` never draws a view tab, so this binding is written here and
+  // nowhere else. Show Margins is a checkbox, unticked, as the census declares; the tab opens no menu.
+  'excel.print-preview.preview.show-margins': html`<mjx-checkbox id="ribbons-xl-print-preview-show-margins" label="Show Margins"></mjx-checkbox>`,
 };
 
 /**
@@ -617,7 +621,7 @@ function ribbon(selected: string): TemplateResult {
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
-    ${viewMenus('excel', 'ribbons')}
+    ${viewMenus('excel', 'ribbons')} ${printPreviewMenus('excel', 'ribbons')}
   `;
 }
 
@@ -837,7 +841,27 @@ export const Review: Story = { render: () => ribbon('review') };
  */
 export const View: Story = { render: () => ribbon('view') };
 
-/** Unit 10, and a view tab — see `dev/ribbons/census.ts`. */
+/**
+ * **Print Preview**: the sheet as it will print, a page at a time, and a view tab Office shows only inside Print
+ * Preview. Authored after PowerPoint's Print Preview, one tab of one application, and Excel's second view tab.
+ * Three groups: Print, Zoom and Preview. What to look at, least certain first:
+ *
+ * 1. ⚠ **The groups read Print, Zoom, Preview**, Office's order; the census declares Zoom last. Drag narrow and
+ *    Zoom still collapses first, because it is `ancillary`.
+ * 2. ⚠ **Page Setup draws a cog**, large beside Print, where Word's and PowerPoint's tabs draw Options. `GUESS:`
+ *    that it reads as the page's settings; Fluent draws no page with a cog.
+ * 3. ⚠ **Show Margins is an unticked checkbox, not a toggle button.** It sits under Next Page and Previous Page, in
+ *    one column. Tick it: it ticks, and nothing else changes. `GUESS:` the shape and the start; the brief listed a
+ *    toggle.
+ * 4. ⚠ **Zoom is a large magnifier alone in its group**, a plain button: pressing it does not stay pressed and
+ *    opens nothing. `GUESS:` that Office does not draw it pressed while magnified.
+ * 5. **Two survivors.** Drag narrow until Preview collapses: a page with an arrow down and a page with an arrow up
+ *    stay beside the trigger, and Show Margins and Close Print Preview open from it. Collapse Zoom: its trigger
+ *    stands alone and Zoom opens from it.
+ * 6. **Close Print Preview is large with a three-word label**, under the cross in a square. It should wrap without
+ *    an ellipsis. **No dialog launcher** on any group, and **no button opens a menu**.
+ * 7. **Not in `Shell/Excel`**: the shell's strip has no Print Preview tab.
+ */
 export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 
 /**

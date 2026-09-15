@@ -102,7 +102,8 @@
  * followed, calling those two functions, in that section's *PowerPoint's Background Removal* part, and **Excel's
  * Background Removal** followed that, in its *Excel's Background Removal* part. **PowerPoint's Print Preview**
  * followed, PowerPoint's second view tab authored, in the *commands Print Preview shows* section's *PowerPoint's
- * Print Preview* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * Print Preview* part, and **Excel's Print Preview** followed that, Excel's second view tab authored, in its
+ * *Excel's Print Preview* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4656,6 +4657,112 @@ const powerpointPrintPreviewPreview: readonly RibbonCommand[] = [
   { id: 'powerpoint.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
 ];
 
+// ## Excel's Print Preview
+//
+// The unit after PowerPoint's Print Preview, one tab of one application: **Excel's Print Preview tab**, all three
+// in-scope groups and seven commands, and Excel's second view tab authored. It is Excel 2007's Print Preview, the
+// last Excel with the tab (2010 folded it into File → Print): the sheet as it will print, a page at a time.
+// **Nothing is declared once with Word's or PowerPoint's.** Excel shares two group ids with them, and its Zoom is
+// `GroupPrintPreviewZoom`, not View's `GroupZoom`. Print, Next Page, Previous Page and Close Print Preview share
+// faces with the other two tabs, but those tabs also declare Word's and PowerPoint's commands. A function of the
+// application would be three different lists behind one name, which is View's reason too.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **One checkbox a host binds**: Show Margins, unticked. **Buttons**: Print, Page Setup, Zoom, Next Page, Previous
+// Page and Close Print Preview. **No menu, no field, no dialog launcher, no gallery, no split button, no toggle
+// button, no exclusive set.** `printPreviewMenus('excel', …)` renders an authored empty set, which
+// `stories/ribbons/print-preview-menus.ts` records as a finding.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Group order: drawn Print, Zoom, Preview, which is Office's; the census declares Print, Preview, Zoom.** The
+//    row below keeps the census's order, because it is a transcription. `excelPrintPreviewTab` draws Office's,
+//    as Excel's Review and View do. The ladder collapses by priority rather than position, so Zoom, `ancillary`,
+//    still gives way first wherever it is drawn.
+// 2. **Show Margins is a checkbox, where the brief lists a toggle.** Excel 2007 draws *Show Margins* as a tick
+//    under Next Page and Previous Page. When it is ticked, the preview draws margin and column handles that a person
+//    drags on the page, which is canvas and not chrome. It is still `toggle: true` here, as every checkbox is.
+//    What differs is the face, exactly as Word's Magnifier's does. It starts unticked. `GUESS:` the shape, the
+//    position and the start, from memory of Excel 2007.
+// 3. **Zoom is a plain button and opens no dialog.** On this tab it switches the preview between the whole page
+//    and a magnified page, where View's Zoom opens the Zoom dialog. The brief lists it as a button, and it is
+//    drawn as one. `GUESS:` that Office does not draw it pressed while magnified. If Office does, it is a toggle,
+//    and `zoom-in` would need a filled drawing.
+// 4. **Page Setup is a large face command, not a dialog launcher**: the group's second button. It opens the same
+//    Page Setup dialog that Page Layout's three launchers open.
+// 5. **The counts agree**: Print 2, Preview 4, Zoom 1, each drawn exactly. Nothing is padded or short.
+// 6. **Office greys Next Page and Previous Page** at the last and the first page, and both on a one-page sheet.
+//    Both are drawn available, because `disabled` is loop 2's.
+//
+// ## Survivors: Next Page and Previous Page
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Print**: none. Print opens the Print dialog and Page Setup the Page Setup dialog; both fail rule 1.
+// - **Zoom**: none. Zoom passes rule 1: one press magnifies, the next undoes it, and no workbook changes. But it is
+//   the group's only command, so a survivor would leave the collapsed popup empty. That is the gate's *opens
+//   empty*, and Editor's reason.
+// - **Preview: Next Page and Previous Page survive**, for Word's and PowerPoint's Print Preview's reason. Each moves
+//   the preview one page with one press, and the other takes it back. They are two, under the ceiling, and two
+//   commands stay in the popup. `GUESS:` that the glyphs read as pages rather than *download* and *upload*.
+//   **Show Margins** is a checkbox, which the gate refuses. **Close Print Preview** leaves the view and takes the
+//   tab with it.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Office's shape**: Print, Page Setup, Zoom and Close Print Preview are `large`. Next Page, Previous
+// Page and Show Margins are small, stacked in one column. `GUESS:` Zoom's size. Every glyph is `GUESS:`:
+//
+// - **Print draws `print`**, Word's and PowerPoint's Print Preview's.
+// - **Page Setup draws `settings`**, the cog Word's and PowerPoint's Options draw in the same slot of the same
+//   group. Fluent draws no page with a cog. It draws `slide-settings` and `table-settings`, and no document
+//   equivalent. Every page glyph this subset carries is already another command's: `document-margins` is Margins,
+//   `orientation` is Orientation, `document-page-break` is Breaks and `document-one-page` is Page Layout view. A
+//   cog over the printed page's settings is the honest picture left, and Excel's tab has no Options to confuse it
+//   with.
+// - **Zoom draws `zoom-in`**: a magnifier, which is what the press does.
+// - **Next Page draws `document-arrow-down` and Previous Page `document-arrow-up`**, the other two tabs'.
+// - **Close Print Preview draws `dismiss-square`**, the other two tabs' cross in a square.
+//
+// **One command carries no glyph, and says why**: Show Margins is a checkbox, which draws its tick box.
+
+/**
+ * Excel's `GroupPrintPreviewPrint`, labelled **Print**: Print and Page Setup, both large. See disagreement 4.
+ *
+ * **Print** opens the Print dialog; **Page Setup** opens the Page Setup dialog on its Page page.
+ *
+ * **No survivor**: both open a dialog.
+ */
+const excelPrintPreviewPrint: readonly RibbonCommand[] = [
+  { id: 'excel.print-preview.print.print', label: 'Print', icon: 'print', size: 'large' },
+  { id: 'excel.print-preview.print.page-setup', label: 'Page Setup', icon: 'settings', size: 'large' },
+];
+
+/**
+ * Excel's `GroupPrintPreviewPreview`, labelled **Preview**: Next Page, Previous Page and Show Margins in a column,
+ * then Close Print Preview large. See disagreements 2 and 6.
+ *
+ * **Show Margins is a toggle drawn as a checkbox**, bound as `<mjx-checkbox>`, unticked.
+ *
+ * **Survivors: Next Page and Previous Page.** See this part's header.
+ */
+const excelPrintPreviewPreview: readonly RibbonCommand[] = [
+  { id: 'excel.print-preview.preview.next-page', label: 'Next Page', icon: 'document-arrow-down', essential: true },
+  { id: 'excel.print-preview.preview.previous-page', label: 'Previous Page', icon: 'document-arrow-up', essential: true },
+  { id: 'excel.print-preview.preview.show-margins', label: 'Show Margins', toggle: true },
+  { id: 'excel.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
+];
+
+/**
+ * Excel's `GroupPrintPreviewZoom`, labelled **Zoom**: Zoom alone, large. See disagreements 1 and 3.
+ *
+ * **No survivor**: the group's only command, and a survivor would leave the popup empty.
+ */
+const excelPrintPreviewZoom: readonly RibbonCommand[] = [
+  { id: 'excel.print-preview.zoom.zoom', label: 'Zoom', icon: 'zoom-in', size: 'large' },
+];
+
 // ── the commands Background Removal shows ────────────────────────────────────
 //
 // The ribbon programme's unit after Print Preview: **Word's Background Removal tab**, both in-scope groups
@@ -5636,9 +5743,9 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabPrintPreview' },
     groups: [
-      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 4, inScope: true },
-      { id: 'GroupPrintPreviewZoom', label: 'Zoom', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true, commands: excelPrintPreviewPrint },
+      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 4, inScope: true, commands: excelPrintPreviewPreview },
+      { id: 'GroupPrintPreviewZoom', label: 'Zoom', priority: 'ancillary', controls: 1, inScope: true, commands: excelPrintPreviewZoom },
     ],
   },
   {

@@ -1031,6 +1031,44 @@ Preview. Print, Options and Zoom open a dialog or a menu, and the fields are ref
   `orientation`, `zoom-in`, `page-fit`, `document-arrow-down`, `document-arrow-up`, `dismiss-square`. Each is
   the glyph this subset already draws for the same command.
 
+### Excel's Print Preview
+
+**One tab of one application, and Excel's second view tab authored**, after PowerPoint's Print Preview. Three
+groups and seven commands. It is Excel 2007's Print Preview, the last Excel with the tab: the sheet as it will
+print, a page at a time. **Nothing is declared once with Word's or PowerPoint's.** Two group ids are shared, and
+Zoom is `GroupPrintPreviewZoom` rather than View's `GroupZoom`.
+
+⚠ **Drawn in Office's order, Print, Zoom, Preview; the census declares Print, Preview, Zoom.** The census row
+keeps its own order, because it is a transcription. `excelPrintPreviewTab` follows Office, as Excel's Review and
+View do. The ladder collapses by priority, not position, so Zoom (`ancillary`) still gives way first.
+
+It renders in `Ribbons/Excel` alone, as every view tab does. The one binding and `printPreviewMenus('excel',
+'ribbons')` are in `stories/ribbons/excel.stories.ts`, and `Shell/Excel` draws neither.
+
+- **One checkbox a host binds**: Show Margins, unticked.
+- **Buttons**: Print, Page Setup, Zoom, Next Page, Previous Page and Close Print Preview.
+- **No menu.** `excelPrintPreviewMenus` is present and renders an empty set, because Excel's tab opens none. No
+  field, dialog launcher, toggle button, exclusive set, gallery or split button.
+
+**Survivors**: Next Page and Previous Page in Preview, as on Word's and PowerPoint's tabs.
+- Print and Page Setup open dialogs.
+- Zoom is its group's only command, so a survivor would leave the collapsed popup empty.
+- Show Margins is a checkbox, which the gate refuses.
+- Close Print Preview leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Show Margins is a checkbox, where the brief lists a toggle**, as Word's Magnifier is. Excel 2007 draws it as
+  a check box under Next Page and Previous Page. `GUESS:` the shape and the unticked start.
+- **Zoom is a plain large button**, which switches the preview between the whole page and a magnified page. It is
+  not View's Zoom dialog. `GUESS:` that Office does not draw it pressed while magnified.
+- **Page Setup draws `settings`, a cog**, the glyph Word's and PowerPoint's Options draw in the same slot.
+  `GUESS:`. Fluent draws no page with a cog, and every page glyph in the subset is already another command.
+  Excel's tab has no Options for the cog to be confused with.
+- **The counts agree**: Print 2, Preview 4, Zoom 1, each drawn exactly.
+- **Every command but the checkbox carries a glyph, and no glyph is new**: `print`, `settings`, `zoom-in`,
+  `document-arrow-down`, `document-arrow-up`, `dismiss-square`.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

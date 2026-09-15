@@ -36,6 +36,9 @@
  * 10. **Background Removal** followed Word's and PowerPoint's, Excel's first view tab authored: Word's two groups
  *     and four commands under Excel's ids, from the census's shared functions. It binds nothing and opens no
  *     menu.
+ * 11. **Print Preview** followed PowerPoint's, Excel's second view tab authored: three groups and seven
+ *     commands, the sheet as it will print. It opens no menu, binds one checkbox (Show Margins) in
+ *     `Ribbons/Excel` alone, and draws its groups in Office's order rather than the census's.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -46,7 +49,6 @@ import { excelRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
 import { stubTab } from '../shell/shell-parts.ts';
 import {
   censusGroup,
-  placeholderTab,
   tab,
   tabsFor,
   type TabOptions,
@@ -383,10 +385,30 @@ export function excelBackgroundRemovalTab(options: TabOptions = {}): TemplateRes
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelPrintPreviewTab(): TemplateResult {
-  return placeholderTab(entry('print-preview'));
+/**
+ * Print Preview: Print, Zoom, Preview — Excel's second view tab authored, in **Office's** order, where the census
+ * declares Print, Preview, Zoom. `dev/ribbons/census.ts` records the disagreement.
+ *
+ * ⚠ **A view tab: Office shows it only inside Print Preview**, so `excelTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/Excel` asks, which is why the tab's binding is written there and
+ * nowhere else.
+ *
+ * **One of the tab's seven commands is bound by the host**: Show Margins, a checkbox. Everything else is the
+ * generic button. **No menu**: `printPreviewMenus('excel', …)` renders an empty set.
+ *
+ * **No dialog launcher.** **Two survivors**, Next Page and Previous Page in Preview, as on Word's and PowerPoint's
+ * Print Preview.
+ */
+export function excelPrintPreviewTab(options: TabOptions = {}): TemplateResult {
+  const printPreview = entry('print-preview');
+  const controls = options.controls ?? {};
+  return tab(
+    printPreview.id,
+    printPreview.label,
+    censusGroup(printPreview, 'GroupPrintPreviewPrint', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewZoom', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewPreview', {}, controls),
+  );
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

@@ -134,7 +134,9 @@ const cellCommands: readonly MiniCommand[] = [
  * contents. They are bound by the stable command ids `dev/ribbons/census.ts` declares.
  *
  * `excelTabs()` leaves out Print Preview and Background Removal, which Office shows only inside the
- * view they name.
+ * view they name. That is also why **Print Preview's Show Margins checkbox is bound in `Ribbons/Excel` and not
+ * here**, and `printPreviewMenus` is not rendered here: a binding for a tab this strip never draws would be a
+ * binding to nothing.
  */
 function ribbon(): TemplateResult {
   return surface(
