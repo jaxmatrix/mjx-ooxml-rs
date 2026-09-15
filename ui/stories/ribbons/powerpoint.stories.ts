@@ -52,6 +52,7 @@ import {
   startingAnimation,
 } from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
+import { reviewMenus } from './review-menus.ts';
 
 /**
  * **PowerPoint's ribbon, tab by tab** — the same functions `Shell/PowerPoint` composes.
@@ -67,7 +68,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions and Animations** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations and Review** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -87,7 +88,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions and Animations are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations and Review are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -437,6 +438,58 @@ const bindings: ControlOverrides = {
   >
     ${animationDelays.map((delay) => html`<mjx-option value=${delay} label=${delay}></mjx-option>`)}
   </mjx-combo-box>`,
+  // PowerPoint's Review. Split buttons and the Language dropdown open their menus from
+  // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Show Comments and Hide Ink are split buttons whose face is a toggle, both starting unpressed.
+  'powerpoint.review.accessibility.check-accessibility': html`<mjx-split-button
+    label="Check Accessibility"
+    icon="accessibility-checkmark"
+    size="small"
+    data-opens="ribbons-powerpoint-review-accessibility-check-accessibility"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.review.language.language': html`<mjx-button
+    label="Language"
+    icon="local-language"
+    size="large"
+    data-opens="ribbons-powerpoint-review-language-language"
+  ></mjx-button>`,
+  'powerpoint.review.comments.delete': html`<mjx-split-button
+    label="Delete"
+    icon="comment-dismiss"
+    size="large"
+    data-opens="ribbons-powerpoint-review-comments-delete"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.review.comments.show-comments': html`<mjx-split-button
+    toggle
+    label="Show Comments"
+    icon="comment-multiple"
+    size="large"
+    data-opens="ribbons-powerpoint-review-comments-show-comments"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.review.compare.accept': html`<mjx-split-button
+    label="Accept"
+    icon="document-checkmark"
+    size="large"
+    data-opens="ribbons-powerpoint-review-compare-accept"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.review.compare.reject': html`<mjx-split-button
+    label="Reject"
+    icon="document-dismiss"
+    size="large"
+    data-opens="ribbons-powerpoint-review-compare-reject"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.review.ink.hide-ink': html`<mjx-split-button
+    toggle
+    label="Hide Ink"
+    size="small"
+    data-opens="ribbons-powerpoint-review-ink-hide-ink"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -463,7 +516,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
-    ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')}
+    ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -631,7 +684,35 @@ export const SlideShow: Story = { render: () => ribbon('slide-show') };
 /** Unit 10. */
 export const Recording: Story = { render: () => ribbon('recording') };
 
-/** Unit 8. */
+/**
+ * **Review**: the tab where a deck is read by somebody else, authored after Word's and under the same
+ * one-tab-one-application rule. Seven groups: Proofing, Accessibility, Language, Comments, Compare,
+ * Activity and Ink. What to look at, least certain first:
+ *
+ * 1. ⚠ **Activity is one command, Show Changes, and all of it is `GUESS:`.** The census names the group
+ *    and counts two controls, nothing more. It is a plain labelled button that opens nothing here.
+ * 2. ⚠ **Ink is last, after Activity**, where Microsoft 365 draws it; the census declares it fifth,
+ *    before Compare. `GUESS:` both positions. Insights (Smart Lookup) and Chinese Translation are out of
+ *    scope in the census and are not drawn.
+ * 3. **Show Comments and Hide Ink are split buttons whose face is a toggle, both starting unpressed.**
+ *    Press Show Comments' face and it draws pressed with a filled glyph; press its arrow and Comments Pane
+ *    and Show Markup (ticked) open, and the face does not move. Hide Ink's arrow: Hide Ink and Delete All
+ *    Ink in Presentation. `GUESS:` both arrows' entries and both starting positions.
+ * 4. **Compare is PowerPoint's own group, seven commands.** Compare, then Accept and Reject as large split
+ *    buttons: Accept Change, Accept All Changes to This Slide, Accept All Changes to the Presentation, and
+ *    Reject's three. Then Previous Change, Next Change and Reviewing Pane, a plain toggle with a right-hand
+ *    pane glyph (`GUESS:`), then End Review. ⚠ Office greys all but Compare until a comparison is under way;
+ *    they are drawn available here so the menus can be audited.
+ * 5. **Previous Comment and Next Comment are the tab's only survivors.** Drag narrow until Comments
+ *    collapses: the two comment arrows stay beside its trigger. They are small where Office draws them
+ *    large, because every survivor in this catalogue is small.
+ * 6. **The other menus.** Check Accessibility: Check Accessibility, Alt Text, Reading Order Pane, then
+ *    Options: Accessibility. Language: Set Proofing Language, Language Preferences (Word's two). Delete:
+ *    Delete, then all comments and ink on this slide, and in this presentation.
+ * 7. **Labels, not glyphs**: Compare, Previous Change, Next Change, End Review, Show Changes and Hide Ink
+ *    carry no icon. Spelling is large, unlike Word's Spelling & Grammar, because one word fits. Translate
+ *    is a plain large button with no arrow. No dialog launchers.
+ */
 export const Review: Story = { render: () => ribbon('review') };
 
 /** Unit 9. */

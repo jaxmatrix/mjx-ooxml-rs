@@ -547,8 +547,8 @@ is Office's and the columns are not.
 
 ### Word's Review (unit 8 of the ribbon programme)
 
-**One tab of one application**: the unit was narrowed to Word's Review, so PowerPoint's and Excel's Review
-tabs are still placeholders. Nine groups and twenty-three commands, in Office's order: Proofing,
+**One tab of one application**: the unit was narrowed to Word's Review. PowerPoint's followed in the next
+section; Excel's Review tab is still a placeholder. Nine groups and twenty-three commands, in Office's order: Proofing,
 Accessibility, Language, Comments, Tracking, Changes, Compare, Protect, Ink.
 
 - **A dropdown or split button** over a menu written once in `stories/ribbons/review-menus.ts`: Translate,
@@ -575,6 +575,33 @@ honest glyph, because Fluent's page-with-an-arrow means upload and download.
   Comment, Next Change and the rest), because a label is also the accessible name.
 - **Show Comments' Contextual/List arrow, Hide Ink's shape, Block Authors' arrow and Check Accessibility's
   entries** are from memory of Microsoft 365 and Word 2010, not from a build this project can cite.
+
+### PowerPoint's Review
+
+**One tab of one application again**, authored after Word's and to its pattern. Seven groups and nineteen
+commands, drawn in Office's order: Proofing, Accessibility, Language, Comments, Compare, Activity, Ink.
+Nothing is declared once for both applications, because every group's face differs.
+
+- **A dropdown or split button** over `stories/ribbons/review-menus.ts`: Language is a dropdown; Check
+  Accessibility, Delete, Accept and Reject are split buttons. Language reuses Word's entry list, the only
+  list the two tabs genuinely share.
+- **A split button whose face is a toggle**: Show Comments and Hide Ink, both starting unpressed.
+- **A toggle**: Reviewing Pane.
+- **No field, no gallery, no dialog launcher.**
+
+**Survivors**: Previous Comment and Next Comment, small where Office draws them large, because every
+survivor in this catalogue is small.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Activity is drawn as Show Changes alone.** The census counts two controls and names none.
+- **Ink is drawn last, after Activity**; the census declares it fifth, before Compare.
+- **Office greys Accept, Reject, the change navigators, Reviewing Pane and End Review** until a comparison
+  is under way. They are drawn available so their menus can be audited.
+- **Translate is a plain button**, and Reviewing Pane's `panel-right` glyph, Show Comments' and Hide Ink's
+  arrows and starting positions, Delete's wording and Check Accessibility's entries are from memory of
+  Microsoft 365 and PowerPoint 2013, not from a build this project can cite.
+- **Compare, Previous Change, Next Change, End Review, Show Changes and Hide Ink carry no icon.**
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

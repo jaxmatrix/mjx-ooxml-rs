@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, Mailings, Animations and Data, and Word's Review.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, Mailings, Animations and Data, and Word's and PowerPoint's Review.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -88,7 +88,8 @@
  * Formulas**; see the *commands References, Transitions and Formulas show* section. Unit 7 authored **Word's
  * Mailings, PowerPoint's Animations and Excel's Data**; see the *commands Mailings, Animations and Data show*
  * section. Unit 8 authored **Word's Review** alone, the first unit narrowed to one tab of one application;
- * see the *commands Review shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * see the *commands Review shows* section. **PowerPoint's Review** followed, one tab of one application
+ * again, in that section's *PowerPoint's Review* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -2444,8 +2445,9 @@ const excelDataOutline: readonly RibbonCommand[] = [
 // ── the commands Review shows ────────────────────────────────────────────────
 //
 // The ribbon programme's **unit 8**: **Word's Review tab**, all nine in-scope groups. ⚠ **Word alone.**
-// The unit was narrowed to one tab of one application, so PowerPoint's and Excel's Review tabs are
-// still placeholders, and nothing below is written as a function of the application yet. Proofing,
+// The unit was narrowed to one tab of one application. PowerPoint's Review tab followed in its own unit,
+// declared in the *PowerPoint's Review* part below; Excel's is still a placeholder. Nothing is written as
+// a function of the application. Proofing,
 // Accessibility, Language, Comments and Ink carry the same group ids in all three census tabs, but their
 // faces differ (Excel's Proofing is Spelling, Thesaurus and Workbook Statistics; Excel's Comments are
 // three generations), so **whether any of them is one declaration is the next unit's question**, asked
@@ -2673,6 +2675,187 @@ const wordReviewCompare: readonly RibbonCommand[] = [
 const wordReviewProtect: readonly RibbonCommand[] = [
   { id: 'word.review.protect.block-authors', label: 'Block Authors', icon: 'person-lock', size: 'large' },
   { id: 'word.review.protect.restrict-editing', label: 'Restrict Editing', icon: 'document-lock', size: 'large', toggle: true },
+];
+
+// ── PowerPoint's Review ──────────────────────────────────────────────────────
+//
+// **PowerPoint's Review tab**, all seven in-scope groups, authored after Word's and under the same
+// one-tab-one-application rule, so Excel's Review tab is still a placeholder. Word's section above is the
+// pattern: the shapes, the whole-menu rule, the survivor standard and the icon rule are unchanged, and
+// only what PowerPoint does differently is written here.
+//
+// **Not one declaration shared with Word.** Proofing, Accessibility, Language, Comments and Ink carry the
+// same group ids in both census tabs, and the faces differ in every one of them: PowerPoint's Proofing is
+// Spelling alone rather than Spelling & Grammar and has no Word Count, its Translate is a button, its
+// Show Comments' arrow is the Comments Pane and Show Markup, and its Delete and Hide Ink say *slide* and
+// *presentation*. One declaration would be a function of the application with every branch taken.
+//
+// ## The shapes
+//
+// **Dropdown or split button** over a menu written in `stories/ribbons/review-menus.ts`: Language is a
+// dropdown; Check Accessibility, Delete, Accept and Reject are split buttons. **A split button whose face
+// is a toggle** (`<mjx-split-button toggle>`): Show Comments and Hide Ink, both starting unpressed.
+// **Toggle**: Reviewing Pane. **Plain button**: Spelling, Thesaurus, Translate, New Comment, Previous
+// Comment, Next Comment, Compare, Previous Change, Next Change, End Review, Show Changes. **No field, no
+// gallery, no dialog launcher**: Office puts none on PowerPoint's Review tab.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **The declaration puts Ink fifth, between Comments and Compare; Microsoft 365 draws it last.** The
+//    group order is the tab module's decision, so `powerpointReviewTab` draws Proofing, Accessibility,
+//    Language, Comments, Compare, Activity, Ink, which is Word's argument about its own Ink group.
+//    `GUESS:` Ink's and Activity's positions; no build this project can cite is checked.
+// 2. **Office draws groups the census marks out of scope, and they are not drawn here**: **Insights**
+//    (Smart Lookup, one control) and **Chinese Translation** (three). The census wins.
+// 3. **Activity is `GUESS:` in its entirety.** The census names the group and counts two controls, and
+//    says nothing else. It is drawn as **Show Changes** alone, the Microsoft 365 command that marks what
+//    co-authors changed since the deck was last opened, as a plain small button with no icon. Nothing is
+//    added to reach the count of two.
+// 4. **Office's face labels two commands *Previous* and two *Next*** (one pair in Comments, one in
+//    Compare), exactly as in Word, and the labels are Office's tooltips for Word's reason: Previous
+//    Comment, Next Comment, Previous Change, Next Change.
+// 5. **Office greys Accept, Reject, Previous Change, Next Change, Reviewing Pane and End Review until a
+//    comparison is under way.** They are drawn available, so the two menus can be opened and audited;
+//    Word's Block Authors was drawn available for the same reason. `disabled` is loop 2's, driven by a
+//    real review state.
+// 6. **Office's Ink group held Start Inking in PowerPoint 2016**, and the census's five controls may still
+//    count it. Drawing is the Draw tab's job now, so the group is Hide Ink, as it is in Word.
+// 7. **The census's counts are larger than the faces**, and nothing is padded: Compare is 13 and draws
+//    seven; Comments is 12 and draws five; Language is 9 and draws two.
+//
+// ## Survivors: Previous Comment and Next Comment, and nothing else
+//
+// Word's judgement, on the same glyphs: a press moves to one comment and the other press moves back, and a
+// speech bubble with an arrow is no other command's glyph. `GUESS:` rule 2. **Previous Change and Next
+// Change** fail rule 2 for want of an honest glyph, as in Word. Every other command opens a pane, a
+// dialog, a file picker or a menu, is a split button, or (End Review) cannot be undone.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// `large` where Office draws it large **and** there is an honest glyph **and** the label wraps inside
+// `largeControlWidthUnits`. **Spelling** is one word, so unlike Word's *Spelling & Grammar* it is large.
+// **Check Accessibility** is small, for Word's reason. ⚠ **Previous Comment and Next Comment are small
+// where Office draws them large**: they are the tab's survivors, and every survivor in this catalogue is
+// small, so a large one in a collapsed group's survivor row is a presentation nobody has looked at.
+// `GUESS:` that the trade is right.
+//
+// **Compare**, **Previous Change**, **Next Change**, **End Review**, **Show Changes** and **Hide Ink**
+// carry no icon, so each is `small` and its label is the command. Compare, the two change navigators and
+// Hide Ink have no honest glyph for Word's reasons. **End Review** would be `dismiss-circle`, which is
+// Close everywhere else, and ending a review discards every change not yet accepted, which is not
+// closing. **Show Changes** would be `history`, which is File's Version History in this subset.
+
+/**
+ * PowerPoint's Proofing group: Spelling and Thesaurus.
+ *
+ * **Spelling draws `text-grammar-checkmark`**, Word's *ABC✓*, and is `large`: one word fits, and Office
+ * draws it large. It opens the Spelling pane (F7). **Thesaurus draws `book-search`**, as in Word, and
+ * opens the Thesaurus pane (Shift+F7). Office's Word Count is Word's alone.
+ *
+ * **No survivor**: two panes.
+ */
+const powerpointReviewProofing: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.proofing.spelling', label: 'Spelling', icon: 'text-grammar-checkmark', size: 'large' },
+  { id: 'powerpoint.review.proofing.thesaurus', label: 'Thesaurus', icon: 'book-search' },
+];
+
+/**
+ * PowerPoint's Accessibility group: Check Accessibility.
+ *
+ * **A split button drawing `accessibility-checkmark`**, as in Word. The face runs the checker and opens its
+ * pane; the arrow offers Check Accessibility, Alt Text, Reading Order Pane and Options: Accessibility.
+ * Reading Order Pane is PowerPoint's where Word's arrow has Navigation Pane. `small`, for Word's reason.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const powerpointReviewAccessibility: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.accessibility.check-accessibility', label: 'Check Accessibility', icon: 'accessibility-checkmark' },
+];
+
+/**
+ * PowerPoint's Language group: Translate and Language, both large.
+ *
+ * **Translate is a plain button drawing `translate`**: it opens the Translator pane on the selection.
+ * `GUESS:` that it has no arrow. Word's offers Translate Document, and a deck has no document translation.
+ * **Language is a dropdown drawing `local-language`** over Word's own two entries, Set Proofing Language
+ * and Language Preferences.
+ *
+ * **No survivor**: a pane and a menu.
+ */
+const powerpointReviewLanguage: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.language.translate', label: 'Translate', icon: 'translate', size: 'large' },
+  { id: 'powerpoint.review.language.language', label: 'Language', icon: 'local-language', size: 'large' },
+];
+
+/**
+ * PowerPoint's Comments group: New Comment, Delete, Previous Comment, Next Comment, Show Comments.
+ *
+ * **New Comment draws `comment-add`** (Ctrl+Alt+M) and **Delete draws `comment-dismiss`**, a large split
+ * button whose arrow offers Delete, Delete All Comments and Ink on This Slide, and Delete All Comments and
+ * Ink in This Presentation. **Previous Comment and Next Comment draw `comment-arrow-left` and
+ * `comment-arrow-right`**, small; see this section's header on their size. **Show Comments draws
+ * `comment-multiple`**, large, and is a split button whose face is a toggle: the face opens and closes the
+ * Comments pane, starting unpressed because the pane starts closed, and the arrow holds Comments Pane and
+ * Show Markup, checked. `GUESS:` the arrow and the starting position.
+ *
+ * **Survivors: Previous Comment and Next Comment.** See this section's header.
+ */
+const powerpointReviewComments: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.comments.new-comment', label: 'New Comment', icon: 'comment-add', size: 'large' },
+  { id: 'powerpoint.review.comments.delete', label: 'Delete', icon: 'comment-dismiss', size: 'large' },
+  { id: 'powerpoint.review.comments.previous-comment', label: 'Previous Comment', icon: 'comment-arrow-left', essential: true },
+  { id: 'powerpoint.review.comments.next-comment', label: 'Next Comment', icon: 'comment-arrow-right', essential: true },
+  { id: 'powerpoint.review.comments.show-comments', label: 'Show Comments', icon: 'comment-multiple', size: 'large', toggle: true },
+];
+
+/**
+ * PowerPoint's `GroupReviewCompare`, labelled **Compare**: Compare, Accept, Reject, then Previous Change,
+ * Next Change and Reviewing Pane in a column, then End Review.
+ *
+ * **Compare** opens the file picker that merges another copy of the deck into this one. No icon, for
+ * Word's reason, so `small`. **Accept draws `document-checkmark` and Reject draws `document-dismiss`**,
+ * both large split buttons, as Office draws them in PowerPoint (Word's Reject is small). Accept's arrow
+ * offers Accept Change, Accept All Changes to This Slide and Accept All Changes to the Presentation;
+ * Reject's is the same three for rejecting. **Previous Change and Next Change** carry no icon.
+ * **Reviewing Pane is a toggle drawing `panel-right`**, a pane at the right, where PowerPoint docks its
+ * Revisions pane. `GUESS:` the glyph; Word's pane opens at the left and draws `panel-left-text`, and Fluent
+ * has no right-hand drawing with text in it. **End Review** ends the comparison and discards every change
+ * not yet accepted, after a confirmation. No icon; see this section's header.
+ *
+ * **No survivor**: a file picker, two split buttons, two navigators with no glyph, a toggle that opens a
+ * pane, and a command that cannot be undone.
+ */
+const powerpointReviewCompare: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.compare.compare', label: 'Compare' },
+  { id: 'powerpoint.review.compare.accept', label: 'Accept', icon: 'document-checkmark', size: 'large' },
+  { id: 'powerpoint.review.compare.reject', label: 'Reject', icon: 'document-dismiss', size: 'large' },
+  { id: 'powerpoint.review.compare.previous-change', label: 'Previous Change' },
+  { id: 'powerpoint.review.compare.next-change', label: 'Next Change' },
+  { id: 'powerpoint.review.compare.reviewing-pane', label: 'Reviewing Pane', icon: 'panel-right', toggle: true },
+  { id: 'powerpoint.review.compare.end-review', label: 'End Review' },
+];
+
+/**
+ * PowerPoint's Activity group: Show Changes. `GUESS:` the whole group; see disagreement 3 in this
+ * section's header.
+ *
+ * **No survivor**: no glyph, and the only command.
+ */
+const powerpointReviewActivity: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.activity.show-changes', label: 'Show Changes' },
+];
+
+/**
+ * PowerPoint's Ink group: Hide Ink.
+ *
+ * Word's shape: `GUESS:` **a split button whose face is a toggle**, hiding every ink stroke in the deck and
+ * showing them again, starting unpressed. The arrow holds Hide Ink and Delete All Ink in Presentation.
+ * `GUESS:` the second entry's wording. No icon, so `small`.
+ *
+ * **No survivor**: a split button, no glyph, and the only command.
+ */
+const powerpointReviewInk: readonly RibbonCommand[] = [
+  { id: 'powerpoint.review.ink.hide-ink', label: 'Hide Ink', toggle: true },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -3217,13 +3400,13 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabReview' },
     groups: [
-      { id: 'GroupProofing', label: 'Proofing', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 6, inScope: true },
-      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupComments', label: 'Comments', priority: 'primary', controls: 12, inScope: true },
-      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupReviewCompare', label: 'Compare', priority: 'primary', controls: 13, inScope: true },
-      { id: 'GroupActivity', label: 'Activity', priority: 'secondary', controls: 2, inScope: true },
+      { id: 'GroupProofing', label: 'Proofing', priority: 'secondary', controls: 2, inScope: true, commands: powerpointReviewProofing },
+      { id: 'GroupAccessibility', label: 'Accessibility', priority: 'standard', controls: 6, inScope: true, commands: powerpointReviewAccessibility },
+      { id: 'GroupLanguage', label: 'Language', priority: 'standard', controls: 9, inScope: true, commands: powerpointReviewLanguage },
+      { id: 'GroupComments', label: 'Comments', priority: 'primary', controls: 12, inScope: true, commands: powerpointReviewComments },
+      { id: 'GroupInk', label: 'Ink', priority: 'standard', controls: 5, inScope: true, commands: powerpointReviewInk },
+      { id: 'GroupReviewCompare', label: 'Compare', priority: 'primary', controls: 13, inScope: true, commands: powerpointReviewCompare },
+      { id: 'GroupActivity', label: 'Activity', priority: 'secondary', controls: 2, inScope: true, commands: powerpointReviewActivity },
     ],
   },
   {

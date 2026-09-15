@@ -1,9 +1,9 @@
 /**
  * **The menus the Review tab opens**, written once and rendered by both hosts.
  *
- * The ribbon programme's unit 8: **Word's Review tab, alone** — the unit was narrowed to one tab of one
- * application, so PowerPoint's and Excel's Review menus are not here yet and `reviewMenus` renders
- * nothing for either. The pattern is `stories/ribbons/insert-menus.ts`'s, for its reasons. A binding
+ * The ribbon programme's unit 8 wrote **Word's Review tab** alone, and PowerPoint's followed in its own
+ * unit, one tab of one application each time. Excel's Review menus are not here yet, and `reviewMenus`
+ * renders nothing for Excel. The pattern is `stories/ribbons/insert-menus.ts`'s, for its reasons. A binding
  * lives in its host. The menu it opens is written here, with its id from `commandSurfaceId(host,
  * commandId)` through `commandMenu`. A host renders `reviewMenus(application, host)` once beside its
  * ribbon. Every `commandMenu(host, '…'` call below spells its command id literally, so
@@ -83,7 +83,7 @@ function translateEntries(): TemplateResult[] {
   return [item('Translate Selection'), item('Translate Document')];
 }
 
-/** Language: Office's two dialogs. */
+/** Language: Office's two dialogs. **Shared with PowerPoint**, whose Language arrow is the same two. */
 function languageEntries(): TemplateResult[] {
   return [item('Set Proofing Language…'), item('Language Preferences…')];
 }
@@ -197,14 +197,96 @@ function wordReviewMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── PowerPoint's Review ──────────────────────────────────────────────────────
+//
+// Seven menus. Only Language's list is shared with Word, because it is the only one that is the same list:
+// every other arrow either names a slide or a presentation where Word's names a document, or offers
+// something Word's does not. The five entry helpers above are shared.
+
+/**
+ * Check Accessibility's arrow in PowerPoint: Word's list with **Reading Order Pane** where Word has
+ * Navigation Pane, because a slide has a reading order and no headings to navigate. `GUESS:` the list,
+ * from Microsoft 365's PowerPoint, and *Options: Accessibility* in particular.
+ */
+function powerpointCheckAccessibilityEntries(): TemplateResult[] {
+  return [
+    item('Check Accessibility'),
+    item('Alt Text'),
+    item('Reading Order Pane'),
+    separator(),
+    item('Options: Accessibility'),
+  ];
+}
+
+/**
+ * Delete's arrow in PowerPoint: the comment, then every comment and ink stroke on the slide, then in the
+ * whole deck. `GUESS:` the wording in Microsoft 365, which is PowerPoint 2013's.
+ */
+function powerpointDeleteCommentEntries(): TemplateResult[] {
+  return [
+    item('Delete'),
+    item('Delete All Comments and Ink on This Slide'),
+    item('Delete All Comments and Ink in This Presentation'),
+  ];
+}
+
+/**
+ * Show Comments' arrow in PowerPoint: the Comments pane, which the face also opens and which starts
+ * closed, and whether comment markers are drawn on the slide, which starts on. `GUESS:` the pair in
+ * Microsoft 365, which is PowerPoint 2013's.
+ */
+function powerpointShowCommentsEntries(): TemplateResult[] {
+  return [setting('Comments Pane'), setting('Show Markup', true)];
+}
+
+/** Accept's arrow in PowerPoint: one change, the slide's changes, the deck's changes. */
+function powerpointAcceptEntries(): TemplateResult[] {
+  return [
+    item('Accept Change'),
+    item('Accept All Changes to This Slide'),
+    item('Accept All Changes to the Presentation'),
+  ];
+}
+
+/** Reject's arrow in PowerPoint: the same three, for rejecting. */
+function powerpointRejectEntries(): TemplateResult[] {
+  return [
+    item('Reject Change'),
+    item('Reject All Changes to This Slide'),
+    item('Reject All Changes to the Presentation'),
+  ];
+}
+
+/** Hide Ink's arrow in PowerPoint. `GUESS:` the pair, and *in Presentation* in particular. */
+function powerpointHideInkEntries(): TemplateResult[] {
+  return [setting('Hide Ink'), item('Delete All Ink in Presentation')];
+}
+
+/**
+ * Seven menus. Spelling, Thesaurus, Translate, New Comment, the four navigators, Compare, Reviewing Pane,
+ * End Review and Show Changes open a pane, a dialog or a file picker, or act at once, so they have none.
+ */
+function powerpointReviewMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.review.accessibility.check-accessibility', 'Check Accessibility', ...powerpointCheckAccessibilityEntries())}
+    ${commandMenu(host, 'powerpoint.review.language.language', 'Language', ...languageEntries())}
+    ${commandMenu(host, 'powerpoint.review.comments.delete', 'Delete', ...powerpointDeleteCommentEntries())}
+    ${commandMenu(host, 'powerpoint.review.comments.show-comments', 'Show Comments', ...powerpointShowCommentsEntries())}
+    ${commandMenu(host, 'powerpoint.review.compare.accept', 'Accept', ...powerpointAcceptEntries())}
+    ${commandMenu(host, 'powerpoint.review.compare.reject', 'Reject', ...powerpointRejectEntries())}
+    ${commandMenu(host, 'powerpoint.review.ink.hide-ink', 'Hide Ink', ...powerpointHideInkEntries())}
+  `;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
- * Word alone, until PowerPoint's and Excel's Review tabs have their own unit. A missing application is
- * not a menu set found to be empty; it is one nobody has written yet.
+ * Word and PowerPoint, until Excel's Review tab has its own unit. A missing application is not a menu set
+ * found to be empty; it is one nobody has written yet.
  */
 const menusByApplication: Partial<Record<RibbonApplication, (host: RibbonSurfaceHost) => TemplateResult>> = {
   word: wordReviewMenus,
+  powerpoint: powerpointReviewMenus,
 };
 
 /**

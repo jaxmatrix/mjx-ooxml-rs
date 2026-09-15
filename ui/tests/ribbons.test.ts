@@ -632,11 +632,16 @@ describe('a split button whose face is a state draws pressed, in every host', ()
     const toggling = assemblySources
       .flatMap((file) => boundControlsIn(file.source))
       .filter((bound) => bound.tag === 'mjx-split-button' && /(?:^|\s)toggle(?:\s|$)/.test(bound.attributes));
-    // Word's Eraser, Track Changes, Show Comments and Hide Ink in two hosts, PowerPoint's Eraser in two.
+    // Word's Eraser, Track Changes, Show Comments and Hide Ink, and PowerPoint's Eraser, Show Comments and
+    // Hide Ink, each in two hosts.
     expect(toggling.map((bound) => bound.key).sort()).toEqual(
       [
         'powerpoint.draw.write.eraser',
         'powerpoint.draw.write.eraser',
+        'powerpoint.review.comments.show-comments',
+        'powerpoint.review.comments.show-comments',
+        'powerpoint.review.ink.hide-ink',
+        'powerpoint.review.ink.hide-ink',
         'word.draw.write.eraser',
         'word.draw.write.eraser',
         'word.review.comments.show-comments',

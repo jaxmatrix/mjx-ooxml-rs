@@ -1452,9 +1452,9 @@ export const iconRequests: readonly IconRequest[] = [
   // `dev/ribbons/census.ts`.
   {
     name: 'text-grammar-checkmark',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Spelling & Grammar, on Word's Review tab, small (three tokens): text with a tick, Office's *ABC✓*. Not `text-proofing-tools`, which is Home's Editor.",
+    why: "Spelling & Grammar, on Word's Review tab, small (three tokens): text with a tick, Office's *ABC✓*. Not `text-proofing-tools`, which is Home's Editor. **Since PowerPoint's Review, also Spelling** there, large, because one word fits: hence the 24.",
   },
   {
     name: 'text-word-count',
@@ -1500,9 +1500,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'comment-multiple',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Show Comments, the split button on Word's Review tab: many speech bubbles, every comment shown. Its face is a toggle (`<mjx-split-button toggle>`) that starts pressed, so the filled drawing too.",
+    why: "Show Comments, the split button on Word's Review tab: many speech bubbles, every comment shown. Its face is a toggle (`<mjx-split-button toggle>`) that starts pressed, so the filled drawing too. **Since PowerPoint's Review, also Show Comments** there, large, where the face opens the Comments pane: hence the 24, in both variants.",
   },
   {
     name: 'document-edit',
@@ -1524,15 +1524,26 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'document-dismiss',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Reject, beside Accept: a page struck out, the change refused.",
+    why: "Reject, beside Accept: a page struck out, the change refused. **Since PowerPoint's Review, also Reject** in its Compare group, large where Word's is small: hence the 24.",
   },
   {
     name: 'person-lock',
     sizes: [20, 24],
     variants: ['regular'],
     why: "Block Authors, on Word's Review Protect group, large: a person with a padlock, other authors kept out of a region. `GUESS:`.",
+  },
+  // ── Review (PowerPoint's Review) ────────────────────────────────────────────
+  //
+  // PowerPoint's Review tab, authored after Word's. Every other glyph it draws is one of Word's rows above;
+  // three of those gained a 24 (Spelling, Show Comments and Reject are large here). Every command drawn
+  // without an icon is listed, with its reason, in the *PowerPoint's Review* part of `dev/ribbons/census.ts`.
+  {
+    name: 'panel-right',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Reviewing Pane, the toggle in PowerPoint's Review Compare group: a window with a pane at the right, where PowerPoint docks its Revisions pane. Word's Reviewing Pane draws `panel-left-text` because Word opens it at the left, and Fluent has no right-hand pane with text in it. A toggle, so filled too. `GUESS:`.",
   },
 ];
 

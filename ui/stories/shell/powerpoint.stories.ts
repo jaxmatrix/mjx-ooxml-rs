@@ -66,6 +66,7 @@ import {
   mailingsAnimationsDataMenus,
   startingAnimation,
 } from '../ribbons/mailings-animations-data-menus.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
 import {
   advanceAfterTimes,
   animationDelays,
@@ -544,6 +545,58 @@ function ribbon(): TemplateResult {
             >
               ${animationDelays.map((delay) => html`<mjx-option value=${delay} label=${delay}></mjx-option>`)}
             </mjx-combo-box>`,
+            // PowerPoint's Review. Split buttons and the Language dropdown open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Show Comments and Hide Ink are split buttons whose face is a toggle, both starting unpressed.
+            'powerpoint.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-powerpoint-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.language.language': html`<mjx-button
+              label="Language"
+              icon="local-language"
+              size="large"
+              data-opens="shell-powerpoint-review-language-language"
+            ></mjx-button>`,
+            'powerpoint.review.comments.delete': html`<mjx-split-button
+              label="Delete"
+              icon="comment-dismiss"
+              size="large"
+              data-opens="shell-powerpoint-review-comments-delete"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.comments.show-comments': html`<mjx-split-button
+              toggle
+              label="Show Comments"
+              icon="comment-multiple"
+              size="large"
+              data-opens="shell-powerpoint-review-comments-show-comments"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.compare.accept': html`<mjx-split-button
+              label="Accept"
+              icon="document-checkmark"
+              size="large"
+              data-opens="shell-powerpoint-review-compare-accept"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.compare.reject': html`<mjx-split-button
+              label="Reject"
+              icon="document-dismiss"
+              size="large"
+              data-opens="shell-powerpoint-review-compare-reject"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.ink.hide-ink': html`<mjx-split-button
+              toggle
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-powerpoint-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -794,7 +847,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
-      ${mailingsAnimationsDataMenus('powerpoint', 'shell')}
+      ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

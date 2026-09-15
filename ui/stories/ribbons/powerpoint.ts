@@ -32,6 +32,10 @@
  * Sound list, and the *Advance Slide* caption.
  *
  * **Animations** is unit 7: four groups and twelve commands, Transitions' shape applied to one object.
+ *
+ * **Review** followed Word's, one tab of one application: seven groups and nineteen commands, the tab
+ * where a deck is read by somebody else. Every menu on it carries Office's whole list.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -249,6 +253,38 @@ export function powerpointAnimationsTab(options: TabOptions = {}): TemplateResul
   );
 }
 
+/**
+ * Review: Proofing, Accessibility, Language, Comments, Compare, Activity, Ink, in **Office's** order.
+ *
+ * ⚠ **Ink is last here and fifth in the census's declaration**, where Microsoft 365 draws it after
+ * Compare; `wordReviewTab` makes the same call. Activity is drawn before it. `GUESS:` both positions, and
+ * `dev/ribbons/census.ts` records the disagreement. Office's Insights (Smart Lookup) and Chinese
+ * Translation are out of scope in the census and are not drawn.
+ *
+ * **Seven of the tab's nineteen commands are bound by the host**: Check Accessibility, Delete, Accept and
+ * Reject are split buttons; Show Comments and Hide Ink are split buttons whose face is a toggle; Language
+ * is a dropdown. All seven open menus from `stories/ribbons/review-menus.ts`. Reviewing Pane is the
+ * generic toggle.
+ *
+ * **No dialog launchers**, because Office puts none here. **Two survivors**, Previous Comment and Next
+ * Comment, and `dev/ribbons/census.ts` gives the reason.
+ */
+export function powerpointReviewTab(options: TabOptions = {}): TemplateResult {
+  const review = entry('review');
+  const controls = options.controls ?? {};
+  return tab(
+    review.id,
+    review.label,
+    censusGroup(review, 'GroupProofing', {}, controls),
+    censusGroup(review, 'GroupAccessibility', {}, controls),
+    censusGroup(review, 'GroupLanguage', {}, controls),
+    censusGroup(review, 'GroupComments', {}, controls),
+    censusGroup(review, 'GroupReviewCompare', {}, controls),
+    censusGroup(review, 'GroupActivity', {}, controls),
+    censusGroup(review, 'GroupInk', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideShowTab(): TemplateResult {
@@ -257,10 +293,6 @@ export function powerpointSlideShowTab(): TemplateResult {
 
 export function powerpointRecordingTab(): TemplateResult {
   return placeholderTab(entry('recording'));
-}
-
-export function powerpointReviewTab(): TemplateResult {
-  return placeholderTab(entry('review'));
 }
 
 export function powerpointViewTab(): TemplateResult {
