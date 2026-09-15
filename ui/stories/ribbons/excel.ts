@@ -40,10 +40,14 @@
  *     commands, the sheet as it will print. It opens no menu, binds one checkbox (Show Margins) in
  *     `Ribbons/Excel` alone, and draws its groups in Office's order rather than the census's.
  *
- * No core or view tab is a placeholder any more. **Five contextual tabs in four sets are declared, and every one is
- * a placeholder**: Table Design (Excel's own `TabSetTableToolsExcel`, with no Layout tab), Picture Format, Shape
- * Format, and Chart Design and Format. `dev/ribbons/census.ts` carries their groups and no commands;
+ * No core or view tab is a placeholder any more. **Five contextual tabs in four sets are declared**: Table Design
+ * (Excel's own `TabSetTableToolsExcel`, with no Layout tab), Picture Format, Shape Format, and Chart Design and Format.
  * `excelContextualSets` draws them, one set or all.
+ *
+ * **Table Design is authored**, Excel's first contextual tab: five groups and nineteen commands, a worksheet table's
+ * name and range, what it turns into, its external data, its style options and its style. Its gallery, field list and
+ * two menus are in `stories/ribbons/table-tools-menus.ts`, over the table art Word's unit wrote. **Both Excel hosts
+ * bind it**, because both draw Table Tools. **The other four are placeholders**, each until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -455,11 +459,39 @@ export function excelTabs(
 // ── the contextual tabs ──────────────────────────────────────────────────────
 
 /**
- * Which function builds which contextual tab. **Every entry is `placeholderTab` today** — see Word's. Five, not six:
- * Excel's Table Tools has no Layout tab.
+ * Table Design: Properties, Tools, External Table Data, Table Style Options, Table Styles — Excel's first contextual
+ * tab authored, in **Office's** order, which is also the census's. It sits under the *Table Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while the active cell is in a worksheet table.** Both Excel hosts draw
+ * Table Tools, so both bind it and render `tableToolsMenus('excel', host)`. `dev/ribbons/census.ts` records every
+ * disagreement.
+ *
+ * **Eleven of the tab's nineteen commands are bound by a host**: Table Name, a field; the seven Table Style Options
+ * checkboxes; the Table Styles gallery; and Export and Refresh, a dropdown and a split button over
+ * `stories/ribbons/table-tools-menus.ts`'s menus. The other eight are the generic button.
+ *
+ * **No dialog launcher, no toggle, no survivor.**
+ */
+export function excelTableDesignTab(options: TabOptions = {}): TemplateResult {
+  const tableDesign = entry('table-design');
+  const controls = options.controls ?? {};
+  return tab(
+    tableDesign.id,
+    tableDesign.label,
+    censusGroup(tableDesign, 'GroupTableProperties', {}, controls),
+    censusGroup(tableDesign, 'GroupTableTools', {}, controls),
+    censusGroup(tableDesign, 'GroupTableExternalData', {}, controls),
+    censusGroup(tableDesign, 'GroupTableStyleOptions', {}, controls),
+    censusGroup(tableDesign, 'GroupTableStylesExcel', {}, controls),
+  );
+}
+
+/**
+ * Which function builds which contextual tab. **Table Design is authored; every other entry is `placeholderTab`
+ * today** — see Word's. Five, not six: Excel's Table Tools has no Layout tab.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
-  'table-design': () => placeholderTab(entry('table-design')),
+  'table-design': excelTableDesignTab,
   'picture-format': () => placeholderTab(entry('picture-format')),
   'shape-format': () => placeholderTab(entry('shape-format')),
   'chart-design': () => placeholderTab(entry('chart-design')),

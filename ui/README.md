@@ -1348,7 +1348,8 @@ is drawn:
 ### The contextual tab sets (the four common sets)
 
 **Declared, then authored one tab of one application at a time; Word's Table Design is the first, Word's Table
-Layout the second, PowerPoint's Table Design the third, and PowerPoint's Table Layout the fourth.** A contextual tab
+Layout the second, PowerPoint's Table Design the third, PowerPoint's Table Layout the fourth, and Excel's Table Design
+the fifth.** A contextual tab
 is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
@@ -1385,8 +1386,8 @@ placeholder priority and the id checks now sweep contextual tabs too.
 `sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
 was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
 Table Design* below, **Word's Table Layout the second**, see *Word's Table Layout*, **PowerPoint's Table Design
-the third**, see *PowerPoint's Table Design*, and **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
-Layout*.
+the third**, see *PowerPoint's Table Design*, **PowerPoint's Table Layout the fourth**, see *PowerPoint's Table
+Layout*, and **Excel's Table Design the fifth**, see *Excel's Table Design*.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1698,6 +1699,62 @@ to `tests/ribbons.test.ts`' named lists and starting states.
   `-right` and Excel's `align-top`, `align-center-vertical` and `align-bottom`. **Cell Margins' `padding-left` is still
   the weakest.** The four fields, the checkbox and Selection Pane carry none; Selection Pane because Fluent draws no
   selection pane.
+
+### Excel's Table Design
+
+**One tab of one application, and the fifth contextual tab authored**, Excel's first. Five groups and nineteen
+commands, in Office's order, which is also the census's: Properties, Tools, External Table Data, Table Style Options,
+Table Styles. It is `TabTableToolsDesignExcel` in Excel's own `TabSetTableToolsExcel`, under the *Table Tools* band
+while the active cell is in a worksheet table. The set has no Layout tab, because a worksheet table's rows and columns
+are the sheet's, and no borders or pens, because its lines are its cells'.
+
+**The census's groups, read.** `GroupTableProperties` (3) Properties, `GroupTableTools` (4) Tools,
+`GroupTableExternalData` (13) External Table Data, `GroupTableStyleOptions` (7) Table Style Options,
+`GroupTableStylesExcel` (3) Table Styles. The ids, labels and priorities are the contextual unit's, unchanged.
+
+**It renders in both Excel hosts**, because both draw Table Tools. Each binds eleven commands and renders
+`tableToolsMenus('excel', host)`, which until this unit rendered nothing for Excel.
+
+- **Properties**: Table Name (a combo box on *Table1*) over Resize Table.
+- **Tools**: Summarize with PivotTable, Remove Duplicates and Convert to Range small, then Insert Slicer large.
+- **External Table Data**: **Export** (a large dropdown: Export Table to SharePoint List…, Export Table to Visio Pivot
+  Diagram…) and **Refresh** (a large split button: Refresh, Refresh All, Refresh Status, Cancel Refresh, Connection
+  Properties…), then Properties, Open in Browser and Unlink small.
+- **Table Style Options**: seven checkboxes in three columns, **Header Row, Banded Rows and Filter Button ticked**, the
+  table Format as Table inserts (`headerRowCount="1"`, an `<autoFilter>`, `showRowStripes="1"`).
+- **Table Styles**: the gallery in-ribbon, **None and Excel's 60 built-in styles** under *Light* (22), *Medium* (28) and
+  *Dark* (11), starting on Table Style Medium 2, with New Table Style… and Clear under it. Each value is the style's
+  wire name (`TableStyleMedium2`), each label Office's display name.
+
+**Reused, and added.** `stories/ribbons/table-tools-menus.ts` gives the tab its table picture and gallery item builder,
+and now carries Excel's lists beside Word's and PowerPoint's: `excelTableStyles`, `excelTableName`, the gallery footer,
+and the Export and Refresh menus. `tableToolsMenus` now always returns menus. Where a command is one the workbook
+already draws, its glyph is reused: Insert's Slicer (`filter`), Data's Refresh All (`arrow-clockwise`), Recording's
+Export (`arrow-export`), Outlining's Unlink (`link-dismiss`) and Word's Table Layout Properties (`table-settings`).
+Remove Duplicates carries no glyph, as Data's does.
+
+**No survivors.** Table Name is a field and Resize Table opens a dialog. Summarize with PivotTable, Remove Duplicates
+and Insert Slicer open dialogs, and Convert to Range asks first. Export is a menu, Refresh a split button, Properties
+a dialog, Open in Browser leaves the workbook and Unlink cannot be undone. Seven checkboxes, and a gallery. **No
+dialog launcher.**
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Table Name is a combo box with a list of one**, where Office draws a plain text box. The catalogue has no plain
+  text field, so its arrow opens a list holding the name itself. **The weakest part of the tab.**
+- **The gallery draws 61, not the brief's 60**: Office's Light section opens with None. `GUESS:` None's place, every
+  picture, the footer's order, and that the label drops the colour word Microsoft 365 prefixes to each tooltip.
+- **The counts.** Properties (3), Tools (4) and Table Style Options (7) are met. **External Table Data counts 13 and
+  draws 5**; Export's two entries and Refresh's face, arrow and five entries make 13. **Table Styles counts 3 and draws
+  1**; the gallery and its two footer commands make 3. `GUESS:` both readings. Nothing is padded.
+- **Export's second entry** (Visio, shown where Visio is installed), **Refresh's order**, the checkboxes' columns and
+  starts, and *Table1* are `GUESS:`.
+- **Properties, Open in Browser, Unlink and Refresh are drawn available.** Office greys them for a table with no
+  external source; nothing here tracks one.
+- **Glyphs**, all `GUESS:`. Four are new: `resize-table`, `pivot` (Summarize with PivotTable), `convert-range` and
+  `globe-arrow-forward` (Open in Browser), so the subset grows by four files. **`pivot` is the weakest**, and it and
+  `table-settings` disagree with Insert's PivotTable and Data's Properties, which carry no glyph; those units are left
+  as they are. The field, the seven checkboxes and the gallery carry none.
 
 ### The entries beneath a colour picker's palette
 

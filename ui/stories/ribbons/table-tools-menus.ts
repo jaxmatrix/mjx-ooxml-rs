@@ -1,6 +1,6 @@
 /**
  * **The menus, fields and gallery the Table Tools tabs open**, written once for both hosts: Word's and PowerPoint's
- * Table Design and Table Layout today, and Excel's Table Design when its unit lands.
+ * Table Design and Table Layout, and Excel's Table Design.
  *
  * The pattern is `stories/ribbons/slide-master-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -11,10 +11,11 @@
  *
  * 1. **The Table Styles galleries.** Both Word hosts bind `<mjx-gallery>` and fill it from
  *    `wordTableStyleGalleryItems(palette)` and `wordTableStyleGalleryFooter()`; `Ribbons/PowerPoint` fills its own from
- *    `powerpointTableStyleGalleryItems(palette)` and `powerpointTableStyleGalleryFooter()`.
+ *    `powerpointTableStyleGalleryItems(palette)` and `powerpointTableStyleGalleryFooter()`; both Excel hosts fill theirs
+ *    from `excelTableStyleGalleryItems(palette)` and `excelTableStyleGalleryFooter()`.
  * 2. **The field lists**, `wordBorderLineStyles` (Line Style), `powerpointPenStyles` (Pen Style) and
  *    `tableLineWeights` (Line Weight and Pen Weight), which each host maps onto `<mjx-option>`s, as `ribbon-parts.ts`'s
- *    shared field lists are.
+ *    shared field lists are, and `excelTableName`, the one name Excel's Table Name field starts on and lists.
  * 3. **No colour list.** Shading and Pen Colour are colour pickers over the document's palette, which a host owns.
  *    The entries beneath their palettes (More Colours…, Gradient ▸, Weight ▸) are
  *    `stories/ribbons/colour-picker-entries.ts`'s, which reads `tableLineWeights` and `presetLineDashes` from here.
@@ -40,6 +41,8 @@
  *   list of dashes, its Borders menu lists No Border and All Borders first and has no Horizontal Line, Draw Table or
  *   View Gridlines, and it has no Border Styles. Excel's Table Design has no borders at all. **PowerPoint's are written
  *   below as its own**: `powerpointPenStyles`, `powerpointBorderEntries`, its 74 styles and its Effects menu.
+ * - **Excel's Table Design calls the picture and the item builder**, and writes its own 61 styles and its Export and
+ *   Refresh menus below. It has no line weights, pens or borders: a worksheet table's lines are its cells'.
  * - **`tableSelectEntries` and `tableDeleteEntries` are shared by the two Table Layout tabs**, and take the
  *   application: Word's lists start with a cell (Select Cell, Delete Cells…) and PowerPoint's cannot select or delete
  *   one cell. **PowerPoint's Table Layout now calls both.** **AutoFit's list is Word's**: PowerPoint's Table Layout
@@ -88,9 +91,9 @@ import {
 
 // ── the entries ──────────────────────────────────────────────────────────────
 
-/** One entry. */
-function item(label: string): TemplateResult {
-  return html`<mjx-menu-item label=${label}></mjx-menu-item>`;
+/** One entry, with the keyboard shortcut Office prints beside it where it prints one. */
+function item(label: string, shortcut?: string): TemplateResult {
+  return html`<mjx-menu-item label=${label} shortcut=${shortcut ?? nothing}></mjx-menu-item>`;
 }
 
 /** One entry that is on or off by itself. */
@@ -732,6 +735,133 @@ export const powerpointTableLayoutMeasures = {
   step: '0.01',
 } as const;
 
+// ── Excel's Table Design: the 61 styles, Table Name, Export and Refresh ─────
+
+/**
+ * **The name Excel's Table Name field starts on, and the one option it lists**: *Table1*, the name Excel gives a
+ * workbook's first table (`<table name="Table1" displayName="Table1">`). Written once so both hosts' fields agree.
+ * `GUESS:` that the field lists the name itself, since Office's plain text box lists nothing; see the census.
+ */
+export const excelTableName = 'Table1';
+
+/** One Excel style: its display name, its wire name (`<tableStyleInfo name>`) as the value, and its look. */
+function excelStyle(
+  category: 'Light' | 'Medium' | 'Dark',
+  number: number,
+  tint: ThemeColorSlot,
+  picture: TableStylePicture,
+): TableStyleSpec {
+  return {
+    value: `TableStyle${category}${String(number)}`,
+    label: `Table Style ${category} ${String(number)}`,
+    category,
+    tint,
+    picture,
+  };
+}
+
+/** One family of seven, numbered from `first`: no accent, then the six accents, one gallery row. */
+function excelFamily(category: 'Light' | 'Medium' | 'Dark', first: number, picture: TableStylePicture): TableStyleSpec[] {
+  return [
+    excelStyle(category, first, 'text1', picture),
+    ...accents.map((accent, index) => excelStyle(category, first + index + 1, accent.slot, picture)),
+  ];
+}
+
+/**
+ * **Excel's families of seven**, and the one family of four pairs. `GUESS:` each look, from memory of the gallery's
+ * thumbnails.
+ *
+ * - Light 1–7 rule the header and shade alternate rows; Light 8–14 fill the header and outline the table; Light 15–21
+ *   draw every line.
+ * - Medium 1–7 fill the header over lines between rows; Medium 8–14 shade every cell; Medium 15–21 fill the header,
+ *   rule the rows and set the first column apart; Medium 22–28 shade every cell and draw every line under a plain
+ *   header.
+ * - Dark 1–7 shade every cell and fill the header and first column; Dark 8–11 shade every cell under a filled header.
+ */
+const excelLooks = {
+  light1: look({ header: 'ruled', banded: true }),
+  light8: look({ header: 'filled', lines: 'outline', lineStrength: 'full' }),
+  light15: look({ header: 'ruled', lines: 'grid', lineStrength: 'full', banded: true }),
+  medium1: look({ header: 'filled', lines: 'rows', banded: true }),
+  medium8: look({ header: 'filled', bodyFilled: true, banded: true }),
+  medium15: look({ header: 'filled', lines: 'rows', lineStrength: 'full', banded: true, firstColumn: 'emphasised' }),
+  medium22: look({ lines: 'grid', bodyFilled: true, banded: true }),
+  dark1: look({ header: 'filled', bodyFilled: true, banded: true, firstColumn: 'filled' }),
+  dark8: look({ header: 'filled', bodyFilled: true, banded: true, lines: 'outline', lineStrength: 'full' }),
+} as const;
+
+/**
+ * **Excel's whole built-in Table Styles gallery**: None and 60 styles, 61 cells.
+ *
+ * - *Light* (22): **None**, the table with no style, then Table Style Light 1 to 21, three families of seven.
+ * - *Medium* (28): Table Style Medium 1 to 28, four families of seven.
+ * - *Dark* (11): Table Style Dark 1 to 7, one family of seven, then Dark 8 (no accent) and Dark 9, 10 and 11, the
+ *   pairs Accent 1/2, 3/4 and 5/6, each drawn in its first accent because a `TableStylePicture` carries one tint.
+ *
+ * Each `value` is the style's wire name, `TableStyleMedium2`, so a later unit that dispatches one needs no second
+ * table; None's is `none`, because a table with no style writes no `<tableStyleInfo name>`. Each label is Office's
+ * display name. ⚠ **The brief lists 60**: None is Office's first Light cell, kept here. `GUESS:` None's place, every
+ * picture and the order inside each section. A host starts the gallery on `TableStyleMedium2`, Format as Table's
+ * default.
+ */
+export const excelTableStyles: readonly TableStyleSpec[] = [
+  { value: 'none', label: 'None', category: 'Light', tint: 'text1', picture: look({}) },
+  ...excelFamily('Light', 1, excelLooks.light1),
+  ...excelFamily('Light', 8, excelLooks.light8),
+  ...excelFamily('Light', 15, excelLooks.light15),
+  ...excelFamily('Medium', 1, excelLooks.medium1),
+  ...excelFamily('Medium', 8, excelLooks.medium8),
+  ...excelFamily('Medium', 15, excelLooks.medium15),
+  ...excelFamily('Medium', 22, excelLooks.medium22),
+  ...excelFamily('Dark', 1, excelLooks.dark1),
+  excelStyle('Dark', 8, 'text1', excelLooks.dark8),
+  excelStyle('Dark', 9, 'accent1', excelLooks.dark8),
+  excelStyle('Dark', 10, 'accent3', excelLooks.dark8),
+  excelStyle('Dark', 11, 'accent5', excelLooks.dark8),
+];
+
+/** Excel's Table Styles gallery items, in the document's palette. A host starts the gallery on `TableStyleMedium2`. */
+export function excelTableStyleGalleryItems(palette: ThemeColorPalette): TemplateResult[] {
+  return tableStyleGalleryItems(excelTableStyles, palette);
+}
+
+/**
+ * **The two commands under Excel's expanded Table Styles gallery**: New Table Style… and Clear, in Office's order.
+ * `slot="footer"`. `GUESS:` the order. Home's Format as Table offers New PivotTable Style… in Clear's place; a table
+ * that already exists can be cleared, and a PivotTable style is not this tab's.
+ */
+export function excelTableStyleGalleryFooter(): TemplateResult[] {
+  return ['New Table Style…', 'Clear'].map(
+    (label) => html`<mjx-button slot="footer" label=${label} size="small"></mjx-button>`,
+  );
+}
+
+/**
+ * **Export's list, Excel's**: Export Table to SharePoint List…, which opens the Export Table to SharePoint List wizard,
+ * and Export Table to Visio Pivot Diagram…, which Office lists where Visio is installed. `GUESS:` that both are listed,
+ * and the second's name.
+ */
+function excelTableExportEntries(): TemplateResult[] {
+  return [item('Export Table to SharePoint List…'), item('Export Table to Visio Pivot Diagram…')];
+}
+
+/**
+ * **Refresh's arrow, Excel's Table Design**: Refresh and Refresh All with Data's shortcuts, Refresh Status, Cancel
+ * Refresh, then Connection Properties…. Data's Refresh All lists the same five with Refresh All first, because
+ * there Refresh All is the face; here the face refreshes this table. `GUESS:` the order and the separator.
+ */
+function excelTableRefreshEntries(): TemplateResult[] {
+  return [
+    item('Refresh', 'Alt+F5'),
+    item('Refresh All', 'Ctrl+Alt+F5'),
+    item('Refresh Status'),
+    item('Cancel Refresh'),
+    separator(),
+    item('Connection Properties…'),
+  ];
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
@@ -771,17 +901,27 @@ function powerpointTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Every menu one application's Table Tools tabs open, with ids for one host's page. Word's Table Design and Table
- * Layout and PowerPoint's Table Design are authored; Excel's unit and PowerPoint's Table Layout add theirs here, and
- * until then Excel renders nothing.
+ * Excel's two menus, both on Table Design's External Table Data: Export and Refresh. Every other Table Design command
+ * is a field, a checkbox, a gallery or a plain button.
+ */
+function excelTableToolsMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'excel.table-design.external-table-data.export', 'Export', ...excelTableExportEntries())}
+    ${commandMenu(host, 'excel.table-design.external-table-data.refresh', 'Refresh', ...excelTableRefreshEntries())}
+  `;
+}
+
+/**
+ * Every menu one application's Table Tools tabs open, with ids for one host's page. Word's and PowerPoint's Table
+ * Design and Table Layout and Excel's Table Design are authored.
  *
  * Rendered once beside `<mjx-ribbon>`, floating and closed, exactly as `masterViewMenus` is, by every host that draws
- * the Table Tools set: both Word hosts do, and `Ribbons/PowerPoint`. **`Shell/PowerPoint` does not**: it draws Picture
- * Tools, so it renders none of these, and `tests/ribbons.test.ts` requires PowerPoint's menus of `Ribbons/PowerPoint`
- * alone.
+ * the Table Tools set: both Word hosts, both Excel hosts, and `Ribbons/PowerPoint`. **`Shell/PowerPoint` does not**: it
+ * draws Picture Tools, so it renders none of these, and `tests/ribbons.test.ts` requires PowerPoint's menus of
+ * `Ribbons/PowerPoint` alone.
  */
-export function tableToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult | typeof nothing {
+export function tableToolsMenus(application: RibbonApplication, host: RibbonSurfaceHost): TemplateResult {
   if (application === 'word') return wordTableToolsMenus(host);
   if (application === 'powerpoint') return powerpointTableToolsMenus(host);
-  return nothing;
+  return excelTableToolsMenus(host);
 }

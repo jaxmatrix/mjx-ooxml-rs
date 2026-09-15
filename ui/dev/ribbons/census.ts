@@ -126,8 +126,10 @@
  * Chart Format to call; see the *commands Table Design shows* section's *PowerPoint's Table Design* part.
  * **PowerPoint's Table Layout** followed, the fourth, calling Word's Select and Delete lists for PowerPoint and
  * `arrangeCommands` for a table, which it generalised to take the application, the tab and the object; see the
- * *commands Table Layout shows* section's *PowerPoint's Table Layout* part. `commands` stays optional rather than
- * required, because an empty array would claim a tab had been authored and found to hold nothing.
+ * *commands Table Layout shows* section's *PowerPoint's Table Layout* part. **Excel's Table Design** followed, the
+ * fifth and Excel's first, reusing that file's gallery art and adding Excel's styles and its Export and Refresh menus
+ * there; see the *commands Table Design shows* section's *Excel's Table Design* part. `commands` stays optional rather
+ * than required, because an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## The contextual tab sets
  *
@@ -174,7 +176,8 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **Four contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout.** Each
+ * **Five contextual tabs carry commands: Word's and PowerPoint's Table Design and Table Layout, and Excel's Table
+ * Design.** Each
  * per-tab unit authors one tab of one application,
  * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
  * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
@@ -6928,6 +6931,187 @@ const powerpointTableDesignDrawBorders: readonly RibbonCommand[] = [
   { id: 'powerpoint.table-design.draw-borders.eraser', label: 'Eraser', icon: 'eraser', size: 'large', toggle: true, exclusive: powerpointTableDesignDrawTools, exclusiveAllowsNone: true },
 ];
 
+// ## Excel's Table Design
+//
+// The unit after PowerPoint's Table Layout, one tab of one application: **Excel's `TabTableToolsDesignExcel`, in
+// `TabSetTableToolsExcel`**, all five in-scope groups and nineteen commands, and **the fifth contextual tab authored**,
+// Excel's first. Office shows it under the *Table Tools* band while the active cell is in a worksheet table: what the
+// table is called and which cells it covers, what it can be turned into, where its data comes from, which parts its
+// style sets apart, and which style it wears.
+//
+// ## Office's five groups, read onto the census's five
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupTableProperties` (3) | Properties | Table Name, Resize Table |
+// | `GroupTableTools` (4) | Tools | Summarize with PivotTable, Remove Duplicates, Convert to Range, Insert Slicer |
+// | `GroupTableExternalData` (13) | External Table Data | Export, Refresh, Properties, Open in Browser, Unlink |
+// | `GroupTableStyleOptions` (7) | Table Style Options | Header Row, Total Row, Banded Rows, First Column, Last Column, Banded Columns, Filter Button |
+// | `GroupTableStylesExcel` (3) | Table Styles | the Table Styles gallery |
+//
+// **Every id, label and priority is the contextual unit's, unchanged**, and Office's order is the census's.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **One field**, Table Name. **Seven toggles drawn as checkboxes**, bound by a host. **One in-ribbon gallery**, Table
+// Styles, over Excel's 60 built-in styles and None, with New Table Style… and Clear under it. **One dropdown**,
+// Export, and **one split button**, Refresh, each over a menu in `stories/ribbons/table-tools-menus.ts`. **Eight plain
+// buttons.** **No toggle, no exclusive set, no colour picker and no dialog launcher**: a worksheet table's borders and
+// fills are the cells', so it has no pen and no Borders group.
+//
+// **Reused, where Excel's command is one the workbook already draws.** Insert Slicer is Insert's Slicer (`filter`);
+// Refresh draws Data's Refresh All arrow (`arrow-clockwise`); Remove Duplicates is Data's Remove Duplicates and, like
+// it, carries no glyph; Export draws Recording's `arrow-export`; Unlink draws Outlining's `link-dismiss`; Properties
+// draws Word's Table Layout Properties' `table-settings`. The table picture and gallery item builder are
+// `table-tools-menus.ts`'s, which now carries Excel's own lists beside Word's and PowerPoint's.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The counts, and three of five are met.** **Properties counts 3**: the *Table Name:* label, its box, and Resize
+//    Table. **Tools counts 4** and draws 4. **Table Style Options counts 7** and draws 7. **External Table Data counts
+//    13 and draws 5**: `GUESS:` Export's face and its two entries (3), Refresh's face, its arrow and its five entries
+//    (7), and Properties, Open in Browser and Unlink (3) make 13. **Table Styles counts 3 and draws 1**: `GUESS:` the
+//    gallery and its two footer commands. Nothing is padded.
+// 2. **Table Name is a `<mjx-combo-box allow-custom>` holding one option, the name itself**, where Office draws a
+//    plain text box. The catalogue has no plain text field, and the combo box is the one control that takes typed
+//    text; its arrow opens a list of one. Starts on *Table1*, Excel's name for a workbook's first table. `GUESS:` the
+//    start, and that a list of one is a smaller loss than a field that cannot be typed into.
+// 3. **The seven checkboxes are declared down each column**, as Word's and PowerPoint's are: Header Row, Total Row,
+//    Banded Rows; First Column, Last Column, Banded Columns; Filter Button alone in a third column. The brief lists
+//    them across. `GUESS:` the columns.
+// 4. **Header Row, Banded Rows and Filter Button start ticked**, and the other four unticked. That is the table Format
+//    as Table inserts: `<table headerRowCount="1">` with an `<autoFilter>`, and
+//    `<tableStyleInfo showRowStripes="1" showFirstColumn="0" showLastColumn="0" showColumnStripes="0">`. `GUESS:`
+//    that the checkboxes show exactly that table.
+// 5. **The gallery holds 61 cells, not the brief's 60.** Office's *Light* section opens with **None**, the table with
+//    no style, before Light 1; the gallery keeps it, so Light draws 22. Then *Medium* (28) and *Dark* (11), each row
+//    one family of seven (no accent, then the six accents), except Dark 8 to 11, which are four pairs. **Each value is
+//    the style's wire name** (`TableStyleMedium2`, `<tableStyleInfo name>`), so a later unit that dispatches one needs
+//    no second table, and **each label is Office's display name**, *Table Style Medium 2*. The gallery starts on
+//    Table Style Medium 2, Format as Table's default. Office also shows a *Custom* section once a workbook has a
+//    custom style, and this one has none. `GUESS:` None's place, every picture, and that the footer is New Table
+//    Style… then Clear. Microsoft 365 also prefixes a colour to each tooltip (*Blue, Table Style Medium 2*), a word
+//    that follows the theme; the label keeps the name the file carries.
+// 6. **Export's two entries are Export Table to SharePoint List… and Export Table to Visio Pivot Diagram…**, the
+//    second shown only where Visio is installed. `GUESS:` that both are listed.
+// 7. **Refresh's face refreshes this table**, and its arrow lists Refresh, Refresh All, Refresh Status, Cancel
+//    Refresh and Connection Properties…, with Data's shortcuts. Data's Refresh All lists the same five with Refresh
+//    All first, because there Refresh All is the face. `GUESS:` the order and the separator.
+// 8. **Properties, Open in Browser and Unlink act on a table with an external source**, and Office greys all three
+//    (and Refresh) for a table typed into the sheet. Nothing here tracks a source, so all are drawn available.
+// 9. **Two glyphs disagree with earlier units, and this unit does not change those units.** Insert's PivotTable and
+//    Data's Properties carry no glyph, their units finding no honest one. Here **Summarize with PivotTable draws
+//    Fluent's `pivot`**, blocks turned by a bent arrow, which is the nearest Fluent comes to pivoting a table, and
+//    **Properties draws `table-settings`**, Word's Table Layout Properties: the dialog sets how this table refreshes
+//    and keeps its layout, a table's settings. `GUESS:` both, and `pivot` is the weakest glyph on the tab.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Properties**: none. Table Name is a field, and Resize Table opens the Resize Table dialog, rule 1.
+// - **Tools**: none. Summarize with PivotTable, Remove Duplicates and Insert Slicer open dialogs, and Convert to Range
+//   asks *Do you want to convert the table to a normal range?* before it acts, all rule 1.
+// - **External Table Data**: none. Export opens a menu, Refresh is a split button, Properties opens a dialog; Open in
+//   Browser leaves the workbook, which no undo takes back, and Unlink warns that it cannot be undone. All rule 1.
+// - **Table Style Options**: none. All seven are checkboxes, which the gate refuses.
+// - **Table Styles**: none. A gallery, rule 1.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Table Name over Resize Table in a column; Summarize with PivotTable, Remove
+// Duplicates and Convert to Range small in a column, then Insert Slicer large; Export and Refresh large, then
+// Properties, Open in Browser and Unlink small in a column; the checkboxes in three columns; the gallery in-ribbon.
+// **Nine commands carry a glyph**, every one `GUESS:`:
+//
+// - **Resize Table draws `resize-table`**, new: a table inside the corner marks of a selection being resized.
+// - **Summarize with PivotTable draws `pivot`**, new. See disagreement 9.
+// - **Convert to Range draws `convert-range`**, new, Fluent's own picture for it: a table's rows turning into plain
+//   lines. `table-switch`'s row already set it aside for this command.
+// - **Insert Slicer draws `filter`**, Insert's Slicer, large: the same command.
+// - **Export draws `arrow-export`**, large, Recording's Export and Export Workbook Data: an arrow leaving a box.
+// - **Refresh draws `arrow-clockwise`**, large, Data's Refresh All: the refresh arrow.
+// - **Properties draws `table-settings`**. See disagreement 9.
+// - **Open in Browser draws `globe-arrow-forward`**, new: the web with an arrow going to it. Not `globe` alone, which
+//   is From Web, data coming in.
+// - **Unlink draws `link-dismiss`**, Outlining's Unlink: a link struck off, the table's tie to its list let go.
+//
+// **Ten commands carry no glyph, and say why**: **Remove Duplicates** has no honest picture, as Data's Remove
+// Duplicates found (Fluent draws no duplicate removal; `table-delete-column` says *delete a column*, which it does
+// not); Table Name is a field; the seven checkboxes draw their tick box; the gallery is its pictures.
+
+/**
+ * Excel's `GroupTableProperties`, labelled **Properties**: Table Name over Resize Table. See disagreements 1 and 2.
+ *
+ * **Table Name is a field** a host binds. **Resize Table is a plain button** that opens the Resize Table dialog.
+ *
+ * **No survivor**: a field and a dialog.
+ */
+const excelTableDesignProperties: readonly RibbonCommand[] = [
+  { id: 'excel.table-design.properties.table-name', label: 'Table Name' },
+  { id: 'excel.table-design.properties.resize-table', label: 'Resize Table', icon: 'resize-table' },
+];
+
+/**
+ * Excel's `GroupTableTools`, labelled **Tools**: three small commands in a column, then Insert Slicer large. See
+ * disagreement 9.
+ *
+ * **All four are plain buttons**: three open dialogs and Convert to Range asks before it acts.
+ *
+ * **No survivor**: four commands that each ask something first.
+ */
+const excelTableDesignTools: readonly RibbonCommand[] = [
+  { id: 'excel.table-design.tools.summarize-with-pivottable', label: 'Summarize with PivotTable', icon: 'pivot' },
+  { id: 'excel.table-design.tools.remove-duplicates', label: 'Remove Duplicates' },
+  { id: 'excel.table-design.tools.convert-to-range', label: 'Convert to Range', icon: 'convert-range' },
+  { id: 'excel.table-design.tools.insert-slicer', label: 'Insert Slicer', icon: 'filter', size: 'large' },
+];
+
+/**
+ * Excel's `GroupTableExternalData`, labelled **External Table Data**: Export and Refresh large, then Properties, Open
+ * in Browser and Unlink small in a column. See disagreements 1, 6, 7, 8 and 9.
+ *
+ * **Export is a large dropdown** and **Refresh a large split button**, both bound by a host over
+ * `stories/ribbons/table-tools-menus.ts`'s menus. The other three are plain buttons.
+ *
+ * **No survivor**: a menu, a split button, a dialog, a trip out of the workbook and a warning.
+ */
+const excelTableDesignExternalData: readonly RibbonCommand[] = [
+  { id: 'excel.table-design.external-table-data.export', label: 'Export', icon: 'arrow-export', size: 'large' },
+  { id: 'excel.table-design.external-table-data.refresh', label: 'Refresh', icon: 'arrow-clockwise', size: 'large' },
+  { id: 'excel.table-design.external-table-data.properties', label: 'Properties', icon: 'table-settings' },
+  { id: 'excel.table-design.external-table-data.open-in-browser', label: 'Open in Browser', icon: 'globe-arrow-forward' },
+  { id: 'excel.table-design.external-table-data.unlink', label: 'Unlink', icon: 'link-dismiss' },
+];
+
+/**
+ * Excel's `GroupTableStyleOptions`, labelled **Table Style Options**: seven checkboxes, three columns read down each
+ * column. See disagreements 3 and 4.
+ *
+ * **All seven are toggles drawn as checkboxes** a host binds; Header Row, Banded Rows and Filter Button start ticked.
+ *
+ * **No survivor**: seven checkboxes.
+ */
+const excelTableDesignTableStyleOptions: readonly RibbonCommand[] = [
+  { id: 'excel.table-design.table-style-options.header-row', label: 'Header Row', toggle: true, pressed: true },
+  { id: 'excel.table-design.table-style-options.total-row', label: 'Total Row', toggle: true },
+  { id: 'excel.table-design.table-style-options.banded-rows', label: 'Banded Rows', toggle: true, pressed: true },
+  { id: 'excel.table-design.table-style-options.first-column', label: 'First Column', toggle: true },
+  { id: 'excel.table-design.table-style-options.last-column', label: 'Last Column', toggle: true },
+  { id: 'excel.table-design.table-style-options.banded-columns', label: 'Banded Columns', toggle: true },
+  { id: 'excel.table-design.table-style-options.filter-button', label: 'Filter Button', toggle: true, pressed: true },
+];
+
+/**
+ * Excel's `GroupTableStylesExcel`, labelled **Table Styles**: the gallery in-ribbon, with New Table Style… and Clear
+ * under it. See disagreements 1 and 5.
+ *
+ * **No survivor**: a gallery.
+ */
+const excelTableDesignTableStyles: readonly RibbonCommand[] = [
+  { id: 'excel.table-design.table-styles.gallery', label: 'Table Styles' },
+];
+
 // ── the commands Table Layout shows ──────────────────────────────────────────
 //
 // ## Word's Table Layout
@@ -7678,11 +7862,11 @@ export const excelRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetTableToolsExcel', tab: 'TabTableToolsDesignExcel' },
         groups: [
-          { id: 'GroupTableProperties', label: 'Properties', priority: 'standard', controls: 3, inScope: true },
-          { id: 'GroupTableTools', label: 'Tools', priority: 'standard', controls: 4, inScope: true },
-          { id: 'GroupTableExternalData', label: 'External Table Data', priority: 'secondary', controls: 13, inScope: true },
-          { id: 'GroupTableStyleOptions', label: 'Table Style Options', priority: 'primary', controls: 7, inScope: true },
-          { id: 'GroupTableStylesExcel', label: 'Table Styles', priority: 'primary', controls: 3, inScope: true },
+          { id: 'GroupTableProperties', label: 'Properties', priority: 'standard', controls: 3, inScope: true, commands: excelTableDesignProperties },
+          { id: 'GroupTableTools', label: 'Tools', priority: 'standard', controls: 4, inScope: true, commands: excelTableDesignTools },
+          { id: 'GroupTableExternalData', label: 'External Table Data', priority: 'secondary', controls: 13, inScope: true, commands: excelTableDesignExternalData },
+          { id: 'GroupTableStyleOptions', label: 'Table Style Options', priority: 'primary', controls: 7, inScope: true, commands: excelTableDesignTableStyleOptions },
+          { id: 'GroupTableStylesExcel', label: 'Table Styles', priority: 'primary', controls: 3, inScope: true, commands: excelTableDesignTableStyles },
         ],
       },
     ],

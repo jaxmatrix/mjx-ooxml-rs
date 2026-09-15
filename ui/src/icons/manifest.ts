@@ -421,7 +421,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-export',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "**Since PowerPoint's Recording unit, also Export**, the large dropdown in Recording's Export group, an arrow leaving a box, so 24 as well (`GUESS:`). Export Workbook Data, beside it. The arrow leaving a box, against `arrow-upload`'s arrow entering one — the two commands on that page send different things in different directions, and drawing them alike would hide that.",
+    why: "**Since PowerPoint's Recording unit, also Export**, the large dropdown in Recording's Export group, an arrow leaving a box, so 24 as well (`GUESS:`). Export Workbook Data, beside it. The arrow leaving a box, against `arrow-upload`'s arrow entering one — the two commands on that page send different things in different directions, and drawing them alike would hide that. **Since Excel's Table Design unit, also its Export**, the large dropdown in External Table Data, which exports the table to a SharePoint list or a Visio diagram: an arrow leaving a box. `GUESS:`.",
   },
   {
     name: 'data-histogram',
@@ -726,7 +726,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'table-settings',
     sizes: [20],
     variants: ['regular'],
-    why: "Format, the third of Excel's Cells group — row height, column width, hide and unhide, protection. A cog on a table, which is the only honest thing to draw for a menu that broad. **Since Word's Table Layout unit, also Properties** in the Table group, small, which opens Table Properties: a table's settings, the same picture. `GUESS:`.",
+    why: "Format, the third of Excel's Cells group — row height, column width, hide and unhide, protection. A cog on a table, which is the only honest thing to draw for a menu that broad. **Since Word's Table Layout unit, also Properties** in the Table group, small, which opens Table Properties: a table's settings, the same picture. `GUESS:`. **Since Excel's Table Design unit, also its Properties**, small, in External Table Data, which opens External Data Properties: how the table refreshes and keeps its layout, a table's settings. Data's Properties, the same dialog, carries no glyph, and that unit is left as it is. `GUESS:`.",
   },
   {
     name: 'autosum',
@@ -950,7 +950,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'filter',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Slicer, on Excel's Filters group, large. A slicer is a set of filter buttons, and the funnel is the filter mark across the whole of Office. **Since unit 7, also Filter** on Excel's Data tab: a large toggle, so the filled drawing too. Sharing the funnel with Slicer is why Filter does not survive a collapse.",
+    why: "Slicer, on Excel's Filters group, large. A slicer is a set of filter buttons, and the funnel is the filter mark across the whole of Office. **Since unit 7, also Filter** on Excel's Data tab: a large toggle, so the filled drawing too. Sharing the funnel with Slicer is why Filter does not survive a collapse. **Since Excel's Table Design unit, also Insert Slicer**, large, in its Tools group: the same Slicer command, reached from the table. `GUESS:`.",
   },
   {
     name: 'timeline',
@@ -1384,7 +1384,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-clockwise',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Refresh All, on Excel's Data tab, large: the refresh arrow. Not `arrow-sync`, which is AutoSave.",
+    why: "Refresh All, on Excel's Data tab, large: the refresh arrow. Not `arrow-sync`, which is AutoSave. **Since Excel's Table Design unit, also its Refresh**, the large split button in External Table Data, whose face refreshes the table from its source: the same arrow. `GUESS:`.",
   },
   {
     name: 'building-bank',
@@ -1987,7 +1987,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'link-dismiss',
     sizes: [20],
     variants: ['regular'],
-    why: "Unlink, small, in Word's Outlining Master Document group: a link struck off, the subdocument's text copied in and its file let go. `GUESS:`.",
+    why: "Unlink, small, in Word's Outlining Master Document group: a link struck off, the subdocument's text copied in and its file let go. `GUESS:`. **Since Excel's Table Design unit, also its Unlink**, small, in External Table Data: the table's tie to its SharePoint list let go, the same struck link. `GUESS:`.",
   },
   {
     name: 'merge',
@@ -2278,6 +2278,30 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Convert to Text, small, in Word's Table Layout Data group, which opens Convert Table to Text: a table with a turn arrow. Not `convert-range`, which Excel's Table Design will want for Convert to Range. `GUESS:`.",
+  },
+  {
+    name: 'resize-table',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Resize Table, small, in Excel's Table Design Properties group, which opens Resize Table to choose the table's new range: a table inside the corner marks of a selection. `GUESS:`.",
+  },
+  {
+    name: 'pivot',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Summarize with PivotTable, small, in Excel's Table Design Tools group, which opens Create PivotTable over the table: blocks turned by a bent arrow, the nearest Fluent comes to pivoting a table. ⚠ Insert's PivotTable found no honest glyph and carries none; that unit is left as it is, and this is the weakest glyph on the tab. `GUESS:`.",
+  },
+  {
+    name: 'convert-range',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Convert to Range, small, in Excel's Table Design Tools group, which turns the table back into ordinary cells: Fluent's own picture for the command, a table's rows turning into plain lines. `table-switch` is Word's Convert to Text. `GUESS:`.",
+  },
+  {
+    name: 'globe-arrow-forward',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Open in Browser, small, in Excel's Table Design External Table Data group, which opens the table's SharePoint list in a web browser: the web with an arrow going to it. Not `globe`, which is From Web, data coming in. `GUESS:`.",
   },
 ];
 

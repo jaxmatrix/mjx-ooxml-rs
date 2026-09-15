@@ -46,6 +46,12 @@ import { insertMenus } from '../ribbons/insert-menus.ts';
 import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import {
+  excelTableName,
+  excelTableStyleGalleryFooter,
+  excelTableStyleGalleryItems,
+  tableToolsMenus,
+} from '../ribbons/table-tools-menus.ts';
 import { excelSheetViews, viewMenus } from '../ribbons/view-menus.ts';
 import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
@@ -666,7 +672,53 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${excelContextualSets({ sets: ['table-tools'] })}
+        ${excelContextualSets({
+          sets: ['table-tools'],
+          controls: {
+            // Table Design (a contextual tab). This workbook's selection is in a table, so the shell draws Table Tools
+            // and binds the same eleven commands `Ribbons/Excel` binds, under its own ids. The field's name, the
+            // gallery and both menus are `stories/ribbons/table-tools-menus.ts`'s; the gallery's pictures read this
+            // workbook's palette. The other eight commands are the generic button.
+            'excel.table-design.properties.table-name': html`<mjx-combo-box
+              id="xl-table-design-table-name"
+              label="Table Name"
+              value=${excelTableName}
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              <mjx-option value=${excelTableName} label=${excelTableName}></mjx-option>
+            </mjx-combo-box>`,
+            'excel.table-design.external-table-data.export': html`<mjx-button
+              label="Export"
+              icon="arrow-export"
+              size="large"
+              data-opens="shell-excel-table-design-external-table-data-export"
+            ></mjx-button>`,
+            'excel.table-design.external-table-data.refresh': html`<mjx-split-button
+              label="Refresh"
+              icon="arrow-clockwise"
+              size="large"
+              menu-label="Refresh"
+              data-opens="shell-excel-table-design-external-table-data-refresh"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.table-design.table-style-options.header-row': html`<mjx-checkbox id="xl-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.total-row': html`<mjx-checkbox id="xl-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="xl-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.first-column': html`<mjx-checkbox id="xl-table-design-first-column" label="First Column"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.last-column': html`<mjx-checkbox id="xl-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="xl-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.filter-button': html`<mjx-checkbox id="xl-table-design-filter-button" label="Filter Button" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-styles.gallery': html`<mjx-gallery
+              id="xl-table-styles"
+              label="Table Styles"
+              value="TableStyleMedium2"
+              style=${ribbonGalleryStyle}
+            >
+              ${excelTableStyleGalleryItems(documentThemePalette)} ${excelTableStyleGalleryFooter()}
+            </mjx-gallery>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -876,7 +928,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
       ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
       ${mailingsAnimationsDataMenus('excel', 'shell')} ${reviewMenus('excel', 'shell')}
-      ${viewMenus('excel', 'shell')}
+      ${viewMenus('excel', 'shell')} ${tableToolsMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

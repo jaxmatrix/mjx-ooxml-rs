@@ -31,6 +31,12 @@ import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-an
 import { printPreviewMenus } from './print-preview-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
+import {
+  excelTableName,
+  excelTableStyleGalleryFooter,
+  excelTableStyleGalleryItems,
+  tableToolsMenus,
+} from './table-tools-menus.ts';
 import { excelSheetViews, viewMenus } from './view-menus.ts';
 
 /**
@@ -43,9 +49,10 @@ import { excelSheetViews, viewMenus } from './view-menus.ts';
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Page Layout, Formulas, Data, Review, View,
- * Print Preview and Background Removal. **The five contextual tabs are placeholders** at the census's own
- * priorities: Table Design, Picture Format, Shape Format, Chart Design and Format. Every story draws all four
- * contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone. See
+ * Print Preview and Background Removal. **Of the five contextual tabs, Table Design is authored**, Excel's first; **the
+ * other four are placeholders** at the census's own priorities: Picture Format, Shape Format, Chart Design and Format.
+ * Every story draws all four contextual sets so each can be reached; `Shell/Excel` draws Table Tools alone, and binds
+ * Table Design as this file does. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -66,9 +73,9 @@ const meta: Meta = {
         component:
           'Excel’s ten core tabs, its File tab and its five contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Page Layout, Formulas, Data, ' +
-          'Review, View, Print Preview and Background Removal. The contextual tabs of the four common sets — Table ' +
-          'Design, Picture Format, Shape Format, Chart Design and Format — are placeholders carrying the census’s ' +
-          'priorities.',
+          'Review, View, Print Preview and Background Removal. Of the contextual tabs of the four common sets, Table ' +
+          'Design is authored; Picture Format, Shape Format, Chart Design and Format are placeholders carrying the ' +
+          'census’s priorities.',
       },
     },
     mjx: conventions,
@@ -599,6 +606,48 @@ const bindings: ControlOverrides = {
   // Print Preview (a view tab). `Shell/Excel` never draws a view tab, so this binding is written here and
   // nowhere else. Show Margins is a checkbox, unticked, as the census declares; the tab opens no menu.
   'excel.print-preview.preview.show-margins': html`<mjx-checkbox id="ribbons-xl-print-preview-show-margins" label="Show Margins"></mjx-checkbox>`,
+  // Table Design (a contextual tab, in Excel's own Table Tools). Both Excel hosts draw the set, so `Shell/Excel` binds
+  // the same eleven commands under its own ids. Table Name is a combo box over `excelTableName`, the seven checkboxes
+  // start as Format as Table leaves a new table, the gallery is filled from `stories/ribbons/table-tools-menus.ts` in
+  // the document's palette, and Export and Refresh open that file's menus. The other eight are the generic button.
+  'excel.table-design.properties.table-name': html`<mjx-combo-box
+    id="ribbons-xl-table-design-table-name"
+    label="Table Name"
+    value=${excelTableName}
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    <mjx-option value=${excelTableName} label=${excelTableName}></mjx-option>
+  </mjx-combo-box>`,
+  'excel.table-design.external-table-data.export': html`<mjx-button
+    label="Export"
+    icon="arrow-export"
+    size="large"
+    data-opens="ribbons-excel-table-design-external-table-data-export"
+  ></mjx-button>`,
+  'excel.table-design.external-table-data.refresh': html`<mjx-split-button
+    label="Refresh"
+    icon="arrow-clockwise"
+    size="large"
+    menu-label="Refresh"
+    data-opens="ribbons-excel-table-design-external-table-data-refresh"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.table-design.table-style-options.header-row': html`<mjx-checkbox id="ribbons-xl-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.total-row': html`<mjx-checkbox id="ribbons-xl-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="ribbons-xl-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.first-column': html`<mjx-checkbox id="ribbons-xl-table-design-first-column" label="First Column"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.last-column': html`<mjx-checkbox id="ribbons-xl-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="ribbons-xl-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+  'excel.table-design.table-style-options.filter-button': html`<mjx-checkbox id="ribbons-xl-table-design-filter-button" label="Filter Button" checked="true"></mjx-checkbox>`,
+  'excel.table-design.table-styles.gallery': html`<mjx-gallery
+    id="ribbons-xl-table-styles"
+    label="Table Styles"
+    value="TableStyleMedium2"
+    style=${ribbonGalleryStyle}
+  >
+    ${excelTableStyleGalleryItems(documentThemePalette)} ${excelTableStyleGalleryFooter()}
+  </mjx-gallery>`,
 };
 
 /**
@@ -610,7 +659,7 @@ const bindings: ControlOverrides = {
 function ribbon(selected: string): TemplateResult {
   return html`
     <mjx-ribbon label="Excel" selected=${selected} @mjx-activate=${openDeclaredSurface}>
-      ${excelTabs({ controls: bindings, includeViewTabs: true })} ${excelContextualSets()}
+      ${excelTabs({ controls: bindings, includeViewTabs: true })} ${excelContextualSets({ controls: bindings })}
     </mjx-ribbon>
     <mjx-menu id="ribbons-xl-paste" label="Paste options" floating>
       <mjx-menu-section label="Paste">
@@ -627,6 +676,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
     ${mailingsAnimationsDataMenus('excel', 'ribbons')} ${reviewMenus('excel', 'ribbons')}
     ${viewMenus('excel', 'ribbons')} ${printPreviewMenus('excel', 'ribbons')}
+    ${tableToolsMenus('excel', 'ribbons')}
   `;
 }
 
@@ -895,12 +945,42 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
 
 /**
- * **Table Design** — Table Tools' one tab in Excel, a contextual placeholder until its unit authors it. See
- * `Ribbons/Word → Table Design` for what to look at on a contextual story.
+ * **Table Design**: a worksheet table's name and range, what it turns into, where its data comes from, which parts its
+ * style sets apart, and the style it wears. Table Tools' one tab in Excel, and Excel's first contextual tab authored;
+ * Office shows it only while the active cell is in a table. ⚠ **Excel's Table Tools is its own census set**,
+ * `TabSetTableToolsExcel`, with **no Layout tab**: a worksheet table's rows and columns are the sheet's. Five groups:
+ * Properties, Tools, External Table Data, Table Style Options and Table Styles. See `Ribbons/Word → Table Design` for
+ * the band. What to look at, least certain first:
  *
- * ⚠ **Excel's Table Tools is its own census set**, `TabSetTableToolsExcel`, and it has **no Layout tab**: a worksheet
- * table's rows and columns are the sheet's. Five groups are declared: Properties, Tools, External Table Data, Table
- * Style Options and Table Styles, with the last two primary.
+ * 1. ⚠ **Table Name is a combo box**, where Office draws a plain text box. It reads *Table1*; type a new name and press
+ *    Enter, and it keeps the text. **Its arrow opens a list of one, Table1**, because the catalogue has no plain text
+ *    field. Judge whether that list is acceptable; it is the weakest part of the tab's shape.
+ * 2. ⚠ **The gallery's pictures and sections.** Expand Table Styles: *Light* (22), *Medium* (28) and *Dark* (11), one
+ *    family to a row of seven, **Table Style Medium 2 selected**. **Light opens with None**, the table with no style,
+ *    so its rows start one cell later than Medium's; the brief listed 60 and this draws 61. Dark ends with Dark 8 to
+ *    11, the three accent pairs drawn in their first accent. Under the list: New Table Style… and Clear. Hover a cell:
+ *    its name is *Table Style Light 9*, the name the file carries, without the colour word Microsoft 365 adds. `GUESS:`
+ *    None's place and every picture.
+ * 3. ⚠ **Glyphs to judge**, all `GUESS:`. New: Resize Table's table in corner marks, **Summarize with PivotTable's
+ *    turned blocks (`pivot`, the weakest; Insert's PivotTable carries no glyph)**, Convert to Range's table turning to
+ *    lines, and Open in Browser's globe with an arrow. Reused: Insert Slicer is Insert's funnel, Export Recording's
+ *    arrow leaving a box, Refresh Data's refresh arrow, Properties Word's table with a cog, Unlink Outlining's struck
+ *    link. **Remove Duplicates has none**, as on Data.
+ * 4. **Seven checkboxes in three columns**: Header Row, Total Row and Banded Rows; First Column, Last Column and Banded
+ *    Columns; Filter Button alone. **Header Row, Banded Rows and Filter Button are ticked**, the table Format as Table
+ *    inserts. `GUESS:` the columns and the start.
+ * 5. **Export is a large dropdown**: Export Table to SharePoint List… and Export Table to Visio Pivot Diagram….
+ *    **Refresh is a large split button**: the face does nothing here, and the arrow lists Refresh (Alt+F5), Refresh
+ *    All (Ctrl+Alt+F5), Refresh Status, Cancel Refresh, then Connection Properties….
+ * 6. **Properties, Open in Browser and Unlink are available**, small in a column. Office greys them, and Refresh, for
+ *    a table with no external source; nothing here tracks a source.
+ * 7. **Tools**: Summarize with PivotTable, Remove Duplicates and Convert to Range small in a column, then Insert Slicer
+ *    large. Properties: Table Name over Resize Table.
+ * 8. **No dialog launcher and no survivor anywhere.** Drag narrow: External Table Data is `secondary` and gives way
+ *    first, then Properties and Tools (`standard`), and Table Style Options and Table Styles (`primary`) last. Each
+ *    collapses to a trigger with nothing beside it.
+ * 9. **Also in `Shell/Excel`**, which draws Table Tools: select Table Design there and every list, menu and starting
+ *    state above is the same, under the shell's own ids.
  */
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 
