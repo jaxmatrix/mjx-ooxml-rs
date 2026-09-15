@@ -7,13 +7,16 @@
  * `printPreviewMenus(application, host)` once beside its ribbon. Every `commandMenu(host, '…'` call below
  * spells its command id literally, so `tests/ribbons.test.ts` can read it.
  *
- * ## Shaped for three applications, authored for one
+ * ## Shaped for three applications, authored for two
  *
  * All three applications carry a Print Preview tab in the census, and each is its own unit. So the file is
- * keyed by application exactly as `view-menus.ts` is: **PowerPoint's and Excel's units add one function each
- * to `menusByApplication`** and reach for the shared entries below, rather than writing a second file. Until
- * they do, `printPreviewMenus` renders nothing for them, which is the absence of a menu set rather than a
- * claim that one was found empty.
+ * keyed by application exactly as `view-menus.ts` is: **each unit adds one function to `menusByApplication`**
+ * and reaches for the shared entries, rather than writing a second file. **PowerPoint's unit** added
+ * `powerpointPrintPreviewMenus`, which reuses `orientationEntries()` alone (PowerPoint has no Margins or Size),
+ * and the option lists of its two fields, `powerpointPrintWhat` and `powerpointPrintColourModes`, which
+ * `Ribbons/PowerPoint` renders inside its own `<mjx-dropdown>`s. Until Excel's unit lands,
+ * `printPreviewMenus('excel', …)` renders nothing, which is the absence of a menu set rather than a claim that
+ * one was found empty.
  *
  * ## The entries are Layout's, not copies
  *
@@ -31,8 +34,9 @@
  *
  * Print Preview is `appearance: 'view'`: Office shows it only inside Print Preview, so `tabsFor` leaves it
  * out of a strip unless `includeViewTabs` is asked for, and only the `Ribbons/*` hosts ask. **So
- * `stories/ribbons/word.stories.ts` is the one host that binds and renders these.** `Shell/Word` never draws
- * the tab, and `tests/ribbons.test.ts` refuses a shell that opens one of these menus.
+ * `stories/ribbons/word.stories.ts` and `stories/ribbons/powerpoint.stories.ts` are the hosts that bind and
+ * render these.** Neither shell draws the tab, and `tests/ribbons.test.ts` refuses a shell that opens one of
+ * these menus.
  *
  * **Nothing here dispatches a command.** A menu opens and an entry can be chosen; no page changes, because
  * command dispatch is loop 2.
@@ -57,11 +61,79 @@ function wordPrintPreviewMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── PowerPoint's Print Preview ───────────────────────────────────────────────
+
+/** One option of a field: the value a host starts it on, and what the list draws. */
+interface FieldOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/**
+ * **The Print What field's options**: PowerPoint's nine printout shapes, in Office's order. A host starts it on
+ * `slides`, a new deck's.
+ */
+export const powerpointPrintWhat: readonly FieldOption[] = [
+  { value: 'slides', label: 'Slides' },
+  { value: 'handouts-1', label: 'Handouts (1 Slide Per Page)' },
+  { value: 'handouts-2', label: 'Handouts (2 Slides Per Page)' },
+  { value: 'handouts-3', label: 'Handouts (3 Slides Per Page)' },
+  { value: 'handouts-4', label: 'Handouts (4 Slides Per Page)' },
+  { value: 'handouts-6', label: 'Handouts (6 Slides Per Page)' },
+  { value: 'handouts-9', label: 'Handouts (9 Slides Per Page)' },
+  { value: 'notes-pages', label: 'Notes Pages' },
+  { value: 'outline-view', label: 'Outline View' },
+];
+
+/**
+ * **The Colour/Greyscale field's options**, in the census's spelling rather than Office's *Color* and
+ * *Grayscale*. A host starts it on `colour`. `GUESS:` the start: Office starts it on what the printer can do.
+ */
+export const powerpointPrintColourModes: readonly FieldOption[] = [
+  { value: 'colour', label: 'Colour' },
+  { value: 'greyscale', label: 'Greyscale' },
+  { value: 'pure-black-and-white', label: 'Pure Black and White' },
+];
+
+/**
+ * Options: PowerPoint 2007's printing options, with *Print Order* flattened into a section. **No
+ * *Color/Grayscale* submenu**, because this catalogue draws that setting as Page Setup's field; see the census.
+ * `GUESS:` the entries, their order and every tick.
+ */
+function powerpointPrintOptionsEntries(): TemplateResult[] {
+  return [
+    html`<mjx-menu-item label="Header and Footer…"></mjx-menu-item>`,
+    html`<mjx-menu-separator></mjx-menu-separator>`,
+    html`<mjx-menu-item kind="checkbox" label="Scale to Fit Paper"></mjx-menu-item>`,
+    html`<mjx-menu-item kind="checkbox" label="Frame Slides"></mjx-menu-item>`,
+    html`<mjx-menu-item kind="checkbox" label="Print Comments and Ink Markup"></mjx-menu-item>`,
+    html`<mjx-menu-separator></mjx-menu-separator>`,
+    html`<mjx-menu-section label="Print Order">
+      <mjx-menu-item kind="radio" label="Horizontal" checked></mjx-menu-item>
+      <mjx-menu-item kind="radio" label="Vertical"></mjx-menu-item>
+    </mjx-menu-section>`,
+    html`<mjx-menu-separator></mjx-menu-separator>`,
+    html`<mjx-menu-item kind="checkbox" label="Print Hidden Slides"></mjx-menu-item>`,
+  ];
+}
+
+/**
+ * Two menus: Options, PowerPoint's own, and Orientation, **Layout's list unchanged**, because PowerPoint's two
+ * entries and their start are Word's. Print What and Colour/Greyscale are fields over the lists above.
+ */
+function powerpointPrintPreviewMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.print-preview.print.options', 'Options', ...powerpointPrintOptionsEntries())}
+    ${commandMenu(host, 'powerpoint.print-preview.page-setup.orientation', 'Orientation', ...orientationEntries())}
+  `;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /** Every application's Print Preview menus, as each application's unit authors them. */
 const menusByApplication: Partial<Record<RibbonApplication, (host: RibbonSurfaceHost) => TemplateResult>> = {
   word: wordPrintPreviewMenus,
+  powerpoint: powerpointPrintPreviewMenus,
 };
 
 /**

@@ -52,6 +52,7 @@ import {
   startingAnimation,
 } from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
+import { powerpointPrintColourModes, powerpointPrintWhat, printPreviewMenus } from './print-preview-menus.ts';
 import { recordingMenus } from './recording-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { slideShowMenus, slideShowMonitors } from './slide-show-menus.ts';
@@ -71,7 +72,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View and Background Removal** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal and Print Preview** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -91,7 +92,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View and Background Removal are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal and Print Preview are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -594,6 +595,37 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-recording-export-export"
   ></mjx-button>`,
+  // Print Preview (a view tab). `Shell/PowerPoint` never draws a view tab, so these four bindings and the two
+  // menus they open are written here and nowhere else. Options and Orientation open their menus from
+  // `stories/ribbons/print-preview-menus.ts`; Print What and Colour/Greyscale are fields over its two lists.
+  'powerpoint.print-preview.print.options': html`<mjx-button
+    label="Options"
+    icon="settings"
+    size="large"
+    data-opens="ribbons-powerpoint-print-preview-print-options"
+  ></mjx-button>`,
+  'powerpoint.print-preview.page-setup.print-what': html`<mjx-dropdown
+    id="ribbons-powerpoint-print-preview-print-what"
+    label="Print What"
+    value="slides"
+    style=${ribbonFieldStyle}
+  >
+    ${powerpointPrintWhat.map((shape) => html`<mjx-option value=${shape.value} label=${shape.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'powerpoint.print-preview.page-setup.orientation': html`<mjx-button
+    label="Orientation"
+    icon="orientation"
+    size="small"
+    data-opens="ribbons-powerpoint-print-preview-page-setup-orientation"
+  ></mjx-button>`,
+  'powerpoint.print-preview.page-setup.colour-greyscale': html`<mjx-dropdown
+    id="ribbons-powerpoint-print-preview-colour-greyscale"
+    label="Colour/Greyscale"
+    value="colour"
+    style=${ribbonFieldStyle}
+  >
+    ${powerpointPrintColourModes.map((mode) => html`<mjx-option value=${mode.value} label=${mode.label}></mjx-option>`)}
+  </mjx-dropdown>`,
 };
 
 /**
@@ -622,7 +654,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
     ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')} ${reviewMenus('powerpoint', 'ribbons')}
     ${viewMenus('powerpoint', 'ribbons')} ${slideShowMenus('powerpoint', 'ribbons')}
-    ${recordingMenus('powerpoint', 'ribbons')}
+    ${recordingMenus('powerpoint', 'ribbons')} ${printPreviewMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -922,7 +954,32 @@ export const BlackAndWhite: Story = { render: () => ribbon('black-and-white') };
 /** A view tab, and the census's `TabGrayscale` under this catalogue's spelling. */
 export const Greyscale: Story = { render: () => ribbon('greyscale') };
 
-/** Unit 10, and a view tab. */
+/**
+ * **Print Preview**: the deck as it will print, in whichever printout shape is chosen, and a view tab Office
+ * shows only inside Print Preview. Authored after Excel's Background Removal, one tab of one application, and
+ * PowerPoint's second view tab. Four groups: Print, Page Setup, Zoom and Preview. What to look at, least certain
+ * first:
+ *
+ * 1. ⚠ **Colour/Greyscale is a field in Page Setup, not a submenu of Options.** It sits under Print What with
+ *    Orientation between them, and lists Colour (selected), Greyscale and Pure Black and White, in the census's
+ *    spelling. `GUESS:` that Office 2007 had it inside Options instead; the brief and the census's count of 5
+ *    put it here.
+ * 2. ⚠ **Options opens a menu, not a dialog**, unlike Word's. Press it: Header and Footer…, then three unticked
+ *    checkboxes (Scale to Fit Paper, Frame Slides, Print Comments and Ink Markup), a *Print Order* section with
+ *    Horizontal checked and Vertical, and Print Hidden Slides unticked. No Colour/Greyscale entry. `GUESS:`
+ *    every entry and tick.
+ * 3. ⚠ **Print What lists nine shapes**: Slides (selected), Handouts at 1, 2, 3, 4, 6 and 9 slides per page,
+ *    Notes Pages and Outline View. The longest label should fit the field or ellipsise inside it, not grow it.
+ * 4. **Orientation is small** under Print What, and opens Layout's list: Portrait (checked), Landscape. Office
+ *    greys it while Print What is Slides; here it is available. `GUESS:` the size.
+ * 5. **Three survivors.** Drag narrow until Zoom collapses: Fit to Window stays beside the trigger and Zoom opens
+ *    from it. Until Preview collapses: Next Page and Previous Page stay, and Close Print Preview opens from it.
+ * 6. **Glyphs, every one a glyph the subset already carries for the same command**: a printer, a cog, the
+ *    turning page, a magnifier, the landscape frame in fit corners, a page with an arrow down and up, and a cross
+ *    in a square. **No dialog launcher** on any group. *Close Print Preview* should wrap without an ellipsis.
+ * 7. **Not in `Shell/PowerPoint`**: the shell's strip has no Print Preview tab, and no Print Preview menu is on
+ *    that page.
+ */
 export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 
 /**

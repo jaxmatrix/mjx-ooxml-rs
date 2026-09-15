@@ -50,6 +50,11 @@
  * **Background Removal** followed Word's, the first PowerPoint view tab authored: Word's two groups and four
  * commands under PowerPoint's ids, from the census's shared functions. It binds nothing and opens no menu.
  *
+ * **Print Preview** followed Excel's Background Removal, PowerPoint's second view tab authored: four groups and
+ * ten commands, the deck as it will print. Options and Orientation open menus, and Print What and
+ * Colour/Greyscale are fields, all from `stories/ribbons/print-preview-menus.ts`, and `Ribbons/PowerPoint`
+ * alone binds and renders them.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -419,6 +424,35 @@ export function powerpointBackgroundRemovalTab(options: TabOptions = {}): Templa
   );
 }
 
+/**
+ * Print Preview: Print, Page Setup, Zoom, Preview — PowerPoint's second view tab authored, in **Office's**
+ * order, which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only inside Print Preview**, so `powerpointTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks, which is why the tab's bindings and menus
+ * are written there and nowhere else. `dev/ribbons/census.ts` records every disagreement, Colour/Greyscale's
+ * group and Options' shape among them.
+ *
+ * **Four of the tab's ten commands are bound by the host**: Options and Orientation are dropdowns over
+ * `stories/ribbons/print-preview-menus.ts`, and Print What and Colour/Greyscale are fields over its two option
+ * lists. Everything else is the generic button.
+ *
+ * **No dialog launcher.** **Three survivors**: Fit to Window in Zoom, as on View, and Next Page and Previous
+ * Page in Preview, as on Word's Print Preview.
+ */
+export function powerpointPrintPreviewTab(options: TabOptions = {}): TemplateResult {
+  const printPreview = entry('print-preview');
+  const controls = options.controls ?? {};
+  return tab(
+    printPreview.id,
+    printPreview.label,
+    censusGroup(printPreview, 'GroupPrintPreviewPrint', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewPageSetup', {}, controls),
+    censusGroup(printPreview, 'GroupZoom', {}, controls),
+    censusGroup(printPreview, 'GroupPrintPreviewPreview', {}, controls),
+  );
+}
+
 // ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideMasterTab(): TemplateResult {
@@ -443,10 +477,6 @@ export function powerpointBlackAndWhiteTab(): TemplateResult {
 
 export function powerpointGreyscaleTab(): TemplateResult {
   return placeholderTab(entry('greyscale'));
-}
-
-export function powerpointPrintPreviewTab(): TemplateResult {
-  return placeholderTab(entry('print-preview'));
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

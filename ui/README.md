@@ -990,6 +990,47 @@ is Word's tab under Excel's ids: the census row calls `backgroundRemovalRefineCo
   priorities, counts 3 and 2), and Office draws the same four commands. Everything under *Word's Background
   Removal* above, `GUESS:` items included, applies unchanged and is not restated.
 
+### PowerPoint's Print Preview
+
+**One tab of one application, and PowerPoint's second view tab authored**, after Excel's Background Removal.
+Four groups and ten commands, in Office's order, which is also the census's: Print, Page Setup, Zoom, Preview. It
+is PowerPoint 2007's Print Preview, the last PowerPoint with the tab: the deck as it will print, in whichever
+printout shape is chosen. **Nothing is shared with Word's tab but four group ids and some glyphs.**
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does: the four bindings and
+`printPreviewMenus('powerpoint', 'ribbons')` are in `stories/ribbons/powerpoint.stories.ts`, and
+`Shell/PowerPoint` draws neither.
+
+- **Two fields a host binds**: Print What (Slides, Handouts at 1, 2, 3, 4, 6 and 9 slides per page, Notes Pages,
+  Outline View; starts on Slides) and Colour/Greyscale (Colour, Greyscale, Pure Black and White; starts on
+  Colour). Their lists are `powerpointPrintWhat` and `powerpointPrintColourModes` in
+  `stories/ribbons/print-preview-menus.ts`.
+- **Two dropdowns a host binds**: Options, over PowerPoint's printing options, and Orientation, over **Layout's
+  `orientationEntries()` unchanged**. Margins and Size are not reused, because PowerPoint's tab has neither.
+- **Buttons**: Print, Zoom, Fit to Window, Next Page, Previous Page and Close Print Preview. No dialog launcher,
+  toggle, checkbox, exclusive set, gallery or split button.
+
+**Survivors**: Fit to Window in Zoom, as on View; Next Page and Previous Page in Preview, as on Word's Print
+Preview. Print, Options and Zoom open a dialog or a menu, and the fields are refused by the gate.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Page Setup counts 5 and draws 3.** `GUESS:` the census counts each field's caption as a control. Print (2),
+  Zoom (2) and Preview (3) draw exactly their counts.
+- **Colour/Greyscale is a Page Setup field, as the brief places it.** PowerPoint 2007 is remembered with it as a
+  submenu of Options, so Options' menu leaves that submenu out rather than carry one setting twice. `GUESS:`.
+- **The census's spelling wins**: *Colour/Greyscale*, *Colour*, *Greyscale*, where Office and the brief write
+  *Color/Grayscale*.
+- **Options is a menu, where Word's is a button**: Header and Footer…, Scale to Fit Paper, Frame Slides, Print
+  Comments and Ink Markup, a *Print Order* section (Horizontal checked, Vertical), Print Hidden Slides. `GUESS:`
+  every entry and tick.
+- **Orientation is small, under Print What**, and is available where Office greys it while Print What is Slides.
+  `GUESS:` the size, and that PowerPoint's two entries are Word's.
+- **No dialog launcher on Page Setup**, where Word's has one. `GUESS:`.
+- **Every face command but the two fields carries a glyph, and no glyph is new**: `print`, `settings`,
+  `orientation`, `zoom-in`, `page-fit`, `document-arrow-down`, `document-arrow-up`, `dismiss-square`. Each is
+  the glyph this subset already draws for the same command.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

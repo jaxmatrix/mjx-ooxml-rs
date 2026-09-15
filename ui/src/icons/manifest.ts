@@ -158,7 +158,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'settings',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Options. **Since Word's Print Preview unit, also Print Preview's Options**, large, which opens Word Options: a cog. Hence 24 as well as 20. `GUESS:`.",
+    why: "Options. **Since Word's Print Preview unit, also Print Preview's Options**, large, which opens Word Options: a cog. Hence 24 as well as 20. `GUESS:`. **Since PowerPoint's Print Preview unit, also PowerPoint's Options**, large, which opens a menu of printing options: still a set of options.",
   },
   {
     name: 'table',
@@ -332,7 +332,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'print',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Print — the headline of the Print group in Word and PowerPoint, `size=\"large\"`, hence 24 as well as 20. Excel has no Print group here; see `dev/ribbons/census.ts` on the census's missing `TabPrint` row. **Since Word's Print Preview unit, also Print Preview's Print**, large, which opens the Print dialog. `GUESS:`.",
+    why: "Print — the headline of the Print group in Word and PowerPoint, `size=\"large\"`, hence 24 as well as 20. Excel has no Print group here; see `dev/ribbons/census.ts` on the census's missing `TabPrint` row. **Since Word's Print Preview unit, also Print Preview's Print**, large, which opens the Print dialog. `GUESS:`. **Since PowerPoint's Print Preview unit, also PowerPoint's**, the same command.",
   },
   {
     name: 'share',
@@ -1071,7 +1071,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'orientation',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice. **Since Word's Print Preview unit, also Print Preview's Orientation**, the same command and Layout's list.",
+    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice. **Since Word's Print Preview unit, also Print Preview's Orientation**, the same command and Layout's list. **Since PowerPoint's Print Preview unit, also PowerPoint's**, small, the same list.",
   },
   {
     name: 'text-position-square',
@@ -1720,13 +1720,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'zoom-in',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`. **Since Excel's View unit, also Excel's Zoom**, the same dialog. **Since Word's Print Preview unit, also Print Preview's Zoom**, large, the same dialog; Word's View draws none, and the census records the disagreement.",
+    why: "Zoom, the large button in PowerPoint's View Zoom group, which opens the Zoom dialog: a magnifier. No Zoom In command is in this subset. `GUESS:`. **Since Excel's View unit, also Excel's Zoom**, the same dialog. **Since Word's Print Preview unit, also Print Preview's Zoom**, large, the same dialog; Word's View draws none, and the census records the disagreement. **Since PowerPoint's Print Preview unit, also PowerPoint's Print Preview Zoom**, large, View's command under that tab's id.",
   },
   {
     name: 'page-fit',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Fit to Window, the large button in PowerPoint's View Zoom group, and a survivor: a landscape frame inside fit corners, the slide fitted to the window. `GUESS:` that it reads unlabelled.",
+    why: "Fit to Window, the large button in PowerPoint's View Zoom group, and a survivor: a landscape frame inside fit corners, the slide fitted to the window. `GUESS:` that it reads unlabelled. **Since PowerPoint's Print Preview unit, also that tab's Fit to Window**, large and a survivor, as on View.",
   },
   {
     name: 'color-off',
@@ -2000,7 +2000,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dismiss-square',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view.",
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command.",
   },
   // ── Print Preview (Word's) ────────────────────────────────────────────────
   //
@@ -2018,13 +2018,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'document-arrow-down',
     sizes: [20],
     variants: ['regular'],
-    why: "Next Page, small, in Word's Print Preview Preview group, and a survivor: a page, and the direction Word's pages run. Not `caret-down`, a dropdown's arrow. `GUESS:` that it reads as a page rather than *download*.",
+    why: "Next Page, small, in Word's Print Preview Preview group, and a survivor: a page, and the direction Word's pages run. Not `caret-down`, a dropdown's arrow. `GUESS:` that it reads as a page rather than *download*. **Since PowerPoint's Print Preview unit, also PowerPoint's Next Page**, a survivor there too.",
   },
   {
     name: 'document-arrow-up',
     sizes: [20],
     variants: ['regular'],
-    why: "Previous Page, small, in Word's Print Preview Preview group, and a survivor, beside Next Page. `GUESS:` that it reads as a page rather than *upload*.",
+    why: "Previous Page, small, in Word's Print Preview Preview group, and a survivor, beside Next Page. `GUESS:` that it reads as a page rather than *upload*. **Since PowerPoint's Print Preview unit, also PowerPoint's Previous Page**, a survivor there too.",
   },
   // ── Background Removal (Word's, and written for all three) ─────────────────
   //

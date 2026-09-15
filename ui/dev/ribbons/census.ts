@@ -100,7 +100,9 @@
  * Removal** followed Print Preview, the third view tab authored, its two groups written once as functions of the
  * application; see the *commands Background Removal shows* section. **PowerPoint's Background Removal**
  * followed, calling those two functions, in that section's *PowerPoint's Background Removal* part, and **Excel's
- * Background Removal** followed that, in its *Excel's Background Removal* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * Background Removal** followed that, in its *Excel's Background Removal* part. **PowerPoint's Print Preview**
+ * followed, PowerPoint's second view tab authored, in the *commands Print Preview shows* section's *PowerPoint's
+ * Print Preview* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4521,6 +4523,139 @@ const wordPrintPreviewPreview: readonly RibbonCommand[] = [
   { id: 'word.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
 ];
 
+// ## PowerPoint's Print Preview
+//
+// The unit after Excel's Background Removal, one tab of one application: **PowerPoint's Print Preview tab**,
+// all four in-scope groups and ten commands, and PowerPoint's second view tab authored. It is PowerPoint 2007's
+// Print Preview, the last PowerPoint with the tab (2010 folded it into File → Print): the deck as it will
+// print, in whichever of PowerPoint's printout shapes is chosen. **Nothing is declared once with Word's.** The
+// four group ids are the same, and every face differs: PowerPoint has no Margins, Size, Show Ruler, Magnifier,
+// One Page, Two Pages, Page Width or Shrink One Page, and Word has no Print What or Colour/Greyscale. A
+// function of the application would be two declarations behind one name, which is View's reason too.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Two fields a host binds**, Print What and Colour/Greyscale, over option lists in
+// `stories/ribbons/print-preview-menus.ts` (`powerpointPrintWhat`, `powerpointPrintColourModes`). **Two
+// dropdowns a host binds**: Options, over PowerPoint's own printing options, and Orientation, over **Layout's
+// own list** (`orientationEntries()`), declared there under this tab's ids. **Buttons**: Print, Zoom, Fit to
+// Window, Next Page, Previous Page and Close Print Preview. **No dialog launcher, no gallery, no split button,
+// no toggle, no exclusive set, no checkbox.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Page Setup counts 5 and draws 3**: Print What, Orientation and Colour/Greyscale. `GUESS:` the reading
+//    that the census counts each field's caption (*Print What:*, *Color/Grayscale:*) as a control of its own,
+//    so two fields are four and Orientation is the fifth. Nothing is padded. Print (2), Zoom (2) and Preview
+//    (3) draw exactly their counts.
+// 2. **Colour/Greyscale is in Page Setup, as the brief places it; Office 2007 is remembered with it inside
+//    Options' menu** as a *Color/Grayscale* submenu. The brief and the census's count of 5 both put a second
+//    field in Page Setup, so it is drawn there, and **Options' menu leaves the submenu out** rather than carry
+//    one setting in two places. `GUESS:` both Office positions, from memory of PowerPoint 2007.
+// 3. **The census's spelling wins over Office's.** Office writes *Color/Grayscale*, *Color* and *Grayscale*;
+//    PowerPoint's View group is labelled *Colour/Greyscale* in the census and its view tab *Greyscale*. So the
+//    field is **Colour/Greyscale** over **Colour**, **Greyscale** and **Pure Black and White**, and the brief's
+//    American spelling is not followed.
+// 4. **Options is a dropdown, where Word's Options is a button.** Word's opens Word Options; PowerPoint 2007's
+//    opens a menu of printing options: Header and Footer…, Scale to Fit Paper, Frame Slides, Print Comments
+//    and Ink Markup, Print Order (Horizontal, Vertical) and Print Hidden Slides. Office's *Print Order* submenu
+//    is flattened into a labelled section, as Review's are. `GUESS:` the entries, their order and every
+//    starting tick, from memory.
+// 5. **Orientation opens Layout's list unchanged**: Portrait (checked) and Landscape. It sets the orientation
+//    of handouts, notes pages and the outline, which a new deck prints in portrait; a slide prints in the
+//    deck's own orientation, and **Office greys the button while Print What is Slides**. It is drawn available,
+//    because `disabled` is loop 2's. `GUESS:` that PowerPoint's labels are Word's.
+// 6. **Zoom is `GroupZoom`, View's census id**, as on Word's Print Preview, and holds View's two commands
+//    under this tab's ids, glyphs included. The census's priority here is `secondary` where Word's Print
+//    Preview Zoom is `standard`; the census wins.
+// 7. **Office greys Next Page and Previous Page** at the last and the first page, and Print Hidden Slides with
+//    no slide hidden. All are drawn available, because `disabled` is loop 2's.
+// 8. **No dialog launcher on Page Setup**, where Word's has one. `GUESS:` that PowerPoint 2007's tab drew none;
+//    Design's Slide Size is where a deck's page setup lives.
+//
+// ## Survivors: Fit to Window, Next Page and Previous Page
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Print**: none. Print opens the Print dialog (rule 1) and Options opens a menu (rule 1).
+// - **Page Setup**: none. Print What and Colour/Greyscale are fields a host binds, which the gate refuses, and
+//   Orientation opens a menu.
+// - **Zoom: Fit to Window survives**, for View's reason word for word: one press fits the page to the window,
+//   no deck changes, and `page-fit` is no other command's glyph on the tab. Zoom opens a dialog and stays in
+//   the popup, so the popup is never empty. `GUESS:` rule 2.
+// - **Preview: Next Page and Previous Page survive**, for Word's Print Preview's reason: each moves the
+//   preview one page and the other takes it back, two under the ceiling, and Close Print Preview stays in the
+//   popup. `GUESS:` that the glyphs read as pages rather than *download* and *upload*. **Close Print Preview**
+//   leaves the view and takes the tab with it.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Office's shape**: Print, Options, Zoom, Fit to Window and Close Print Preview are `large`;
+// Orientation, Next Page and Previous Page are small, in the columns Office stacks them in, Orientation under
+// the two fields. `GUESS:` Orientation's size. Every glyph is a glyph this subset already carries for the same
+// command, and every one is `GUESS:`:
+//
+// - **Print draws `print`** and **Options `settings`**, Word's Print Preview's: a printer, and a cog for a set
+//   of options.
+// - **Orientation draws `orientation`**, Layout's.
+// - **Zoom draws `zoom-in` and Fit to Window `page-fit`**, PowerPoint's View's.
+// - **Next Page draws `document-arrow-down` and Previous Page `document-arrow-up`**, Word's Print Preview's.
+// - **Close Print Preview draws `dismiss-square`**, Word's Close Print Preview and Close Outline View.
+//
+// **Two commands carry no glyph, and say why**: Print What and Colour/Greyscale are fields, which draw their
+// value.
+
+/**
+ * PowerPoint's `GroupPrintPreviewPrint`, labelled **Print**: Print and Options, both large. See disagreement 4.
+ *
+ * **Print** opens the Print dialog. **Options is a dropdown** a host binds, over the menu in
+ * `stories/ribbons/print-preview-menus.ts`.
+ *
+ * **No survivor**: a dialog and a menu.
+ */
+const powerpointPrintPreviewPrint: readonly RibbonCommand[] = [
+  { id: 'powerpoint.print-preview.print.print', label: 'Print', icon: 'print', size: 'large' },
+  { id: 'powerpoint.print-preview.print.options', label: 'Options', icon: 'settings', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupPrintPreviewPageSetup`, labelled **Page Setup**: Print What, Orientation and
+ * Colour/Greyscale, in a column. See disagreements 1, 2, 3, 5 and 8.
+ *
+ * **Print What** is a field of PowerPoint's nine printout shapes, starting on Slides. **Orientation** is a
+ * dropdown over Layout's list. **Colour/Greyscale** is a field of three, starting on Colour. `GUESS:` the start.
+ *
+ * **No survivor**: two fields and a menu.
+ */
+const powerpointPrintPreviewPageSetup: readonly RibbonCommand[] = [
+  { id: 'powerpoint.print-preview.page-setup.print-what', label: 'Print What' },
+  { id: 'powerpoint.print-preview.page-setup.orientation', label: 'Orientation', icon: 'orientation' },
+  { id: 'powerpoint.print-preview.page-setup.colour-greyscale', label: 'Colour/Greyscale' },
+];
+
+/**
+ * PowerPoint's `GroupZoom` on Print Preview, labelled **Zoom**: Zoom and Fit to Window, both large, View's two.
+ * See disagreement 6.
+ *
+ * **Survivor: Fit to Window.** See this part's header.
+ */
+const powerpointPrintPreviewZoom: readonly RibbonCommand[] = [
+  { id: 'powerpoint.print-preview.zoom.zoom', label: 'Zoom', icon: 'zoom-in', size: 'large' },
+  { id: 'powerpoint.print-preview.zoom.fit-to-window', label: 'Fit to Window', icon: 'page-fit', size: 'large', essential: true },
+];
+
+/**
+ * PowerPoint's `GroupPrintPreviewPreview`, labelled **Preview**: Next Page and Previous Page in a column, then
+ * Close Print Preview large. See disagreement 7.
+ *
+ * **Survivors: Next Page and Previous Page.** See this part's header.
+ */
+const powerpointPrintPreviewPreview: readonly RibbonCommand[] = [
+  { id: 'powerpoint.print-preview.preview.next-page', label: 'Next Page', icon: 'document-arrow-down', essential: true },
+  { id: 'powerpoint.print-preview.preview.previous-page', label: 'Previous Page', icon: 'document-arrow-up', essential: true },
+  { id: 'powerpoint.print-preview.preview.close-print-preview', label: 'Close Print Preview', icon: 'dismiss-square', size: 'large' },
+];
+
 // ── the commands Background Removal shows ────────────────────────────────────
 //
 // The ribbon programme's unit after Print Preview: **Word's Background Removal tab**, both in-scope groups
@@ -5325,10 +5460,10 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabPrintPreview' },
     groups: [
-      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupPrintPreviewPageSetup', label: 'Page Setup', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupZoom', label: 'Zoom', priority: 'secondary', controls: 2, inScope: true },
-      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 3, inScope: true },
+      { id: 'GroupPrintPreviewPrint', label: 'Print', priority: 'secondary', controls: 2, inScope: true, commands: powerpointPrintPreviewPrint },
+      { id: 'GroupPrintPreviewPageSetup', label: 'Page Setup', priority: 'standard', controls: 5, inScope: true, commands: powerpointPrintPreviewPageSetup },
+      { id: 'GroupZoom', label: 'Zoom', priority: 'secondary', controls: 2, inScope: true, commands: powerpointPrintPreviewZoom },
+      { id: 'GroupPrintPreviewPreview', label: 'Preview', priority: 'primary', controls: 3, inScope: true, commands: powerpointPrintPreviewPreview },
     ],
   },
   {
