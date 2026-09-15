@@ -31,8 +31,11 @@
  * measure fields, and every other command but three opens a menu from
  * `stories/ribbons/design-layout-menus.ts`.
  *
+ * **References** is unit 6: seven groups and twenty-two commands, the tab of generated content — the
+ * tables, notes and bibliography Word writes for you — and the commands that keep it current.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 6 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Units 7 onward replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -246,11 +249,37 @@ export function wordLayoutTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordReferencesTab(): TemplateResult {
-  return placeholderTab(entry('references'));
+/**
+ * References: Table of Contents, Footnotes, Citations & Bibliography, Captions, Index, Table of
+ * Authorities, Acronyms — the ribbon programme's unit 6, in Office's order.
+ *
+ * What Office draws that is not here is **Research**, between Footnotes and Citations & Bibliography,
+ * which the census marks out of scope. `GUESS:` **Acronyms is last**, where the declaration puts it.
+ *
+ * **One dialog launcher, on Footnotes**, because Office has one there: it opens Footnote and Endnote.
+ *
+ * **Six of the tab's twenty-two commands are bound by the host**: Table of Contents, Add Text, Insert
+ * Citation and Bibliography are dropdowns and Next Footnote a split button, over
+ * `stories/ribbons/references-transitions-formulas-menus.ts`, and Style is a dropdown field. **Insert
+ * Footnote is the generic button**, because Office draws it with no arrow. **No survivor.**
+ */
+export function wordReferencesTab(options: TabOptions = {}): TemplateResult {
+  const references = entry('references');
+  const controls = options.controls ?? {};
+  return tab(
+    references.id,
+    references.label,
+    censusGroup(references, 'GroupTableOfContents', {}, controls),
+    censusGroup(references, 'GroupFootnotes', { launcher: 'Footnote and endnote settings' }, controls),
+    censusGroup(references, 'GroupCitationsAndBibliography', {}, controls),
+    censusGroup(references, 'GroupCaptions', {}, controls),
+    censusGroup(references, 'GroupIndex', {}, controls),
+    censusGroup(references, 'GroupTableOfAuthorities', {}, controls),
+    censusGroup(references, 'GroupAcronyms', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordMailingsTab(): TemplateResult {
   return placeholderTab(entry('mailings'));

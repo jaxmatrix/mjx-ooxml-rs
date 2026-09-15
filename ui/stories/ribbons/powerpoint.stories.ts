@@ -10,6 +10,7 @@ import {
   standardColors,
 } from '../pickers/specimens.ts';
 import {
+  advanceAfterTimes,
   copyCounts,
   openDeclaredSurface,
   printerList,
@@ -21,6 +22,8 @@ import {
   ribbonScreenReader,
   ribbonStatesMatrix,
   ribbonTokenDependencies,
+  transitionDurations,
+  transitionSounds,
   type ControlOverrides,
 } from './ribbon-parts.ts';
 import {
@@ -34,6 +37,7 @@ import {
 } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
+import { referencesTransitionsFormulasMenus, transitionGalleryItems } from './references-transitions-formulas-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 
 /**
@@ -50,7 +54,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw and Design** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design and Transitions** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -70,7 +74,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw and Design are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design and Transitions are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -311,6 +315,52 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-design-customise-slide-size"
   ></mjx-button>`,
+  // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, so Effect Options opens Fade's
+  // menu from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
+  // `ribbon-parts.ts`'s lists: a duration is seconds, which a measure input does not carry, so it is a combo box.
+  'powerpoint.transitions.transition-styles.transitions': html`<mjx-gallery
+    id="ribbons-ppt-transitions"
+    label="Transition to This Slide"
+    value="fade"
+    style=${ribbonGalleryStyle}
+  >
+    ${transitionGalleryItems()}
+  </mjx-gallery>`,
+  'powerpoint.transitions.transition-styles.effect-options': html`<mjx-button
+    label="Effect Options"
+    size="small"
+    data-opens="ribbons-powerpoint-transitions-transition-styles-effect-options"
+  ></mjx-button>`,
+  'powerpoint.transitions.timing.sound': html`<mjx-dropdown
+    id="ribbons-ppt-transition-sound"
+    label="Sound"
+    value="no-sound"
+    style=${ribbonColourFieldStyle}
+  >
+    ${transitionSounds.map(
+      (sound) => html`<mjx-option value=${sound.value} label=${sound.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'powerpoint.transitions.timing.duration': html`<mjx-combo-box
+    id="ribbons-ppt-transition-duration"
+    label="Duration"
+    value="00.70"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${transitionDurations.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+  </mjx-combo-box>`,
+  'powerpoint.transitions.timing.on-mouse-click': html`<mjx-checkbox id="ribbons-ppt-on-mouse-click" label="On Mouse Click" checked="true"></mjx-checkbox>`,
+  'powerpoint.transitions.timing.after': html`<mjx-checkbox id="ribbons-ppt-advance-after-checkbox" label="After"></mjx-checkbox>`,
+  'powerpoint.transitions.timing.advance-after': html`<mjx-combo-box
+    id="ribbons-ppt-advance-after"
+    label="Advance Slide After"
+    value="00:00.00"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${advanceAfterTimes.map((time) => html`<mjx-option value=${time} label=${time}></mjx-option>`)}
+  </mjx-combo-box>`,
 };
 
 /**
@@ -336,7 +386,7 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
-    ${designLayoutMenus('powerpoint', 'ribbons')}
+    ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -445,7 +495,27 @@ export const Draw: Story = { render: () => ribbon('draw') };
  */
 export const Design: Story = { render: () => ribbon('design') };
 
-/** Unit 6. */
+/**
+ * **Transitions**: one gallery and the timing beside it, and PowerPoint's part of the ribbon programme's
+ * unit 6. Three groups: Preview, Transition Styles and Timing. What to look at:
+ *
+ * 1. ⚠ **The group labels are the census's, and one does not match its id.** Transition Styles holds
+ *    what Office calls *Transition to This Slide*: the gallery and Effect Options. Timing holds Office's
+ *    Timing face, six commands where the census counts two. `dev/ribbons/census.ts` marks the reading
+ *    `GUESS:`.
+ * 2. **The gallery is in-ribbon, and starts on Fade.** It holds fourteen of Office's transitions under
+ *    *Subtle*, *Exciting* and *Dynamic Content*; open its flyout to see the headings. Each picture is a
+ *    pictogram of the motion drawn from the palette: an empty frame for None, a half-covered frame for
+ *    Push and Wipe, bars for Cut.
+ * 3. **Effect Options opens Fade's two**, Smoothly checked and Through Black. It carries no icon, so it
+ *    is small where Office draws it large.
+ * 4. **Timing is five fields and a button.** Sound is a dropdown on *[No Sound]*. Duration is a combo box
+ *    on 00.70: pick 01.00, or type 01.25. On Mouse Click is ticked and After is not. Advance Slide After
+ *    is a combo box on 00:00.00. `GUESS:` Duration is a combo box rather than a measure input, because a
+ *    measure input carries lengths and a duration is seconds.
+ * 5. **Preview is large, with a slide-transition glyph**, and Apply To All is a plain labelled button.
+ *    No dialog launchers. Nothing survives a collapse; Preview is ancillary and gives way first.
+ */
 export const Transitions: Story = { render: () => ribbon('transitions') };
 
 /** Unit 7. */

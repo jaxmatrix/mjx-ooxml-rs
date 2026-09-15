@@ -54,7 +54,14 @@ import {
 } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
-import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
+import { referencesTransitionsFormulasMenus, transitionGalleryItems } from '../ribbons/references-transitions-formulas-menus.ts';
+import {
+  advanceAfterTimes,
+  copyCounts,
+  printerList,
+  transitionDurations,
+  transitionSounds,
+} from '../ribbons/ribbon-parts.ts';
 
 /**
  * **PowerPoint, assembled** — the ribbon, the thumbnail rail, the slide surface, a task pane and
@@ -415,6 +422,52 @@ function ribbon(): TemplateResult {
               size="large"
               data-opens="shell-powerpoint-design-customise-slide-size"
             ></mjx-button>`,
+            // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, so Effect Options opens Fade's
+            // menu from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
+            // `ribbon-parts.ts`'s lists: a duration is seconds, which a measure input does not carry, so it is a combo box.
+            'powerpoint.transitions.transition-styles.transitions': html`<mjx-gallery
+              id="ppt-transitions"
+              label="Transition to This Slide"
+              value="fade"
+              style=${ribbonGalleryStyle}
+            >
+              ${transitionGalleryItems()}
+            </mjx-gallery>`,
+            'powerpoint.transitions.transition-styles.effect-options': html`<mjx-button
+              label="Effect Options"
+              size="small"
+              data-opens="shell-powerpoint-transitions-transition-styles-effect-options"
+            ></mjx-button>`,
+            'powerpoint.transitions.timing.sound': html`<mjx-dropdown
+              id="ppt-transition-sound"
+              label="Sound"
+              value="no-sound"
+              style=${ribbonColourFieldStyle}
+            >
+              ${transitionSounds.map(
+                (sound) => html`<mjx-option value=${sound.value} label=${sound.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'powerpoint.transitions.timing.duration': html`<mjx-combo-box
+              id="ppt-transition-duration"
+              label="Duration"
+              value="00.70"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${transitionDurations.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'powerpoint.transitions.timing.on-mouse-click': html`<mjx-checkbox id="ppt-on-mouse-click" label="On Mouse Click" checked="true"></mjx-checkbox>`,
+            'powerpoint.transitions.timing.after': html`<mjx-checkbox id="ppt-advance-after-checkbox" label="After"></mjx-checkbox>`,
+            'powerpoint.transitions.timing.advance-after': html`<mjx-combo-box
+              id="ppt-advance-after"
+              label="Advance Slide After"
+              value="00:00.00"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${advanceAfterTimes.map((time) => html`<mjx-option value=${time} label=${time}></mjx-option>`)}
+            </mjx-combo-box>`,
           },
         })}
         ${powerpointContextualSets()}
@@ -664,7 +717,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
-      ${designLayoutMenus('powerpoint', 'shell')}
+      ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

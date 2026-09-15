@@ -45,7 +45,8 @@ import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
 import { designLayoutMenus, styleSetGalleryItems } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
-import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
+import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
+import { citationStyles, copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -603,6 +604,47 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-word-layout-arrange-rotate"
             ></mjx-button>`,
+            // References (unit 6). Dropdowns and Next Footnote's split button open their menus from
+            // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Style is a dropdown field over `ribbon-parts.ts`'s list. Insert Footnote is the generic button: Office draws no arrow.
+            'word.references.table-of-contents.table-of-contents': html`<mjx-button
+              label="Table of Contents"
+              icon="document-bullet-list"
+              size="small"
+              data-opens="shell-word-references-table-of-contents-table-of-contents"
+            ></mjx-button>`,
+            'word.references.table-of-contents.add-text': html`<mjx-button
+              label="Add Text"
+              size="small"
+              data-opens="shell-word-references-table-of-contents-add-text"
+            ></mjx-button>`,
+            'word.references.footnotes.next-footnote': html`<mjx-split-button
+              label="Next Footnote"
+              size="small"
+              data-opens="shell-word-references-footnotes-next-footnote"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.references.citations-bibliography.insert-citation': html`<mjx-button
+              label="Insert Citation"
+              icon="text-quote"
+              size="large"
+              data-opens="shell-word-references-citations-bibliography-insert-citation"
+            ></mjx-button>`,
+            'word.references.citations-bibliography.style': html`<mjx-dropdown
+              id="word-citation-style"
+              label="Style"
+              value="apa"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${citationStyles.map(
+                (style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.references.citations-bibliography.bibliography': html`<mjx-button
+              label="Bibliography"
+              size="small"
+              data-opens="shell-word-references-citations-bibliography-bibliography"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -753,7 +795,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Set Default Paste"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
-      ${designLayoutMenus('word', 'shell')}
+      ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

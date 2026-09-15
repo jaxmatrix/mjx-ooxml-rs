@@ -126,6 +126,49 @@ export const fitPageCounts: readonly { readonly value: string; readonly label: s
 /** The Scale field's list. See `fitPageCounts`. */
 export const scalePercentages: readonly string[] = ['100%', '90%', '75%', '50%', '25%'];
 
+/**
+ * **The fields References and Transitions bind** (unit 6), for `fitPageCounts`' reason: two hosts bind
+ * each one.
+ *
+ * - `citationStyles`: a handful of Word's citation styles by Office's names. A British build starts
+ *   on APA, as Word does.
+ * - `transitionSounds`: PowerPoint's two bracketed entries, then a few of its built-in sounds.
+ * - `transitionDurations`: seconds, written as Office writes them. 00.70 is Fade's own duration, and
+ *   the hosts start the gallery on Fade.
+ * - `advanceAfterTimes`: minutes, seconds and hundredths, as Office writes them.
+ *
+ * Both time lists are short because each field is a combo box: Office's are spin boxes, and the field
+ * takes any time typed into it.
+ */
+export const citationStyles: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'apa', label: 'APA' },
+  { value: 'chicago', label: 'Chicago' },
+  { value: 'harvard-anglia', label: 'Harvard - Anglia' },
+  { value: 'ieee', label: 'IEEE' },
+  { value: 'iso-690', label: 'ISO 690 - Numerical Reference' },
+  { value: 'mla', label: 'MLA' },
+  { value: 'turabian', label: 'Turabian' },
+];
+
+/** The Sound field's list. See `citationStyles`. */
+export const transitionSounds: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'no-sound', label: '[No Sound]' },
+  { value: 'stop-previous-sound', label: '[Stop Previous Sound]' },
+  { value: 'applause', label: 'Applause' },
+  { value: 'arrow', label: 'Arrow' },
+  { value: 'breeze', label: 'Breeze' },
+  { value: 'camera', label: 'Camera' },
+  { value: 'chime', label: 'Chime' },
+  { value: 'drum-roll', label: 'Drum Roll' },
+  { value: 'whoosh', label: 'Whoosh' },
+];
+
+/** The Duration field's list. See `citationStyles`. */
+export const transitionDurations: readonly string[] = ['00.50', '00.70', '01.00', '01.50', '02.00'];
+
+/** The Advance Slide After field's list. See `citationStyles`. */
+export const advanceAfterTimes: readonly string[] = ['00:00.00', '00:02.00', '00:05.00', '00:10.00', '00:30.00'];
+
 // ── the parts ────────────────────────────────────────────────────────────────
 
 /** One tab of a ribbon. */

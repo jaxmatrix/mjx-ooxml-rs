@@ -715,9 +715,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'autosum',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "AutoSum, on Excel's Editing group — replacing an `add`, which drew a plus sign for a command Office has always drawn as a sigma. Fluent ships the sigma under this exact name, which is as close to a command's own icon as this subset gets.",
+    why: "AutoSum, on Excel's Editing group — replacing an `add`, which drew a plus sign for a command Office has always drawn as a sigma. Fluent ships the sigma under this exact name, which is as close to a command's own icon as this subset gets. **Since unit 6, also AutoSum** on Excel's Formulas tab, where Office draws it large, so 24 as well.",
   },
   {
     name: 'eraser',
@@ -845,7 +845,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'math-formula',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Equation, the large first command of the Symbols group in all three applications. Fluent draws a formula with an operator in it. Deliberately not `math-symbols`, which is a calculator's four operators and would read as *calculate*.",
+    why: "Equation, the large first command of the Symbols group in all three applications. Fluent draws a formula with an operator in it. Deliberately not `math-symbols`, which is a calculator's four operators and would read as *calculate*. **Since unit 6, also Insert Function** on Excel's Formulas tab, large: the drawing is *fx*, which is Office's own mark for that command.",
   },
   {
     name: 'image-multiple',
@@ -1110,6 +1110,139 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`).",
+  },  // ── References, Transitions and Formulas (Word's References, PowerPoint's Transitions, Excel's Formulas) ──
+  //
+  // The ribbon programme's unit 6. Nothing here draws pressed: the one toggle with a state Office draws,
+  // Show Formulas, carries no icon, so every row is `regular` alone. **20 for a small command, and 20
+  // and 24 for a large one.** Two rows above gained a command rather than a row here: `autosum` (now 24
+  // too) and `math-formula` (Insert Function). Every command these tabs draw without an icon is listed,
+  // with its reason, in the *commands References, Transitions and Formulas show* section of
+  // `dev/ribbons/census.ts`.
+  {
+    name: 'document-bullet-list',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Table of Contents, on Word's References tab, small: a page holding a list, which is what a table of contents is. Small because three tokens do not fit a large button.",
+  },
+  {
+    name: 'document-sync',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Update Table (three times) and Update Index, on Word's References tab: a page with a refresh on it, the generated table brought up to date. Not `arrow-sync`, which is AutoSave, and the four sharing one glyph is why none of them survives a collapse.",
+  },
+  {
+    name: 'text-footnote',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Insert Footnote, on Word's References tab, large: *Ab* with a superscript 1, Office's own picture of the command.",
+  },
+  {
+    name: 'document-endnote',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Insert Endnote, beside Insert Footnote: a page with a mark at its foot.",
+  },
+  {
+    name: 'text-quote',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Insert Citation, on Word's References tab, large: a pair of quotation marks. `GUESS:` a citation marks words taken from a source; Office draws a page Fluent does not.",
+  },
+  {
+    name: 'library',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Manage Sources, on Word's References tab: books on a shelf, the document's collected sources. Not `book-open`, which is Read Mode.",
+  },
+  {
+    name: 'slide-transition',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Preview, on PowerPoint's Transitions tab, large: a slide sliding off its neighbours, the thing the command plays. Not `play`, a video's, or `slide-play`, From Current Slide.",
+  },
+  {
+    name: 'book-star',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Recently Used, on Excel's Formulas tab, large: a book with a star. Fluent ships Excel's own function library books, and this is the first.",
+  },
+  {
+    name: 'book-coins',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Financial, on Excel's Formulas tab, large: Excel's book with coins.",
+  },
+  {
+    name: 'book-question-mark',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Logical, on Excel's Formulas tab, large: Excel's book with a question mark.",
+  },
+  {
+    name: 'book-letter',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Text, on Excel's Formulas tab, large: Excel's book with a letter.",
+  },
+  {
+    name: 'book-clock',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Date & Time, on Excel's Formulas tab, small (three tokens): Excel's book with a clock.",
+  },
+  {
+    name: 'book-search',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Lookup & Reference, on Excel's Formulas tab, small (three tokens): Excel's book with a magnifier.",
+  },
+  {
+    name: 'book-theta',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Math & Trig, on Excel's Formulas tab, small (three tokens): Excel's book with a theta.",
+  },
+  {
+    name: 'book',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "More Functions, on Excel's Formulas tab, large: the plain book the other seven categories are drawn on, for the categories that have no book of their own.",
+  },
+  {
+    name: 'tag-multiple',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Name Manager, on Excel's Formulas tab, large: a stack of name tags, every defined name at once. `GUESS:` Office draws a tag over a table.",
+  },
+  {
+    name: 'tag-add',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Define Name, the split button beside Name Manager: a name tag with a plus, a new name.",
+  },
+  {
+    name: 'checkmark-circle-warning',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Error Checking, the split button on Excel's Formula Auditing group: a check that found a warning. Not `warning`, the status mark.",
+  },
+  {
+    name: 'calculator',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Calculation Options, on Excel's Formulas tab: a calculator. Small, because *Calculation* is as long as the *Recommended* unit 3 measured clipping.",
+  },
+  {
+    name: 'calculator-arrow-clockwise',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Calculate Now, on Excel's Calculation group: a calculator running again.",
+  },
+  {
+    name: 'table-calculator',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Calculate Sheet, beside Calculate Now: a calculator over a sheet, one sheet recalculated. Fluent draws it at 20 alone, and the command is small.",
   },
 ];
 

@@ -43,6 +43,7 @@ import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
 import { designLayoutMenus } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
+import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
 /**
@@ -469,6 +470,94 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-excel-page-layout-arrange-rotate"
             ></mjx-button>`,
+            // Formulas (unit 6). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'excel.formulas.function-library.autosum': html`<mjx-split-button
+              label="AutoSum"
+              icon="autosum"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-autosum"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.function-library.recently-used': html`<mjx-button
+              label="Recently Used"
+              icon="book-star"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-recently-used"
+            ></mjx-button>`,
+            'excel.formulas.function-library.financial': html`<mjx-button
+              label="Financial"
+              icon="book-coins"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-financial"
+            ></mjx-button>`,
+            'excel.formulas.function-library.logical': html`<mjx-button
+              label="Logical"
+              icon="book-question-mark"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-logical"
+            ></mjx-button>`,
+            'excel.formulas.function-library.text': html`<mjx-button
+              label="Text"
+              icon="book-letter"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-text"
+            ></mjx-button>`,
+            'excel.formulas.function-library.date-time': html`<mjx-button
+              label="Date & Time"
+              icon="book-clock"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-date-time"
+            ></mjx-button>`,
+            'excel.formulas.function-library.lookup-reference': html`<mjx-button
+              label="Lookup & Reference"
+              icon="book-search"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-lookup-reference"
+            ></mjx-button>`,
+            'excel.formulas.function-library.math-trig': html`<mjx-button
+              label="Math & Trig"
+              icon="book-theta"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-math-trig"
+            ></mjx-button>`,
+            'excel.formulas.function-library.more-functions': html`<mjx-button
+              label="More Functions"
+              icon="book"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-more-functions"
+            ></mjx-button>`,
+            'excel.formulas.named-cells.define-name': html`<mjx-split-button
+              label="Define Name"
+              icon="tag-add"
+              size="small"
+              data-opens="shell-excel-formulas-named-cells-define-name"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.named-cells.use-in-formula': html`<mjx-button
+              label="Use in Formula"
+              size="small"
+              data-opens="shell-excel-formulas-named-cells-use-in-formula"
+            ></mjx-button>`,
+            'excel.formulas.formula-auditing.remove-arrows': html`<mjx-split-button
+              label="Remove Arrows"
+              size="small"
+              data-opens="shell-excel-formulas-formula-auditing-remove-arrows"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.formula-auditing.error-checking': html`<mjx-split-button
+              label="Error Checking"
+              icon="checkmark-circle-warning"
+              size="small"
+              data-opens="shell-excel-formulas-formula-auditing-error-checking"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.calculation.calculation-options': html`<mjx-button
+              label="Calculation Options"
+              icon="calculator"
+              size="small"
+              data-opens="shell-excel-formulas-calculation-calculation-options"
+            ></mjx-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -679,7 +768,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
-      ${designLayoutMenus('excel', 'shell')}
+      ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

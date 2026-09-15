@@ -23,6 +23,8 @@
  * 5. **Page Layout is unit 5**: five groups and twenty-four commands. Arrange is declared by the same
  *    function as Word's Layout, and Scale to Fit and Sheet Options are fields and checkboxes rather than
  *    buttons.
+ * 6. **Formulas is unit 6**: four groups and twenty-four commands. Fluent draws Excel's own function
+ *    library books, and fourteen commands open a menu.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -209,11 +211,34 @@ export function excelPageLayoutTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelFormulasTab(): TemplateResult {
-  return placeholderTab(entry('formulas'));
+/**
+ * Formulas: Function Library, Named Cells (Office's *Defined Names*), Formula Auditing, Calculation — the
+ * ribbon programme's unit 6, in Office's order.
+ *
+ * Office's four Python groups are out of scope in the census and are not drawn. The second group draws
+ * the census's label; `dev/ribbons/census.ts` records Office's.
+ *
+ * **Fourteen of the tab's twenty-four commands are bound by the host**: AutoSum, Define Name, Remove
+ * Arrows and Error Checking are split buttons, and the eight function categories, Use in Formula and
+ * Calculation Options are dropdowns, over `stories/ribbons/references-transitions-formulas-menus.ts`.
+ * Show Formulas is the generic toggle.
+ *
+ * **No dialog launchers**: Office puts none on its Formulas tab. **No survivor.**
+ */
+export function excelFormulasTab(options: TabOptions = {}): TemplateResult {
+  const formulas = entry('formulas');
+  const controls = options.controls ?? {};
+  return tab(
+    formulas.id,
+    formulas.label,
+    censusGroup(formulas, 'GroupFunctionLibrary', {}, controls),
+    censusGroup(formulas, 'GroupNamedCells', {}, controls),
+    censusGroup(formulas, 'GroupFormulaAuditing', {}, controls),
+    censusGroup(formulas, 'GroupCalculation', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelDataTab(): TemplateResult {
   return placeholderTab(entry('data'));

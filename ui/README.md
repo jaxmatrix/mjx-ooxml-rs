@@ -471,6 +471,33 @@ at the foot of PowerPoint's Variants gallery. No command on the four tabs surviv
   ids in the PowerPoint hosts, because a footer button is not a census command. The gate accepts a
   literal id, but it does not require both hosts to open it.
 
+### References, Transitions and Formulas (unit 6 of the ribbon programme)
+
+Three tabs: Word's References, PowerPoint's Transitions and Excel's Formulas. The shapes are unit 5's.
+
+- **An in-ribbon `<mjx-gallery>`**: Transitions' *Transition to This Slide*, starting on Fade.
+- **A dropdown or split button** over a menu written once in
+  `stories/ribbons/references-transitions-formulas-menus.ts`: Table of Contents, Add Text, Insert
+  Citation, Bibliography, Effect Options, the eight function categories, Use in Formula and Calculation
+  Options are dropdowns. Next Footnote, AutoSum, Define Name, Remove Arrows and Error Checking are split
+  buttons.
+- **A field**: Word's citation Style and PowerPoint's Sound are `<mjx-dropdown>`, Duration and Advance
+  Slide After are `<mjx-combo-box>`, and On Mouse Click and After are `<mjx-checkbox>`. Their lists are
+  in `ribbon-parts.ts`.
+
+Fluent ships Excel's own function library books (`book-star`, `book-coins` and the rest), so the
+Function Library draws Office's pictures. No command on the three tabs survives a collapse, and
+`dev/ribbons/census.ts` gives each group's reason.
+
+⚠ **Three readings are `GUESS:`.**
+
+- **Transitions' groups.** The census labels `GroupTransitionStyles` *Transition Styles* and
+  `GroupTransitionToThisSlide` *Timing*, although the second id names Office's gallery group. The labels
+  win: Transition Styles holds the gallery and Effect Options, and Timing draws six commands where the
+  census counts two.
+- **Duration is a combo box.** `<mjx-measure-input>` carries lengths, and a duration is seconds.
+- **Insert Footnote is a plain button**, as Office draws it, where the unit's brief expected a dropdown.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

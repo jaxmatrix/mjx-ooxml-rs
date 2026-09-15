@@ -27,6 +27,7 @@ import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
+import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 
 /**
  * **Excel's ribbon, tab by tab** — the same functions `Shell/Excel` composes.
@@ -37,7 +38,7 @@ import { insertMenus } from './insert-menus.ts';
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw and Page Layout** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Page Layout and Formulas** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -57,7 +58,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw and Page Layout are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw, Page Layout and Formulas are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -397,6 +398,94 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-excel-page-layout-arrange-rotate"
   ></mjx-button>`,
+  // Formulas (unit 6). Split buttons and dropdowns open their menus from
+  // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  'excel.formulas.function-library.autosum': html`<mjx-split-button
+    label="AutoSum"
+    icon="autosum"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-autosum"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.formulas.function-library.recently-used': html`<mjx-button
+    label="Recently Used"
+    icon="book-star"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-recently-used"
+  ></mjx-button>`,
+  'excel.formulas.function-library.financial': html`<mjx-button
+    label="Financial"
+    icon="book-coins"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-financial"
+  ></mjx-button>`,
+  'excel.formulas.function-library.logical': html`<mjx-button
+    label="Logical"
+    icon="book-question-mark"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-logical"
+  ></mjx-button>`,
+  'excel.formulas.function-library.text': html`<mjx-button
+    label="Text"
+    icon="book-letter"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-text"
+  ></mjx-button>`,
+  'excel.formulas.function-library.date-time': html`<mjx-button
+    label="Date & Time"
+    icon="book-clock"
+    size="small"
+    data-opens="ribbons-excel-formulas-function-library-date-time"
+  ></mjx-button>`,
+  'excel.formulas.function-library.lookup-reference': html`<mjx-button
+    label="Lookup & Reference"
+    icon="book-search"
+    size="small"
+    data-opens="ribbons-excel-formulas-function-library-lookup-reference"
+  ></mjx-button>`,
+  'excel.formulas.function-library.math-trig': html`<mjx-button
+    label="Math & Trig"
+    icon="book-theta"
+    size="small"
+    data-opens="ribbons-excel-formulas-function-library-math-trig"
+  ></mjx-button>`,
+  'excel.formulas.function-library.more-functions': html`<mjx-button
+    label="More Functions"
+    icon="book"
+    size="large"
+    data-opens="ribbons-excel-formulas-function-library-more-functions"
+  ></mjx-button>`,
+  'excel.formulas.named-cells.define-name': html`<mjx-split-button
+    label="Define Name"
+    icon="tag-add"
+    size="small"
+    data-opens="ribbons-excel-formulas-named-cells-define-name"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.formulas.named-cells.use-in-formula': html`<mjx-button
+    label="Use in Formula"
+    size="small"
+    data-opens="ribbons-excel-formulas-named-cells-use-in-formula"
+  ></mjx-button>`,
+  'excel.formulas.formula-auditing.remove-arrows': html`<mjx-split-button
+    label="Remove Arrows"
+    size="small"
+    data-opens="ribbons-excel-formulas-formula-auditing-remove-arrows"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.formulas.formula-auditing.error-checking': html`<mjx-split-button
+    label="Error Checking"
+    icon="checkmark-circle-warning"
+    size="small"
+    data-opens="ribbons-excel-formulas-formula-auditing-error-checking"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.formulas.calculation.calculation-options': html`<mjx-button
+    label="Calculation Options"
+    icon="calculator"
+    size="small"
+    data-opens="ribbons-excel-formulas-calculation-calculation-options"
+  ></mjx-button>`,
 };
 
 /**
@@ -422,7 +511,7 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
-    ${designLayoutMenus('excel', 'ribbons')}
+    ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
   `;
 }
 
@@ -533,7 +622,28 @@ export const Draw: Story = { render: () => ribbon('draw') };
  */
 export const PageLayout: Story = { render: () => ribbon('page-layout') };
 
-/** Unit 6. */
+/**
+ * **Formulas**: the function library and the tools that check it, and Excel's part of the ribbon
+ * programme's unit 6. Four groups: Function Library, Named Cells, Formula Auditing and Calculation. What
+ * to look at:
+ *
+ * 1. **The function categories are Excel's own books.** Recently Used, Financial, Logical, Text, Date &
+ *    Time, Lookup & Reference and Math & Trig each draw a book with their mark on it, and More Functions
+ *    the plain book. Check that each glyph reads at 20 pixels. Date & Time, Lookup & Reference and Math &
+ *    Trig are small: three tokens do not fit a large button.
+ * 2. **Nine commands in Function Library open something.** AutoSum is a split button (Sum, Average, Count
+ *    Numbers, Max, Min). Each category opens ten of its functions, then *Insert Function… Shift+F3*.
+ *    More Functions opens Office's six further categories. Insert Function is the plain *fx* button.
+ * 3. **The second group is labelled Named Cells, and Office calls it Defined Names.** The census wins.
+ *    Define Name is a split button. Use in Formula lists the names the name box shows (Revenue,
+ *    CostOfSales, Headcount, Q1, PrintArea), then Paste Names.
+ * 4. **Formula Auditing has two split buttons and a toggle.** Remove Arrows and Error Checking open their
+ *    menus from the arrow. Press Show Formulas and it draws pressed. Watch Window carries no icon, so it
+ *    is small where Office draws it large.
+ * 5. **Calculation Options opens Automatic, checked, and the two other modes.** No dialog launchers.
+ *    Nothing survives a collapse, and Function Library is the primary group. Office's Python groups are
+ *    out of scope in the census and are not drawn.
+ */
 export const Formulas: Story = { render: () => ribbon('formulas') };
 
 /** Unit 7. */

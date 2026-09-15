@@ -10,6 +10,7 @@ import {
   standardColors,
 } from '../pickers/specimens.ts';
 import {
+  citationStyles,
   copyCounts,
   openDeclaredSurface,
   printerList,
@@ -26,6 +27,7 @@ import {
 import { designLayoutMenus, styleSetGalleryItems } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
+import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
 /**
@@ -39,7 +41,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design and Layout** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout and References** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -49,8 +51,8 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
  * command does.
  *
- * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design and
- * Layout tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
+ * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
+ * Layout and References tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -69,7 +71,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design and Layout are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout and References are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -471,6 +473,47 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-word-layout-arrange-rotate"
   ></mjx-button>`,
+  // References (unit 6). Dropdowns and Next Footnote's split button open their menus from
+  // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Style is a dropdown field over `ribbon-parts.ts`'s list. Insert Footnote is the generic button: Office draws no arrow.
+  'word.references.table-of-contents.table-of-contents': html`<mjx-button
+    label="Table of Contents"
+    icon="document-bullet-list"
+    size="small"
+    data-opens="ribbons-word-references-table-of-contents-table-of-contents"
+  ></mjx-button>`,
+  'word.references.table-of-contents.add-text': html`<mjx-button
+    label="Add Text"
+    size="small"
+    data-opens="ribbons-word-references-table-of-contents-add-text"
+  ></mjx-button>`,
+  'word.references.footnotes.next-footnote': html`<mjx-split-button
+    label="Next Footnote"
+    size="small"
+    data-opens="ribbons-word-references-footnotes-next-footnote"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.references.citations-bibliography.insert-citation': html`<mjx-button
+    label="Insert Citation"
+    icon="text-quote"
+    size="large"
+    data-opens="ribbons-word-references-citations-bibliography-insert-citation"
+  ></mjx-button>`,
+  'word.references.citations-bibliography.style': html`<mjx-dropdown
+    id="ribbons-word-citation-style"
+    label="Style"
+    value="apa"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${citationStyles.map(
+      (style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`,
+    )}
+  </mjx-dropdown>`,
+  'word.references.citations-bibliography.bibliography': html`<mjx-button
+    label="Bibliography"
+    size="small"
+    data-opens="ribbons-word-references-citations-bibliography-bibliography"
+  ></mjx-button>`,
 };
 
 /**
@@ -499,7 +542,7 @@ function ribbon(selected: string): TemplateResult {
     </mjx-menu>
 
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
-    ${designLayoutMenus('word', 'ribbons')}
+    ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
   `;
 }
 
@@ -662,7 +705,28 @@ export const Design: Story = { render: () => ribbon('design') };
  */
 export const Layout: Story = { render: () => ribbon('layout') };
 
-/** Unit 6. */
+/**
+ * **References**: the tab of generated content, and Word's part of the ribbon programme's unit 6. Seven
+ * groups: Table of Contents, Footnotes, Citations & Bibliography, Captions, Index, Table of Authorities
+ * and Acronyms. What to look at:
+ *
+ * 1. ⚠ **Insert Footnote is a plain large button, and Next Footnote is the split button.** Office draws
+ *    no arrow on Insert Footnote. Press Next Footnote's arrow and Previous Footnote, Next Endnote and
+ *    Previous Endnote open; press its face and nothing opens. Footnotes has the tab's one dialog
+ *    launcher, as in Office.
+ * 2. **Four dropdowns and a field.** Table of Contents opens the three built-in tables, Add Text the
+ *    levels with *Do Not Show in Table of Contents* checked, Insert Citation the two ways to add a
+ *    source, and Bibliography the three built-in bibliographies. **Style is a dropdown field** starting
+ *    on APA; pick MLA and the field shows it.
+ * 3. **Update Table appears three times**, in Table of Contents, Captions and Table of Authorities, with
+ *    Update Index beside them, all four on one refresh glyph. That shared glyph is why none of them
+ *    survives a collapse.
+ * 4. **Table of Contents is small, although Office draws it large**: three tokens do not fit a large
+ *    button. Twelve commands carry no icon and are labelled, from Add Text to Acronyms, and the Style
+ *    field carries none either.
+ * 5. **Office's Research group is not here**: the census marks it out of scope. `GUESS:` Acronyms is
+ *    last. Nothing survives a collapse, and Table of Contents and Footnotes are the primary groups.
+ */
 export const References: Story = { render: () => ribbon('references') };
 
 /** Unit 7. */

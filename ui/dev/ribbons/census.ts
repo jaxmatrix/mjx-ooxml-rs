@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert, Draw, and the Design and Layout tabs.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, the Design and Layout tabs, and References, Transitions and Formulas.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -84,7 +84,8 @@
  * authored **Draw**, whose census declares two generations of Office's ink tools on one tab; see the
  * *commands Draw shows* section. Unit 5 authored **Word's Design and Layout, PowerPoint's Design and Excel's
  * Page Layout**, the tabs about the whole document rather than a selection; see the *commands Design and
- * Layout show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * Layout show* section. Unit 6 authored **Word's References, PowerPoint's Transitions and Excel's
+ * Formulas**; see the *commands References, Transitions and Formulas show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -1683,6 +1684,339 @@ const excelPageLayoutSheetOptions: readonly RibbonCommand[] = [
   { id: 'excel.page-layout.sheet-options.print-headings', label: 'Print Headings', toggle: true },
 ];
 
+// ── the commands References, Transitions and Formulas show ──────────────────
+//
+// The ribbon programme's **unit 6**: Word's **References** (seven groups), PowerPoint's **Transitions**
+// (three) and Excel's **Formulas** (four). Three tabs with nothing in common but their place in the
+// programme, and one shape of problem each: References is a tab of *generated* content (tables of
+// contents, indexes, bibliographies) and the commands that keep it current; Transitions is one gallery
+// and the timing beside it; Formulas is a library of functions sorted into menus.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// Unit 5's three shapes, unchanged. **In-ribbon gallery**: Transitions' Transition to This Slide.
+// **Dropdown or split button** over a menu written once in
+// `stories/ribbons/references-transitions-formulas-menus.ts`: Table of Contents, Add Text, Next
+// Footnote, Insert Citation, Bibliography, Effect Options, AutoSum, the eight function categories,
+// Define Name, Use in Formula, Remove Arrows, Error Checking, Calculation Options. **Field**: Word's
+// citation Style and PowerPoint's Sound are `<mjx-dropdown>`, Duration and the advance time are
+// `<mjx-combo-box>`, On Mouse Click and After are `<mjx-checkbox>`. The lists the fields offer are in
+// `stories/ribbons/ribbon-parts.ts`, because two hosts bind each.
+//
+// ⚠ **Duration is a combo box, not a measure input.** `<mjx-measure-input>` carries six lengths
+// (`measureUnitNames`) and a duration is seconds, which is Excel Scale's case from unit 5 exactly: a
+// short list of Office's own values, and room to type another. `GUESS:` that this is what the brief's
+// *measure field* meant.
+//
+// ⚠ **Insert Footnote is a plain button.** The brief expected it among the dropdowns and split buttons.
+// Office draws References' Footnotes group as one large Insert Footnote with no arrow, then Insert
+// Endnote, Next Footnote (the split button) and Show Notes in a column. Office's shape wins, and every
+// host draws the generic button over it.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **PowerPoint's `GroupTransitionToThisSlide` is labelled *Timing*, and its id names Office's other
+//    group.** Office's Transitions tab is Preview, *Transition to This Slide* (the gallery and Effect
+//    Options) and *Timing* (Sound, Duration, Apply To All, On Mouse Click, After). The census carries
+//    three rows, and `OFFICE_FEATURE_INVENTORY.md` labels them *Transition Styles 8, Timing 2*. The
+//    label is what a person reads, so **Transition Styles holds the gallery and Effect Options, and
+//    Timing holds Office's Timing face**. `GUESS:` the reading. The counts argue the other way:
+//    `GroupTransitionToThisSlide`'s 2 is exactly the gallery and Effect Options. Timing therefore draws
+//    **six** commands where the census counts two, and that is Office's face rather than padding.
+// 2. **Excel's `GroupNamedCells` is labelled *Named Cells* here and *Defined Names* in Office.** The
+//    census's label wins, as Insert's *Slicers* did. The commands carry Office's names.
+// 3. **Office draws groups the census marks out of scope, and they are not drawn here**: Word's
+//    Research (Search and Researcher, between Footnotes and Citations & Bibliography), and Excel's four
+//    Python groups. The census wins.
+// 4. **Word's Acronyms is `GUESS:` last**, where the declaration puts it. It is new in Microsoft 365,
+//    and no build this project can cite fixes its position. Its one command opens the Acronyms pane.
+// 5. **The census's counts are larger than the faces**, and nothing is padded: Function Library is 37
+//    (every function category's menu) and draws ten.
+//
+// ## No survivor on any of the three tabs
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws. The candidates
+// that open nothing, and why each is refused:
+//
+// - **Insert Footnote** passes rules 1 to 3 in Print Layout. It is refused on unit 3's New Comment
+//   argument: it moves the caret out of the text into the note, and in Draft view it opens the notes
+//   pane, so one press puts a person somewhere else. It is also Alt+Ctrl+F at every width.
+// - **Insert Endnote** is the same command, Alt+Ctrl+D.
+// - **Update Index**, and Update Table where it updates without asking, pass rule 1 and fail rule 2:
+//   four commands on References draw the one refresh glyph, so unlabelled it does not say which table.
+// - **Apply To All** fails rule 2, because it has no glyph. **Show Formulas** is a toggle with no glyph
+//   (Ctrl+`). **Trace Precedents** and **Trace Dependents** draw arrows that Ctrl+Z does not remove,
+//   so rule 1 fails. **Calculate Now** and **Calculate Sheet** are F9 and Shift+F9, and a manual
+//   recalculation cannot be undone.
+//
+// Everything else opens a menu, a gallery, a dialog or a pane, or is a field a host binds.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// A command is `large` where Office draws it large **and** it has an honest glyph **and** its label
+// wraps inside `largeControlWidthUnits`. Unit 3's measured rule applies: three tokens do not fit, so
+// **Table of Contents**, **Date & Time**, **Lookup & Reference** and **Math & Trig** are `small`, and
+// **Calculation Options** is `small` because *Calculation* is eleven letters, *Recommended*'s length.
+//
+// **Fluent draws Office's own function library.** `book-star`, `book-coins`, `book-question-mark`,
+// `book-letter`, `book-clock`, `book-search` and `book-theta` are Recently Used, Financial, Logical,
+// Text, Date & Time, Lookup & Reference and Math & Trig, the books Excel draws. More Functions draws the
+// plain `book` the other seven are variations of.
+//
+// A wrong icon is worse than none. Fluent draws **no caption** (`image-alt-text` is Alt Text), **no
+// index mark**, **no authority**, **no cross-reference**, **no next note**, **no notes page**, **no
+// bibliography** (`book-open` is Read Mode), **no acronym**, **no transition effect option** (Office's
+// changes with the transition), **no apply-to-all**, **no trace arrow**, **no formula view**, **no
+// formula evaluation** and **no watch window** (`window` is New Window). So **Add Text**, **Next
+// Footnote**, **Show Notes**, **Bibliography**, **Insert Caption**, **Insert Table of Figures**,
+// **Cross-reference**, **Mark Entry**, **Insert Index**, **Mark Citation**, **Insert Table of
+// Authorities**, **Acronyms**, **Effect Options**, **Apply To All**, **Use in Formula**, **Create from
+// Selection**, **Trace Precedents**, **Trace Dependents**, **Remove Arrows**, **Show Formulas**,
+// **Evaluate Formula** and **Watch Window** are `small`, and the label is the command. The six fields
+// carry none either.
+
+/**
+ * Word's Table of Contents group: Table of Contents, Add Text, Update Table.
+ *
+ * **Table of Contents draws `document-bullet-list`**, a page holding a list, and is a dropdown of the
+ * built-in tables. It is `small`, although Office draws it large: three tokens. **Add Text** is a
+ * dropdown of the levels. **Update Table draws `document-sync`**, a page with a refresh on it, and
+ * opens Office's *update page numbers or the entire table* dialog, so every host draws the generic
+ * button.
+ *
+ * **No survivor**: two menus and a dialog.
+ */
+const wordReferencesTableOfContents: readonly RibbonCommand[] = [
+  { id: 'word.references.table-of-contents.table-of-contents', label: 'Table of Contents', icon: 'document-bullet-list' },
+  { id: 'word.references.table-of-contents.add-text', label: 'Add Text' },
+  { id: 'word.references.table-of-contents.update-table', label: 'Update Table', icon: 'document-sync' },
+];
+
+/**
+ * Word's Footnotes group: Insert Footnote large, then Insert Endnote, Next Footnote and Show Notes.
+ *
+ * **Insert Footnote draws `text-footnote`**, *Ab* with a superscript 1, which is Office's own picture.
+ * **Insert Endnote draws `document-endnote`**, a page with a mark at its foot. **Next Footnote is a
+ * split button**: the face moves to the next footnote, and the arrow offers Previous Footnote, Next
+ * Endnote and Previous Endnote. **Show Notes** jumps to the notes, or asks which when a document has
+ * both, so it is the generic button.
+ *
+ * **No survivor**: see this section's header on Insert Footnote.
+ */
+const wordReferencesFootnotes: readonly RibbonCommand[] = [
+  { id: 'word.references.footnotes.insert-footnote', label: 'Insert Footnote', icon: 'text-footnote', size: 'large' },
+  { id: 'word.references.footnotes.insert-endnote', label: 'Insert Endnote', icon: 'document-endnote' },
+  { id: 'word.references.footnotes.next-footnote', label: 'Next Footnote' },
+  { id: 'word.references.footnotes.show-notes', label: 'Show Notes' },
+];
+
+/**
+ * Word's Citations & Bibliography group: Insert Citation large, then Manage Sources, Style and
+ * Bibliography.
+ *
+ * **Insert Citation draws `text-quote`**, and is a dropdown (Add New Source, Add New Placeholder).
+ * `GUESS:` the glyph: a citation marks words taken from a source, and Office's picture is a page with a
+ * mark on it that Fluent does not draw. **Manage Sources draws `library`**, books on a shelf, and opens
+ * the Source Manager dialog. **Style is a field**, a dropdown of citation styles starting on APA, as
+ * Word's is. **Bibliography** is a dropdown of the built-in bibliographies.
+ *
+ * **No survivor**: two menus, a dialog and a field.
+ */
+const wordReferencesCitationsBibliography: readonly RibbonCommand[] = [
+  { id: 'word.references.citations-bibliography.insert-citation', label: 'Insert Citation', icon: 'text-quote', size: 'large' },
+  { id: 'word.references.citations-bibliography.manage-sources', label: 'Manage Sources', icon: 'library' },
+  { id: 'word.references.citations-bibliography.style', label: 'Style' },
+  { id: 'word.references.citations-bibliography.bibliography', label: 'Bibliography' },
+];
+
+/**
+ * Word's Captions group: Insert Caption, Insert Table of Figures, Update Table, Cross-reference.
+ *
+ * Insert Caption, Insert Table of Figures and Cross-reference open dialogs, so every host draws the
+ * generic buttons. **Update Table** is Table of Contents' command for the table of figures, with the
+ * same glyph and the same dialog. **Insert Caption carries no icon**, so it is `small` where Office
+ * draws it large. The census counts four, and the face is four.
+ *
+ * **No survivor**: three dialogs, and an Update Table whose glyph three other commands share.
+ */
+const wordReferencesCaptions: readonly RibbonCommand[] = [
+  { id: 'word.references.captions.insert-caption', label: 'Insert Caption' },
+  { id: 'word.references.captions.insert-table-of-figures', label: 'Insert Table of Figures' },
+  { id: 'word.references.captions.update-table', label: 'Update Table', icon: 'document-sync' },
+  { id: 'word.references.captions.cross-reference', label: 'Cross-reference' },
+];
+
+/**
+ * Word's Index group: Mark Entry, Insert Index, Update Index. The census counts three.
+ *
+ * Mark Entry and Insert Index open dialogs. **Update Index draws `document-sync`** and updates the index
+ * with no dialog.
+ *
+ * **No survivor**: Update Index passes rule 1 and fails rule 2. See this section's header.
+ */
+const wordReferencesIndex: readonly RibbonCommand[] = [
+  { id: 'word.references.index.mark-entry', label: 'Mark Entry' },
+  { id: 'word.references.index.insert-index', label: 'Insert Index' },
+  { id: 'word.references.index.update-index', label: 'Update Index', icon: 'document-sync' },
+];
+
+/**
+ * Word's Table of Authorities group: Mark Citation, Insert Table of Authorities, Update Table.
+ *
+ * Index's shape for a legal document. Mark Citation and Insert Table of Authorities open dialogs.
+ * **Update Table** draws the shared refresh glyph.
+ *
+ * **No survivor**: two dialogs, and rule 2 refuses Update Table.
+ */
+const wordReferencesTableOfAuthorities: readonly RibbonCommand[] = [
+  { id: 'word.references.table-of-authorities.mark-citation', label: 'Mark Citation' },
+  { id: 'word.references.table-of-authorities.insert-table-of-authorities', label: 'Insert Table of Authorities' },
+  { id: 'word.references.table-of-authorities.update-table', label: 'Update Table', icon: 'document-sync' },
+];
+
+/**
+ * Word's Acronyms group: one command, which opens the Acronyms pane. `GUESS:` the group sits last. See
+ * this section's header.
+ *
+ * **No survivor**: a pane, no glyph, and the only command.
+ */
+const wordReferencesAcronyms: readonly RibbonCommand[] = [
+  { id: 'word.references.acronyms.acronyms', label: 'Acronyms' },
+];
+
+/**
+ * PowerPoint's Preview group: one command, which plays this slide's transition.
+ *
+ * **Preview draws `slide-transition`**, a slide sliding off its neighbours: the thing being previewed.
+ * Not `play`, which is a video's, and not `slide-play`, which is From Current Slide.
+ *
+ * **No survivor**: the only command.
+ */
+const powerpointTransitionsPreview: readonly RibbonCommand[] = [
+  { id: 'powerpoint.transitions.preview.preview', label: 'Preview', icon: 'slide-transition', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupTransitionStyles`, which Office labels **Transition to This Slide**: the gallery
+ * and Effect Options.
+ *
+ * **The gallery is in-ribbon**, and the hosts bind `<mjx-gallery>`. Its accessible name is Office's,
+ * *Transition to This Slide*. **Effect Options is a dropdown** whose entries depend on the transition;
+ * the hosts start the gallery on **Fade**, so Effect Options offers Smoothly and Through Black.
+ * `GUESS:` Fade rather than a new deck's None, where Office disables Effect Options and there would be
+ * nothing to audit.
+ *
+ * **No survivor**: a gallery and a menu.
+ */
+const powerpointTransitionsTransitionStyles: readonly RibbonCommand[] = [
+  { id: 'powerpoint.transitions.transition-styles.transitions', label: 'Transition to This Slide' },
+  { id: 'powerpoint.transitions.transition-styles.effect-options', label: 'Effect Options' },
+];
+
+/**
+ * PowerPoint's `GroupTransitionToThisSlide`, labelled **Timing**: Sound, Duration, Apply To All, then
+ * On Mouse Click, After and the time after which the slide advances.
+ *
+ * ⚠ **Six commands where the census counts two.** See this section's header.
+ *
+ * **Sound is a dropdown field** starting on *[No Sound]*. **Duration is a combo box** of seconds,
+ * starting on Fade's 00.70. **Apply To All** is a button. **On Mouse Click and After are checkboxes**,
+ * declared as toggles because each is a state: On Mouse Click starts ticked, as in a new deck.
+ * **Advance Slide After is a combo box** of times. `GUESS:` its name, which joins Office's *Advance
+ * Slide* heading to the checkbox beside it, because Office's spin box has no visible name of its own.
+ *
+ * **No survivor**: Apply To All has no glyph, and the other five are fields a host binds.
+ */
+const powerpointTransitionsTiming: readonly RibbonCommand[] = [
+  { id: 'powerpoint.transitions.timing.sound', label: 'Sound' },
+  { id: 'powerpoint.transitions.timing.duration', label: 'Duration' },
+  { id: 'powerpoint.transitions.timing.apply-to-all', label: 'Apply To All' },
+  { id: 'powerpoint.transitions.timing.on-mouse-click', label: 'On Mouse Click', toggle: true, pressed: true },
+  { id: 'powerpoint.transitions.timing.after', label: 'After', toggle: true },
+  { id: 'powerpoint.transitions.timing.advance-after', label: 'Advance Slide After' },
+];
+
+/**
+ * Excel's Function Library: Insert Function, AutoSum, Recently Used, the six categories, More Functions.
+ *
+ * **Insert Function draws `math-formula`**, *fx*, Office's own mark, and opens the Insert Function
+ * dialog. **AutoSum draws `autosum`** and is a split button (Sum, Average, Count Numbers, Max, Min),
+ * as on Home. The other eight are dropdowns of function names. See this section's header for the
+ * books, and for why three categories are `small`. `GUESS:` More Functions fits a large button;
+ * *Functions* is nine letters and nobody has measured it.
+ *
+ * **No survivor**: a dialog, a split button and eight menus.
+ */
+const excelFormulasFunctionLibrary: readonly RibbonCommand[] = [
+  { id: 'excel.formulas.function-library.insert-function', label: 'Insert Function', icon: 'math-formula', size: 'large' },
+  { id: 'excel.formulas.function-library.autosum', label: 'AutoSum', icon: 'autosum', size: 'large' },
+  { id: 'excel.formulas.function-library.recently-used', label: 'Recently Used', icon: 'book-star', size: 'large' },
+  { id: 'excel.formulas.function-library.financial', label: 'Financial', icon: 'book-coins', size: 'large' },
+  { id: 'excel.formulas.function-library.logical', label: 'Logical', icon: 'book-question-mark', size: 'large' },
+  { id: 'excel.formulas.function-library.text', label: 'Text', icon: 'book-letter', size: 'large' },
+  { id: 'excel.formulas.function-library.date-time', label: 'Date & Time', icon: 'book-clock' },
+  { id: 'excel.formulas.function-library.lookup-reference', label: 'Lookup & Reference', icon: 'book-search' },
+  { id: 'excel.formulas.function-library.math-trig', label: 'Math & Trig', icon: 'book-theta' },
+  { id: 'excel.formulas.function-library.more-functions', label: 'More Functions', icon: 'book', size: 'large' },
+];
+
+/**
+ * Excel's `GroupNamedCells`, which Office labels **Defined Names**: Name Manager large, then Define
+ * Name, Use in Formula and Create from Selection.
+ *
+ * **Name Manager draws `tag-multiple`**, a stack of name tags, and opens its dialog. **Define Name draws
+ * `tag-add`** and is a split button (Define Name, Apply Names). **Use in Formula** is a dropdown of
+ * the workbook's names, the ones the formula bar's name box lists. **Create from Selection** opens a
+ * dialog. `GUESS:` both tag glyphs; Office draws a tag over a table.
+ *
+ * **No survivor**: two dialogs, a split button and a menu.
+ */
+const excelFormulasNamedCells: readonly RibbonCommand[] = [
+  { id: 'excel.formulas.named-cells.name-manager', label: 'Name Manager', icon: 'tag-multiple', size: 'large' },
+  { id: 'excel.formulas.named-cells.define-name', label: 'Define Name', icon: 'tag-add' },
+  { id: 'excel.formulas.named-cells.use-in-formula', label: 'Use in Formula' },
+  { id: 'excel.formulas.named-cells.create-from-selection', label: 'Create from Selection' },
+];
+
+/**
+ * Excel's Formula Auditing: Trace Precedents, Trace Dependents, Remove Arrows, then Show Formulas,
+ * Error Checking, Evaluate Formula, then Watch Window.
+ *
+ * **Remove Arrows and Error Checking are split buttons.** Remove Arrows offers the precedent and
+ * dependent arrows alone. Error Checking offers Trace Error and Circular References, and **draws
+ * `checkmark-circle-warning`**, a check that found a warning. **Show Formulas is a toggle**: Office
+ * draws it pressed while the sheet shows formulas. Evaluate Formula opens a dialog and Watch Window a
+ * window, so both are the generic button. **Watch Window carries no icon**, so it is `small` where
+ * Office draws it large.
+ *
+ * **No survivor**: see this section's header on the trace arrows and Show Formulas.
+ */
+const excelFormulasFormulaAuditing: readonly RibbonCommand[] = [
+  { id: 'excel.formulas.formula-auditing.trace-precedents', label: 'Trace Precedents' },
+  { id: 'excel.formulas.formula-auditing.trace-dependents', label: 'Trace Dependents' },
+  { id: 'excel.formulas.formula-auditing.remove-arrows', label: 'Remove Arrows' },
+  { id: 'excel.formulas.formula-auditing.show-formulas', label: 'Show Formulas', toggle: true },
+  { id: 'excel.formulas.formula-auditing.error-checking', label: 'Error Checking', icon: 'checkmark-circle-warning' },
+  { id: 'excel.formulas.formula-auditing.evaluate-formula', label: 'Evaluate Formula' },
+  { id: 'excel.formulas.formula-auditing.watch-window', label: 'Watch Window' },
+];
+
+/**
+ * Excel's Calculation group: Calculation Options, Calculate Now, Calculate Sheet.
+ *
+ * **Calculation Options draws `calculator`** and is a dropdown (Automatic, Automatic Except for Data
+ * Tables, Manual). It is `small`: see this section's header. `GUESS:` the middle entry's name; recent
+ * builds call it *Partial*. **Calculate Now draws `calculator-arrow-clockwise`**, a calculator running
+ * again, and **Calculate Sheet draws `table-calculator`**, a calculator over a sheet.
+ *
+ * **No survivor**: a menu, and two recalculations that cannot be undone.
+ */
+const excelFormulasCalculation: readonly RibbonCommand[] = [
+  { id: 'excel.formulas.calculation.calculation-options', label: 'Calculation Options', icon: 'calculator' },
+  { id: 'excel.formulas.calculation.calculate-now', label: 'Calculate Now', icon: 'calculator-arrow-clockwise' },
+  { id: 'excel.formulas.calculation.calculate-sheet', label: 'Calculate Sheet', icon: 'table-calculator' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -2000,13 +2334,13 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabReferences' },
     groups: [
-      { id: 'GroupTableOfContents', label: 'Table of Contents', priority: 'primary', controls: 6, inScope: true },
-      { id: 'GroupFootnotes', label: 'Footnotes', priority: 'primary', controls: 9, inScope: true },
-      { id: 'GroupCitationsAndBibliography', label: 'Citations & Bibliography', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupCaptions', label: 'Captions', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupIndex', label: 'Index', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupTableOfAuthorities', label: 'Table of Authorities', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupAcronyms', label: 'Acronyms', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupTableOfContents', label: 'Table of Contents', priority: 'primary', controls: 6, inScope: true, commands: wordReferencesTableOfContents },
+      { id: 'GroupFootnotes', label: 'Footnotes', priority: 'primary', controls: 9, inScope: true, commands: wordReferencesFootnotes },
+      { id: 'GroupCitationsAndBibliography', label: 'Citations & Bibliography', priority: 'standard', controls: 8, inScope: true, commands: wordReferencesCitationsBibliography },
+      { id: 'GroupCaptions', label: 'Captions', priority: 'standard', controls: 4, inScope: true, commands: wordReferencesCaptions },
+      { id: 'GroupIndex', label: 'Index', priority: 'standard', controls: 3, inScope: true, commands: wordReferencesIndex },
+      { id: 'GroupTableOfAuthorities', label: 'Table of Authorities', priority: 'standard', controls: 3, inScope: true, commands: wordReferencesTableOfAuthorities },
+      { id: 'GroupAcronyms', label: 'Acronyms', priority: 'ancillary', controls: 1, inScope: true, commands: wordReferencesAcronyms },
     ],
   },
   {
@@ -2172,9 +2506,9 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabTransitions' },
     groups: [
-      { id: 'GroupPreviewTransitions', label: 'Preview', priority: 'ancillary', controls: 1, inScope: true },
-      { id: 'GroupTransitionStyles', label: 'Transition Styles', priority: 'primary', controls: 8, inScope: true },
-      { id: 'GroupTransitionToThisSlide', label: 'Timing', priority: 'secondary', controls: 2, inScope: true },
+      { id: 'GroupPreviewTransitions', label: 'Preview', priority: 'ancillary', controls: 1, inScope: true, commands: powerpointTransitionsPreview },
+      { id: 'GroupTransitionStyles', label: 'Transition Styles', priority: 'primary', controls: 8, inScope: true, commands: powerpointTransitionsTransitionStyles },
+      { id: 'GroupTransitionToThisSlide', label: 'Timing', priority: 'secondary', controls: 2, inScope: true, commands: powerpointTransitionsTiming },
     ],
   },
   {
@@ -2445,10 +2779,10 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabFormulas' },
     groups: [
-      { id: 'GroupFunctionLibrary', label: 'Function Library', priority: 'primary', controls: 37, inScope: true },
-      { id: 'GroupNamedCells', label: 'Named Cells', priority: 'standard', controls: 7, inScope: true },
-      { id: 'GroupFormulaAuditing', label: 'Formula Auditing', priority: 'standard', controls: 13, inScope: true },
-      { id: 'GroupCalculation', label: 'Calculation', priority: 'standard', controls: 7, inScope: true },
+      { id: 'GroupFunctionLibrary', label: 'Function Library', priority: 'primary', controls: 37, inScope: true, commands: excelFormulasFunctionLibrary },
+      { id: 'GroupNamedCells', label: 'Named Cells', priority: 'standard', controls: 7, inScope: true, commands: excelFormulasNamedCells },
+      { id: 'GroupFormulaAuditing', label: 'Formula Auditing', priority: 'standard', controls: 13, inScope: true, commands: excelFormulasFormulaAuditing },
+      { id: 'GroupCalculation', label: 'Calculation', priority: 'standard', controls: 7, inScope: true, commands: excelFormulasCalculation },
     ],
   },
   {

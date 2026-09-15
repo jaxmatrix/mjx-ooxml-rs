@@ -25,8 +25,10 @@
  *
  * **Draw** is unit 4: nine groups and fifteen commands, declared by the same functions as Word's.
  *
- * **Design** is unit 5: three groups and four commands, two of them in-ribbon galleries. Every other tab
- * is a placeholder until its own unit.
+ * **Design** is unit 5: three groups and four commands, two of them in-ribbon galleries.
+ *
+ * **Transitions** is unit 6: three groups and nine commands, a gallery and the timing beside it. Every
+ * other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -190,11 +192,34 @@ export function powerpointDesignTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointTransitionsTab(): TemplateResult {
-  return placeholderTab(entry('transitions'));
+/**
+ * Transitions: Preview, Transition Styles (Office's *Transition to This Slide*), Timing — the ribbon
+ * programme's unit 6, in Office's order.
+ *
+ * ⚠ **The census's two larger groups do not line up with Office's by id.** The labels are the census's
+ * and the contents are Office's under those labels: Transition Styles holds the gallery and Effect
+ * Options, and Timing holds Sound, Duration, Apply To All, On Mouse Click, After and the advance time.
+ * `dev/ribbons/census.ts` records the other reading and why this one was taken.
+ *
+ * **Seven of the tab's nine commands are bound by the host**: the in-ribbon gallery, Effect Options as a
+ * dropdown over `stories/ribbons/references-transitions-formulas-menus.ts`, and the five fields. Preview and
+ * Apply To All are the generic buttons.
+ *
+ * **No dialog launchers**: Office puts none on its Transitions tab. **No survivor.**
+ */
+export function powerpointTransitionsTab(options: TabOptions = {}): TemplateResult {
+  const transitions = entry('transitions');
+  const controls = options.controls ?? {};
+  return tab(
+    transitions.id,
+    transitions.label,
+    censusGroup(transitions, 'GroupPreviewTransitions', {}, controls),
+    censusGroup(transitions, 'GroupTransitionStyles', {}, controls),
+    censusGroup(transitions, 'GroupTransitionToThisSlide', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointAnimationsTab(): TemplateResult {
   return placeholderTab(entry('animations'));
