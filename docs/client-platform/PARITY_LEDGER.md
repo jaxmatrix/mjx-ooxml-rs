@@ -93,6 +93,7 @@ Each of these is written in the module documentation of the suite that **asserts
 
 | Row | Limitation | Asserted by |
 |---|---|---|
+| `run-colour-pptx` | a render counts 14 loss(es) labelled `Text colour approximated` | `mjx-reference-pack: a_real_deck_reaches_pixels` |
 | `paragraph-borders-and-rules` | `w:pBdr/w:between` is carried on the paragraph's decoration and placed nowhere — it changes no stroke rectangle, so no rule is drawn between two paragraphs that share the border | `mjx-layout-docx: no_rule_rounds_to_nothing` |
 | `fills` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `outlines` | an arrowhead (`a:headEnd`, `a:tailEnd`) is carried through the display list and never tessellated, so no line draws its line ends | `mjx-scene: a_line_end_is_carried_and_never_tessellated` |
@@ -109,6 +110,8 @@ Each of these is written in the module documentation of the suite that **asserts
 | `word-track-changes` | a change bar is only a flag on the composed paragraph, reported in the two marking views — nothing places a bar in the margin or draws one | `mjx-layout-docx: a_deletion_changes_the_page` |
 | `excel-conditional-formatting` | a conditional-formatting rule whose condition is a formula — an `expression` rule, a `cellIs` with a reference operand, a `cfvo` of `type="formula"` — is reported unevaluated and painted as nothing, because evaluating it needs a calculation engine | `mjx-layout-xlsx: the_conditional_ledger_is_computed` |
 | `excel-cell-borders` | a cell border reaches the display list as a filled band, so a dashed or dotted edge draws solid at the right weight and colour; the style survives in the catalogue and nothing consumes it | `mjx-scene-xlsx: the_dash_is_lost_at_the_band` |
+| `excel-cell-borders` | a render counts 1 loss(es) labelled `Content not read` | `mjx-reference-pack: a_real_worksheet_reaches_pixels` |
+| `excel-cell-borders` | a render counts 1 loss(es) labelled `Approximated` | `mjx-reference-pack: a_real_worksheet_reaches_pixels` |
 | `excel-cell-formatting` | SpreadsheetML's `darkTrellis` and `lightTrellis` translate to the one DrawingML trellis, so a cell filled with either draws the same hatch | `mjx-scene-xlsx: the_public_surface_is_reachable` |
 
 ## What counts as drawn
@@ -125,6 +128,9 @@ Every double a drawn row's evidence uses is classified for that row, or the gene
 
 | Suite | Double | Row | Why it stands in for nothing this row is about |
 |---|---|---|---|
+| `mjx-reference-pack: a_real_deck_reaches_pixels` | a test-supplied image source (`NoImages` or a test-local `ImageSource`) | `run-colour-pptx` | the cited function draws `text_levels.pptx`, which holds no picture, so `NoImages` is never asked for one and a run's colour owes nothing to it |
+| `mjx-reference-pack: a_real_deck_reaches_pixels` | a test-local geometry provider | `run-colour-pptx` | a run's colour is its paint, resolved from its source address, and the outline a test-fed provider answers for a shape does not reach it |
+| `mjx-reference-pack: a_real_worksheet_reaches_pixels` | a test-supplied image source (`NoImages` or a test-local `ImageSource`) | `excel-cell-borders` | a worksheet's fragment tree carries no picture fragment, so `NoImages` is never asked for one and a border band owes nothing to it |
 | `mjx-reference-pack: a_real_worksheet_reaches_pixels` | a test-supplied image source (`NoImages` or a test-local `ImageSource`) | `excel-reaches-pixels` | a worksheet's fragment tree carries no picture fragment — `mjx-layout-xlsx` places drawings and lays none of them out — so the painter never asks `NoImages` for a picture, and the stand-in replaces nothing this journey draws |
 | `mjx-reference-pack: a_real_deck_reaches_pixels` | a test-supplied image source (`NoImages` or a test-local `ImageSource`) | `table-model-pptx` | the cited functions draw `tables.pptx` slide 1, which frames one table and one shape and holds no picture, so `NoImages` is never asked for one |
 | `mjx-reference-pack: a_real_deck_reaches_pixels` | a test-local geometry provider | `table-model-pptx` | a table's cells and border bands are boxes the box model places, so the grid makes no outline request and the test-fed provider draws nothing of it |
@@ -141,7 +147,6 @@ Each of these has evidence that asserts something, and none of it proves the cap
 |---|---|
 | `run-formatting-pptx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-pptx`) |
 | `run-formatting-docx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`) |
-| `run-colour-pptx` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-pptx`) |
 | `text-shaping` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-text`) |
 | `bidirectional-text` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-text`) |
 | `line-breaking` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-docx`, `mjx-text`) |
@@ -220,6 +225,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `excel-conditional-formatting` | `mjx-scene-xlsx: a_conditional_format_changes_a_pixel::the_scale_moves_when_the_data_does_and_not_only_when_the_stops_do` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `excel-conditional-formatting` | `mjx-scene-xlsx: a_conditional_format_changes_a_pixel::a_scale_stop_that_names_a_palette_row_is_resolved_here_and_not_in_the_box_model` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `excel-cell-borders` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-xlsx`, `mjx-scene-xlsx`) |
+| `excel-cell-borders` | `mjx-reference-pack: a_real_worksheet_reaches_pixels::the_styled_sheet_loses_exactly_its_diagonal_and_its_dash` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `excel-cell-formatting` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-scene-xlsx`) |
 | `excel-cell-formatting` | `mjx-scene-xlsx: the_alpha_survives::the_alpha_is_still_there_in_the_encoded_display_list` draws it only through a test-supplied theme (`with_theme`), standing in for the document's own theme reaching the resolver |
 | `excel-print-layout` | no cited test function reads a display list or pixels: the evidence stops short of drawn (`mjx-layout-xlsx`) |
@@ -264,7 +270,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `run-formatting` | Text decorations in the shared display-list vocabulary — underline, strikethrough, double strike, highlight, baseline offset | `not-started` | **none** | 0 | 0 | — |
 | `run-formatting-pptx` | PowerPoint run formatting — family, size, bold, italic, underline, strikethrough, caps | `partial` | `mjx-dml: character_model`<br>`mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments` | 70 | 239 | — |
 | `run-formatting-docx` | Word run formatting — family, size, bold, italic, caps, small caps, raised and lowered text | `partial` | `mjx-docx: run_properties`<br>`mjx-layout-docx: a_document_becomes_fragments` | 7 | 82 | — |
-| `run-colour-pptx` | A PowerPoint run drawn at pixels in its own resolved colour, rather than black | `partial` | `mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments` | 41 | 124 | — |
+| `run-colour-pptx` | A PowerPoint run drawn at pixels in its own resolved colour, rather than black | `partial` | `mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-reference-pack: a_real_deck_reaches_pixels::the_text_deck_loses_exactly_its_run_colours` | 42 | 133 | — |
 | `run-colour-docx` | A Word run drawn at pixels in its own colour, highlight and shading | `preserved-not-rendered` | `mjx-docx: run_properties` | 3 | 64 | — |
 | `text-shaping` | Shaping and script itemisation | `partial` | `mjx-text: shaping`<br>`mjx-text: itemisation` | 34 | 128 | — |
 | `bidirectional-text` | Bidirectional text — the UBA, and a bidi-aware run order | `partial` | `mjx-text: bidirectional_text` | 11 | 62 | — |
@@ -440,7 +446,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `excel-text-overflow` | Text overflowing into empty neighbours, and the rules that clip it | `partial` | `mjx-layout-xlsx: text_overflows_into_empty_neighbours` | 7 | 22 | — |
 | `excel-panes` | Frozen and split panes over one geometry | `partial` | `mjx-layout-xlsx: frozen_panes_share_one_geometry` | 6 | 29 | — |
 | `excel-conditional-formatting` | Conditional formatting — every rule kind, graded interpolation, and Excel's precedence | `partial` | `mjx-sml: conditional_formatting`<br>`mjx-xlsx: conditional_formatting`<br>`mjx-layout-xlsx: every_rule_kind_fires_and_does_not`<br>`mjx-layout-xlsx: graded_rules_interpolate`<br>`mjx-layout-xlsx: precedence_composes_in_excels_order`<br>`mjx-layout-xlsx: the_conditional_ledger_is_computed`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel::a_dxf_that_states_only_a_bg_colour_paints_the_cell_that_fired_and_not_its_neighbour`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel::the_same_sheet_without_the_rule_paints_neither_cell`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel::a_colour_scale_blends_its_two_stops_and_the_middle_cell_is_neither_of_them`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel::the_scale_moves_when_the_data_does_and_not_only_when_the_stops_do`<br>`mjx-scene-xlsx: a_conditional_format_changes_a_pixel::a_scale_stop_that_names_a_palette_row_is_resolved_here_and_not_in_the_box_model` | 86 | 298 | — |
-| `excel-cell-borders` | Cell borders — every weight reaching a pixel, and the dash that does not | `partial` | `mjx-layout-xlsx: no_border_rounds_to_nothing`<br>`mjx-scene-xlsx: the_dash_is_lost_at_the_band` | 9 | 22 | — |
+| `excel-cell-borders` | Cell borders — every weight reaching a pixel, and the dash that does not | `partial` | `mjx-layout-xlsx: no_border_rounds_to_nothing`<br>`mjx-scene-xlsx: the_dash_is_lost_at_the_band`<br>`mjx-reference-pack: a_real_worksheet_reaches_pixels::the_styled_sheet_loses_exactly_its_diagonal_and_its_dash` | 10 | 30 | — |
 | `excel-cell-formatting` | The effective cell format — the `xf` chain, pattern and gradient fills, and alignment | `partial` | `mjx-sml: effective_cell_format`<br>`mjx-sml: style_resources`<br>`mjx-xlsx: effective_format`<br>`mjx-scene-xlsx: a_red_negative_reaches_the_paint_table`<br>`mjx-scene-xlsx: the_alpha_survives::the_alpha_is_still_there_in_the_encoded_display_list`<br>`mjx-scene-xlsx: the_public_surface_is_reachable` | 40 | 283 | — |
 | `excel-rich-text` | Rich-text runs in a cell, each with its own font, size, weight, slant and colour | `preserved-not-rendered` | `mjx-sml: shared_strings_fidelity` | 31 | 140 | — |
 | `excel-font-decorations` | Underline (including double accounting), strikethrough, superscript and subscript drawn in a cell | `preserved-not-rendered` | `mjx-sml: style_resources` | 18 | 132 | — |

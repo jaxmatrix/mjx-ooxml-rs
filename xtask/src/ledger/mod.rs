@@ -88,6 +88,7 @@ pub(crate) fn assess_all(evidence: &evidence::Evidence) -> Result<Vec<Assessed>>
         );
     }
     check_every_declared_limitation_is_cited(&assessed, evidence)?;
+    check_every_asserted_loss_has_an_owner(evidence)?;
     Ok(assessed)
 }
 
@@ -348,9 +349,47 @@ fn check_every_declared_limitation_is_cited(
     Ok(())
 }
 
+/// Every loss category a suite asserts is in the one owner table, and every row that table names exists.
+fn check_every_asserted_loss_has_an_owner(evidence: &evidence::Evidence) -> Result<()> {
+    for (category, _, owners) in rows::LOSS_OWNERS {
+        for owner in *owners {
+            if !CAPABILITIES.iter().any(|row| row.id == *owner) {
+                bail!("`LOSS_OWNERS` gives `{category}` to `{owner}`, which is not a ledger row");
+            }
+        }
+    }
+    for (path, suite) in evidence.suites() {
+        for (category, count) in &suite.losses {
+            if !rows::LOSS_OWNERS
+                .iter()
+                .any(|(named, ..)| named == category)
+            {
+                bail!(
+                    "`{path}` asserts {count} loss(es) of `{category}`, which `LOSS_OWNERS` in \
+                     `xtask/src/ledger/rows.rs` gives to no row"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The owner table names only rows that exist.
+    #[test]
+    fn every_loss_owner_is_a_row() {
+        for (category, _, owners) in rows::LOSS_OWNERS {
+            for owner in *owners {
+                assert!(
+                    CAPABILITIES.iter().any(|row| row.id == *owner),
+                    "`{category}` is given to `{owner}`, which is not a row"
+                );
+            }
+        }
+    }
 
     /// The committed table survives its own rules, in a test rather than in a terminal.
     #[test]

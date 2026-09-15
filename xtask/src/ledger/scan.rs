@@ -417,6 +417,61 @@ pub(crate) fn functions(code: &str) -> Vec<(&str, &str)> {
     found
 }
 
+/// Every nonzero loss count normalised code asserts as `.count(Kind::Variant), N`, as `(Kind::Variant, N)`.
+pub(crate) fn asserted_losses(code: &str) -> Vec<(String, usize)> {
+    const KINDS: [&str; 3] = ["LayoutLossKind::", "SceneLossKind::", "PainterLossKind::"];
+    let mut found: Vec<(String, usize)> = Vec::new();
+    for (at, marker) in code.match_indices("count(") {
+        if code[..at].chars().next_back().is_some_and(is_identifier) {
+            continue;
+        }
+        let open = at + marker.len();
+        let mut depth = 1_usize;
+        let mut close = None;
+        for (offset, character) in code[open..].char_indices() {
+            match character {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = Some(open + offset);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close) = close else {
+            continue;
+        };
+        let argument: String = code[open..close]
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        let Some(kind) = KINDS
+            .iter()
+            .find_map(|kind| argument.find(kind).map(|start| &argument[start..]))
+        else {
+            continue;
+        };
+        let Some(rest) = code[close + 1..].trim_start().strip_prefix(',') else {
+            continue;
+        };
+        let digits: String = rest
+            .trim_start()
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        let Ok(count) = digits.parse::<usize>() else {
+            continue;
+        };
+        if count > 0 && !found.iter().any(|(named, _)| named == kind) {
+            found.push((kind.to_owned(), count));
+        }
+    }
+    found
+}
+
 /// The names of the `#[test]` functions normalised code declares.
 pub(crate) fn test_functions(code: &str) -> BTreeSet<&str> {
     let mut names = BTreeSet::new();
@@ -563,4 +618,31 @@ pub(crate) fn read_unit(root: &Path, suite: &str) -> Result<Unit, String> {
     let code = normalise(&source).code;
     let unit = unit_code(&code, &helpers);
     Ok(Unit { source, code, unit })
+}
+
+#[cfg(test)]
+mod loss_tests {
+    use super::{asserted_losses, normalise};
+
+    #[test]
+    fn a_nonzero_loss_count_is_read_out_of_an_assertion_and_nothing_else_is() {
+        let code = normalise(
+            "assert_eq!(losses.count(SceneLossKind::TextPaintDefaulted), 14);\n\
+             assert_eq!(\n    losses.count(mjx_layout::LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink)),\n    2\n);\n\
+             assert_eq!(losses.count(PainterLossKind::LineEndNotDrawn), 0);\n\
+             let n = recount(SceneLossKind::ColourNotResolved), 3;\n\
+             assert_eq!(losses.count(Other::Thing), 5);",
+        )
+        .code;
+        assert_eq!(
+            asserted_losses(&code),
+            vec![
+                ("SceneLossKind::TextPaintDefaulted".to_owned(), 14),
+                (
+                    "LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink)".to_owned(),
+                    2
+                ),
+            ]
+        );
+    }
 }

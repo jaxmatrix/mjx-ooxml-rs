@@ -41,13 +41,16 @@
 //! because it has no pixels. [`a_hairline_border_puts_ink_on_the_page`] is the half of that question
 //! only a painter can answer.
 
-use mjx_layout::{BoxModel, Constraints, Fragment, FragmentTree, LayoutSize, PageIndex};
+use mjx_layout::{
+    BoxModel, Constraints, Fragment, FragmentTree, LayoutLossKind, LayoutLosses, LayoutSize,
+    PageIndex,
+};
 use mjx_layout_xlsx::{constraints_for, SheetBoxModel, SheetGrid};
 use mjx_ooxml_core::measure::Emu;
 use mjx_paint::{
     render_offscreen, DrawReport, NoImages, Pixels, Resources, SoftwarePainter, SOFTWARE_PAINTER,
 };
-use mjx_scene::{build_scene, Command, DisplayList, SceneOptions};
+use mjx_scene::{build_page, Command, DisplayList, LossCategory, SceneOptions};
 use mjx_scene_xlsx::{SheetGeometry, SheetPalette, SheetResources};
 use mjx_text::{FontResolver, GlyphAtlas};
 use mjx_xlsx::{PartName, Workbook};
@@ -68,6 +71,7 @@ fn resolver() -> FontResolver {
 /// What one band's trip through the pipeline produced.
 struct Journey {
     tree: FragmentTree,
+    layout_losses: LayoutLosses,
     list: DisplayList,
     drawn: DrawReport,
     pixels: Pixels,
@@ -97,7 +101,6 @@ fn journey(book: &mut Workbook, sheet: usize, constraints: &Constraints) -> Jour
     let page = model
         .layout_page(&grid, PageIndex::FIRST, constraints, None)
         .expect("the band lays out");
-    let (tree, _) = page.into_parts();
 
     let formatting = grid.formatting();
     let interner = formatting
@@ -118,14 +121,16 @@ fn journey(book: &mut Workbook, sheet: usize, constraints: &Constraints) -> Jour
 
     let options = SceneOptions::new(constraints.page);
     let mut atlas = GlyphAtlas::new();
-    let list = build_scene(
-        &tree,
+    let list = build_page(
+        &page,
         &resources,
         model.rasteriser_mut(),
         &mut atlas,
         &options,
     )
     .expect("the fragment tree becomes a display list");
+    let layout_losses = page.losses().clone();
+    let (tree, _) = page.into_parts();
 
     let (page_width, page_height) = list.page_size();
     let width = page_width.ceil().max(1.0) as u32;
@@ -155,6 +160,7 @@ fn journey(book: &mut Workbook, sheet: usize, constraints: &Constraints) -> Jour
 
     Journey {
         tree,
+        layout_losses,
         list,
         drawn: render.drawn,
         pixels: render.pixels,
@@ -511,5 +517,56 @@ fn a_hairline_border_puts_ink_on_the_page() {
     assert!(
         journey.drawn.draw_calls >= 1,
         "the painter issued no draw call for the one band on the page"
+    );
+}
+
+/// Every loss of the styled worksheet, asserted kind by kind, and nothing it does not name (MJXOFF-299).
+#[test]
+fn the_styled_sheet_loses_exactly_its_diagonal_and_its_dash() {
+    let mut book = fixture("style_resources.xlsx");
+    let journey = journey(&mut book, 0, &viewport(8.0, 5.0));
+    // A1's up diagonal reaches no band, and its dash-dot-dot right edge is drawn solid.
+    assert_eq!(
+        journey.layout_losses.count(LayoutLossKind::DroppedByReader),
+        1
+    );
+    assert_eq!(
+        journey
+            .layout_losses
+            .count(LayoutLossKind::ValueApproximated),
+        1
+    );
+    assert_eq!(
+        journey.layout_losses.len(),
+        2,
+        "a layout loss of a kind this suite does not name"
+    );
+    assert_eq!(
+        journey.list.losses().len(),
+        0,
+        "the resolver answers everything on the sheet"
+    );
+    assert_eq!(
+        journey.drawn.losses.len(),
+        0,
+        "the painter loses nothing of the sheet"
+    );
+    assert!(
+        journey.pixels.covered() > 0,
+        "the sheet still reaches pixels with its losses counted"
+    );
+    let placeholders: Vec<LossCategory> = journey
+        .list
+        .placeholders()
+        .into_iter()
+        .map(|placeholder| placeholder.category)
+        .collect();
+    assert_eq!(
+        (placeholders, journey.drawn.loss_placeholders),
+        (
+            vec![LossCategory::Layout(LayoutLossKind::DroppedByReader)],
+            1
+        ),
+        "the dropped diagonal draws one placeholder over A1 and the approximated dash draws none"
     );
 }

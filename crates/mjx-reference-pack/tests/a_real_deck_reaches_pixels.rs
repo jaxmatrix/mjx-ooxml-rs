@@ -35,13 +35,16 @@
 //! * that the ink sits inside the rectangles the fragment tree named, so a render that filled the
 //!   page with one colour fails even at the right coverage.
 
-use mjx_layout::{BoxModel, Fragment, FragmentTree, PageIndex};
+use mjx_layout::{
+    BoxModel, Fragment, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, PageIndex,
+};
 use mjx_layout_pptx::{constraints_for, SlideBoxModel, SlideDeck};
 use mjx_paint::{
-    render_offscreen, DrawReport, NoImages, Pixels, Resources, SoftwarePainter, SOFTWARE_PAINTER,
+    render_offscreen, DrawReport, NoImages, PainterLossKind, Pixels, Resources, SoftwarePainter,
+    SOFTWARE_PAINTER,
 };
 use mjx_pptx::Presentation;
-use mjx_scene::{build_scene, DisplayList, SceneOptions};
+use mjx_scene::{build_page, DisplayList, SceneLossKind, SceneOptions};
 use mjx_scene_pptx::{SlideGeometry, SlideResources};
 use mjx_text::{FontResolver, GlyphAtlas};
 
@@ -61,6 +64,7 @@ fn resolver() -> FontResolver {
 /// What one slide's trip through the pipeline produced.
 struct Journey {
     tree: FragmentTree,
+    layout_losses: LayoutLosses,
     list: DisplayList,
     drawn: DrawReport,
     pixels: Pixels,
@@ -89,7 +93,6 @@ fn journey(fixture: &str, slide: usize) -> Journey {
             None,
         )
         .expect("the slide lays out");
-    let (tree, _) = page.into_parts();
 
     // The geometry provider is fed the document's own `a:prstGeom`. This crate holds the package,
     // which is exactly the division `SlideGeometry::register_all` is shaped for: the catalogue says
@@ -114,14 +117,16 @@ fn journey(fixture: &str, slide: usize) -> Journey {
     let unregistered_outlines = geometry.unregistered();
 
     let mut atlas = GlyphAtlas::new();
-    let list = build_scene(
-        &tree,
+    let list = build_page(
+        &page,
         &resources,
         model.rasteriser_mut(),
         &mut atlas,
         &options,
     )
     .expect("the fragment tree becomes a display list");
+    let layout_losses = page.losses().clone();
+    let (tree, _) = page.into_parts();
 
     let (page_width, page_height) = list.page_size();
     let width = page_width.ceil().max(1.0) as u32;
@@ -150,6 +155,7 @@ fn journey(fixture: &str, slide: usize) -> Journey {
 
     Journey {
         tree,
+        layout_losses,
         list,
         drawn: render.drawn,
         pixels: render.pixels,
@@ -437,5 +443,55 @@ fn a_deck_with_theme_effects_reaches_the_painters_layers() {
          opened {} offscreen layers. An effect that reached the display list and opened no layer is \
          an effect that drew nothing, and it is invisible in a pixel comparison.",
         with.drawn.layers
+    );
+}
+
+/// Every loss of the text deck, asserted kind by kind, and nothing it does not name (MJXOFF-299).
+#[test]
+fn the_text_deck_loses_exactly_its_run_colours() {
+    let journey = journey("text_levels.pptx", 0);
+    assert_eq!(
+        journey.layout_losses.len(),
+        0,
+        "nothing on the slide is laid out as an empty frame"
+    );
+    let losses = journey.list.losses();
+    // Nine text runs and five bullet markers, each drawn in the default colour until run paint is wired (MJXOFF-311).
+    assert_eq!(losses.count(SceneLossKind::TextPaintDefaulted), 14);
+    assert_eq!(
+        losses.len(),
+        14,
+        "a scene loss of a kind this suite does not name"
+    );
+    assert_eq!(
+        journey.drawn.losses.len(),
+        0,
+        "the painter loses nothing of the text deck"
+    );
+    assert_eq!(
+        journey
+            .list
+            .commands()
+            .filter(|command| matches!(command, mjx_scene::Command::DrawGlyphs { .. }))
+            .count(),
+        14,
+        "every approximated run is still drawn"
+    );
+    assert_eq!(
+        (
+            journey.list.placeholders().len(),
+            journey.drawn.loss_placeholders
+        ),
+        (0, 0),
+        "an approximation draws no placeholder"
+    );
+    assert_eq!(
+        PainterLossKind::ALL.len() + LayoutLossKind::ALL.len(),
+        13,
+        "the vector this suite states spans every layout and painter kind"
+    );
+    assert_eq!(
+        LayoutLossKind::FrameContentNotLaidOut(FrameContent::Chart).label(),
+        "Chart not rendered"
     );
 }

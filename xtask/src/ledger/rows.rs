@@ -30,6 +30,28 @@
 
 use super::evidence::Double;
 
+/// Which rows own each loss category, by vocabulary path and label; a cited suite asserting a nonzero count of one is a limitation of its owners.
+#[rustfmt::skip]
+pub(crate) const LOSS_OWNERS: &[(&str, &str, &[&str])] = &[
+    ("LayoutLossKind::FrameContentNotLaidOut(FrameContent::Chart)", "Chart not rendered", &["charts-pptx", "charts-xlsx", "charts-docx"]),
+    ("LayoutLossKind::FrameContentNotLaidOut(FrameContent::Diagram)", "Diagram not rendered", &["diagram-layout", "diagram-parts-pptx", "diagram-parts-docx"]),
+    ("LayoutLossKind::FrameContentNotLaidOut(FrameContent::EmbeddedObject)", "Embedded object not rendered", &["pptx-ole-and-activex"]),
+    ("LayoutLossKind::FrameContentNotLaidOut(FrameContent::Ink)", "Ink not rendered", &["ink-pptx", "ink-docx", "ink-xlsx"]),
+    ("LayoutLossKind::FrameContentNotLaidOut(FrameContent::Picture)", "Picture not rendered", &["excel-conditional-formatting", "word-pictures"]),
+    ("LayoutLossKind::TextMeasuredNotShaped", "Text not shaped", &["text-shaping"]),
+    ("LayoutLossKind::DroppedByReader", "Content not read", &["excel-cell-borders", "word-floating-objects"]),
+    ("LayoutLossKind::ValueApproximated", "Approximated", &["excel-cell-borders", "excel-rich-text"]),
+    ("SceneLossKind::ChartNotResolved", "Chart not rendered", &["charts-pptx", "charts-xlsx"]),
+    ("SceneLossKind::ColourNotResolved", "Colour not resolved", &["colour-resolution-pptx"]),
+    ("SceneLossKind::FillImageNotSupplied", "Fill picture not available", &["fills"]),
+    ("SceneLossKind::TextPaintDefaulted", "Text colour approximated", &["run-colour-pptx"]),
+    ("PainterLossKind::ImageWithNoPixels", "Picture not available", &["image-decoding", "picture-pixels-pptx"]),
+    ("PainterLossKind::GlyphRunNotEmbedded", "Text not embedded", &["export-pdf-and-svg"]),
+    ("PainterLossKind::EffectUnsupported", "Effect not drawn", &["export-pdf-and-svg"]),
+    ("PainterLossKind::LineEndNotDrawn", "Arrowhead not drawn", &["connectors"]),
+    ("PainterLossKind::OutlineUnresolved", "Shape outline not resolved", &["preset-geometry"]),
+];
+
 /// Which rows each test double is **not** evidence for.
 ///
 /// A rendering suite that draws with a double proves the painter works around the stand-in, so it
@@ -101,6 +123,24 @@ pub(crate) struct Allowance {
 /// An entry excuses one row: the same suite cited by another row is judged afresh. An entry whose
 /// suite no longer uses the double, or whose row no longer cites the suite, fails the generator.
 pub(crate) const ALLOWANCES: &[Allowance] = &[
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        double: Double::Images,
+        row: "run-colour-pptx",
+        reason: "the cited function draws `text_levels.pptx`, which holds no picture, so `NoImages` is never asked for one and a run's colour owes nothing to it",
+    },
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        double: Double::Geometry,
+        row: "run-colour-pptx",
+        reason: "a run's colour is its paint, resolved from its source address, and the outline a test-fed provider answers for a shape does not reach it",
+    },
+    Allowance {
+        suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+        double: Double::Images,
+        row: "excel-cell-borders",
+        reason: "a worksheet's fragment tree carries no picture fragment, so `NoImages` is never asked for one and a border band owes nothing to it",
+    },
     Allowance {
         suite: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
         double: Double::Images,
@@ -440,6 +480,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-pptx/tests/text_formatting.rs",
             "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
+            "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs::the_text_deck_loses_exactly_its_run_colours",
         ],
     ),
     rendered(
@@ -1507,6 +1548,7 @@ pub(crate) const CAPABILITIES: &[Capability] = &[
         &[
             "crates/mjx-layout-xlsx/tests/no_border_rounds_to_nothing.rs",
             "crates/mjx-scene-xlsx/tests/the_dash_is_lost_at_the_band.rs",
+            "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs::the_styled_sheet_loses_exactly_its_diagonal_and_its_dash",
         ],
     ),
     rendered(

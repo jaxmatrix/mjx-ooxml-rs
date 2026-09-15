@@ -257,6 +257,8 @@ pub(crate) struct Suite {
     pub(crate) test_functions: BTreeSet<String>,
     /// The test functions that read a display list or pixels, directly or through a local helper.
     pub(crate) drawing_tests: BTreeSet<String>,
+    /// The loss categories its assertions count as nonzero, with the count each states.
+    pub(crate) losses: Vec<(String, usize)>,
 }
 
 /// One approval record from the fidelity oracle's committed baselines.
@@ -428,6 +430,13 @@ impl Evidence {
             crates: BTreeSet::new(),
             checklist,
         }
+    }
+
+    /// Every suite, by path.
+    pub(crate) fn suites(&self) -> impl Iterator<Item = (&str, &Suite)> {
+        self.suites
+            .iter()
+            .map(|(path, suite)| (path.as_str(), suite))
     }
 
     /// Every limitation any suite in the workspace declares, as `(suite path, text)`.
@@ -691,7 +700,10 @@ fn read_suite_unit(crate_name: &str, unit: &scan::Unit) -> Suite {
         .collect();
     let drawing_tests = scan::drawing_tests(&unit.code, &unit.unit);
 
+    let losses = scan::asserted_losses(&unit.code);
+
     Suite {
+        losses,
         crate_name: crate_name.to_owned(),
         tests,
         assertions,

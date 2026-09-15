@@ -165,6 +165,17 @@ pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Re
             for limitation in &cited.suite.limitations {
                 limitations.push((cited.path.to_owned(), limitation.clone()));
             }
+            for (category, count) in &cited.suite.losses {
+                let owned = super::rows::LOSS_OWNERS
+                    .iter()
+                    .find(|(path, _, owners)| path == category && owners.contains(&capability.id));
+                if let Some((_, label, _)) = owned {
+                    limitations.push((
+                        cited.path.to_owned(),
+                        format!("a render counts {count} loss(es) labelled `{label}`"),
+                    ));
+                }
+            }
         }
         tests += cited.tests;
         assertions += cited.assertions;
@@ -520,6 +531,41 @@ mod tests {
         assert_eq!(assessed.state, State::Partial);
         assert_eq!(assessed.limitations.len(), 1);
         assert!(assessed.limitations[0].1.contains("solid"));
+    }
+
+    /// A nonzero loss a cited suite asserts, of a category the row owns, demotes the row and is quoted.
+    #[test]
+    fn an_asserted_loss_the_row_owns_makes_it_partial_and_is_quoted() {
+        let mut counted = suite("mjx-scene-pptx", 3, &[]);
+        counted.losses = vec![("SceneLossKind::TextPaintDefaulted".to_owned(), 14)];
+        let evidence = index(&[("crates/mjx-scene-pptx/tests/a_counted_run.rs", counted)]);
+        let owner: &'static Capability = Box::leak(Box::new(Capability {
+            id: "run-colour-pptx",
+            ..capability(
+                Kind::Rendered,
+                &["crates/mjx-scene-pptx/tests/a_counted_run.rs"],
+            )
+            .clone()
+        }));
+        let assessed = assess(owner, &evidence).expect("the suite exists");
+        assert_eq!(assessed.state, State::Partial);
+        assert_eq!(assessed.limitations.len(), 1);
+        assert!(assessed.limitations[0]
+            .1
+            .contains("Text colour approximated"));
+
+        let bystander = assess(
+            capability(
+                Kind::Rendered,
+                &["crates/mjx-scene-pptx/tests/a_counted_run.rs"],
+            ),
+            &evidence,
+        )
+        .expect("the suite exists");
+        assert!(
+            bystander.limitations.is_empty(),
+            "a loss is a limitation only of the rows that own its category"
+        );
     }
 
     /// An excluded row is a row: it carries its reason and never consults the suites.
