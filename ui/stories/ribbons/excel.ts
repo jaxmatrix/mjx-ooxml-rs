@@ -60,7 +60,7 @@
  * shape over a worksheet is drawn and changed, styled, dressed as WordArt, described, placed and sized. It calls
  * PowerPoint's Shape Format code (`insertShapesCommands`, `shapeStylesCommands`, `wordArtStylesCommands`,
  * `arrangeCommands`, `sizeCommands` and `stories/ribbons/drawing-tools-menus.ts`) and differs only where Office's Excel
- * does: no Merge Shapes, no Eyedropper, Bring Forward and Send Backward large, Align snapping to the grid, and Size's
+ * does: no Merge Shapes, a Text Box split button, no Eyedropper, Bring Forward and Send Backward large, Align snapping to the grid, and Size's
  * *Size and Properties* launcher. **`Ribbons/Excel` alone binds it**, because `Shell/Excel` draws Table Tools. **The
  * other two, Chart Design and Format, are placeholders**, each until its own unit.
  *
@@ -543,11 +543,11 @@ export function excelPictureFormatTab(options: TabOptions = {}): TemplateResult 
  * `Ribbons/Excel` draws every contextual set and binds it. **`Shell/Excel` draws Table Tools alone**, so it binds none
  * of this tab and renders none of its menus. `dev/ribbons/census.ts` records every disagreement.
  *
- * **Seventeen of the tab's twenty commands are bound by the host**: Shapes, Edit Shape, Shape Effects, Text Effects,
- * Align, Group and Rotate, dropdowns; Bring Forward and Send Backward, large split buttons; the Theme Styles and Quick
- * Styles galleries, the first with Other Theme Fills under it; Shape Fill, Shape Outline, Text Fill and Text Outline,
- * colour pickers; Height and Width, measure fields. Every menu is in `stories/ribbons/drawing-tools-menus.ts`. Text Box
- * is a plain button, and Alt Text and Selection Pane generic toggles.
+ * **Eighteen of the tab's twenty commands are bound by the host**: Shapes, Edit Shape, Shape Effects, Text Effects,
+ * Align, Group and Rotate, dropdowns; Text Box, a small split button, and Bring Forward and Send Backward, large split
+ * buttons; the Theme Styles and Quick Styles galleries, the first with Other Theme Fills under it; Shape Fill, Shape
+ * Outline, Text Fill and Text Outline, colour pickers; Height and Width, measure fields. Every menu is in
+ * `stories/ribbons/drawing-tools-menus.ts`. Alt Text and Selection Pane are generic toggles.
  *
  * **Three dialog launchers**: Format Shape on Shape Styles, Format Text Effects on WordArt Styles, Size and Properties
  * on Size. **No survivor.**

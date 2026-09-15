@@ -148,7 +148,7 @@
  * differing from PowerPoint's only where Office does: no Merge Shapes, a Draw Text Box split button, the Text group,
  * Position and Wrap Text, no Eyedropper and the Layout launcher; see that section's *Word's Shape Format* part.
  * **Excel's Shape Format** followed, the eleventh and Excel's third, calling the same functions and differing from
- * PowerPoint's only where Office does: no Merge Shapes, no Eyedropper, Excel's large layer commands and snapping Align,
+ * PowerPoint's only where Office does: no Merge Shapes, a Text Box split button, no Eyedropper, Excel's large layer commands and snapping Align,
  * and the Size and Properties launcher; see that section's *Excel's Shape Format* part.
  * `commands` stays optional rather than required, because an empty array would claim a tab had been authored and found
  * to hold nothing.
@@ -8263,9 +8263,10 @@ const excelPictureFormatImagePlay: readonly RibbonCommand[] = [
  *
  * Written once because the group repeats on Word's and Excel's Shape Format. **Shapes, Edit Shape and Merge Shapes are
  * dropdowns** a host binds over `stories/ribbons/drawing-tools-menus.ts`' lists. **The text box command is the one
- * place the applications' Office differs**: PowerPoint's and Excel's is **Text Box**, a plain button (Excel's Shape
- * Format's disagreement 2); **Word's is Draw Text Box**, a split button whose arrow offers Draw Text Box and Draw Vertical Text
- * Box, so it carries its own id.
+ * place the applications' Office differs**: PowerPoint's is **Text Box**, a plain button; **Excel's is Text Box** too,
+ * but a split button whose arrow offers Draw Horizontal Text Box and Vertical Text Box (the host binds the split); and
+ * **Word's is Draw Text Box**, a split button whose arrow offers Draw Text Box and Draw Vertical Text Box, so it carries
+ * its own id.
  *
  * **No survivor**: a gallery, two menus and a drawing gesture.
  */
@@ -8274,10 +8275,13 @@ export function insertShapesCommands(application: RibbonApplication, tab: string
     application === 'powerpoint'
       ? [{ id: `powerpoint.${tab}.insert-shapes.merge-shapes`, label: 'Merge Shapes', icon: 'shape-union' }]
       : [];
-  const textBox: RibbonCommand =
-    application === 'word'
-      ? { id: `word.${tab}.insert-shapes.draw-text-box`, label: 'Draw Text Box', icon: 'textbox' }
-      : { id: `${application}.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' };
+  const textBoxes: Readonly<Record<RibbonApplication, RibbonCommand>> = {
+    powerpoint: { id: `powerpoint.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' },
+    // A split button in the host, over `excelTextBoxEntries`; a command carries no split shape of its own.
+    excel: { id: `excel.${tab}.insert-shapes.text-box`, label: 'Text Box', icon: 'textbox' },
+    word: { id: `word.${tab}.insert-shapes.draw-text-box`, label: 'Draw Text Box', icon: 'textbox' },
+  };
+  const textBox = textBoxes[application];
   return [
     { id: `${application}.${tab}.insert-shapes.shapes`, label: 'Shapes', icon: 'shapes', size: 'large' },
     { id: `${application}.${tab}.insert-shapes.edit-shape`, label: 'Edit Shape', icon: 'bezier-curve-square' },
@@ -8490,8 +8494,8 @@ const wordShapeFormatAccessibility: readonly RibbonCommand[] = [
 //
 // ## Written once, reused, and Excel's own
 //
-// - **Reused as they stand**: `insertShapesCommands('excel', 'shape-format')`, which gives Excel no Merge Shapes and a
-//   plain Text Box; `shapeStylesCommands('excel', 'shape-format')`; `wordArtStylesCommands('excel', 'shape-format')`
+// - **Reused**: `insertShapesCommands('excel', 'shape-format')`, which gives Excel no Merge Shapes and now names Excel's
+//   Text Box in a branch of its own; `shapeStylesCommands('excel', 'shape-format')`; `wordArtStylesCommands('excel', 'shape-format')`
 //   with its gallery and Text Effects lists; `arrangeCommands('excel', 'shape-format')`, exactly the six, Bring Forward
 //   and Send Backward large; `sizeCommands('excel', 'shape-format', 'drawing')`, Height and Width with no Crop. In
 //   `stories/ribbons/drawing-tools-menus.ts`: the whole shape gallery (no Action Buttons, no New Drawing Canvas), Edit
@@ -8500,8 +8504,10 @@ const wordShapeFormatAccessibility: readonly RibbonCommand[] = [
 //   already gave every application but PowerPoint). In `stories/ribbons/design-layout-menus.ts`: Excel's five Arrange
 //   lists, as on Picture Format, Align ending on Excel's snaps. `fillEntries` and `outlineEntries`. Alt Text is Picture
 //   Format's command under this tab's id.
-// - **Excel's own, because Office's Excel differs**: Text Fill's and Text Outline's entries (disagreement 6), written in
-//   the binding as PowerPoint's and Word's are; `excelShapeMeasures`; the `excel` branch of `drawingToolsMenus`; Size's
+// - **Excel's own, because Office's Excel differs**: **Text Box is a split button** whose arrow opens *Draw Horizontal
+//   Text Box* and *Vertical Text Box* (`excelTextBoxEntries`, beside Word's `drawTextBoxEntries`, whose two labels
+//   differ), as Excel's Insert tab offers the same two; Text Fill's and Text Outline's entries (disagreement 5), written
+//   in the binding as PowerPoint's and Word's are; `excelShapeMeasures`; the `excel` branch of `drawingToolsMenus`; Size's
 //   launcher, *Size and Properties*; and the Accessibility group below, which is a list only because a command's id
 //   carries its application.
 //
@@ -8514,36 +8520,31 @@ const wordShapeFormatAccessibility: readonly RibbonCommand[] = [
 //
 // 1. **No Merge Shapes.** The brief says so and `insertShapesCommands` already gave it to PowerPoint alone. `GUESS:`
 //    that Microsoft 365's Excel still lacks it.
-// 2. **Text Box is a plain button, small**, as PowerPoint's is on this tab and as Excel's Insert Text Box is in this
-//    census, so `insertShapesCommands` needed no branch. ⚠ **The census's own count leans the other way**: Excel's
-//    `GroupShapes` counts 12, exactly Word's, and Word's 12 is reached only by reading Draw Text Box as a split button
-//    (face, arrow and two entries). If Excel's Text Box is Word's split button, the fix is one more branch in
-//    `insertShapesCommands` and a `drawTextBoxEntries`-style menu. `GUESS:` plain, and **the weakest call on the tab**.
-// 3. **No Eyedropper** under Shape Fill, Shape Outline, Text Fill or Text Outline, as Excel's Picture Border has none.
+// 2. **No Eyedropper** under Shape Fill, Shape Outline, Text Fill or Text Outline, as Excel's Picture Border has none.
 //    The census's Shape Styles 37, Word's count and three short of PowerPoint's 40, is indirect support. `GUESS:`:
 //    recent Microsoft 365 builds may carry one in Excel.
-// 4. **The counts.** **Accessibility (1) and Size (3, reading Height, Width and the launcher) are met.** **Insert Shapes
-//    counts 12 and draws 3**; the gallery's four parts, Edit Shape and its three entries, and Text Box make 9
-//    (disagreement 2 is the reading that makes 12). **Shape Styles counts 37 and draws 4 and a launcher**, **WordArt
+// 3. **The counts.** **Accessibility (1), Size (3, reading Height, Width and the launcher) and Insert Shapes (12) are
+//    met**: Insert Shapes draws 3, and the gallery's four parts, Edit Shape and its three entries, and Text Box's face,
+//    arrow and two entries make 12, as Word's do. **Shape Styles counts 37 and draws 4 and a launcher**, **WordArt
 //    Styles 30 and draws 4 and a launcher**, and **Arrange 47 and draws 6**, as on Picture Format. `GUESS:` every
 //    reading. Nothing is padded.
-// 5. **Shape Fill starts on Accent 1 and Shape Outline on Accent 1, Darker 50%**, as in PowerPoint and Word: Excel 2013
+// 4. **Shape Fill starts on Accent 1 and Shape Outline on Accent 1, Darker 50%**, as in PowerPoint and Word: Excel 2013
 //    and later give an inserted shape the same look. Shape Fill carries More Fill Colours…, Picture…, Gradient ▸ and
 //    Texture ▸; Shape Outline More Outline Colours…, Weight ▸, Sketched ▸, Dashes ▸ and Arrows ▸. `GUESS:` both starts
 //    and every entry.
-// 6. **Text Fill and Text Outline are PowerPoint's less the Eyedropper**, not Word's shorter pair: Text Fill carries
+// 5. **Text Fill and Text Outline are PowerPoint's less the Eyedropper**, not Word's shorter pair: Text Fill carries
 //    More Fill Colours…, Picture…, Gradient ▸ and Texture ▸; Text Outline More Outline Colours…, Weight ▸, Sketched ▸
 //    and Dashes ▸. The text in an Excel shape is DrawingML text, as a slide's is, so it takes a picture or texture fill
 //    and a sketched line; Word's shape text is Word's own run formatting, which is why Word's pair is shorter. **Text
 //    Fill starts on Background 1** and Text Outline on none. `GUESS:` all of it, Sketched most.
-// 7. **Height and Width start on 2.54 cm**, a shape inserted with one click, one inch square, stepping by 0.01 cm, as
+// 6. **Height and Width start on 2.54 cm**, a shape inserted with one click, one inch square, stepping by 0.01 cm, as
 //    PowerPoint's and Word's; `excelShapeMeasures` is Excel's own constant because a workbook's measures are its own,
 //    as `excelPictureMeasures` is. `GUESS:` both numbers, the step, and centimetres in a metric locale.
-// 8. **The launchers**: *Format Shape* on Shape Styles, *Format Text Effects* on WordArt Styles, and **Size and
+// 7. **The launchers**: *Format Shape* on Shape Styles, *Format Text Effects* on WordArt Styles, and **Size and
 //    Properties** on Size, which is Excel's Picture Format's (Excel's Format Shape pane at *Size & Properties*, where a
 //    shape's move-and-size-with-cells setting lives), where PowerPoint's is *Size and Position* and Word's *Layout*. No
 //    launcher on Insert Shapes, Accessibility or Arrange. `GUESS:` all three labels.
-// 9. **Arrange is Excel's Picture Format's six**: Bring Forward and Send Backward large at the head, without Word's text
+// 8. **Arrange is Excel's Picture Format's six**: Bring Forward and Send Backward large at the head, without Word's text
 //    layers, Selection Pane small with no glyph, and Align ending on Snap to Grid, Snap to Shape and View Gridlines, the
 //    last ticked. `GUESS:` as there.
 //
@@ -8551,8 +8552,8 @@ const wordShapeFormatAccessibility: readonly RibbonCommand[] = [
 //
 // A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
 //
-// - **Insert Shapes**: none. Shapes is a gallery and Edit Shape opens a menu (rule 1); Text Box arms a drawing gesture
-//   rather than doing one thing that one undo takes back.
+// - **Insert Shapes**: none. Shapes is a gallery and Edit Shape opens a menu (rule 1); Text Box is a split button
+//   (rule 1) whose face arms a drawing gesture rather than doing one thing that one undo takes back.
 // - **Shape Styles**: none. A gallery, two colour grids and a menu (rule 1).
 // - **WordArt Styles**: none. A gallery, two colour grids and a menu (rule 1).
 // - **Accessibility**: none. Alt Text opens a pane (rule 1), and it is the group's only command.

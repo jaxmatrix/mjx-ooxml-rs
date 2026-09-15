@@ -2105,11 +2105,11 @@ contextual unit's, unchanged.
 
 **It renders in `Ribbons/Excel` alone.** `Shell/Excel` draws Table Tools, so it binds none of the tab and renders none
 of its menus; the menu gate's `hostContextualSets` already says so, and needed no change. `Ribbons/Excel` binds
-seventeen commands and renders `drawingToolsMenus('excel', 'ribbons')`, ten menus.
+eighteen commands and renders `drawingToolsMenus('excel', 'ribbons')`, eleven menus.
 
 - **Insert Shapes**: **Shapes** (large, the whole gallery with no Action Buttons and no New Drawing Canvas), **Edit
-  Shape** (Change Shape ▸, Edit Points, Reroute Connectors unavailable) and **Text Box**, a small plain button. No Merge
-  Shapes.
+  Shape** (Change Shape ▸, Edit Points, Reroute Connectors unavailable) and **Text Box**, a small split button whose
+  arrow opens Draw Horizontal Text Box and Vertical Text Box, as Excel's Insert tab does. No Merge Shapes.
 - **Shape Styles**: PowerPoint's Theme Styles gallery with Other Theme Fills; **Shape Fill** (Accent 1, *No Fill*, More
   Fill Colours…, Picture…, Gradient, Texture) and **Shape Outline** (Accent 1, Darker 50%, *No Outline*, More Outline
   Colours…, Weight, Sketched, Dashes, Arrows), **no Eyedropper**; **Shape Effects**. Launcher: *Format Shape*.
@@ -2123,29 +2123,29 @@ seventeen commands and renders `drawingToolsMenus('excel', 'ribbons')`, ten menu
 
 **Reused, and Excel's own.**
 
-- **Reused as they stand**: `insertShapesCommands`, `shapeStylesCommands`, `wordArtStylesCommands`, `arrangeCommands`
-  and `sizeCommands(…, 'drawing')` in the census, none of them changed; in `stories/ribbons/drawing-tools-menus.ts` the
+- **Reused**: `insertShapesCommands` (which now names Excel's Text Box in its own branch), `shapeStylesCommands`,
+  `wordArtStylesCommands`, `arrangeCommands` and `sizeCommands(…, 'drawing')` in the census; in `stories/ribbons/drawing-tools-menus.ts` the
   shape gallery, Edit Shape, the shape styles and their pictures, Other Theme Fills, `shapeEffectsEntries`,
   `shapeFillEntryOptions('excel')` and `shapeOutlineEntryOptions('excel')`; `wordart-styles-menus.ts`' gallery and Text
   Effects lists; `fillEntries` and `outlineEntries`; `design-layout-menus.ts`' five Excel Arrange lists; Picture
   Format's Alt Text. **No new glyph.**
 - **Excel's own**: `excelShapeFormatAccessibility` in the census (a list only because an id carries its application);
-  `excelShapeMeasures` and the `excel` branch of `drawingToolsMenus` in `drawing-tools-menus.ts`; Text Fill's and Text
+  `excelTextBoxEntries` (Word's `drawTextBoxEntries` carries different labels), `excelShapeMeasures` and the `excel`
+  branch of `drawingToolsMenus` in `drawing-tools-menus.ts`; Text Fill's and Text
   Outline's entries, PowerPoint's less the Eyedropper, written in the binding; the *Size and Properties* launcher.
 
-**No survivors.** A gallery, a menu and a drawing gesture; a gallery, two colour grids and a menu, twice; a pane; two
+**No survivors.** A gallery, a menu and a split button; a gallery, two colour grids and a menu, twice; a pane; two
 split buttons, three menus and a pane; two fields.
 
 ⚠ **What is not Office's shape, or is `GUESS:`.**
 
-- **Text Box is a plain button.** The census counts Insert Shapes 12, Word's count, and Word's 12 is reached only by
-  reading its Draw Text Box as a split button; Excel's may be one too. **The weakest call on the tab.**
 - **Text Fill and Text Outline carry PowerPoint's entries less the Eyedropper**, on the reading that a shape's text in a
   workbook is DrawingML text, as a slide's is; Sketched is the least certain entry.
 - **No Eyedropper anywhere**; that Excel has no Merge Shapes; all four pickers' starts; Height and Width's 2.54 cm; the
   three launchers (*Size and Properties* on Size); View Gridlines ticked under Align.
-- **The counts.** Accessibility and Size are met. Insert Shapes counts 12 and draws 3; the plain-button reading makes 9.
-  Shape Styles 37 and 4, WordArt Styles 30 and 4, Arrange 47 and 6. Nothing is padded.
+- **The counts.** Accessibility, Size and Insert Shapes are met: Insert Shapes draws 3, and the gallery's four parts,
+  Edit Shape and its three entries, and Text Box's face, arrow and two entries make 12. Shape Styles 37 and 4, WordArt
+  Styles 30 and 4, Arrange 47 and 6. Nothing is padded.
 - **Glyphs**, all reused and all `GUESS:`. **Alt Text's `image-alt-text`, a picture with a label on a shape's tab, is
   the weakest.** The two galleries, the four colour pickers, the two fields and Selection Pane carry none.
 - PowerPoint's Shape Format's readings of Shapes, Theme Styles, Other Theme Fills, Edit Shape and Shape Effects hold

@@ -8,9 +8,10 @@
  * the **Text** group's `wordTextDirectionEntries()` and `alignTextEntries()`; `wordShapeMeasures`; and Word's
  * Position and Wrap Text menus, rendered from `design-layout-menus.ts`.
  *
- * **Excel's differs from PowerPoint's only where Office's Excel does**, and needs less of its own: no Merge Shapes (so
- * Insert Shapes opens two menus), no Eyedropper (which `shapeFillEntryOptions` and `shapeOutlineEntryOptions` already
- * gave every application but PowerPoint), Excel's Arrange lists, and `excelShapeMeasures`.
+ * **Excel's differs from PowerPoint's only where Office's Excel does**: `excelTextBoxEntries()`, Text Box's arrow, where
+ * PowerPoint has a plain Text Box and Merge Shapes; no Eyedropper (which `shapeFillEntryOptions` and
+ * `shapeOutlineEntryOptions` already gave every application but PowerPoint); Excel's Arrange lists; and
+ * `excelShapeMeasures`.
  *
  * The pattern is `stories/ribbons/picture-tools-menus.ts`'s, for its reasons. A binding lives in its host. The menu it
  * opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host renders
@@ -226,6 +227,15 @@ export function mergeShapesEntries(): TemplateResult[] {
  */
 export function drawTextBoxEntries(): TemplateResult[] {
   return [item('Draw Text Box'), item('Draw Vertical Text Box')];
+}
+
+/**
+ * **Text Box's arrow, Excel's**: *Draw Horizontal Text Box* and *Vertical Text Box*, the two Excel's Insert tab offers
+ * under its Text Box. The same two text boxes as Word's `drawTextBoxEntries`, under Excel's labels, which differ, so it
+ * is a list of its own rather than a reuse. Nothing is checked: each arms a drawing gesture.
+ */
+export function excelTextBoxEntries(): TemplateResult[] {
+  return [item('Draw Horizontal Text Box'), item('Vertical Text Box')];
 }
 
 // ── Text: Word's alone ───────────────────────────────────────────────────────
@@ -504,8 +514,8 @@ function wordDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
 }
 
 /**
- * Excel's ten menus. **Insert Shapes' two**: Shapes (the whole gallery, with no Action Buttons and no New Drawing
- * Canvas) and Edit Shape; Text Box is a plain button and there is no Merge Shapes. **Shape Styles' two** and **WordArt
+ * Excel's eleven menus. **Insert Shapes' three**: Shapes (the whole gallery, with no Action Buttons and no New Drawing
+ * Canvas), Edit Shape, and **Text Box's arrow**, where PowerPoint has Merge Shapes. **Shape Styles' two** and **WordArt
  * Styles' one**, as PowerPoint's. **Arrange's five**, over `stories/ribbons/design-layout-menus.ts`' Excel lists, as
  * Excel's Picture Format: Bring Forward and Send Backward with no text layer, Align ending on Snap to Grid, Snap to
  * Shape and View Gridlines, then Group and Rotate. Every other Shape Format command is a field, a picker, a gallery, a
@@ -515,6 +525,7 @@ function excelDrawingToolsMenus(host: RibbonSurfaceHost): TemplateResult {
   return html`
     ${commandMenu(host, 'excel.shape-format.insert-shapes.shapes', 'Shapes', ...insertShapesEntries('excel'))}
     ${commandMenu(host, 'excel.shape-format.insert-shapes.edit-shape', 'Edit Shape', ...editShapeEntries('excel'))}
+    ${commandMenu(host, 'excel.shape-format.insert-shapes.text-box', 'Text Box', ...excelTextBoxEntries())}
     ${commandMenu(host, 'excel.shape-format.shape-styles.theme-styles', 'Other Theme Fills', ...otherThemeFillEntries())}
     ${commandMenu(host, 'excel.shape-format.shape-styles.shape-effects', 'Shape Effects', ...shapeEffectsEntries())}
     ${commandMenu(host, 'excel.shape-format.wordart-styles.text-effects', 'Text Effects', ...wordArtTextEffectsEntries())}

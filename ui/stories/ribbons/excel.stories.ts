@@ -796,12 +796,12 @@ const bindings: ControlOverrides = {
     min="0"
     style=${ribbonNarrowFieldStyle}
   ></mjx-measure-input>`,
-  // Shape Format (a contextual tab, in Drawing Tools). `Shell/Excel` draws Table Tools alone, so these seventeen bindings
+  // Shape Format (a contextual tab, in Drawing Tools). `Shell/Excel` draws Table Tools alone, so these eighteen bindings
   // and `drawingToolsMenus('excel', …)` are written here and nowhere else. Every menu, the Theme Styles gallery, the
   // entry options and the starting measures are `stories/ribbons/drawing-tools-menus.ts`'s; the WordArt gallery is
   // `stories/ribbons/wordart-styles-menus.ts`'; the four pickers and both galleries' pictures read this workbook's
   // palette. Other Theme Fills, under the Theme Styles gallery, opens the menu declared for the gallery's own command.
-  // Text Box is the generic button, and Alt Text and Selection Pane the generic toggle; none is bound.
+  // Alt Text and Selection Pane are the generic toggle; neither is bound.
   'excel.shape-format.insert-shapes.shapes': html`<mjx-button
     label="Shapes"
     icon="shapes"
@@ -814,6 +814,14 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-excel-shape-format-insert-shapes-edit-shape"
   ></mjx-button>`,
+  'excel.shape-format.insert-shapes.text-box': html`<mjx-split-button
+    label="Text Box"
+    icon="textbox"
+    size="small"
+    menu-label="Text Box"
+    data-opens="ribbons-excel-shape-format-insert-shapes-text-box"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
   'excel.shape-format.shape-styles.theme-styles': html`<mjx-gallery
     id="ribbons-xl-shape-format-theme-styles"
     label="Theme Styles"
@@ -868,7 +876,7 @@ const bindings: ControlOverrides = {
   </mjx-gallery>`,
   // Excel's Text Fill and Text Outline are PowerPoint's less the Eyedropper: a shape's text in a workbook is DrawingML
   // text, as a slide's is, so it keeps Picture…, Texture ▸ and Sketched ▸, which Word's shorter pair drops. See the
-  // census's Excel's Shape Format disagreement 6.
+  // census's Excel's Shape Format disagreement 5.
   'excel.shape-format.wordart-styles.text-fill': html`<mjx-color-picker
     id="ribbons-xl-shape-format-text-fill"
     style=${ribbonColourFieldStyle}
@@ -1345,20 +1353,19 @@ export const PictureFormat: Story = { render: () => ribbon('picture-format') };
  * Other Theme Fills, the Shapes list and Edit Shape; and Arrange is this file's `PictureFormat`'s. What to look at here,
  * least certain first:
  *
- * 1. ⚠ **Text Box is a small plain button**, beside Edit Shape, where Word's is a Draw Text Box split button. Press it:
- *    nothing opens, because it arms a drawing gesture. The census counts Excel's Insert Shapes 12, exactly Word's, and
- *    Word's 12 is reached only through its split button, so **this is the call on the tab most likely to be wrong**.
- *    **No Merge Shapes** beside it. `GUESS:` both.
- * 2. ⚠ **Text Fill and Text Outline are PowerPoint's less the Eyedropper**, not Word's shorter pair. Text Fill starts on
+ * 1. ⚠ **Text Fill and Text Outline are PowerPoint's less the Eyedropper**, not Word's shorter pair. Text Fill starts on
  *    Background 1 (the white text of an inserted shape), with *No Fill*, More Fill Colours…, Picture…, Gradient ▸ and
  *    Texture ▸ beneath the palette; Text Outline starts on none, with *No Outline*, More Outline Colours…, Weight ▸,
  *    Sketched ▸ and Dashes ▸. `GUESS:` all of it, Sketched most.
- * 3. ⚠ **No Eyedropper anywhere.** Shape Fill starts on Accent 1 with More Fill Colours…, Picture…, Gradient ▸ and
+ * 2. ⚠ **No Eyedropper anywhere.** Shape Fill starts on Accent 1 with More Fill Colours…, Picture…, Gradient ▸ and
  *    Texture ▸; Shape Outline on Accent 1, Darker 50%, with More Outline Colours…, Weight ▸, Sketched ▸, Dashes ▸ and
  *    Arrows ▸. `GUESS:` both starts, and that recent builds have not brought the Eyedropper to Excel.
- * 4. ⚠ **Arrange is Picture Format's six, not Word's eight**: **Bring Forward and Send Backward large** split buttons at
+ * 3. ⚠ **Arrange is Picture Format's six, not Word's eight**: **Bring Forward and Send Backward large** split buttons at
  *    the head, their arrows without Word's text layers; Selection Pane small with no glyph; **Align ending on Snap to
  *    Grid, Snap to Shape and View Gridlines, the last ticked**; Group and Rotate. No Position or Wrap Text.
+ * 4. **Text Box is a small split button**, beside Edit Shape, as Word's Draw Text Box is. Press its face: nothing opens,
+ *    because it arms a drawing gesture. Press its arrow: *Draw Horizontal Text Box* and *Vertical Text Box*, the two
+ *    Excel's Insert tab offers. **No Merge Shapes** beside it (`GUESS:` that Excel still lacks it).
  * 5. **Shapes** opens the whole gallery with **no Action Buttons and no New Drawing Canvas**, the list `Insert → Shapes`
  *    opens. **Edit Shape**'s Change Shape has no Action Buttons either, and Reroute Connectors is unavailable.
  * 6. **Height and Width start on 2.54 cm**, stepping by 0.01. `GUESS:` both. They do not follow each other.

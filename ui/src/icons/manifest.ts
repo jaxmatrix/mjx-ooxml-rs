@@ -842,7 +842,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'textbox',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Text Box, the large headline of the Insert tab's Text group in all three applications. Fluent spells it as one word and draws a box with lines of text in it; `text-box-settings`, the only other candidate, is a cog on a box. **Since PowerPoint's Shape Format unit, also Insert Shapes' Text Box**, small, the same command beside the shape gallery. **Since Word's Shape Format unit, also Draw Text Box**, small, Word's split button in the same place, which arms the same text box. **Since Excel's Shape Format unit, also Excel's Insert Shapes' Text Box**, small, a plain button as PowerPoint's is.",
+    why: "Text Box, the large headline of the Insert tab's Text group in all three applications. Fluent spells it as one word and draws a box with lines of text in it; `text-box-settings`, the only other candidate, is a cog on a box. **Since PowerPoint's Shape Format unit, also Insert Shapes' Text Box**, small, the same command beside the shape gallery. **Since Word's Shape Format unit, also Draw Text Box**, small, Word's split button in the same place, which arms the same text box. **Since Excel's Shape Format unit, also Excel's Insert Shapes' Text Box**, small, a split button as Word's is, which arms the same text box.",
   },
   {
     name: 'signature',
