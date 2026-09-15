@@ -1174,6 +1174,52 @@ without a label, and Reset's loop fails rule 2, as on Home.
 - **One glyph is new**, `layout-row-two-split-top`. Reused: `slide-text-title-add`, `slide-layout`, `arrow-reset`,
   `slide-multiple`, and every Home glyph in the five shared groups.
 
+### PowerPoint's Handout Master
+
+**One tab of one application, and PowerPoint's fifth view tab authored**, after Slide Master Home. Five groups and
+fourteen commands, in Office's order, which is also the census's: Page Setup, Placeholders, Edit Theme, Background,
+Close. It is `TabHandoutMaster`, the tab Handout Master view shows: one printed handout page, the slide frames on it,
+and the header, date, footer and page number around them.
+
+**Three groups are Slide Master's, called and not rewritten.** Edit Theme, Background and Close are
+`masterEditThemeCommands('handout-master')`, `masterBackgroundCommands('handout-master')` and
+`masterCloseCommands('handout-master')`, and their menus are `editThemeMenuEntries` and `backgroundMenuEntries` under
+this tab's ids, in `handoutMasterMenus`, the function this unit added to `menusByTab` in
+`stories/ribbons/slide-master-menus.ts`. No theme list is written twice. **Page Setup and Placeholders are this tab's
+own.**
+
+It renders in `Ribbons/PowerPoint` alone, as every view tab does: the thirteen bindings and
+`masterViewMenus('powerpoint', 'ribbons')` are in `stories/ribbons/powerpoint.stories.ts`, and `Shell/PowerPoint`
+draws neither.
+
+- **Eight dropdowns a host binds**: Handout Orientation (Layout's `orientationEntries()`), Slide Size (Design's
+  `slideSizeEntries()`), Slides Per Page (Office's seven handout layouts, this tab's own list), and Slide Master's
+  Themes, Colours, Fonts, Effects and Background Styles.
+- **Five checkboxes a host binds**: Header, Date, Footer and Page Number, ticked; Hide Background Graphics, unticked.
+- **One button**: Close Master View.
+- **One dialog launcher**, *Format Background*, on Background.
+
+**No survivors.** Page Setup's three and Edit Theme's four open menus; Placeholders' four are checkboxes, which the
+gate refuses; Background holds a menu and a checkbox; Close leaves the view.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **Page Setup counts 11 and draws 3.** `GUESS:` the census counts the eleven choices the three menus offer (Portrait
+  and Landscape; Standard and Widescreen; 1, 2, 3, 4, 6, 9 Slides and Outline), not the faces or *Custom Slide
+  Size…*. It is the one reading found that reaches 11 exactly. Placeholders (4), Edit Theme (4) and Close (1) draw
+  their counts; Background (11) is Slide Master's disagreement, unchanged.
+- **Microsoft 365's Page Setup is drawn, not PowerPoint 2010's**, which had Page Setup, Handout Orientation, Slide
+  Orientation and Slides Per Page. `GUESS:` both.
+- **Slides Per Page starts on 6 Slides**, and its labels and order are `GUESS:`. Print Preview's Print What names the
+  same layouts as *Handouts (n Slides Per Page)*, so neither list is reused.
+- **All four placeholders start ticked**, and Handout Orientation on Portrait. `GUESS:` both.
+- **Office greys Themes on Handout Master.** `GUESS:`. It is drawn available, because `disabled` is loop 2's.
+- **The Format Background launcher is kept.** `GUESS:` that Handout Master draws it, as Slide Master does.
+- **No glyph is new.** Slides Per Page draws `layout-cell-four`, Excel's Arrange All glyph, a page divided into four
+  frames (`GUESS:`; never on one ribbon with Excel's). Handout Orientation draws `orientation` and Slide Size
+  `slide-size`; the shared groups draw Slide Master's `style-guide`, `color`, `text-font`, `square-shadow`,
+  `color-background` and `dismiss-square`. The five checkboxes carry none.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

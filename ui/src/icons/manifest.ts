@@ -588,7 +588,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'square-shadow',
     sizes: [20],
     variants: ['regular'],
-    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still. **Since PowerPoint's Slide Master unit, also Edit Theme's Effects**, small, which opens the theme effect sets Design's Effects opens: the drop shadow is one of them.",
+    why: "Shape Effects, on PowerPoint's Drawing group. A shape with a drop shadow on it — which is one of the five effects the menu offers and the only one that can be drawn at twenty pixels. `wand` and `sparkle` were the alternatives and both now read as *the computer will decide*, which this command is not. **Since unit 5, also Effects** on Word's Design and Excel's Page Layout: a theme's effects are the shape effects it hands to every shape. Small in both, so 20 alone still. **Since PowerPoint's Slide Master unit, also Edit Theme's Effects**, small, which opens the theme effect sets Design's Effects opens: the drop shadow is one of them. **Since PowerPoint's Handout Master unit, also Handout Master's Effects**, the same shared group.",
   },
   {
     name: 'border-all',
@@ -1052,13 +1052,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'color',
     sizes: [20, 24],
     variants: ['regular', 'filled'],
-    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list.",
+    why: "Colours, the theme colour sets, on Word's Design (large) and Excel's Page Layout (small): a painter's palette, which is what a set of theme colours is. Not `color-fill` or `color-line`, which set one colour on one thing. **Since PowerPoint's View unit, also Colour**, the small toggle in the Colour/Greyscale group, so the filled drawing too. `GUESS:`. **Since PowerPoint's Slide Master unit, also Edit Theme's Colours**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Colours**, the same shared group.",
   },
   {
     name: 'text-font',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Fonts, the theme font pairs, on Word's Design (large) and Excel's Page Layout (small): two letters of two sizes, a heading font over a body font. Not `text-color` or `font-increase`, which act on the selected text. **Since PowerPoint's Slide Master unit, also Edit Theme's Fonts**, small, over the same list.",
+    why: "Fonts, the theme font pairs, on Word's Design (large) and Excel's Page Layout (small): two letters of two sizes, a heading font over a body font. Not `text-color` or `font-increase`, which act on the selected text. **Since PowerPoint's Slide Master unit, also Edit Theme's Fonts**, small, over the same list. **Since PowerPoint's Handout Master unit, also Handout Master's Fonts**, the same shared group.",
   },
   {
     name: 'document-border',
@@ -1076,7 +1076,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'orientation',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice. **Since Word's Print Preview unit, also Print Preview's Orientation**, the same command and Layout's list. **Since PowerPoint's Print Preview unit, also PowerPoint's**, small, the same list.",
+    why: "Orientation, on Word's Layout and Excel's Page Layout, large: a portrait page turning to landscape. Not `document-landscape`, which shows one answer rather than the choice. **Since Word's Print Preview unit, also Print Preview's Orientation**, the same command and Layout's list. **Since PowerPoint's Print Preview unit, also PowerPoint's**, small, the same list. **Since PowerPoint's Handout Master unit, also Handout Orientation**, large, in Page Setup: the same choice, over Layout's list.",
   },
   {
     name: 'text-position-square',
@@ -1118,13 +1118,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'slide-size',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Slide Size, on PowerPoint's Customise group, large: a frame with an arrow to its corner, the slide being resized. **Since PowerPoint's Slide Master unit, also Slide Master's Size**, large, the same command and list.",
+    why: "Slide Size, on PowerPoint's Customise group, large: a frame with an arrow to its corner, the slide being resized. **Since PowerPoint's Slide Master unit, also Slide Master's Size**, large, the same command and list. **Since PowerPoint's Handout Master unit, also Handout Master's Slide Size**, large, in Page Setup: the same command and list.",
   },
   {
     name: 'color-background',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`). **Since PowerPoint's Slide Master unit, also Background Styles** on the Background group, small, the glyph the Variants footer already draws for it.",
+    why: "Format Background, on PowerPoint's Customise group, large: a paint bucket over a frame, the fill behind a whole slide rather than on a shape (`color-fill`). **Since PowerPoint's Slide Master unit, also Background Styles** on the Background group, small, the glyph the Variants footer already draws for it. **Since PowerPoint's Handout Master unit, also Handout Master's Background Styles**, the same shared group.",
   },  // ── References, Transitions and Formulas (Word's References, PowerPoint's Transitions, Excel's Formulas) ──
   //
   // The ribbon programme's unit 6. Nothing here draws pressed: the one toggle with a state Office draws,
@@ -1811,7 +1811,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'layout-cell-four',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Arrange All, the large button in Excel's View Window group: four windows tiled, the first arrangement in the Arrange Windows dialog it opens. `GUESS:`.",
+    why: "Arrange All, the large button in Excel's View Window group: four windows tiled, the first arrangement in the Arrange Windows dialog it opens. `GUESS:`. **Since PowerPoint's Handout Master unit, also Slides Per Page**, large, in Handout Master's Page Setup: a page divided into frames, slides laid out on one handout. Not `slide-grid`, Slide Sorter, nor `document-one-page-multiple`, Handout Master itself on View. The two uses are never on one ribbon. `GUESS:`.",
   },
   {
     name: 'table-freeze-column-and-row',
@@ -2005,7 +2005,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'dismiss-square',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command. **Since PowerPoint's Slide Master unit, also Close Master View**, large: the same verb, leaving a view.",
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`. **Since Word's Print Preview unit, also Close Print Preview**, large: the same verb, leaving a view. **Since PowerPoint's Print Preview unit, also PowerPoint's Close Print Preview**, the same command. **Since Excel's Print Preview unit, also Excel's**, the same command. **Since PowerPoint's Slide Master unit, also Close Master View**, large: the same verb, leaving a view. **Since PowerPoint's Handout Master unit, also Handout Master's Close Master View**, the same shared group.",
   },
   // ── Print Preview (Word's) ────────────────────────────────────────────────
   //
@@ -2099,7 +2099,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'style-guide',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Themes, large, in Slide Master's Edit Theme group: a fanned swatch book, colours, fonts and effects chosen as one set. Not `color`, Colours beside it, nor `design-ideas`, Designer. Word's and Excel's Themes carry none. `GUESS:`.",
+    why: "Themes, large, in Slide Master's Edit Theme group: a fanned swatch book, colours, fonts and effects chosen as one set. Not `color`, Colours beside it, nor `design-ideas`, Designer. Word's and Excel's Themes carry none. `GUESS:`. **Since PowerPoint's Handout Master unit, also Handout Master's Themes**, the same shared group.",
   },
   // ── Slide Master Home (PowerPoint's) ──────────────────────────────────────
   //

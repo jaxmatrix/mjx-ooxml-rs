@@ -1,6 +1,6 @@
 /**
- * **The menus the master view tabs open**: PowerPoint's Slide Master and the Home tab beside it today, and Handout
- * Master and Notes Master when their units land, written once for the host that draws them.
+ * **The menus the master view tabs open**: PowerPoint's Slide Master, the Home tab beside it and Handout Master today,
+ * and Notes Master when its unit lands, written once for the host that draws them.
  *
  * The pattern is `stories/ribbons/print-preview-menus.ts`'s, for its reasons. A binding lives in its host. The
  * menu it opens is written here, with its id from `commandSurfaceId(host, commandId)` through `commandMenu`. A host
@@ -35,6 +35,14 @@
  * else: Insert's New Slide lists seven layouts rather than eleven, and Home draws its Layout and Section as buttons.
  * Every other binding on that tab is Home's and opens Home's paste menu, which the host renders already.
  *
+ * ## PowerPoint's Handout Master
+ *
+ * **The first unit to take the shared seam**: `handoutMasterMenus` writes Edit Theme's four and Background Styles'
+ * `commandMenu` calls under its own ids over `editThemeMenuEntries` and `backgroundMenuEntries`, and writes no theme
+ * list. Its Page Setup opens three menus: **Handout Orientation** over Layout's `orientationEntries()`, **Slide
+ * Size** over Design's `slideSizeEntries()`, and **Slides Per Page**, Office's seven handout layouts, which is
+ * Handout Master's own list because no other tab opens it. Its Placeholders are checkboxes and open nothing.
+ *
  * ## Who renders these
  *
  * Every master view is `appearance: 'view'`: Office shows it only inside its view, so `tabsFor` leaves it out of a
@@ -53,6 +61,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import type { RibbonApplication, RibbonSurfaceHost } from '../../dev/ribbons/census.ts';
 import {
   backgroundStyleEntries,
+  orientationEntries,
   powerpointThemeEntries,
   slideSizeEntries,
   themeColourEntries,
@@ -168,13 +177,48 @@ function slideMasterHomeMenus(host: RibbonSurfaceHost): TemplateResult {
   `;
 }
 
+// ── PowerPoint's Handout Master ──────────────────────────────────────────────
+
+/**
+ * Slides Per Page's list: **Office's seven handout layouts**, in Office's order, **6 Slides** checked as a new deck's
+ * handout master. PowerPoint's Print Preview names the same layouts in Print What as *Handouts (n Slides Per Page)*
+ * and *Outline View*, a field's voice rather than a menu's, so neither list is the other. `GUESS:` the labels, the
+ * order, the start, and that Office draws no separator before Outline.
+ */
+function slidesPerPageEntries(): TemplateResult[] {
+  return ['1 Slide', '2 Slides', '3 Slides', '4 Slides', '6 Slides', '9 Slides', 'Outline'].map(
+    (label) => html`<mjx-menu-item kind="radio" label=${label} ?checked=${label === '6 Slides'}></mjx-menu-item>`,
+  );
+}
+
+/**
+ * Eight menus: Page Setup's three, Edit Theme's four and Background Styles. Header, Date, Footer, Page Number and
+ * Hide Background Graphics are checkboxes the host binds; Close Master View opens nothing.
+ */
+function handoutMasterMenus(host: RibbonSurfaceHost): TemplateResult {
+  return html`
+    ${commandMenu(host, 'powerpoint.handout-master.page-setup.handout-orientation', 'Handout Orientation', ...orientationEntries())}
+    ${commandMenu(host, 'powerpoint.handout-master.page-setup.slide-size', 'Slide Size', ...slideSizeEntries())}
+    ${commandMenu(host, 'powerpoint.handout-master.page-setup.slides-per-page', 'Slides Per Page', ...slidesPerPageEntries())}
+    ${commandMenu(host, 'powerpoint.handout-master.edit-theme.themes', 'Themes', ...editThemeMenuEntries.themes())}
+    ${commandMenu(host, 'powerpoint.handout-master.edit-theme.colours', 'Colours', ...editThemeMenuEntries.colours())}
+    ${commandMenu(host, 'powerpoint.handout-master.edit-theme.fonts', 'Fonts', ...editThemeMenuEntries.fonts())}
+    ${commandMenu(host, 'powerpoint.handout-master.edit-theme.effects', 'Effects', ...editThemeMenuEntries.effects())}
+    ${commandMenu(host, 'powerpoint.handout-master.background.background-styles', 'Background Styles', ...backgroundMenuEntries.backgroundStyles())}
+  `;
+}
+
 // ── what a host renders ──────────────────────────────────────────────────────
 
 /**
- * Every master view's menus, as each unit authors them. Handout Master and Notes Master add theirs here; Slide Master
- * Home is not a master view of its own, and shares this file because it is shown inside Slide Master view.
+ * Every master view's menus, as each unit authors them. Notes Master adds its own here; Slide Master Home is not a
+ * master view of its own, and shares this file because it is shown inside Slide Master view.
  */
-const menusByTab: readonly ((host: RibbonSurfaceHost) => TemplateResult)[] = [slideMasterMenus, slideMasterHomeMenus];
+const menusByTab: readonly ((host: RibbonSurfaceHost) => TemplateResult)[] = [
+  slideMasterMenus,
+  slideMasterHomeMenus,
+  handoutMasterMenus,
+];
 
 /**
  * Every menu one application's master view tabs open, with ids for one host's page. Only PowerPoint has master

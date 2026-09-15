@@ -73,7 +73,7 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master and Slide Master Home** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home and Handout Master** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -93,7 +93,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master and Slide Master Home are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home and Handout Master are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -718,6 +718,78 @@ const bindings: ControlOverrides = {
   'powerpoint.slide-master-home.font.colour': homeBinding.fontColour('ribbons-ppt-slide-master-home-colour'),
   'powerpoint.slide-master-home.drawing.styles': homeBinding.shapeStyles('ribbons-ppt-slide-master-home-shape-styles'),
   'powerpoint.slide-master-home.drawing.arrange': homeBinding.arrange(),
+  // Handout Master (a view tab). `Shell/PowerPoint` never draws a view tab, so these thirteen bindings and the eight
+  // menus they open are written here and nowhere else. Page Setup's three and Edit Theme's and Background's five are
+  // dropdowns over `stories/ribbons/slide-master-menus.ts`; Placeholders' four and Hide Background Graphics are
+  // checkboxes.
+  'powerpoint.handout-master.page-setup.handout-orientation': html`<mjx-button
+    label="Handout Orientation"
+    icon="orientation"
+    size="large"
+    data-opens="ribbons-powerpoint-handout-master-page-setup-handout-orientation"
+  ></mjx-button>`,
+  'powerpoint.handout-master.page-setup.slide-size': html`<mjx-button
+    label="Slide Size"
+    icon="slide-size"
+    size="large"
+    data-opens="ribbons-powerpoint-handout-master-page-setup-slide-size"
+  ></mjx-button>`,
+  'powerpoint.handout-master.page-setup.slides-per-page': html`<mjx-button
+    label="Slides Per Page"
+    icon="layout-cell-four"
+    size="large"
+    data-opens="ribbons-powerpoint-handout-master-page-setup-slides-per-page"
+  ></mjx-button>`,
+  'powerpoint.handout-master.placeholders.header': html`<mjx-checkbox
+    id="ribbons-powerpoint-handout-master-header"
+    label="Header" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.handout-master.placeholders.date': html`<mjx-checkbox
+    id="ribbons-powerpoint-handout-master-date"
+    label="Date" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.handout-master.placeholders.footer': html`<mjx-checkbox
+    id="ribbons-powerpoint-handout-master-footer"
+    label="Footer" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.handout-master.placeholders.page-number': html`<mjx-checkbox
+    id="ribbons-powerpoint-handout-master-page-number"
+    label="Page Number" checked="true"
+  ></mjx-checkbox>`,
+  'powerpoint.handout-master.edit-theme.themes': html`<mjx-button
+    label="Themes"
+    icon="style-guide"
+    size="large"
+    data-opens="ribbons-powerpoint-handout-master-edit-theme-themes"
+  ></mjx-button>`,
+  'powerpoint.handout-master.edit-theme.colours': html`<mjx-button
+    label="Colours"
+    icon="color"
+    size="small"
+    data-opens="ribbons-powerpoint-handout-master-edit-theme-colours"
+  ></mjx-button>`,
+  'powerpoint.handout-master.edit-theme.fonts': html`<mjx-button
+    label="Fonts"
+    icon="text-font"
+    size="small"
+    data-opens="ribbons-powerpoint-handout-master-edit-theme-fonts"
+  ></mjx-button>`,
+  'powerpoint.handout-master.edit-theme.effects': html`<mjx-button
+    label="Effects"
+    icon="square-shadow"
+    size="small"
+    data-opens="ribbons-powerpoint-handout-master-edit-theme-effects"
+  ></mjx-button>`,
+  'powerpoint.handout-master.background.background-styles': html`<mjx-button
+    label="Background Styles"
+    icon="color-background"
+    size="small"
+    data-opens="ribbons-powerpoint-handout-master-background-background-styles"
+  ></mjx-button>`,
+  'powerpoint.handout-master.background.hide-background-graphics': html`<mjx-checkbox
+    id="ribbons-powerpoint-handout-master-hide-background-graphics"
+    label="Hide Background Graphics"
+  ></mjx-checkbox>`,
 };
 
 /**
@@ -1091,7 +1163,32 @@ export const SlideMaster: Story = { render: () => ribbon('slide-master') };
  */
 export const SlideMasterHome: Story = { render: () => ribbon('slide-master-home') };
 
-/** Unit 10, and a view tab. */
+/**
+ * **Handout Master**: the printed handout page, the slide frames laid out on it, and the header, date, footer and page
+ * number around them. A view tab Office shows only in Handout Master view. Authored after Slide Master Home, one tab of
+ * one application, and PowerPoint's fifth view tab. Five groups: Page Setup, Placeholders, Edit Theme, Background and
+ * Close. What to look at, least certain first:
+ *
+ * 1. ⚠ **Page Setup draws three large dropdowns**, Handout Orientation, Slide Size and Slides Per Page, where the
+ *    census counts 11. `GUESS:` that the census counts the eleven choices their menus offer.
+ * 2. ⚠ **Slides Per Page's glyph** is a page divided into four frames, the glyph Excel's Arrange All draws for four
+ *    tiled windows. Judge whether it reads as slides on a handout. Press it: 1 Slide, 2 Slides, 3 Slides, 4 Slides,
+ *    6 Slides (checked), 9 Slides and Outline. `GUESS:` the glyph, the labels and the start.
+ * 3. **Handout Orientation** opens Portrait (checked) and Landscape, Layout's list. **Slide Size** opens Standard
+ *    (4:3), Widescreen (16:9, checked) and Custom Slide Size…, Design's list.
+ * 4. **Four checkboxes in Placeholders**, Header and Date over Footer and Page Number, all ticked. Untick one and it
+ *    unticks. `GUESS:` that all four start ticked.
+ * 5. **Edit Theme, Background and Close are Slide Master's.** Switch between this story and `SlideMaster`: the three
+ *    groups should match command for command, glyph for glyph and list for list, with the one *Format Background*
+ *    launcher on Background. Inspect a command: its id carries `handout-master`. Tick Hide Background Graphics here,
+ *    then open `SlideMaster`: that tab's checkbox has not changed. Office greys Themes here; it is drawn available.
+ * 6. **No survivor anywhere.** Drag narrow: each group collapses to a trigger with nothing beside it, and every
+ *    command opens from its popup.
+ * 7. **Glyphs to judge**, all `GUESS:` and none new: the turning page, the resized frame, the four frames, then Slide
+ *    Master's swatch book, palette, letters, shadowed square, paint bucket and cross in a square.
+ * 8. **Not in `Shell/PowerPoint`**: the shell's strip has no Handout Master tab, and no Handout Master menu is on
+ *    that page.
+ */
 export const HandoutMaster: Story = { render: () => ribbon('handout-master') };
 
 /** Unit 10, and a view tab. */

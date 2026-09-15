@@ -107,7 +107,9 @@
  * Edit Theme, Background and Close groups written once as functions of the master view; see the *commands the
  * master views show* section. **PowerPoint's Slide Master Home** followed, PowerPoint's fourth view tab authored,
  * its Clipboard, Font, Paragraph, Drawing and Editing groups written once as functions of the Home tab they share;
- * see that section's *PowerPoint's Slide Master Home* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * see that section's *PowerPoint's Slide Master Home* part. **PowerPoint's Handout Master** followed, PowerPoint's
+ * fifth view tab authored, calling Slide Master's Edit Theme, Background and Close functions; see that section's
+ * *PowerPoint's Handout Master* part. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -5217,6 +5219,114 @@ const powerpointSlideMasterHomeMasterSlides: readonly RibbonCommand[] = [
   { id: 'powerpoint.slide-master-home.master-slides.section', label: 'Section', icon: 'slide-multiple' },
 ];
 
+// ## PowerPoint's Handout Master
+//
+// The unit after Slide Master Home, one tab of one application: **PowerPoint's `TabHandoutMaster`**, all five
+// in-scope groups and fourteen commands, and PowerPoint's fifth view tab authored. Office shows it only in Handout
+// Master view, which View's *Handout Master* opens: one printed handout page, the slide frames laid out on it, and
+// the header, date, footer and page number around them. *Close Master View* takes the deck back to Normal.
+//
+// ## Three groups are Slide Master's, called rather than written
+//
+// **Edit Theme, Background and Close are `masterEditThemeCommands('handout-master')`,
+// `masterBackgroundCommands('handout-master')` and `masterCloseCommands('handout-master')`**, the functions Slide
+// Master's part wrote for this unit. The rows' ids and counts (4, 11 and 1) are Slide Master's, and so are every
+// shape, size, glyph and reason, disagreements 1, 3, 6 and 8 of that part included. Every id is
+// `powerpoint.handout-master.<group>.<command>`, so a host binds this tab's controls apart from Slide Master's.
+// **Page Setup and Placeholders are this tab's own** and are declared as constants.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Three dropdowns a host binds in Page Setup**: Handout Orientation, over Layout's own `orientationEntries()`;
+// Slide Size, over Design's `slideSizeEntries()`; and Slides Per Page, over Office's seven handout layouts, written
+// in `stories/ribbons/slide-master-menus.ts` because no other tab opens it. **Four checkboxes a host binds in
+// Placeholders**: Header, Date, Footer and Page Number, all ticked. The shared groups add **five dropdowns**
+// (Themes, Colours, Fonts, Effects, Background Styles), **one checkbox** (Hide Background Graphics), **one button**
+// (Close Master View) and **one dialog launcher**, Format Background. **No field, no gallery, no split button, no
+// toggle, no exclusive set.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **Page Setup counts 11 and draws 3.** `GUESS:` the reading that the census counts **the eleven choices the
+//    group's three menus offer**: Portrait and Landscape (2), Standard (4:3) and Widescreen (16:9) (2), and 1, 2, 3,
+//    4, 6 and 9 Slides and Outline (7), leaving out the faces and Slide Size's *Custom Slide Size…*, which opens a
+//    dialog rather than choosing. It is the one reading this unit found that reaches 11 exactly. Nothing is padded.
+// 2. **Placeholders counts 4 and draws 4**, one checkbox per placeholder. **Edit Theme (4) and Close (1) draw
+//    their counts; Background counts 11 and draws 2 and a launcher**, Slide Master's disagreement 3, unchanged.
+// 3. **PowerPoint 2010's Page Setup is not this one.** 2010 drew *Page Setup* (a dialog), *Handout Orientation*,
+//    *Slide Orientation* and *Slides Per Page*; Microsoft 365 draws Handout Orientation, Slide Size and Slides Per
+//    Page. The brief names 365's three and they are drawn. `GUESS:` both, from memory.
+// 4. **Handout Orientation opens Layout's list unchanged**, Portrait checked, as PowerPoint's Print Preview's
+//    Orientation does: a handout prints on a portrait page by default. `GUESS:` that Office's labels are Word's.
+// 5. **Slides Per Page starts on 6 Slides**, a new deck's handout master. `GUESS:` the start, and that Office's
+//    labels are *1 Slide*, *2 Slides* … *9 Slides* and *Outline*, in that order, with no separator before Outline.
+//    They are the shapes PowerPoint's Print Preview's Print What lists as *Handouts (n Slides Per Page)* and
+//    *Outline View*; the two lists name one set of layouts in two voices, so neither is reused.
+// 6. **Header, Date, Footer and Page Number start ticked**: a new deck's handout master carries all four
+//    placeholders. `GUESS:`.
+// 7. **Office greys Themes on Handout Master** (`GUESS:`), because a handout master cannot take a theme of its
+//    own. It is drawn available, because `disabled` is loop 2's, and so is Hide Background Graphics, which Office
+//    may also grey here.
+// 8. **The launcher at Background's corner is Format Background**, as on Slide Master. `GUESS:` that Handout
+//    Master keeps it.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Page Setup**: none. Handout Orientation, Slide Size and Slides Per Page each open a menu, which fails rule 1.
+// - **Placeholders**: none. All four are checkboxes, which the gate refuses.
+// - **Edit Theme**: none. All four open menus, as on Slide Master.
+// - **Background**: none. Background Styles opens a menu and Hide Background Graphics is a checkbox.
+// - **Close**: none. Close Master View leaves the view and takes the tab with it, and it is the only command.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Handout Orientation, Slide Size and Slides Per Page are `large`, side by
+// side, and the four checkboxes are stacked in two columns. The shared groups keep Slide Master's sizes. Every
+// glyph is one this subset already carries, and every one is `GUESS:`:
+//
+// - **Handout Orientation draws `orientation`**, Layout's and both Print Previews': a portrait page turning to
+//   landscape, the same choice.
+// - **Slide Size draws `slide-size`**, Design's and Slide Master's.
+// - **Slides Per Page draws `layout-cell-four`**, a page divided into four frames: slides laid out on one handout.
+//   Excel's Arrange All draws it for four windows tiled; the two are never on one ribbon. Not `slide-grid`, which
+//   is Slide Sorter, nor `document-one-page-multiple`, which is Handout Master itself on View.
+// - **Themes, Colours, Fonts, Effects, Background Styles and Close Master View** draw Slide Master's `style-guide`,
+//   `color`, `text-font`, `square-shadow`, `color-background` and `dismiss-square`.
+//
+// **Five commands carry no glyph, and say why**: Header, Date, Footer, Page Number and Hide Background Graphics
+// are checkboxes, which draw their tick box.
+
+/**
+ * PowerPoint's `GroupPageSetupHandoutMaster`, labelled **Page Setup**: Handout Orientation, Slide Size and Slides
+ * Per Page, all large. See disagreements 1, 3, 4 and 5.
+ *
+ * **All three are dropdowns** a host binds, over the menus in `stories/ribbons/slide-master-menus.ts`.
+ *
+ * **No survivor**: three menus.
+ */
+const powerpointHandoutMasterPageSetup: readonly RibbonCommand[] = [
+  { id: 'powerpoint.handout-master.page-setup.handout-orientation', label: 'Handout Orientation', icon: 'orientation', size: 'large' },
+  { id: 'powerpoint.handout-master.page-setup.slide-size', label: 'Slide Size', icon: 'slide-size', size: 'large' },
+  { id: 'powerpoint.handout-master.page-setup.slides-per-page', label: 'Slides Per Page', icon: 'layout-cell-four', size: 'large' },
+];
+
+/**
+ * PowerPoint's `GroupPlaceholdersHandoutMaster`, labelled **Placeholders**: Header and Date, then Footer and Page
+ * Number, in two columns. See disagreements 2 and 6.
+ *
+ * **All four are toggles drawn as checkboxes**, ticked, which a host binds.
+ *
+ * **No survivor**: four checkboxes.
+ */
+const powerpointHandoutMasterPlaceholders: readonly RibbonCommand[] = [
+  { id: 'powerpoint.handout-master.placeholders.header', label: 'Header', toggle: true, pressed: true },
+  { id: 'powerpoint.handout-master.placeholders.date', label: 'Date', toggle: true, pressed: true },
+  { id: 'powerpoint.handout-master.placeholders.footer', label: 'Footer', toggle: true, pressed: true },
+  { id: 'powerpoint.handout-master.placeholders.page-number', label: 'Page Number', toggle: true, pressed: true },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -5820,11 +5930,11 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabHandoutMaster' },
     groups: [
-      { id: 'GroupPageSetupHandoutMaster', label: 'Page Setup', priority: 'primary', controls: 11, inScope: true },
-      { id: 'GroupPlaceholdersHandoutMaster', label: 'Placeholders', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true },
-      { id: 'GroupBackground', label: 'Background', priority: 'standard', controls: 11, inScope: true },
-      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupPageSetupHandoutMaster', label: 'Page Setup', priority: 'primary', controls: 11, inScope: true, commands: powerpointHandoutMasterPageSetup },
+      { id: 'GroupPlaceholdersHandoutMaster', label: 'Placeholders', priority: 'standard', controls: 4, inScope: true, commands: powerpointHandoutMasterPlaceholders },
+      { id: 'GroupMasterEditTheme', label: 'Edit Theme', priority: 'standard', controls: 4, inScope: true, commands: masterEditThemeCommands('handout-master') },
+      { id: 'GroupBackground', label: 'Background', priority: 'standard', controls: 11, inScope: true, commands: masterBackgroundCommands('handout-master') },
+      { id: 'GroupMasterClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: masterCloseCommands('handout-master') },
     ],
   },
   {

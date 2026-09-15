@@ -63,6 +63,10 @@
  * commands, the Home tab Slide Master view shows. Clipboard, Font, Paragraph, Drawing and Editing are Home's, from the
  * census's shared functions under this tab's ids, and Master Slides is its own.
  *
+ * **Handout Master** followed Slide Master Home, PowerPoint's fifth view tab authored: five groups and fourteen
+ * commands, the printed handout page. Edit Theme, Background and Close are Slide Master's functions under this tab's
+ * ids; Page Setup's three menus and Placeholders' four checkboxes are its own.
+ *
  * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
@@ -524,11 +528,39 @@ export function powerpointSlideMasterHomeTab(options: TabOptions = {}): Template
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointHandoutMasterTab(): TemplateResult {
-  return placeholderTab(entry('handout-master'));
+/**
+ * Handout Master: Page Setup, Placeholders, Edit Theme, Background, Close — PowerPoint's fifth view tab authored, in
+ * **Office's** order, which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only in Handout Master view**, so `powerpointTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks, which is why the tab's bindings and menus are
+ * written there and nowhere else. `dev/ribbons/census.ts` records every disagreement.
+ *
+ * **Edit Theme, Background and Close are Slide Master's**, from the census's master-view functions under this tab's
+ * ids. **Page Setup and Placeholders are this tab's own.**
+ *
+ * **Thirteen of the tab's fourteen commands are bound by the host**: Handout Orientation, Slide Size, Slides Per Page,
+ * Themes, Colours, Fonts, Effects and Background Styles are dropdowns over `stories/ribbons/slide-master-menus.ts`;
+ * Header, Date, Footer, Page Number and Hide Background Graphics are checkboxes. Close Master View is the generic
+ * button.
+ *
+ * **One dialog launcher, on Background**, which opens the Format Background pane. **No survivor.**
+ */
+export function powerpointHandoutMasterTab(options: TabOptions = {}): TemplateResult {
+  const handoutMaster = entry('handout-master');
+  const controls = options.controls ?? {};
+  return tab(
+    handoutMaster.id,
+    handoutMaster.label,
+    censusGroup(handoutMaster, 'GroupPageSetupHandoutMaster', {}, controls),
+    censusGroup(handoutMaster, 'GroupPlaceholdersHandoutMaster', {}, controls),
+    censusGroup(handoutMaster, 'GroupMasterEditTheme', {}, controls),
+    censusGroup(handoutMaster, 'GroupBackground', { launcher: 'Format Background' }, controls),
+    censusGroup(handoutMaster, 'GroupMasterClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointNotesMasterTab(): TemplateResult {
   return placeholderTab(entry('notes-master'));
