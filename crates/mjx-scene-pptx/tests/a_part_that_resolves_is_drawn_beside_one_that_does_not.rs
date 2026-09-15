@@ -60,7 +60,7 @@ fn list_of(properties: &str) -> DisplayList {
 
 // How many fills, strokes and effect groups the list draws.
 fn draws(list: &DisplayList) -> (usize, usize, usize) {
-    let count = |wanted: fn(&Command) -> bool| list.commands().filter(|c| wanted(c)).count();
+    let count = |wanted: fn(&Command) -> bool| list.commands().filter(wanted).count();
     (
         count(|command| matches!(command, Command::FillPath { .. })),
         count(|command| matches!(command, Command::StrokePath { .. })),
