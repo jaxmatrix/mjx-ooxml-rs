@@ -75,7 +75,10 @@
  * how the selected object prints in black and white. Colour Mode's ten toggles are one exclusive set and Close is one
  * button, both from the census's colour-mode functions, which Greyscale shares. It binds nothing and opens no menu.
  *
- * Every other tab is a placeholder until its own unit.
+ * **Greyscale** followed Black and White, PowerPoint's eighth and last view tab authored: the same two groups and
+ * eleven commands from the same two functions, under this tab's ids and with its own exclusive set.
+ *
+ * No tab is a placeholder any more: Greyscale was the last.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -86,7 +89,6 @@ import { powerpointRibbonTabs, ribbonTab } from '../../dev/ribbons/census.ts';
 import { stubTab } from '../shell/shell-parts.ts';
 import {
   censusGroup,
-  placeholderTab,
   tab,
   tabsFor,
   type TabOptions,
@@ -626,10 +628,27 @@ export function powerpointBlackAndWhiteTab(options: TabOptions = {}): TemplateRe
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointGreyscaleTab(): TemplateResult {
-  return placeholderTab(entry('greyscale'));
+/**
+ * Greyscale: Colour Mode, Close — PowerPoint's eighth and last view tab authored, in **Office's** order, which is also
+ * the census's.
+ *
+ * ⚠ **A view tab: Office shows it only while the deck is previewed in greyscale**, so `powerpointTabs()` leaves it out
+ * unless `includeViewTabs` is asked for. Only `Ribbons/PowerPoint` asks. `dev/ribbons/census.ts` records every
+ * disagreement.
+ *
+ * **Both groups are Black and White's functions** under this tab's ids. **Colour Mode is its own exclusive set**,
+ * `powerpoint.greyscale.colour-mode`, Automatic pressed, and Close is one button. **Nothing is bound by a host.**
+ * **No launcher, no menu, no survivor.**
+ */
+export function powerpointGreyscaleTab(options: TabOptions = {}): TemplateResult {
+  const greyscale = entry('greyscale');
+  const controls = options.controls ?? {};
+  return tab(
+    greyscale.id,
+    greyscale.label,
+    censusGroup(greyscale, 'GroupColorModeSetting', {}, controls),
+    censusGroup(greyscale, 'GroupColorModeClose', {}, controls),
+  );
 }
 
 // ── the whole ribbon ─────────────────────────────────────────────────────────

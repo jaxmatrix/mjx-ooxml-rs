@@ -730,7 +730,7 @@ the Switch Windows list's shape.
   Grayscale.
 - **Greyscale, Black and White and the three masters open view tabs in Office**; here the colour modes are one
   set that Colour releases, and the masters are plain buttons. The tabs they open are their own stories; see
-  *PowerPoint's Black and White*.
+  *PowerPoint's Black and White* and *PowerPoint's Greyscale*.
 - **Outline View, Notes Master and Notes are small where Office draws them large**, because Fluent draws their
   glyphs at 20 alone.
 - **Office greys Arrange All, Cascade and Move Split** in some states; all are drawn available.
@@ -1277,7 +1277,8 @@ Office shows while the deck is previewed as a black-and-white printer would prin
 
 **Both groups are written once, as functions of the colour-mode tab**: `colourModeSettingCommands` and
 `colourModeCloseCommands` in `dev/ribbons/census.ts`. The census's Greyscale row (`TabGrayscale`) is the same two
-groups with the same labels, priorities and counts, so its unit adds `commands:` to two rows and a tab function.
+groups with the same labels, priorities and counts, so its unit added `commands:` to two rows and a tab function; see
+*PowerPoint's Greyscale*.
 
 It renders in `Ribbons/PowerPoint` alone, as every view tab does, and **binds nothing**: every command is the generic
 toggle or button, so there is no binding and no menu to write.
@@ -1317,6 +1318,32 @@ glyph besides. Back To Colour View leaves the view.
 - **One glyph is new**, `brightness-high` (Light Greyscale, a sun). Reused: `color-off` (View's Greyscale, gaining a
   24), `dark-theme` (Word's and Excel's Switch Modes, for Inverse Greyscale), `eye-off` (Excel's Hide, gaining a 24
   and the filled drawing, for Don't Show), and `dismiss-square` (every view tab's close). Every glyph is `GUESS:`.
+
+### PowerPoint's Greyscale
+
+**One tab of one application, and PowerPoint's eighth and last view tab authored**, after Black and White. Two groups
+and eleven commands, in Office's order, which is also the census's: Colour Mode and Close. It is `TabGrayscale`, the
+tab Office shows while the deck is previewed in greyscale. The tab chooses how the **selected object** is drawn in
+that preview, and changes no slide's colours. **It was the last placeholder**: every in-scope tab of the three
+applications is now authored.
+
+**It writes nothing of its own.** Its two census rows call `colourModeSettingCommands('greyscale')` and
+`colourModeCloseCommands('greyscale')`, and `powerpointGreyscaleTab` places them. Every label, size, glyph, priority
+and count is Black and White's, and so is every point under *PowerPoint's Black and White*'s ⚠ list. It renders in
+`Ribbons/PowerPoint` alone and **binds nothing**.
+
+- **Ten toggles in their own exclusive set**, `powerpoint.greyscale.colour-mode`, Automatic pressed, apart from
+  `powerpoint.black-and-white.colour-mode`. `tests/ribbons.test.ts` lists the set and its start.
+- **One button**: Back To Colour View.
+- No menu, no gallery, no field, no checkbox, no split button, no dialog launcher, no survivor. No new glyph.
+
+⚠ **Greyscale-specific differences from Office: none known.** Office draws the same *Change Selected Object* group,
+with the same ten settings in the same order, and the same *Back To Color View*. Two things might differ, and neither
+is drawn:
+
+- **The start.** `GUESS:` that Office starts a new shape on Automatic in greyscale as it does in black and white.
+- **The shared setting.** If Office keeps one `bwMode` per shape, a setting pressed here would show on Black and White
+  too. The two sets are independent here.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

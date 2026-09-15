@@ -113,8 +113,10 @@
  * authored, calling the same three functions; see that section's *PowerPoint's Notes Master* part. **PowerPoint's
  * Black and White** followed, PowerPoint's seventh view tab authored, its Colour Mode and Close groups written once
  * as functions of the colour-mode tab it shares with Greyscale; see the *commands the colour modes show* section.
- * Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
- * than required — an empty array would claim a tab had been authored and found to hold nothing.
+ * **PowerPoint's Greyscale** followed, PowerPoint's eighth and last view tab authored, calling the same two
+ * functions; see that section's *PowerPoint's Greyscale* part. It was the last placeholder, so every in-scope tab
+ * of the three applications now carries its commands. `commands` stays optional rather than required, because an
+ * empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
  *
@@ -3455,9 +3457,8 @@ const wordViewNightMode: readonly RibbonCommand[] = [
 //    commands are **Colour**, **Greyscale** and **Black and White**.
 // 2. **Greyscale and Black and White open view tabs in Office** (`TabGrayscale`, `TabBlackAndWhite`), whose
 //    *Back To Color View* returns the deck to colour. Here the three are one set and pressing Colour releases
-//    the other two; the two view tabs are their own stories (Black and White authored in *the commands the
-//    colour modes show*, Greyscale a placeholder until its unit). `GUESS:` that Office draws Colour
-//    pressed while the deck is in colour.
+//    the other two; the two view tabs are their own stories, both authored in *the commands the colour
+//    modes show*. `GUESS:` that Office draws Colour pressed while the deck is in colour.
 // 3. **Slide Master, Handout Master and Notes Master open view tabs too**, and Office leaves them by *Close
 //    Master View*. They are buttons here, because nothing on this tab takes them back.
 // 4. **View Direction is the census's alone.** The census names `GroupViewDirection`, counts three controls
@@ -5457,8 +5458,9 @@ const powerpointNotesMasterPlaceholders: readonly RibbonCommand[] = [
 // **`GroupColorModeSetting` and `GroupColorModeClose` are the same two rows, with the same labels, priorities and
 // counts (10 and 1), on `TabBlackAndWhite` and `TabGrayscale`**, and Office draws the same eleven commands on both.
 // So they are `colourModeSettingCommands` and `colourModeCloseCommands`, functions of the colour-mode tab, exactly
-// as the master views' shared groups are functions of the master tab. **Black and White's entry calls them first**;
-// the Greyscale unit adds `commands:` to its own two rows with `'greyscale'` and writes no second declaration.
+// as the master views' shared groups are functions of the master tab. **Black and White's entry called them
+// first**; the Greyscale unit added `commands:` to its own two rows with `'greyscale'` and wrote no second
+// declaration (see *PowerPoint's Greyscale* below).
 // Every id is `powerpoint.<tab>.<group>.<command>`, so a host binds each tab's controls apart, and each tab's
 // settings are **their own exclusive set**, `powerpoint.<tab>.colour-mode`, looked up in its own tab.
 //
@@ -5548,6 +5550,27 @@ const powerpointNotesMasterPlaceholders: readonly RibbonCommand[] = [
 // fill, pressing it would change what it says: `square` for Black with White Fill would become Black's solid square
 // the moment it held. Office draws coloured shape swatches here, and the subset refuses `_color` drawings. All five
 // are `small`, because a large button without a glyph is a label in a tall box.
+//
+// ## PowerPoint's Greyscale
+//
+// The unit after Black and White, one tab of one application: **PowerPoint's `TabGrayscale`**, both in-scope groups
+// and eleven commands, and PowerPoint's eighth and last view tab authored. Office shows it only while the deck is
+// previewed in greyscale, which View's *Greyscale* opens, and the tab chooses how the **selected object** is drawn in
+// that preview. It is a view-only tab: nothing on it changes a slide's colours.
+//
+// **Its two rows call the two functions above with `'greyscale'`**, so every label, size, glyph, priority and count
+// is Black and White's, and every disagreement above holds as written. Its ids are `powerpoint.greyscale.<group>.
+// <command>`, and its settings are **their own exclusive set**, `powerpoint.greyscale.colour-mode`, Automatic
+// pressed, apart from `powerpoint.black-and-white.colour-mode` (disagreement 6). Nothing else is written.
+//
+// **No Greyscale-specific difference from Office is known.** Office draws the same *Change Selected Object* group,
+// with the same ten settings in the same order, and the same *Back To Color View*. Two things could differ, and
+// neither is drawn:
+//
+// - **The start.** `GUESS:` that Office starts a new shape on Automatic in greyscale as in black and white, so both
+//   sets start on Automatic. From memory, not observed.
+// - **The shared setting.** If Office keeps one `bwMode` per shape (disagreement 6), pressing a setting here would
+//   press it on Black and White too. The two sets are independent here.
 
 /** A colour-mode view: the two tabs whose Colour Mode and Close groups are one declaration. */
 type ColourModeTab = 'black-and-white' | 'greyscale';
@@ -6242,8 +6265,8 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabGrayscale' },
     groups: [
-      { id: 'GroupColorModeSetting', label: 'Colour Mode', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupColorModeClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupColorModeSetting', label: 'Colour Mode', priority: 'primary', controls: 10, inScope: true, commands: colourModeSettingCommands('greyscale') },
+      { id: 'GroupColorModeClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: colourModeCloseCommands('greyscale') },
     ],
   },
   {

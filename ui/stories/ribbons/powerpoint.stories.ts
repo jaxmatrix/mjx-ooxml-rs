@@ -73,9 +73,9 @@ import { viewMenus } from './view-menus.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master and Black and White** are authored; the rest are placeholders at the census's own priorities. See
- * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
- * since the three are one tab with three sets of differences rather than three tabs.
+ * **All nineteen are authored**: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and Greyscale. See
+ * `Ribbons/Word` for what to look at on a File tab, since the three are one tab with three sets of
+ * differences rather than three tabs.
  */
 
 const conventions = storyConventions({
@@ -93,8 +93,8 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master and Black and White are authored; the rest are placeholders carrying the ' +
-          'census’s priorities.',
+          'ribbon. All nineteen are authored: File, Home, Insert, Draw, Design, Transitions, Animations, Slide Show, Recording, Review, View, Background Removal, Print Preview, Slide Master, Slide Master Home, Handout Master, Notes Master, Black and White and ' +
+          'Greyscale.',
       },
     },
     mjx: conventions,
@@ -1321,14 +1321,32 @@ export const NotesMaster: Story = { render: () => ribbon('notes-master') };
  * 5. **The group is labelled Colour Mode**, the census's label, where Office writes *Change Selected Object*. Office's
  *    *Grayscale*, *Gray* and *Color* are spelt Greyscale, Grey and Colour.
  * 6. **The set is this tab's own.** Press White here, then open `View`: its Colour/Greyscale set has not changed.
- *    When `Greyscale` is authored, its set will be separate from this one too.
+ *    Open `Greyscale`: its set still holds Automatic.
  * 7. **No survivor.** Drag narrow: Close collapses first, then Colour Mode, and each collapses to a trigger with
  *    nothing beside it.
  * 8. **Not in `Shell/PowerPoint`**: the shell's strip has no Black and White tab.
  */
 export const BlackAndWhite: Story = { render: () => ribbon('black-and-white') };
 
-/** A view tab, and the census's `TabGrayscale` under this catalogue's spelling. */
+/**
+ * **Greyscale**: how the selected object is drawn while the deck is previewed in greyscale. The census's `TabGrayscale`
+ * under this catalogue's spelling, a view tab Office shows only in that preview, which View's *Greyscale* opens.
+ * Authored after Black and White, one tab of one application, and PowerPoint's eighth and last view tab. Two groups:
+ * Colour Mode and Close, **the same two functions as `BlackAndWhite`**, so its items 1 to 5 and 7 hold here unchanged.
+ * What to look at, least certain first:
+ *
+ * 1. ⚠ **This tab's set is its own.** Press Black here: it fills and Automatic releases. Open `BlackAndWhite`: its
+ *    set still holds Automatic. Come back: Black still holds. `GUESS:` that Office keeps the two apart; if it keeps
+ *    one setting per shape, a document-backed host would press the same member on both tabs.
+ * 2. ⚠ **Automatic starts pressed, as on Black and White.** `GUESS:` that Office starts a new shape on Automatic in
+ *    greyscale too. Office greys the ten with nothing selected; here one always holds.
+ * 3. **Compare it with `BlackAndWhite`.** The two tabs should look identical apart from the tab's name: same labels,
+ *    sizes, glyphs and order, with Back To Colour View last. Any difference is a defect.
+ * 4. **Check the spelling.** Office's *Grayscale*, *Gray* and *Back To Color View* are spelt Greyscale, Grey and
+ *    Back To Colour View, and the group is labelled Colour Mode where Office writes *Change Selected Object*.
+ * 5. **No survivor.** Drag narrow: Close collapses first, then Colour Mode, each to a trigger with nothing beside it.
+ * 6. **Not in `Shell/PowerPoint`**: the shell's strip has no Greyscale tab.
+ */
 export const Greyscale: Story = { render: () => ribbon('greyscale') };
 
 /**
