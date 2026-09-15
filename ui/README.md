@@ -498,6 +498,44 @@ Function Library draws Office's pictures. No command on the three tabs survives 
 - **Duration is a combo box.** `<mjx-measure-input>` carries lengths, and a duration is seconds.
 - **Insert Footnote is a plain button**, as Office draws it, where the unit's brief expected a dropdown.
 
+### Mailings, Animations and Data (unit 7 of the ribbon programme)
+
+Three tabs: Word's Mailings, PowerPoint's Animations and Excel's Data. The shapes are unit 6's.
+
+- **An in-ribbon `<mjx-gallery>`**: Animations' *Animation Styles*, starting on Fly In with every effect
+  Office's gallery shows and its *More … Effects* footer, and Data's *Data Types*, whose pictures are
+  `<mjx-icon>` — the first gallery art in the catalogue that is an icon rather than inline shapes.
+- **A dropdown or split button** over a menu written once in
+  `stories/ribbons/mailings-animations-data-menus.ts`: Start Mail Merge, Select Recipients, Rules, Finish &
+  Merge, Effect Options, Add Animation, Trigger, From Other Sources and What-If Analysis are dropdowns.
+  Insert Merge Field, Preview, Refresh All, Data Validation, Group and Ungroup are split buttons.
+- **A field**: Mailings' Go to Record and Animations' Duration and Delay are `<mjx-combo-box>`, and Start
+  is `<mjx-dropdown>`. Their lists are in `ribbon-parts.ts`; Duration shares `durationSeconds` with
+  Transitions.
+
+**Survivors**: Previous Record and Next Record on Mailings, Sort A to Z and Sort Z to A on Data, none on
+Animations. Filter does not survive, because its funnel is already Insert's Slicer. `dev/ribbons/census.ts`
+gives each group's reason.
+
+⚠ **Four readings are `GUESS:`.**
+
+- **Data's generations.** The census declares Office 2016's Get External Data and Connections beside
+  Microsoft 365's Queries & Connections and its Workbook Links variant, and marks Power Query's Get &
+  Transform Data out of scope. So there is no Get Data, the legacy Get External Data face is drawn, and
+  Refresh All, Properties and the rest are each drawn once across the three connection groups.
+- **Insert Merge Field and Preview are split buttons**, as Office draws them, where the brief expected
+  dropdowns.
+- **Preview Results starts pressed**, so the record navigator has something to audit.
+- **Animations' Effect Options is Fly In's** and does not follow the gallery.
+
+**Transitions was completed in this unit.** The gallery holds every transition Office shows (None and
+forty-nine more), Sound holds Office's whole list, Timing carries the *Advance Slide* caption as
+`<mjx-label>`, and **Effect Options follows the gallery**: `followTransitionEffectOptions(host)` listens
+for `mjx-gallery-commit` and re-renders one `<mjx-menu-section>` that is its own lit render root, seeded
+through `ref`, and marks the button `disabled` for a transition Office gives no options. ⚠ Office stacks
+Timing in two columns; `<mjx-ribbon-group>` draws every command in one row at full width, so the order
+is Office's and the columns are not.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

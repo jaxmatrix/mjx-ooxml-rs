@@ -25,6 +25,8 @@
  *    buttons.
  * 6. **Formulas is unit 6**: four groups and twenty-four commands. Fluent draws Excel's own function
  *    library books, and fourteen commands open a menu.
+ * 7. **Data is unit 7**: nine groups and thirty-three commands, three of the groups one Office group in
+ *    three generations, and Sort A to Z and Sort Z to A the tab's survivors.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -238,11 +240,43 @@ export function excelFormulasTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function excelDataTab(): TemplateResult {
-  return placeholderTab(entry('data'));
+/**
+ * Data: Get External Data, Queries & Connections, Workbook Links, Connections, Data Types, Sort & Filter,
+ * Data Tools, Forecast, Outline — the ribbon programme's unit 7, in the census's order, which follows
+ * Office's.
+ *
+ * ⚠ **Four of the nine groups are generations of Office rather than groups one build draws side by
+ * side**: Get External Data is Office 2016's, and Queries & Connections, Workbook Links and Connections
+ * are one group three times over. `dev/ribbons/census.ts` records how each command is drawn once, and why
+ * Microsoft 365's Get Data is not here.
+ *
+ * **Eight of the tab's thirty-three commands are bound by the host**: Refresh All, Data Validation, Group
+ * and Ungroup are split buttons, From Other Sources and What-If Analysis are dropdowns, over
+ * `stories/ribbons/mailings-animations-data-menus.ts`, and Data Types is an in-ribbon gallery. Queries &
+ * Connections, Workbook Links and Filter are the generic toggle.
+ *
+ * **One dialog launcher, on Outline**, because Office has one there: it opens the outline Settings.
+ * **Two survivors**, Sort A to Z and Sort Z to A.
+ */
+export function excelDataTab(options: TabOptions = {}): TemplateResult {
+  const data = entry('data');
+  const controls = options.controls ?? {};
+  return tab(
+    data.id,
+    data.label,
+    censusGroup(data, 'GroupGetExternalData', {}, controls),
+    censusGroup(data, 'GroupDataQueriesAndConnections', {}, controls),
+    censusGroup(data, 'GroupDataQueriesAndConnectionsWorkbookLinks', {}, controls),
+    censusGroup(data, 'GroupConnections', {}, controls),
+    censusGroup(data, 'GroupLinkedEntityConvert', {}, controls),
+    censusGroup(data, 'GroupSortFilter', {}, controls),
+    censusGroup(data, 'GroupDataTools', {}, controls),
+    censusGroup(data, 'GroupForecast', {}, controls),
+    censusGroup(data, 'GroupOutline', { launcher: 'Outline settings' }, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function excelReviewTab(): TemplateResult {
   return placeholderTab(entry('review'));

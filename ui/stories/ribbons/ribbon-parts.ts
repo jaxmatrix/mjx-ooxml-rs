@@ -132,9 +132,10 @@ export const scalePercentages: readonly string[] = ['100%', '90%', '75%', '50%',
  *
  * - `citationStyles`: a handful of Word's citation styles by Office's names. A British build starts
  *   on APA, as Word does.
- * - `transitionSounds`: PowerPoint's two bracketed entries, then a few of its built-in sounds.
- * - `transitionDurations`: seconds, written as Office writes them. 00.70 is Fade's own duration, and
- *   the hosts start the gallery on Fade.
+ * - `transitionSounds`: PowerPoint's whole Sound list (unit 7 completed it).
+ * - `durationSeconds`: seconds, written as Office writes them. 00.70 is Fade's own duration, and
+ *   the hosts start the gallery on Fade. **Since unit 7, also Animations' Duration**, which starts on
+ *   Fly In's 00.50: both are Office's seconds spin boxes, so the list is written once.
  * - `advanceAfterTimes`: minutes, seconds and hundredths, as Office writes them.
  *
  * Both time lists are short because each field is a combo box: Office's are spin boxes, and the field
@@ -150,24 +151,62 @@ export const citationStyles: readonly { readonly value: string; readonly label: 
   { value: 'turabian', label: 'Turabian' },
 ];
 
-/** The Sound field's list. See `citationStyles`. */
+/**
+ * The Sound field's list: **every entry Office's Sound box offers**, in Office's order — the two bracketed
+ * entries, the twenty built-in sounds, and *Other Sound…*, which opens a file picker in Office and is an
+ * ordinary entry here. See `citationStyles`.
+ */
 export const transitionSounds: readonly { readonly value: string; readonly label: string }[] = [
   { value: 'no-sound', label: '[No Sound]' },
   { value: 'stop-previous-sound', label: '[Stop Previous Sound]' },
   { value: 'applause', label: 'Applause' },
   { value: 'arrow', label: 'Arrow' },
+  { value: 'bomb', label: 'Bomb' },
   { value: 'breeze', label: 'Breeze' },
   { value: 'camera', label: 'Camera' },
+  { value: 'cash-register', label: 'Cash Register' },
   { value: 'chime', label: 'Chime' },
+  { value: 'click', label: 'Click' },
+  { value: 'coin', label: 'Coin' },
   { value: 'drum-roll', label: 'Drum Roll' },
+  { value: 'explosion', label: 'Explosion' },
+  { value: 'hammer', label: 'Hammer' },
+  { value: 'laser', label: 'Laser' },
+  { value: 'push', label: 'Push' },
+  { value: 'suction', label: 'Suction' },
+  { value: 'typewriter', label: 'Typewriter' },
+  { value: 'voltage', label: 'Voltage' },
   { value: 'whoosh', label: 'Whoosh' },
+  { value: 'wind', label: 'Wind' },
+  { value: 'other-sound', label: 'Other Sound…' },
 ];
 
 /** The Duration field's list. See `citationStyles`. */
-export const transitionDurations: readonly string[] = ['00.50', '00.70', '01.00', '01.50', '02.00'];
+export const durationSeconds: readonly string[] = ['00.50', '00.70', '01.00', '01.50', '02.00'];
 
 /** The Advance Slide After field's list. See `citationStyles`. */
 export const advanceAfterTimes: readonly string[] = ['00:00.00', '00:02.00', '00:05.00', '00:10.00', '00:30.00'];
+
+/**
+ * **The fields Mailings and Animations bind** (unit 7), for `fitPageCounts`' reason: two hosts bind each.
+ *
+ * - `mergeRecordNumbers`: Mailings' *Go to Record*. Office's box takes any record number, so the list is
+ *   the first five of a short recipient list and the combo box takes the rest.
+ * - `animationStarts`: Animations' Start, Office's three entries.
+ * - `animationDelays`: Animations' Delay, seconds as Office writes them, starting on 00.00. Duration
+ *   reuses `durationSeconds`.
+ */
+export const mergeRecordNumbers: readonly string[] = ['1', '2', '3', '4', '5'];
+
+/** The Start field's list. See `mergeRecordNumbers`. */
+export const animationStarts: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'on-click', label: 'On Click' },
+  { value: 'with-previous', label: 'With Previous' },
+  { value: 'after-previous', label: 'After Previous' },
+];
+
+/** The Delay field's list. See `mergeRecordNumbers`. */
+export const animationDelays: readonly string[] = ['00.00', '00.25', '00.50', '01.00', '02.00'];
 
 // ── the parts ────────────────────────────────────────────────────────────────
 

@@ -45,8 +45,9 @@ import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
 import { designLayoutMenus, styleSetGalleryItems } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
+import { mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
-import { citationStyles, copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
+import { citationStyles, copyCounts, mergeRecordNumbers, printerList } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -645,6 +646,46 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-word-references-citations-bibliography-bibliography"
             ></mjx-button>`,
+            // Mailings (unit 7). Dropdowns and Insert Merge Field's split button open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Go to Record is a combo box over `ribbon-parts.ts`'s list: a record number is not a measure.
+            'word.mailings.start-mail-merge.start-mail-merge': html`<mjx-button
+              label="Start Mail Merge"
+              icon="mail-multiple"
+              size="small"
+              data-opens="shell-word-mailings-start-mail-merge-start-mail-merge"
+            ></mjx-button>`,
+            'word.mailings.start-mail-merge.select-recipients': html`<mjx-button
+              label="Select Recipients"
+              icon="people-list"
+              size="small"
+              data-opens="shell-word-mailings-start-mail-merge-select-recipients"
+            ></mjx-button>`,
+            'word.mailings.write-insert-fields.insert-merge-field': html`<mjx-split-button
+              label="Insert Merge Field"
+              size="small"
+              data-opens="shell-word-mailings-write-insert-fields-insert-merge-field"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.mailings.write-insert-fields.rules': html`<mjx-button
+              label="Rules"
+              size="small"
+              data-opens="shell-word-mailings-write-insert-fields-rules"
+            ></mjx-button>`,
+            'word.mailings.preview-results.go-to-record': html`<mjx-combo-box
+              id="word-go-to-record"
+              label="Go to Record"
+              value="1"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${mergeRecordNumbers.map((record) => html`<mjx-option value=${record} label=${record}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'word.mailings.finish.finish-merge': html`<mjx-button
+              label="Finish & Merge"
+              size="small"
+              data-opens="shell-word-mailings-finish-finish-merge"
+            ></mjx-button>`,
           },
         })}
         ${wordContextualSets()}
@@ -796,6 +837,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
       ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
+      ${mailingsAnimationsDataMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

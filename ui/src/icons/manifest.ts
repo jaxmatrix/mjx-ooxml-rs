@@ -332,9 +332,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'mail',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: 'Email, on the Share group. The envelope, which is the one glyph in this block nobody has to learn.',
+    why: 'Email, on the Share group. The envelope, which is the one glyph in this block nobody has to learn. **Since unit 7, also Envelopes** on Word\'s Mailings tab, where Office draws it large, so 24 as well.',
   },
   {
     name: 'link',
@@ -535,9 +535,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'arrow-sort',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Sort on Word's Paragraph group and Sort & Filter on Excel's Editing group. The plain two-way arrow rather than `arrow-sort-down`: both commands open a surface where the direction is chosen, so a glyph that had already chosen one would be wrong half the time.",
+    why: "Sort on Word's Paragraph group and Sort & Filter on Excel's Editing group. The plain two-way arrow rather than `arrow-sort-down`: both commands open a surface where the direction is chosen, so a glyph that had already chosen one would be wrong half the time. **Since unit 7, also Sort** on Excel's Data tab, large, which opens exactly that surface — so 24 as well.",
   },
   {
     name: 'text-paragraph',
@@ -729,7 +729,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-down',
     sizes: [20],
     variants: ['regular'],
-    why: "Fill, on Excel's Editing group. A judgement: the menu's default and overwhelmingly commonest entry is Fill Down, and a plain down arrow is what Office puts on the button. `arrow-download` was refused because a tray under the arrow says *save this to my machine*, and `drop` because a droplet reads as colour.",
+    why: "Fill, on Excel's Editing group. A judgement: the menu's default and overwhelmingly commonest entry is Fill Down, and a plain down arrow is what Office puts on the button. `arrow-download` was refused because a tray under the arrow says *save this to my machine*, and `drop` because a droplet reads as colour. **Since unit 7, also Move Earlier's partner, Move Later**, on PowerPoint's Animations tab, labelled: the animation moves down the list.",
   },
   // ── Insert (Word, PowerPoint, Excel) ────────────────────────────────────────
   //
@@ -929,13 +929,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'map',
     sizes: [20, 24],
     variants: ['regular'],
-    why: "Maps, on Excel's Charts group, large — the filled map chart. A folded map rather than `globe`, which is *the web* everywhere else in Office.",
+    why: "Maps, on Excel's Charts group, large — the filled map chart. A folded map rather than `globe`, which is *the web* everywhere else in Office. **Since unit 7, also Geography** in Excel's Data Types gallery, at 24: Office draws a map there too.",
   },
   {
     name: 'filter',
     sizes: [20, 24],
-    variants: ['regular'],
-    why: "Slicer, on Excel's Filters group, large. A slicer is a set of filter buttons, and the funnel is the filter mark across the whole of Office.",
+    variants: ['regular', 'filled'],
+    why: "Slicer, on Excel's Filters group, large. A slicer is a set of filter buttons, and the funnel is the filter mark across the whole of Office. **Since unit 7, also Filter** on Excel's Data tab: a large toggle, so the filled drawing too. Sharing the funnel with Slicer is why Filter does not survive a collapse.",
   },
   {
     name: 'timeline',
@@ -1224,7 +1224,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'checkmark-circle-warning',
     sizes: [20],
     variants: ['regular'],
-    why: "Error Checking, the split button on Excel's Formula Auditing group: a check that found a warning. Not `warning`, the status mark.",
+    why: "Error Checking, the split button on Excel's Formula Auditing group: a check that found a warning. Not `warning`, the status mark. **Since unit 7, also Check for Errors** on Word's Mailings tab, the same check before a merge.",
   },
   {
     name: 'calculator',
@@ -1243,6 +1243,205 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Calculate Sheet, beside Calculate Now: a calculator over a sheet, one sheet recalculated. Fluent draws it at 20 alone, and the command is small.",
+  },
+  // ── Mailings, Animations and Data (Word's Mailings, PowerPoint's Animations, Excel's Data) ──
+  //
+  // The ribbon programme's unit 7. One row here draws pressed and carries `filled` (`eye`, Preview
+  // Results), and one row above gained it (`filter`, Data's Filter). **20 for a small or icon-only command, and 20 and 24 for a large one**; the
+  // two data type pictures are 24 alone. Six rows above gained a command rather than a row here. Every
+  // command these tabs draw without an icon is listed, with its reason, in the *commands Mailings,
+  // Animations and Data show* section of `dev/ribbons/census.ts`.
+  {
+    name: 'mail-multiple',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Start Mail Merge, on Word's Mailings tab, small: a stack of envelopes, many letters from one document. `GUESS:` Office draws a page with envelopes Fluent does not.",
+  },
+  {
+    name: 'people-list',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Select Recipients, on Word's Mailings tab: people beside a list, the recipient list being chosen. Small, because *Recipients* is the length of the *Recommended* unit 3 measured clipping. `GUESS:`.",
+  },
+  {
+    name: 'people-edit',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Edit Recipient List, beside Select Recipients: the same people with a pencil. `GUESS:`.",
+  },
+  {
+    name: 'contact-card',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Address Block, on Word's Mailings tab, large: a card with a name and lines, an address. `GUESS:` Office draws a page with an address block.",
+  },
+  {
+    name: 'hand-wave',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Greeting Line, on Word's Mailings tab, large: a waving hand, a greeting.",
+  },
+  {
+    name: 'eye',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Preview Results, on Word's Mailings tab: a large toggle, so 24 and the filled drawing. An eye is *show*; that is also why it does not survive a collapse unlabelled.",
+  },
+  {
+    name: 'previous',
+    sizes: [20],
+    variants: ['regular'],
+    why: "First Record, on Word's Mailings tab, icon-only: the skip-to-start mark Office's navigator draws.",
+  },
+  {
+    name: 'caret-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Previous Record, on Word's Mailings tab, icon-only, and a survivor: one step back through the records.",
+  },
+  {
+    name: 'caret-right',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Next Record, on Word's Mailings tab, icon-only, and a survivor: one step forward through the records.",
+  },
+  {
+    name: 'next',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Last Record, on Word's Mailings tab, icon-only: the skip-to-end mark.",
+  },
+  {
+    name: 'person-search',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Find Recipient, on Word's Mailings tab: a person under a magnifier.",
+  },
+  {
+    name: 'star-add',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Add Animation, on PowerPoint's Animations tab, large: a star with a plus, Office's own picture of the command.",
+  },
+  {
+    name: 'paint-brush-sparkle',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Animation Painter, on PowerPoint's Animations tab: a brush with sparkles, the effect copied. Not `paint-brush`, which is Format Painter.",
+  },
+  {
+    name: 'flash',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Trigger, on PowerPoint's Animations tab, and Flash Fill, on Excel's Data tab: the lightning bolt Office draws for both. `GUESS:` sharing it, which neither survivor rule is asked to judge.",
+  },
+  {
+    name: 'arrow-up',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Move Earlier, on PowerPoint's Animations tab, labelled: the animation moves up the list.",
+  },
+  {
+    name: 'globe',
+    sizes: [20],
+    variants: ['regular'],
+    why: "From Web, on Excel's Data tab: the web, as everywhere in Office.",
+  },
+  {
+    name: 'document-text',
+    sizes: [20],
+    variants: ['regular'],
+    why: "From Text, on Excel's Data tab: a page of text.",
+  },
+  {
+    name: 'database',
+    sizes: [20],
+    variants: ['regular'],
+    why: "From Other Sources, on Excel's Data tab: a database, the sources the wizards connect to.",
+  },
+  {
+    name: 'plug-connected',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Existing Connections, on Excel's Data tab: a plug in its socket. `GUESS:`.",
+  },
+  {
+    name: 'arrow-clockwise',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Refresh All, on Excel's Data tab, large: the refresh arrow. Not `arrow-sync`, which is AutoSave.",
+  },
+  {
+    name: 'building-bank',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Stocks, in Excel's Data Types gallery: the bank Office draws for the Stocks data type. 24, the size of a gallery cell's picture.",
+  },
+  {
+    name: 'money',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Currencies, in Excel's Data Types gallery: notes and coins. `GUESS:`.",
+  },
+  {
+    name: 'text-sort-ascending',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Sort A to Z, on Excel's Data tab, icon-only, and a survivor: A over Z with an arrow, Office's own sort mark.",
+  },
+  {
+    name: 'text-sort-descending',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Sort Z to A, beside Sort A to Z, icon-only, and a survivor.",
+  },
+  {
+    name: 'filter-dismiss',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Clear, on Excel's Sort & Filter group: the funnel struck out.",
+  },
+  {
+    name: 'filter-sync',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Reapply, beside Clear: the funnel run again.",
+  },
+  {
+    name: 'table-simple-checkmark',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Data Validation, the split button on Excel's Data Tools group: a table with a tick, the cells checked.",
+  },
+  {
+    name: 'table-link',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Relationships, on Excel's Data Tools group: tables joined. `GUESS:`.",
+  },
+  {
+    name: 'data-trending',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Forecast Sheet, on Excel's Data tab, large: a line going up. `GUESS:`. Not `data-line`, which is Insert's Line chart.",
+  },
+  {
+    name: 'group-list',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Group, the large split button on Excel's Outline group: rows under one bracket. Not `group`, which is Arrange's shapes. `GUESS:`.",
+  },
+  {
+    name: 'add-square',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Show Detail, on Excel's Outline group: the plus in a box the outline draws in the margin.",
+  },
+  {
+    name: 'subtract-square',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Hide Detail, beside Show Detail: the minus in a box.",
   },
 ];
 

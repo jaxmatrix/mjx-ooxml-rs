@@ -27,6 +27,7 @@ import { designLayoutMenus } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { excelContextualSets, excelTabs } from './excel.ts';
 import { insertMenus } from './insert-menus.ts';
+import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 
 /**
@@ -38,7 +39,7 @@ import { referencesTransitionsFormulasMenus } from './references-transitions-for
  * so this is a gap in the dump — but the census is the checked source and inventing the row would
  * be the drift the transcription exists to prevent. `dev/ribbons/census.ts` is where it is recorded.
  *
- * **File, Home, Insert, Draw, Page Layout and Formulas** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Page Layout, Formulas and Data** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word → File` for what to look at on a File tab — the three are one tab with three sets
  * of differences rather than three tabs.
  */
@@ -58,7 +59,7 @@ const meta: Meta = {
       description: {
         component:
           'Excel’s ten core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Page Layout and Formulas are authored; the rest are placeholders carrying the census’s ' +
+          'File, Home, Insert, Draw, Page Layout, Formulas and Data are authored; the rest are placeholders carrying the census’s ' +
           'priorities.',
       },
     },
@@ -486,6 +487,50 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-excel-formulas-calculation-calculation-options"
   ></mjx-button>`,
+  // Data (unit 7). Split buttons and dropdowns open their menus from
+  // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Data Types is an in-ribbon gallery with nothing selected, because a new cell has no data type.
+  'excel.data.get-external-data.from-other-sources': html`<mjx-button
+    label="From Other Sources"
+    icon="database"
+    size="small"
+    data-opens="ribbons-excel-data-get-external-data-from-other-sources"
+  ></mjx-button>`,
+  'excel.data.queries-connections.refresh-all': html`<mjx-split-button
+    label="Refresh All"
+    icon="arrow-clockwise"
+    size="large"
+    data-opens="ribbons-excel-data-queries-connections-refresh-all"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.data.data-types.data-types': html`<mjx-gallery id="ribbons-xl-data-types" label="Data Types" style=${ribbonGalleryStyle}>
+    ${dataTypeGalleryItems()}
+  </mjx-gallery>`,
+  'excel.data.data-tools.data-validation': html`<mjx-split-button
+    label="Data Validation"
+    icon="table-simple-checkmark"
+    size="small"
+    data-opens="ribbons-excel-data-data-tools-data-validation"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.data.forecast.what-if-analysis': html`<mjx-button
+    label="What-If Analysis"
+    size="small"
+    data-opens="ribbons-excel-data-forecast-what-if-analysis"
+  ></mjx-button>`,
+  'excel.data.outline.group': html`<mjx-split-button
+    label="Group"
+    icon="group-list"
+    size="large"
+    data-opens="ribbons-excel-data-outline-group"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'excel.data.outline.ungroup': html`<mjx-split-button
+    label="Ungroup"
+    size="small"
+    data-opens="ribbons-excel-data-outline-ungroup"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -512,6 +557,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('excel', 'ribbons')} ${drawMenus('excel', 'ribbons')}
     ${designLayoutMenus('excel', 'ribbons')} ${referencesTransitionsFormulasMenus('excel', 'ribbons')}
+    ${mailingsAnimationsDataMenus('excel', 'ribbons')}
   `;
 }
 
@@ -646,7 +692,29 @@ export const PageLayout: Story = { render: () => ribbon('page-layout') };
  */
 export const Formulas: Story = { render: () => ribbon('formulas') };
 
-/** Unit 7. */
+/**
+ * **Data**: where a workbook meets the world outside it, and Excel's part of the ribbon programme's unit 7.
+ * Nine groups: Get External Data, Queries & Connections, Workbook Links, Connections, Data Types, Sort &
+ * Filter, Data Tools, Forecast and Outline. What to look at:
+ *
+ * 1. ⚠ **There is no Get Data.** The census marks Microsoft 365's Get & Transform Data (Power Query) out
+ *    of scope, and its in-scope Get External Data is Office 2016's legacy group: From Access, From Web,
+ *    From Text, From Other Sources (a dropdown of the legacy wizards) and Existing Connections.
+ * 2. ⚠ **Three groups are one Office group in three generations**, each command drawn once. Queries &
+ *    Connections holds Refresh All (a large split button), the Queries & Connections toggle and
+ *    Properties; Workbook Links holds its toggle; Connections holds Connections and Edit Links. `GUESS:`
+ *    the reading.
+ * 3. **Sort A to Z and Sort Z to A are the tab's survivors.** Drag narrow until Sort & Filter collapses:
+ *    the two sort glyphs stay beside its trigger. **Filter is a large toggle**: press it and it draws
+ *    pressed. It does not survive, because its funnel is also Insert's Slicer.
+ * 4. **Data Types is an in-ribbon gallery** of Stocks, Currencies and Geography, each drawn with an icon
+ *    (`building-bank`, `money`, `map`), nothing selected. `GUESS:` that an icon renders inside a gallery
+ *    cell; a blank cell is the finding.
+ * 5. **Data Validation, Group and Ungroup are split buttons**, and What-If Analysis is a dropdown
+ *    (Scenario Manager, Goal Seek, Data Table). Outline has the tab's one dialog launcher. Text to
+ *    Columns, Remove Duplicates, Consolidate, Manage Data Model, Ungroup and Subtotal carry no icon and are
+ *    labelled.
+ */
 export const Data: Story = { render: () => ribbon('data') };
 
 /** Unit 8. */

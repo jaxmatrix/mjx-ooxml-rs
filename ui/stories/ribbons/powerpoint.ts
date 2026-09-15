@@ -27,8 +27,12 @@
  *
  * **Design** is unit 5: three groups and four commands, two of them in-ribbon galleries.
  *
- * **Transitions** is unit 6: three groups and nine commands, a gallery and the timing beside it. Every
- * other tab is a placeholder until its own unit.
+ * **Transitions** is unit 6: three groups and nine commands, a gallery and the timing beside it. Unit 7
+ * completed it: every transition Office shows, an Effect Options that follows the gallery, Office's whole
+ * Sound list, and the *Advance Slide* caption.
+ *
+ * **Animations** is unit 7: four groups and twelve commands, Transitions' shape applied to one object.
+ * Every other tab is a placeholder until its own unit.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -201,9 +205,10 @@ export function powerpointDesignTab(options: TabOptions = {}): TemplateResult {
  * Options, and Timing holds Sound, Duration, Apply To All, On Mouse Click, After and the advance time.
  * `dev/ribbons/census.ts` records the other reading and why this one was taken.
  *
- * **Seven of the tab's nine commands are bound by the host**: the in-ribbon gallery, Effect Options as a
- * dropdown over `stories/ribbons/references-transitions-formulas-menus.ts`, and the five fields. Preview and
- * Apply To All are the generic buttons.
+ * **Eight of the tab's ten entries are bound by the host**: the in-ribbon gallery, Effect Options as a
+ * dropdown over `stories/ribbons/references-transitions-formulas-menus.ts` whose entries follow the
+ * gallery's commit, the five fields, and the *Advance Slide* caption as `<mjx-label>`. Preview and Apply To
+ * All are the generic buttons.
  *
  * **No dialog launchers**: Office puts none on its Transitions tab. **No survivor.**
  */
@@ -219,11 +224,32 @@ export function powerpointTransitionsTab(options: TabOptions = {}): TemplateResu
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function powerpointAnimationsTab(): TemplateResult {
-  return placeholderTab(entry('animations'));
+/**
+ * Animations: Preview, Animations (Office's *Animation*), Custom Animation (Office's *Advanced
+ * Animation*), Timing — the ribbon programme's unit 7, in Office's order, which is also the census's.
+ *
+ * **Eight of the tab's twelve commands are bound by the host**: Preview is a split button, the Animation
+ * Styles gallery is in-ribbon with Office's footer, Effect Options, Add Animation and Trigger are
+ * dropdowns over `stories/ribbons/mailings-animations-data-menus.ts`, and Start, Duration and Delay are
+ * fields. Animation Pane is the generic toggle.
+ *
+ * **One dialog launcher, on Animations**, because Office has one there: it opens the effect's own dialog.
+ * `GUESS:` its name. **No survivor.**
+ */
+export function powerpointAnimationsTab(options: TabOptions = {}): TemplateResult {
+  const animations = entry('animations');
+  const controls = options.controls ?? {};
+  return tab(
+    animations.id,
+    animations.label,
+    censusGroup(animations, 'GroupPreview', {}, controls),
+    censusGroup(animations, 'GroupAnimations', { launcher: 'Show additional effect options' }, controls),
+    censusGroup(animations, 'GroupAnimationCustom', {}, controls),
+    censusGroup(animations, 'GroupAnimationTiming', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function powerpointSlideShowTab(): TemplateResult {
   return placeholderTab(entry('slide-show'));

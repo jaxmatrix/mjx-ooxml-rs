@@ -34,8 +34,11 @@
  * **References** is unit 6: seven groups and twenty-two commands, the tab of generated content — the
  * tables, notes and bibliography Word writes for you — and the commands that keep it current.
  *
+ * **Mailings** is unit 7: five groups and twenty-one commands, the mail merge pipeline from choosing a
+ * document to finishing it, with a record navigator whose two carets survive a collapse.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
- * declares, holding one honest button. Units 7 onward replace them one tab at a time, and each of
+ * declares, holding one honest button. Units 8 onward replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
  *
  * ## The three view tabs
@@ -279,11 +282,33 @@ export function wordReferencesTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordMailingsTab(): TemplateResult {
-  return placeholderTab(entry('mailings'));
+/**
+ * Mailings: Create, Start Mail Merge, Write & Insert Fields, Preview Results, Finish — the ribbon
+ * programme's unit 7, in Office's order, which is also the census's.
+ *
+ * **Six of the tab's twenty-one commands are bound by the host**: Start Mail Merge, Select Recipients,
+ * Rules and Finish & Merge are dropdowns and Insert Merge Field a split button, over
+ * `stories/ribbons/mailings-animations-data-menus.ts`, and Go to Record is a combo box. Highlight Merge
+ * Fields and Preview Results are the generic toggle.
+ *
+ * **No dialog launchers**: Office puts none on its Mailings tab. **Two survivors**, Previous Record and
+ * Next Record, and `dev/ribbons/census.ts` gives the reason.
+ */
+export function wordMailingsTab(options: TabOptions = {}): TemplateResult {
+  const mailings = entry('mailings');
+  const controls = options.controls ?? {};
+  return tab(
+    mailings.id,
+    mailings.label,
+    censusGroup(mailings, 'GroupEnvelopeLabelCreate', {}, controls),
+    censusGroup(mailings, 'GroupMailMergeStart', {}, controls),
+    censusGroup(mailings, 'GroupMailMergeWriteInsertFields', {}, controls),
+    censusGroup(mailings, 'GroupMailMergePreviewResults', {}, controls),
+    censusGroup(mailings, 'GroupMailMergeFinish', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordReviewTab(): TemplateResult {
   return placeholderTab(entry('review'));

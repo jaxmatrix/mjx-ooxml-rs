@@ -54,12 +54,25 @@ import {
 } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
-import { referencesTransitionsFormulasMenus, transitionGalleryItems } from '../ribbons/references-transitions-formulas-menus.ts';
+import {
+  followTransitionEffectOptions,
+  referencesTransitionsFormulasMenus,
+  startingTransition,
+  transitionGalleryItems,
+} from '../ribbons/references-transitions-formulas-menus.ts';
+import {
+  animationGalleryFooter,
+  animationGalleryItems,
+  mailingsAnimationsDataMenus,
+  startingAnimation,
+} from '../ribbons/mailings-animations-data-menus.ts';
 import {
   advanceAfterTimes,
+  animationDelays,
+  animationStarts,
   copyCounts,
+  durationSeconds,
   printerList,
-  transitionDurations,
   transitionSounds,
 } from '../ribbons/ribbon-parts.ts';
 
@@ -422,13 +435,14 @@ function ribbon(): TemplateResult {
               size="large"
               data-opens="shell-powerpoint-design-customise-slide-size"
             ></mjx-button>`,
-            // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, so Effect Options opens Fade's
-            // menu from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
+            // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, and Effect Options follows each commit: its
+            // menu is re-rendered from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
             // `ribbon-parts.ts`'s lists: a duration is seconds, which a measure input does not carry, so it is a combo box.
             'powerpoint.transitions.transition-styles.transitions': html`<mjx-gallery
               id="ppt-transitions"
               label="Transition to This Slide"
-              value="fade"
+              value=${startingTransition}
+              @mjx-gallery-commit=${followTransitionEffectOptions('shell')}
               style=${ribbonGalleryStyle}
             >
               ${transitionGalleryItems()}
@@ -455,8 +469,9 @@ function ribbon(): TemplateResult {
               allow-custom
               style=${ribbonNarrowFieldStyle}
             >
-              ${transitionDurations.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+              ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
             </mjx-combo-box>`,
+            'powerpoint.transitions.timing.advance-slide': html`<mjx-label>Advance Slide</mjx-label>`,
             'powerpoint.transitions.timing.on-mouse-click': html`<mjx-checkbox id="ppt-on-mouse-click" label="On Mouse Click" checked="true"></mjx-checkbox>`,
             'powerpoint.transitions.timing.after': html`<mjx-checkbox id="ppt-advance-after-checkbox" label="After"></mjx-checkbox>`,
             'powerpoint.transitions.timing.advance-after': html`<mjx-combo-box
@@ -467,6 +482,66 @@ function ribbon(): TemplateResult {
               style=${ribbonNarrowFieldStyle}
             >
               ${advanceAfterTimes.map((time) => html`<mjx-option value=${time} label=${time}></mjx-option>`)}
+            </mjx-combo-box>`,
+            // Animations (unit 7). The gallery is in-ribbon, starts on Fly In and carries Office's footer. Preview's
+            // split button, Effect Options, Add Animation and Trigger open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`. Start, Duration and Delay are fields over `ribbon-parts.ts`'s lists.
+            'powerpoint.animations.preview.preview': html`<mjx-split-button
+              label="Preview"
+              size="small"
+              data-opens="shell-powerpoint-animations-preview-preview"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.animations.animations.animation-styles': html`<mjx-gallery
+              id="ppt-animation-styles"
+              label="Animation Styles"
+              value=${startingAnimation}
+              style=${ribbonGalleryStyle}
+            >
+              ${animationGalleryItems()} ${animationGalleryFooter()}
+            </mjx-gallery>`,
+            'powerpoint.animations.animations.effect-options': html`<mjx-button
+              label="Effect Options"
+              size="small"
+              data-opens="shell-powerpoint-animations-animations-effect-options"
+            ></mjx-button>`,
+            'powerpoint.animations.custom-animation.add-animation': html`<mjx-button
+              label="Add Animation"
+              icon="star-add"
+              size="large"
+              data-opens="shell-powerpoint-animations-custom-animation-add-animation"
+            ></mjx-button>`,
+            'powerpoint.animations.custom-animation.trigger': html`<mjx-button
+              label="Trigger"
+              icon="flash"
+              size="small"
+              data-opens="shell-powerpoint-animations-custom-animation-trigger"
+            ></mjx-button>`,
+            'powerpoint.animations.timing.start': html`<mjx-dropdown
+              id="ppt-animation-start"
+              label="Start"
+              value="on-click"
+              style=${ribbonColourFieldStyle}
+            >
+              ${animationStarts.map((start) => html`<mjx-option value=${start.value} label=${start.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'powerpoint.animations.timing.duration': html`<mjx-combo-box
+              id="ppt-animation-duration"
+              label="Duration"
+              value="00.50"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'powerpoint.animations.timing.delay': html`<mjx-combo-box
+              id="ppt-animation-delay"
+              label="Delay"
+              value="00.00"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${animationDelays.map((delay) => html`<mjx-option value=${delay} label=${delay}></mjx-option>`)}
             </mjx-combo-box>`,
           },
         })}
@@ -718,6 +793,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
       ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
+      ${mailingsAnimationsDataMenus('powerpoint', 'shell')}
       <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
       <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>

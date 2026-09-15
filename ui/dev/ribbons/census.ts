@@ -72,7 +72,7 @@
  *
  * ## Which tabs carry commands yet
  *
- * **File, Home, Insert, Draw, the Design and Layout tabs, and References, Transitions and Formulas.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
+ * **File, Home, Insert, Draw, the Design and Layout tabs, References, Transitions and Formulas, and Mailings, Animations and Data.** Unit 0 was the scaffold: the three Home tabs held the commands migrated
  * out of `stories/shell/*.stories.ts`, unchanged, and every other tab was a placeholder. Unit 1
  * authored File in all three applications — see the *commands File shows* section below, which is
  * also where the reasoning about the census's control counts lives. Unit 2 authored **Home**,
@@ -85,7 +85,9 @@
  * *commands Draw shows* section. Unit 5 authored **Word's Design and Layout, PowerPoint's Design and Excel's
  * Page Layout**, the tabs about the whole document rather than a selection; see the *commands Design and
  * Layout show* section. Unit 6 authored **Word's References, PowerPoint's Transitions and Excel's
- * Formulas**; see the *commands References, Transitions and Formulas show* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * Formulas**; see the *commands References, Transitions and Formulas show* section. Unit 7 authored **Word's
+ * Mailings, PowerPoint's Animations and Excel's Data**; see the *commands Mailings, Animations and Data show*
+ * section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -1722,7 +1724,8 @@ const excelPageLayoutSheetOptions: readonly RibbonCommand[] = [
 //    label is what a person reads, so **Transition Styles holds the gallery and Effect Options, and
 //    Timing holds Office's Timing face**. `GUESS:` the reading. The counts argue the other way:
 //    `GroupTransitionToThisSlide`'s 2 is exactly the gallery and Effect Options. Timing therefore draws
-//    **six** commands where the census counts two, and that is Office's face rather than padding.
+//    **six** commands and the *Advance Slide* caption (unit 7) where the census counts two, and that is
+//    Office's face rather than padding.
 // 2. **Excel's `GroupNamedCells` is labelled *Named Cells* here and *Defined Names* in Office.** The
 //    census's label wins, as Insert's *Slicers* did. The commands carry Office's names.
 // 3. **Office draws groups the census marks out of scope, and they are not drawn here**: Word's
@@ -1900,11 +1903,13 @@ const powerpointTransitionsPreview: readonly RibbonCommand[] = [
  * PowerPoint's `GroupTransitionStyles`, which Office labels **Transition to This Slide**: the gallery
  * and Effect Options.
  *
- * **The gallery is in-ribbon**, and the hosts bind `<mjx-gallery>`. Its accessible name is Office's,
- * *Transition to This Slide*. **Effect Options is a dropdown** whose entries depend on the transition;
- * the hosts start the gallery on **Fade**, so Effect Options offers Smoothly and Through Black.
- * `GUESS:` Fade rather than a new deck's None, where Office disables Effect Options and there would be
- * nothing to audit.
+ * **The gallery is in-ribbon**, and the hosts bind `<mjx-gallery>` over **every transition Office shows**:
+ * None and forty-nine more under Subtle, Exciting and Dynamic Content. Its accessible name is Office's,
+ * *Transition to This Slide*. **Effect Options is a dropdown whose entries follow the committed
+ * transition**, as Office's do, and it is unavailable for a transition Office gives no options. The hosts
+ * start the gallery on **Fade**, so it first offers Smoothly and Through Black. `GUESS:` Fade rather than
+ * a new deck's None, where Office disables Effect Options and there would be nothing to audit, and many
+ * transitions' options; see `stories/ribbons/references-transitions-formulas-menus.ts`.
  *
  * **No survivor**: a gallery and a menu.
  */
@@ -1915,11 +1920,20 @@ const powerpointTransitionsTransitionStyles: readonly RibbonCommand[] = [
 
 /**
  * PowerPoint's `GroupTransitionToThisSlide`, labelled **Timing**: Sound, Duration, Apply To All, then
- * On Mouse Click, After and the time after which the slide advances.
+ * the *Advance Slide* heading, On Mouse Click, After and the time after which the slide advances.
  *
- * ⚠ **Six commands where the census counts two.** See this section's header.
+ * ⚠ **Seven entries where the census counts two.** See this section's header.
  *
- * **Sound is a dropdown field** starting on *[No Sound]*. **Duration is a combo box** of seconds,
+ * **Office stacks the group in two columns** — Sound, Duration and Apply To All on the left, and the
+ * Advance Slide heading over On Mouse Click and After on the right — and `<mjx-ribbon-group>` draws
+ * every command in one row at full width (`groupPresentations.full.commandRows` is 1, for the whole
+ * catalogue). So the group keeps Office's reading order rather than its columns. **Advance Slide is a
+ * caption, not a command**: it is declared here so its place in that order is the census's, and both
+ * hosts bind `<mjx-label>` over it, a label with no `for`, which is that component's caption. Unbound, a
+ * host would draw it as a button, which is why both bind it. `GUESS:` that a declared caption is the
+ * right way to carry a heading.
+ *
+ * **Sound is a dropdown field** starting on *[No Sound]*, over every entry Office's list has. **Duration is a combo box** of seconds,
  * starting on Fade's 00.70. **Apply To All** is a button. **On Mouse Click and After are checkboxes**,
  * declared as toggles because each is a state: On Mouse Click starts ticked, as in a new deck.
  * **Advance Slide After is a combo box** of times. `GUESS:` its name, which joins Office's *Advance
@@ -1931,6 +1945,7 @@ const powerpointTransitionsTiming: readonly RibbonCommand[] = [
   { id: 'powerpoint.transitions.timing.sound', label: 'Sound' },
   { id: 'powerpoint.transitions.timing.duration', label: 'Duration' },
   { id: 'powerpoint.transitions.timing.apply-to-all', label: 'Apply To All' },
+  { id: 'powerpoint.transitions.timing.advance-slide', label: 'Advance Slide' },
   { id: 'powerpoint.transitions.timing.on-mouse-click', label: 'On Mouse Click', toggle: true, pressed: true },
   { id: 'powerpoint.transitions.timing.after', label: 'After', toggle: true },
   { id: 'powerpoint.transitions.timing.advance-after', label: 'Advance Slide After' },
@@ -2015,6 +2030,414 @@ const excelFormulasCalculation: readonly RibbonCommand[] = [
   { id: 'excel.formulas.calculation.calculation-options', label: 'Calculation Options', icon: 'calculator' },
   { id: 'excel.formulas.calculation.calculate-now', label: 'Calculate Now', icon: 'calculator-arrow-clockwise' },
   { id: 'excel.formulas.calculation.calculate-sheet', label: 'Calculate Sheet', icon: 'table-calculator' },
+];
+
+// ── the commands Mailings, Animations and Data show ──────────────────────────
+//
+// The ribbon programme's **unit 7**: Word's **Mailings** (five groups), PowerPoint's **Animations**
+// (four) and Excel's **Data** (nine). Mailings is a pipeline — pick a document, pick recipients, write
+// fields, look at the results, merge. Animations is Transitions' shape again, applied to one object
+// rather than one slide. Data is where a workbook meets the world outside it, and it is the tab where
+// the census declares the most generations of Office at once.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// Unit 6's three shapes, unchanged. **In-ribbon gallery**: Animations' *Animation Styles* and Data's
+// *Data Types*. **Dropdown or split button** over a menu written once in
+// `stories/ribbons/mailings-animations-data-menus.ts`: Start Mail Merge, Select Recipients, Rules,
+// Finish & Merge, Effect Options, Add Animation, Trigger, From Other Sources and What-If Analysis are
+// dropdowns; Insert Merge Field, Preview, Refresh All, Data Validation, Group and Ungroup are split
+// buttons. **Field**: Mailings' *Go to Record* and Animations' Duration and Delay are `<mjx-combo-box>`
+// (a record number and a time in seconds are not measures `measure.ts` knows, which is unit 6's
+// Duration argument), and Animations' Start is `<mjx-dropdown>`. Their lists are in
+// `stories/ribbons/ribbon-parts.ts`, because two hosts bind each.
+//
+// **Toggles**: Highlight Merge Fields, Preview Results, Animation Pane, Queries & Connections, Workbook
+// Links and Filter. Office draws each pressed while it holds.
+//
+// ⚠ **Three of the brief's expected shapes are not Office's, and Office wins, as it did for unit 6's
+// Insert Footnote.**
+//
+// - **Insert Merge Field is a split button**, where the brief expected a dropdown. Office's face opens
+//   the Insert Merge Field dialog and its arrow lists the fields.
+// - **Preview is a split button** (Preview, and AutoPreview behind the arrow), as on Office's
+//   Animations tab. Transitions' Preview is a plain button because Office's is.
+// - **Excel has no Get Data here.** See disagreement 4 below.
+//
+// ## ⚠ Where the census and Office disagree, recorded rather than smoothed over
+//
+// 1. **PowerPoint's `GroupAnimations` is labelled *Animations* here and *Animation* in Office**, and
+//    **`GroupAnimationCustom` is *Custom Animation* here and *Advanced Animation* in Office.** The
+//    census's labels win, as Insert's *Slicers* did. The commands carry Office's names.
+// 2. **Mailings' Preview Results group is drawn as Office draws it, eight commands for eight
+//    controls**: the toggle, four record buttons either side of the record number, Find Recipient and
+//    Check for Errors. The census count and the face agree, which is rare enough to say.
+// 3. **Excel's Data tab declares three generations of one group.** Office 2016's **Connections**
+//    (Refresh All, Connections, Properties, Edit Links), Microsoft 365's **Queries & Connections**
+//    (Refresh All, Queries & Connections, Properties) and the 365 variant that adds **Workbook Links**.
+//    All three are in scope with nine controls each. Draw's rule applies: a group the census declares
+//    is drawn, and each command is drawn **once**. So **Queries & Connections** holds Refresh All,
+//    Queries & Connections and Properties; **Workbook Links** holds Workbook Links; **Connections**
+//    holds the two commands neither 365 group has, the Workbook Connections dialog (*Connections*) and
+//    *Edit Links*. `GUESS:` the whole reading, and in particular that Edit Links and Workbook Links are
+//    two commands: one is a dialog and one is a pane, and Office has shipped both names.
+// 4. **Excel's `GroupGetExternalData` is Office 2016's legacy group, and Get Data is out of scope.**
+//    Microsoft 365's *Get & Transform Data* group — Get Data, From Text/CSV, From Web, From Table/Range
+//    — is Power Query, and the census carries it as four `GroupPowerQuery*` rows marked **out of
+//    scope** (46 to 74 controls each). The in-scope group counts **5**, which is exactly the legacy
+//    face: From Access, From Web, From Text, From Other Sources and Existing Connections. The census
+//    wins, so the brief's Get Data dropdown is not drawn and those five are. `GUESS:` that the count is
+//    the legacy face and not five of 365's.
+// 5. **Excel's `GroupLinkedEntityConvert` is labelled *Data Types* in both**, and holds Office's
+//    in-ribbon gallery of linked data types. The census counts two controls; the gallery is one.
+// 6. **The census's counts are larger than the faces**, and nothing is padded: Word's Start Mail Merge
+//    is 13 (every document type and every recipient source) and draws three.
+//
+// ## Survivors: two on Mailings, two on Data, none on Animations
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Mailings' Previous Record and Next Record survive.** One press shows one record, and the other
+//   press takes it back: the Select Objects standard from unit 4, because a record changes no
+//   document and there is nothing for Ctrl+Z to undo. Office draws both icon-only, and a caret either
+//   side of a group called *Preview Results* is the record navigator; `caret-left` and `caret-right`
+//   are no other command's glyph. `GUESS:` rule 2, a judgement about glyphs. **First Record and Last
+//   Record** pass rule 1 and fail rule 2: `previous` and `next` are a media player's skip-track marks,
+//   which unlabelled say *track* rather than *record*. **Preview
+//   Results** is refused on rule 2: an eye unlabelled is *show* or *hide*, not *show the merged data*.
+// - **Data's Sort A to Z and Sort Z to A survive.** One press sorts, and Ctrl+Z restores the order. The
+//   letters with an arrow are Office's own sort mark and no other command's glyph. `GUESS:` rule 1 for
+//   a selection with data beside it, where Office asks whether to expand the selection first.
+//   **Filter is refused on rule 2**, and by the census's own collision standard: the funnel is already
+//   Slicer's glyph on Excel's Insert tab (`filter`), so an unlabelled funnel says two things.
+// - **Animations keeps none.** Move Earlier and Move Later pass rule 1 (Ctrl+Z restores the order) and
+//   fail rule 2: an arrow up or down unlabelled says *move*, *scroll* or *sort*, and `arrow-down` is
+//   already Excel's Fill. Animation Painter arms a gesture, which Draw's rule 1 refuses.
+//
+// Everything else opens a menu, a gallery, a dialog or a pane, or is a field a host binds. Each group
+// states its own reason below.
+//
+// ## Sizes, and the commands that carry no icon
+//
+// Unit 6's rule: `large` where Office draws it large **and** there is an honest glyph **and** the label
+// wraps inside `largeControlWidthUnits`. Three tokens do not fit, so **Start Mail Merge**, **Edit
+// Recipient List**, **Insert Merge Field**, **Check for Errors**, **Finish & Merge**, **Text to
+// Columns**, **From Other Sources**, **What-If Analysis** and **Manage Data Model** are `small`.
+// **Select Recipients** and **Existing Connections** are `small` because *Recipients* and
+// *Connections* are the length of the *Recommended* unit 3 measured clipping.
+//
+// A wrong icon is worse than none. Fluent draws **no mailing label** (`tag` is a price tag), **no merge
+// field** (`braces` is code), **no merge rule**, **no field matching**, **no merge result**, **no
+// animation preview** (`slide-transition` is a slide leaving, and `play` is a video's), **no animation
+// pane** (`panel-right` is any pane), **no Access database** (Access's mark is a product's), **no
+// workbook connection**, **no workbook link** (`link` is a hyperlink), **no property sheet**, **no
+// advanced filter**, **no text split into columns** (`text-column-two` is Columns), **no duplicate
+// removal**, **no consolidation**, **no data model**, **no what-if**, **no ungroup of rows** (Fluent's
+// dismissal glyph is shapes') and **no subtotal** (`autosum` is AutoSum). So **Labels**, **Highlight
+// Merge Fields**, **Insert Merge Field**, **Rules**, **Match Fields**, **Update Labels**, **Finish &
+// Merge**, **Preview**, **Effect Options**, **Animation Pane**, **From Access**, **Queries &
+// Connections**, **Properties**, **Workbook Links**, **Connections**, **Edit Links**, **Advanced**,
+// **Text to Columns**, **Remove Duplicates**, **Consolidate**, **Manage Data Model**, **What-If
+// Analysis**, **Ungroup** and **Subtotal** are `small`, and the label is the command. The seven fields
+// and the two galleries carry none either.
+
+/**
+ * Word's Create group: Envelopes, Labels.
+ *
+ * **Envelopes draws `mail`**, the envelope File's Share already draws for Email, and is large as in
+ * Office. **Labels carries no icon** (see this section's header), so it is `small` where Office draws it
+ * large. Both open the Envelopes and Labels dialog on its own page.
+ *
+ * **No survivor**: two dialogs.
+ */
+const wordMailingsCreate: readonly RibbonCommand[] = [
+  { id: 'word.mailings.create.envelopes', label: 'Envelopes', icon: 'mail', size: 'large' },
+  { id: 'word.mailings.create.labels', label: 'Labels' },
+];
+
+/**
+ * Word's Start Mail Merge group: Start Mail Merge, Select Recipients, Edit Recipient List.
+ *
+ * **Start Mail Merge is a dropdown** of the document types, Normal Word Document checked, then the
+ * wizard. **Select Recipients is a dropdown** of the three sources. **Edit Recipient List** opens the
+ * Mail Merge Recipients dialog. All three are `small`; see this section's header. `GUESS:` the glyphs:
+ * `mail-multiple` (many letters from one) for Start Mail Merge, `people-list` for Select Recipients
+ * and `people-edit` for Edit Recipient List.
+ *
+ * **No survivor**: two menus and a dialog.
+ */
+const wordMailingsStartMailMerge: readonly RibbonCommand[] = [
+  { id: 'word.mailings.start-mail-merge.start-mail-merge', label: 'Start Mail Merge', icon: 'mail-multiple' },
+  { id: 'word.mailings.start-mail-merge.select-recipients', label: 'Select Recipients', icon: 'people-list' },
+  { id: 'word.mailings.start-mail-merge.edit-recipient-list', label: 'Edit Recipient List', icon: 'people-edit' },
+];
+
+/**
+ * Word's Write & Insert Fields group: Highlight Merge Fields, Address Block, Greeting Line, Insert Merge
+ * Field, Rules, Match Fields, Update Labels.
+ *
+ * **Highlight Merge Fields is a toggle**: Office draws it pressed while fields are shaded. It carries no
+ * icon: `highlight` is a marker stroke, and this shades a field grey. **Address Block draws
+ * `contact-card`** and **Greeting Line draws `hand-wave`**, both large and both opening their dialogs.
+ * `GUESS:` the address card. **Insert Merge Field is a split button** (see this section's header), and
+ * **Rules is a dropdown** of Word's nine merge rules. **Match Fields** opens a dialog. **Update Labels**
+ * copies the first label's layout to the rest, with no dialog.
+ *
+ * **No survivor**: Highlight Merge Fields and Update Labels have no glyph, and the rest open something.
+ */
+const wordMailingsWriteInsertFields: readonly RibbonCommand[] = [
+  { id: 'word.mailings.write-insert-fields.highlight-merge-fields', label: 'Highlight Merge Fields', toggle: true },
+  { id: 'word.mailings.write-insert-fields.address-block', label: 'Address Block', icon: 'contact-card', size: 'large' },
+  { id: 'word.mailings.write-insert-fields.greeting-line', label: 'Greeting Line', icon: 'hand-wave', size: 'large' },
+  { id: 'word.mailings.write-insert-fields.insert-merge-field', label: 'Insert Merge Field' },
+  { id: 'word.mailings.write-insert-fields.rules', label: 'Rules' },
+  { id: 'word.mailings.write-insert-fields.match-fields', label: 'Match Fields' },
+  { id: 'word.mailings.write-insert-fields.update-labels', label: 'Update Labels' },
+];
+
+/**
+ * Word's Preview Results group: Preview Results large, the record navigator, Find Recipient and Check for
+ * Errors.
+ *
+ * **Preview Results is a large toggle drawing `eye`**, and starts **pressed**. `GUESS:` pressed rather
+ * than a new merge's off, for unit 6's Fade reason: the navigator beside it is what there is to audit.
+ * **The navigator is First Record (`previous`), Previous Record (`caret-left`), the record number, Next
+ * Record (`caret-right`) and Last Record (`next`)**, icon-only as Office draws them. The record number is
+ * a field, a combo box starting on 1. `GUESS:` its name, *Go to Record*, which is Office's tooltip; the
+ * box has no visible name. **Find Recipient draws `person-search`** and **Check for Errors draws
+ * `checkmark-circle-warning`**, Excel's Error Checking glyph, for the same check. Both open dialogs.
+ *
+ * **Survivors: Previous Record and Next Record.** See this section's header.
+ */
+const wordMailingsPreviewResults: readonly RibbonCommand[] = [
+  { id: 'word.mailings.preview-results.preview-results', label: 'Preview Results', icon: 'eye', size: 'large', toggle: true, pressed: true },
+  { id: 'word.mailings.preview-results.first-record', label: 'First Record', icon: 'previous', size: 'icon' },
+  { id: 'word.mailings.preview-results.previous-record', label: 'Previous Record', icon: 'caret-left', size: 'icon', essential: true },
+  { id: 'word.mailings.preview-results.go-to-record', label: 'Go to Record' },
+  { id: 'word.mailings.preview-results.next-record', label: 'Next Record', icon: 'caret-right', size: 'icon', essential: true },
+  { id: 'word.mailings.preview-results.last-record', label: 'Last Record', icon: 'next', size: 'icon' },
+  { id: 'word.mailings.preview-results.find-recipient', label: 'Find Recipient', icon: 'person-search' },
+  { id: 'word.mailings.preview-results.check-for-errors', label: 'Check for Errors', icon: 'checkmark-circle-warning' },
+];
+
+/**
+ * Word's Finish group: Finish & Merge, a dropdown of the three ways to finish (edit, print, email).
+ *
+ * **No survivor**: a menu, and the only command.
+ */
+const wordMailingsFinish: readonly RibbonCommand[] = [
+  { id: 'word.mailings.finish.finish-merge', label: 'Finish & Merge' },
+];
+
+/**
+ * PowerPoint's Animations Preview group: one split button. The face plays the slide's animations, and the
+ * arrow offers Preview and AutoPreview, checked.
+ *
+ * **No icon**, so `small` where Office draws it large; see this section's header.
+ *
+ * **No survivor**: a split button, and the only command.
+ */
+const powerpointAnimationsPreview: readonly RibbonCommand[] = [
+  { id: 'powerpoint.animations.preview.preview', label: 'Preview' },
+];
+
+/**
+ * PowerPoint's `GroupAnimations`, which Office labels **Animation**: the gallery and Effect Options.
+ *
+ * **The gallery is in-ribbon**, and the hosts bind `<mjx-gallery>` with Office's accessible name,
+ * *Animation Styles*. It starts on **Fly In**, so **Effect Options** offers Fly In's eight directions
+ * and the three sequences. `GUESS:` Fly In rather than a new shape's None, which disables Effect
+ * Options: unit 6's Fade argument. Office's dialog launcher here opens the effect's own dialog.
+ *
+ * **No survivor**: a gallery and a menu.
+ */
+const powerpointAnimationsAnimations: readonly RibbonCommand[] = [
+  { id: 'powerpoint.animations.animations.animation-styles', label: 'Animation Styles' },
+  { id: 'powerpoint.animations.animations.effect-options', label: 'Effect Options' },
+];
+
+/**
+ * PowerPoint's `GroupAnimationCustom`, which Office labels **Advanced Animation**: Add Animation large,
+ * then Animation Pane, Trigger and Animation Painter.
+ *
+ * **Add Animation draws `star-add`**, a star with a plus, which is Office's own picture, and is a
+ * dropdown of the effects the gallery holds, under the same four headings. **Animation Pane is a
+ * toggle** with no glyph. **Trigger draws `flash`**, the lightning bolt Office draws, and is a dropdown
+ * of the slide's shapes. `GUESS:` the bolt, which Excel's Flash Fill also draws. **Animation Painter
+ * draws `paint-brush-sparkle`** and is a plain button, as Home's Format Painter is.
+ *
+ * **No survivor**: two menus, a pane, and a painter that arms a gesture.
+ */
+const powerpointAnimationsCustomAnimation: readonly RibbonCommand[] = [
+  { id: 'powerpoint.animations.custom-animation.add-animation', label: 'Add Animation', icon: 'star-add', size: 'large' },
+  { id: 'powerpoint.animations.custom-animation.animation-pane', label: 'Animation Pane', toggle: true },
+  { id: 'powerpoint.animations.custom-animation.trigger', label: 'Trigger', icon: 'flash' },
+  { id: 'powerpoint.animations.custom-animation.animation-painter', label: 'Animation Painter', icon: 'paint-brush-sparkle' },
+];
+
+/**
+ * PowerPoint's Animations Timing group: Start, Duration, Delay, then Move Earlier and Move Later under
+ * Office's *Reorder Animation* heading.
+ *
+ * **Start is a dropdown field** starting on On Click. **Duration and Delay are combo boxes** of seconds,
+ * starting on Fly In's 00.50 and on 00.00. **Move Earlier draws `arrow-up`** and **Move Later draws
+ * `arrow-down`**, labelled, as Office draws them. The census counts six; the heading is not a command.
+ *
+ * **No survivor**: three fields, and two arrows that fail rule 2. See this section's header.
+ */
+const powerpointAnimationsTiming: readonly RibbonCommand[] = [
+  { id: 'powerpoint.animations.timing.start', label: 'Start' },
+  { id: 'powerpoint.animations.timing.duration', label: 'Duration' },
+  { id: 'powerpoint.animations.timing.delay', label: 'Delay' },
+  { id: 'powerpoint.animations.timing.move-earlier', label: 'Move Earlier', icon: 'arrow-up' },
+  { id: 'powerpoint.animations.timing.move-later', label: 'Move Later', icon: 'arrow-down' },
+];
+
+/**
+ * Excel's `GroupGetExternalData`: Office 2016's Get External Data face. See disagreement 4 in this
+ * section's header.
+ *
+ * **From Access** carries no icon. **From Web draws `globe`**, the web everywhere in Office, and **From
+ * Text draws `document-text`**. **From Other Sources draws `database`** and is a dropdown of the legacy
+ * wizards. **Existing Connections draws `plug-connected`**. `GUESS:` the plug. Every one opens a dialog
+ * or a wizard, and all five are `small`: Office 2016 drew the first three in a column, and the last two
+ * are long.
+ *
+ * **No survivor**: four dialogs and a menu.
+ */
+const excelDataGetExternalData: readonly RibbonCommand[] = [
+  { id: 'excel.data.get-external-data.from-access', label: 'From Access' },
+  { id: 'excel.data.get-external-data.from-web', label: 'From Web', icon: 'globe' },
+  { id: 'excel.data.get-external-data.from-text', label: 'From Text', icon: 'document-text' },
+  { id: 'excel.data.get-external-data.from-other-sources', label: 'From Other Sources', icon: 'database' },
+  { id: 'excel.data.get-external-data.existing-connections', label: 'Existing Connections', icon: 'plug-connected' },
+];
+
+/**
+ * Excel's Queries & Connections group: Refresh All large, Queries & Connections, Properties.
+ *
+ * **Refresh All draws `arrow-clockwise`**, the refresh arrow, and is a split button: the face refreshes
+ * every connection, and the arrow offers Refresh, Refresh Status, Cancel Refresh and Connection
+ * Properties. Not `arrow-sync`, which is AutoSave. **Queries & Connections is a toggle** that opens its
+ * pane, and **Properties** opens the External Data Properties dialog. Neither has a glyph.
+ *
+ * **No survivor**: a split button, a pane and a dialog.
+ */
+const excelDataQueriesAndConnections: readonly RibbonCommand[] = [
+  { id: 'excel.data.queries-connections.refresh-all', label: 'Refresh All', icon: 'arrow-clockwise', size: 'large' },
+  { id: 'excel.data.queries-connections.queries-connections', label: 'Queries & Connections', toggle: true },
+  { id: 'excel.data.queries-connections.properties', label: 'Properties' },
+];
+
+/**
+ * Excel's `GroupDataQueriesAndConnectionsWorkbookLinks`: Workbook Links, the toggle that opens its pane.
+ * See disagreement 3 in this section's header.
+ *
+ * **No survivor**: a pane, no glyph, and the only command.
+ */
+const excelDataWorkbookLinks: readonly RibbonCommand[] = [
+  { id: 'excel.data.workbook-links.workbook-links', label: 'Workbook Links', toggle: true },
+];
+
+/**
+ * Excel's `GroupConnections`: Office 2016's two dialogs that neither 365 group draws, Connections and
+ * Edit Links. See disagreement 3 in this section's header.
+ *
+ * **No survivor**: two dialogs.
+ */
+const excelDataConnections: readonly RibbonCommand[] = [
+  { id: 'excel.data.connections.connections', label: 'Connections' },
+  { id: 'excel.data.connections.edit-links', label: 'Edit Links' },
+];
+
+/**
+ * Excel's Data Types group: the in-ribbon gallery of linked data types, Stocks, Currencies and
+ * Geography. Each picture is Office's glyph: `building-bank`, `money` and `map`.
+ *
+ * **No survivor**: a gallery, and the only command.
+ */
+const excelDataDataTypes: readonly RibbonCommand[] = [
+  { id: 'excel.data.data-types.data-types', label: 'Data Types' },
+];
+
+/**
+ * Excel's Sort & Filter group: Sort A to Z, Sort Z to A, Sort large, Filter large, then Clear, Reapply and
+ * Advanced.
+ *
+ * **Sort A to Z and Sort Z to A draw `text-sort-ascending` and `text-sort-descending`**, icon-only as
+ * Office draws them. **Sort draws `arrow-sort`**, Home's Sort & Filter glyph, because both open a surface
+ * where the direction is chosen, and opens the Sort dialog. **Filter is a toggle drawing `filter`**:
+ * Office draws it pressed while the range is filtered. **Clear draws `filter-dismiss`** and **Reapply
+ * draws `filter-sync`**. **Advanced** opens the Advanced Filter dialog.
+ *
+ * **Survivors: Sort A to Z and Sort Z to A.** Filter is refused on rule 2. See this section's header.
+ */
+const excelDataSortFilter: readonly RibbonCommand[] = [
+  { id: 'excel.data.sort-filter.sort-ascending', label: 'Sort A to Z', icon: 'text-sort-ascending', size: 'icon', essential: true },
+  { id: 'excel.data.sort-filter.sort-descending', label: 'Sort Z to A', icon: 'text-sort-descending', size: 'icon', essential: true },
+  { id: 'excel.data.sort-filter.sort', label: 'Sort', icon: 'arrow-sort', size: 'large' },
+  { id: 'excel.data.sort-filter.filter', label: 'Filter', icon: 'filter', size: 'large', toggle: true },
+  { id: 'excel.data.sort-filter.clear', label: 'Clear', icon: 'filter-dismiss' },
+  { id: 'excel.data.sort-filter.reapply', label: 'Reapply', icon: 'filter-sync' },
+  { id: 'excel.data.sort-filter.advanced', label: 'Advanced' },
+];
+
+/**
+ * Excel's Data Tools group: Text to Columns, Flash Fill, Remove Duplicates, Data Validation, Consolidate,
+ * Relationships, Manage Data Model.
+ *
+ * **Flash Fill draws `flash`**, the bolt Office draws, and fills with no dialog (Ctrl+E). **Data
+ * Validation draws `table-simple-checkmark`** and is a split button (Data Validation, Circle Invalid Data,
+ * Clear Validation Circles). **Relationships draws `table-link`**, two tables joined. `GUESS:` the table
+ * link. Text to Columns, Remove Duplicates, Consolidate and Relationships open dialogs, and **Manage Data
+ * Model** opens the Power Pivot window. `GUESS:` that it belongs on the face although Power Pivot is
+ * out of scope: the census counts it in an in-scope group.
+ *
+ * **No survivor**: Flash Fill passes rule 1 and fails rule 2 (a bolt says nothing about filling a
+ * pattern); the rest open something.
+ */
+const excelDataDataTools: readonly RibbonCommand[] = [
+  { id: 'excel.data.data-tools.text-to-columns', label: 'Text to Columns' },
+  { id: 'excel.data.data-tools.flash-fill', label: 'Flash Fill', icon: 'flash' },
+  { id: 'excel.data.data-tools.remove-duplicates', label: 'Remove Duplicates' },
+  { id: 'excel.data.data-tools.data-validation', label: 'Data Validation', icon: 'table-simple-checkmark' },
+  { id: 'excel.data.data-tools.consolidate', label: 'Consolidate' },
+  { id: 'excel.data.data-tools.relationships', label: 'Relationships', icon: 'table-link' },
+  { id: 'excel.data.data-tools.manage-data-model', label: 'Manage Data Model' },
+];
+
+/**
+ * Excel's Forecast group: What-If Analysis, a dropdown (Scenario Manager, Goal Seek, Data Table), and
+ * Forecast Sheet large.
+ *
+ * **Forecast Sheet draws `data-trending`**, a line going up, and opens the Create Forecast Worksheet
+ * dialog. `GUESS:` the glyph. Not `data-line`, which is Insert's Line chart.
+ *
+ * **No survivor**: a menu and a dialog.
+ */
+const excelDataForecast: readonly RibbonCommand[] = [
+  { id: 'excel.data.forecast.what-if-analysis', label: 'What-If Analysis' },
+  { id: 'excel.data.forecast.forecast-sheet', label: 'Forecast Sheet', icon: 'data-trending', size: 'large' },
+];
+
+/**
+ * Excel's Outline group: Group large, Ungroup, Subtotal, Show Detail, Hide Detail.
+ *
+ * **Group draws `group-list`**, rows under one bracket, and **Group and Ungroup are split buttons** (Group,
+ * Auto Outline; Ungroup, Clear Outline). Not `group`, which is Arrange's shapes. `GUESS:` the bracket.
+ * **Subtotal** opens its dialog. **Show Detail and Hide Detail draw `add-square` and `subtract-square`**,
+ * the outline's own marks. Office's dialog launcher here opens the outline Settings.
+ *
+ * **No survivor**: Show Detail and Hide Detail pass rule 1 and fail rule 2, `GUESS:`: a plus in a square
+ * reads as *add* across Office, and the outline's own marks sit in the sheet margin where a person uses
+ * them. The rest open something.
+ */
+const excelDataOutline: readonly RibbonCommand[] = [
+  { id: 'excel.data.outline.group', label: 'Group', icon: 'group-list', size: 'large' },
+  { id: 'excel.data.outline.ungroup', label: 'Ungroup' },
+  { id: 'excel.data.outline.subtotal', label: 'Subtotal' },
+  { id: 'excel.data.outline.show-detail', label: 'Show Detail', icon: 'add-square' },
+  { id: 'excel.data.outline.hide-detail', label: 'Hide Detail', icon: 'subtract-square' },
 ];
 
 // ── the commands File shows ──────────────────────────────────────────────────
@@ -2349,11 +2772,11 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabMailings' },
     groups: [
-      { id: 'GroupEnvelopeLabelCreate', label: 'Create', priority: 'standard', controls: 10, inScope: true },
-      { id: 'GroupMailMergeStart', label: 'Start Mail Merge', priority: 'primary', controls: 13, inScope: true },
-      { id: 'GroupMailMergeWriteInsertFields', label: 'Write & Insert Fields', priority: 'primary', controls: 11, inScope: true },
-      { id: 'GroupMailMergePreviewResults', label: 'Preview Results', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupMailMergeFinish', label: 'Finish', priority: 'standard', controls: 4, inScope: true },
+      { id: 'GroupEnvelopeLabelCreate', label: 'Create', priority: 'standard', controls: 10, inScope: true, commands: wordMailingsCreate },
+      { id: 'GroupMailMergeStart', label: 'Start Mail Merge', priority: 'primary', controls: 13, inScope: true, commands: wordMailingsStartMailMerge },
+      { id: 'GroupMailMergeWriteInsertFields', label: 'Write & Insert Fields', priority: 'primary', controls: 11, inScope: true, commands: wordMailingsWriteInsertFields },
+      { id: 'GroupMailMergePreviewResults', label: 'Preview Results', priority: 'standard', controls: 8, inScope: true, commands: wordMailingsPreviewResults },
+      { id: 'GroupMailMergeFinish', label: 'Finish', priority: 'standard', controls: 4, inScope: true, commands: wordMailingsFinish },
     ],
   },
   {
@@ -2517,10 +2940,10 @@ export const powerpointRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabAnimations' },
     groups: [
-      { id: 'GroupPreview', label: 'Preview', priority: 'standard', controls: 3, inScope: true },
-      { id: 'GroupAnimations', label: 'Animations', priority: 'primary', controls: 12, inScope: true },
-      { id: 'GroupAnimationCustom', label: 'Custom Animation', priority: 'primary', controls: 11, inScope: true },
-      { id: 'GroupAnimationTiming', label: 'Timing', priority: 'standard', controls: 6, inScope: true },
+      { id: 'GroupPreview', label: 'Preview', priority: 'standard', controls: 3, inScope: true, commands: powerpointAnimationsPreview },
+      { id: 'GroupAnimations', label: 'Animations', priority: 'primary', controls: 12, inScope: true, commands: powerpointAnimationsAnimations },
+      { id: 'GroupAnimationCustom', label: 'Custom Animation', priority: 'primary', controls: 11, inScope: true, commands: powerpointAnimationsCustomAnimation },
+      { id: 'GroupAnimationTiming', label: 'Timing', priority: 'standard', controls: 6, inScope: true, commands: powerpointAnimationsTiming },
     ],
   },
   {
@@ -2791,15 +3214,15 @@ export const excelRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'always',
     source: { kind: 'core', tab: 'TabData' },
     groups: [
-      { id: 'GroupGetExternalData', label: 'Get External Data', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupDataQueriesAndConnections', label: 'Queries & Connections', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupDataQueriesAndConnectionsWorkbookLinks', label: 'Workbook Links', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupConnections', label: 'Connections', priority: 'standard', controls: 9, inScope: true },
-      { id: 'GroupLinkedEntityConvert', label: 'Data Types', priority: 'ancillary', controls: 2, inScope: true },
-      { id: 'GroupSortFilter', label: 'Sort & Filter', priority: 'primary', controls: 7, inScope: true },
-      { id: 'GroupDataTools', label: 'Data Tools', priority: 'primary', controls: 10, inScope: true },
-      { id: 'GroupForecast', label: 'Forecast', priority: 'standard', controls: 5, inScope: true },
-      { id: 'GroupOutline', label: 'Outline', priority: 'standard', controls: 10, inScope: true },
+      { id: 'GroupGetExternalData', label: 'Get External Data', priority: 'standard', controls: 5, inScope: true, commands: excelDataGetExternalData },
+      { id: 'GroupDataQueriesAndConnections', label: 'Queries & Connections', priority: 'standard', controls: 9, inScope: true, commands: excelDataQueriesAndConnections },
+      { id: 'GroupDataQueriesAndConnectionsWorkbookLinks', label: 'Workbook Links', priority: 'standard', controls: 9, inScope: true, commands: excelDataWorkbookLinks },
+      { id: 'GroupConnections', label: 'Connections', priority: 'standard', controls: 9, inScope: true, commands: excelDataConnections },
+      { id: 'GroupLinkedEntityConvert', label: 'Data Types', priority: 'ancillary', controls: 2, inScope: true, commands: excelDataDataTypes },
+      { id: 'GroupSortFilter', label: 'Sort & Filter', priority: 'primary', controls: 7, inScope: true, commands: excelDataSortFilter },
+      { id: 'GroupDataTools', label: 'Data Tools', priority: 'primary', controls: 10, inScope: true, commands: excelDataDataTools },
+      { id: 'GroupForecast', label: 'Forecast', priority: 'standard', controls: 5, inScope: true, commands: excelDataForecast },
+      { id: 'GroupOutline', label: 'Outline', priority: 'standard', controls: 10, inScope: true, commands: excelDataOutline },
     ],
   },
   {

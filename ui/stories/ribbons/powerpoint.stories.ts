@@ -11,7 +11,10 @@ import {
 } from '../pickers/specimens.ts';
 import {
   advanceAfterTimes,
+  animationDelays,
+  animationStarts,
   copyCounts,
+  durationSeconds,
   openDeclaredSurface,
   printerList,
   ribbonColourFieldStyle,
@@ -22,7 +25,6 @@ import {
   ribbonScreenReader,
   ribbonStatesMatrix,
   ribbonTokenDependencies,
-  transitionDurations,
   transitionSounds,
   type ControlOverrides,
 } from './ribbon-parts.ts';
@@ -37,7 +39,18 @@ import {
 } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
-import { referencesTransitionsFormulasMenus, transitionGalleryItems } from './references-transitions-formulas-menus.ts';
+import {
+  followTransitionEffectOptions,
+  referencesTransitionsFormulasMenus,
+  startingTransition,
+  transitionGalleryItems,
+} from './references-transitions-formulas-menus.ts';
+import {
+  animationGalleryFooter,
+  animationGalleryItems,
+  mailingsAnimationsDataMenus,
+  startingAnimation,
+} from './mailings-animations-data-menus.ts';
 import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
 
 /**
@@ -54,7 +67,7 @@ import { powerpointContextualSets, powerpointTabs } from './powerpoint.ts';
  * they are, because every story renders every tab, and the duplicate label in the strip is the
  * catalogue's artefact rather than a transcription slip.
  *
- * **File, Home, Insert, Draw, Design and Transitions** are authored; the rest are placeholders at the census's own priorities. See
+ * **File, Home, Insert, Draw, Design, Transitions and Animations** are authored; the rest are placeholders at the census's own priorities. See
  * `Ribbons/Word` for why a placeholder says so on its face — and for what to look at on a File tab,
  * since the three are one tab with three sets of differences rather than three tabs.
  */
@@ -74,7 +87,7 @@ const meta: Meta = {
       description: {
         component:
           'PowerPoint’s eighteen core tabs and its File tab, each shown selected inside the whole ' +
-          'ribbon. File, Home, Insert, Draw, Design and Transitions are authored; the rest are placeholders carrying the ' +
+          'ribbon. File, Home, Insert, Draw, Design, Transitions and Animations are authored; the rest are placeholders carrying the ' +
           'census’s priorities.',
       },
     },
@@ -315,13 +328,14 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-powerpoint-design-customise-slide-size"
   ></mjx-button>`,
-  // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, so Effect Options opens Fade's
-  // menu from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
+  // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, and Effect Options follows each commit: its
+  // menu is re-rendered from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
   // `ribbon-parts.ts`'s lists: a duration is seconds, which a measure input does not carry, so it is a combo box.
   'powerpoint.transitions.transition-styles.transitions': html`<mjx-gallery
     id="ribbons-ppt-transitions"
     label="Transition to This Slide"
-    value="fade"
+    value=${startingTransition}
+    @mjx-gallery-commit=${followTransitionEffectOptions('ribbons')}
     style=${ribbonGalleryStyle}
   >
     ${transitionGalleryItems()}
@@ -348,8 +362,9 @@ const bindings: ControlOverrides = {
     allow-custom
     style=${ribbonNarrowFieldStyle}
   >
-    ${transitionDurations.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+    ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
   </mjx-combo-box>`,
+  'powerpoint.transitions.timing.advance-slide': html`<mjx-label>Advance Slide</mjx-label>`,
   'powerpoint.transitions.timing.on-mouse-click': html`<mjx-checkbox id="ribbons-ppt-on-mouse-click" label="On Mouse Click" checked="true"></mjx-checkbox>`,
   'powerpoint.transitions.timing.after': html`<mjx-checkbox id="ribbons-ppt-advance-after-checkbox" label="After"></mjx-checkbox>`,
   'powerpoint.transitions.timing.advance-after': html`<mjx-combo-box
@@ -360,6 +375,66 @@ const bindings: ControlOverrides = {
     style=${ribbonNarrowFieldStyle}
   >
     ${advanceAfterTimes.map((time) => html`<mjx-option value=${time} label=${time}></mjx-option>`)}
+  </mjx-combo-box>`,
+  // Animations (unit 7). The gallery is in-ribbon, starts on Fly In and carries Office's footer. Preview's
+  // split button, Effect Options, Add Animation and Trigger open their menus from
+  // `stories/ribbons/mailings-animations-data-menus.ts`. Start, Duration and Delay are fields over `ribbon-parts.ts`'s lists.
+  'powerpoint.animations.preview.preview': html`<mjx-split-button
+    label="Preview"
+    size="small"
+    data-opens="ribbons-powerpoint-animations-preview-preview"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'powerpoint.animations.animations.animation-styles': html`<mjx-gallery
+    id="ribbons-ppt-animation-styles"
+    label="Animation Styles"
+    value=${startingAnimation}
+    style=${ribbonGalleryStyle}
+  >
+    ${animationGalleryItems()} ${animationGalleryFooter()}
+  </mjx-gallery>`,
+  'powerpoint.animations.animations.effect-options': html`<mjx-button
+    label="Effect Options"
+    size="small"
+    data-opens="ribbons-powerpoint-animations-animations-effect-options"
+  ></mjx-button>`,
+  'powerpoint.animations.custom-animation.add-animation': html`<mjx-button
+    label="Add Animation"
+    icon="star-add"
+    size="large"
+    data-opens="ribbons-powerpoint-animations-custom-animation-add-animation"
+  ></mjx-button>`,
+  'powerpoint.animations.custom-animation.trigger': html`<mjx-button
+    label="Trigger"
+    icon="flash"
+    size="small"
+    data-opens="ribbons-powerpoint-animations-custom-animation-trigger"
+  ></mjx-button>`,
+  'powerpoint.animations.timing.start': html`<mjx-dropdown
+    id="ribbons-ppt-animation-start"
+    label="Start"
+    value="on-click"
+    style=${ribbonColourFieldStyle}
+  >
+    ${animationStarts.map((start) => html`<mjx-option value=${start.value} label=${start.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'powerpoint.animations.timing.duration': html`<mjx-combo-box
+    id="ribbons-ppt-animation-duration"
+    label="Duration"
+    value="00.50"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+  </mjx-combo-box>`,
+  'powerpoint.animations.timing.delay': html`<mjx-combo-box
+    id="ribbons-ppt-animation-delay"
+    label="Delay"
+    value="00.00"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${animationDelays.map((delay) => html`<mjx-option value=${delay} label=${delay}></mjx-option>`)}
   </mjx-combo-box>`,
 };
 
@@ -387,6 +462,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('powerpoint', 'ribbons')} ${drawMenus('powerpoint', 'ribbons')}
     ${designLayoutMenus('powerpoint', 'ribbons')} ${referencesTransitionsFormulasMenus('powerpoint', 'ribbons')}
+    ${mailingsAnimationsDataMenus('powerpoint', 'ribbons')}
     <mjx-menu id="ribbons-ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
     <mjx-menu id="ribbons-ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
@@ -503,22 +579,48 @@ export const Design: Story = { render: () => ribbon('design') };
  *    what Office calls *Transition to This Slide*: the gallery and Effect Options. Timing holds Office's
  *    Timing face, six commands where the census counts two. `dev/ribbons/census.ts` marks the reading
  *    `GUESS:`.
- * 2. **The gallery is in-ribbon, and starts on Fade.** It holds fourteen of Office's transitions under
- *    *Subtle*, *Exciting* and *Dynamic Content*; open its flyout to see the headings. Each picture is a
+ * 2. **The gallery is in-ribbon, starts on Fade, and holds every transition Office shows** (unit 7
+ *    completed it): None, then thirteen under *Subtle*, twenty-nine under *Exciting* and seven under
+ *    *Dynamic Content*, in Office's order. Open its flyout to see the headings. Each picture is a
  *    pictogram of the motion drawn from the palette: an empty frame for None, a half-covered frame for
- *    Push and Wipe, bars for Cut.
- * 3. **Effect Options opens Fade's two**, Smoothly checked and Through Black. It carries no icon, so it
- *    is small where Office draws it large.
- * 4. **Timing is five fields and a button.** Sound is a dropdown on *[No Sound]*. Duration is a combo box
- *    on 00.70: pick 01.00, or type 01.25. On Mouse Click is ticked and After is not. Advance Slide After
- *    is a combo box on 00:00.00. `GUESS:` Duration is a combo box rather than a measure input, because a
- *    measure input carries lengths and a duration is seconds.
+ *    Push and Wipe, bars for Cut. `GUESS:` Strips' place, last in Subtle.
+ * 3. **Effect Options follows the transition.** It opens Fade's two, Smoothly checked and Through Black.
+ *    Pick Push and it opens four edges; pick Split and it opens Vertical Out, Vertical In, Horizontal Out
+ *    and Horizontal In; pick Flash and the button goes unavailable, because Office gives Flash no
+ *    options. It carries no icon, so it is small where Office draws it large. `GUESS:` many transitions'
+ *    entries, from memory of Office rather than a build.
+ * 4. **Timing is five fields, a button and a heading.** Sound is a dropdown on *[No Sound]* over Office's
+ *    whole list, down to *Other Sound…*. Duration is a combo box on 00.70: pick 01.00, or type 01.25.
+ *    Then Apply To All, the *Advance Slide* heading, On Mouse Click ticked, After unticked, and the advance
+ *    time on 00:00.00. ⚠ Office stacks these in two columns; the ribbon draws one row at full width, so
+ *    the order is Office's and the columns are not. `GUESS:` Duration is a combo box rather than a
+ *    measure input, because a measure input carries lengths and a duration is seconds.
  * 5. **Preview is large, with a slide-transition glyph**, and Apply To All is a plain labelled button.
  *    No dialog launchers. Nothing survives a collapse; Preview is ancillary and gives way first.
  */
 export const Transitions: Story = { render: () => ribbon('transitions') };
 
-/** Unit 7. */
+/**
+ * **Animations**: one gallery of effects, the tools that stack them, and their timing — PowerPoint's part
+ * of the ribbon programme's unit 7. Four groups: Preview, Animations, Custom Animation and Timing. What to
+ * look at:
+ *
+ * 1. ⚠ **Two group labels are the census's.** Office calls them *Animation* and *Advanced Animation*.
+ * 2. **The gallery is in-ribbon, starts on Fly In, and holds every effect Office's does**: None, thirteen
+ *    Entrance, nineteen Emphasis, thirteen Exit and six Motion Paths. Open the flyout: the headings are
+ *    Office's, and the footer carries More Entrance Effects, More Emphasis Effects, More Exit Effects, More
+ *    Motion Paths and a greyed OLE Action Verbs. Entrance stars are solid, Emphasis stars sit on a soft
+ *    ground, Exit stars are outlined, and a motion path is a dashed line. `GUESS:` the pictures.
+ * 3. **Effect Options is Fly In's**: eight directions with From Bottom checked, and three sequences with
+ *    As One Object checked. ⚠ Unlike Transitions', it does not follow the gallery: pick Spin and it still
+ *    offers Fly In's entries.
+ * 4. **Preview is a split button** (Preview, and AutoPreview checked). Add Animation is large and opens
+ *    the gallery's effects under the same headings. Trigger opens *On Click of* the slide's shapes.
+ *    Animation Pane is a toggle, and Animation Painter a plain button, as Format Painter is.
+ * 5. **Timing is three fields and two buttons.** Start is a dropdown on On Click, Duration a combo box on
+ *    00.50 and Delay a combo box on 00.00. Move Earlier and Move Later carry arrows and labels. Nothing
+ *    survives a collapse, and the one dialog launcher is on the Animations group.
+ */
 export const Animations: Story = { render: () => ribbon('animations') };
 
 /** Unit 10. */

@@ -12,6 +12,7 @@ import {
 import {
   citationStyles,
   copyCounts,
+  mergeRecordNumbers,
   openDeclaredSurface,
   printerList,
   ribbonColourFieldStyle,
@@ -27,6 +28,7 @@ import {
 import { designLayoutMenus, styleSetGalleryItems } from './design-layout-menus.ts';
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
+import { mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
@@ -41,7 +43,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout and References** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References and Mailings** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -52,7 +54,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * command does.
  *
  * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
- * Layout and References tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
+ * Layout, References and Mailings tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
  * dispatch is loop 2.
  */
 
@@ -71,7 +73,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout and References are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References and Mailings are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -514,6 +516,46 @@ const bindings: ControlOverrides = {
     size="small"
     data-opens="ribbons-word-references-citations-bibliography-bibliography"
   ></mjx-button>`,
+  // Mailings (unit 7). Dropdowns and Insert Merge Field's split button open their menus from
+  // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('ribbons', <this key>)`.
+  // Go to Record is a combo box over `ribbon-parts.ts`'s list: a record number is not a measure.
+  'word.mailings.start-mail-merge.start-mail-merge': html`<mjx-button
+    label="Start Mail Merge"
+    icon="mail-multiple"
+    size="small"
+    data-opens="ribbons-word-mailings-start-mail-merge-start-mail-merge"
+  ></mjx-button>`,
+  'word.mailings.start-mail-merge.select-recipients': html`<mjx-button
+    label="Select Recipients"
+    icon="people-list"
+    size="small"
+    data-opens="ribbons-word-mailings-start-mail-merge-select-recipients"
+  ></mjx-button>`,
+  'word.mailings.write-insert-fields.insert-merge-field': html`<mjx-split-button
+    label="Insert Merge Field"
+    size="small"
+    data-opens="ribbons-word-mailings-write-insert-fields-insert-merge-field"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
+  'word.mailings.write-insert-fields.rules': html`<mjx-button
+    label="Rules"
+    size="small"
+    data-opens="ribbons-word-mailings-write-insert-fields-rules"
+  ></mjx-button>`,
+  'word.mailings.preview-results.go-to-record': html`<mjx-combo-box
+    id="ribbons-word-go-to-record"
+    label="Go to Record"
+    value="1"
+    allow-custom
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${mergeRecordNumbers.map((record) => html`<mjx-option value=${record} label=${record}></mjx-option>`)}
+  </mjx-combo-box>`,
+  'word.mailings.finish.finish-merge': html`<mjx-button
+    label="Finish & Merge"
+    size="small"
+    data-opens="ribbons-word-mailings-finish-finish-merge"
+  ></mjx-button>`,
 };
 
 /**
@@ -543,6 +585,7 @@ function ribbon(selected: string): TemplateResult {
 
     ${insertMenus('word', 'ribbons')} ${drawMenus('word', 'ribbons')}
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
+    ${mailingsAnimationsDataMenus('word', 'ribbons')}
   `;
 }
 
@@ -729,7 +772,28 @@ export const Layout: Story = { render: () => ribbon('layout') };
  */
 export const References: Story = { render: () => ribbon('references') };
 
-/** Unit 7. */
+/**
+ * **Mailings**: the mail merge pipeline, and Word's part of the ribbon programme's unit 7. Five groups:
+ * Create, Start Mail Merge, Write & Insert Fields, Preview Results and Finish. What to look at:
+ *
+ * 1. **Preview Results is pressed, and the record navigator beside it is icon-only**: First Record,
+ *    Previous Record, the record number, Next Record and Last Record. The number is a combo box on 1:
+ *    pick 3, or type 12. `GUESS:` pressed rather than a new merge's off, so the navigator has something
+ *    to audit.
+ * 2. **Previous Record and Next Record are the tab's only survivors.** Drag the container narrow until
+ *    Preview Results collapses: the two carets stay beside its trigger, and everything else opens from it.
+ * 3. **Five menus.** Start Mail Merge opens the document types with Normal Word Document checked, Select
+ *    Recipients the three sources, Rules Word's nine rules, and Finish & Merge the three ways to finish.
+ *    **Insert Merge Field is a split button**: its arrow lists the fields, and its face opens nothing
+ *    here. The brief expected a dropdown; Office draws a split button.
+ * 4. **Glyphs to judge**: Envelopes' envelope (large), Address Block's contact card and Greeting Line's
+ *    waving hand (both large), and Start Mail Merge, Select Recipients and Edit Recipient List
+ *    (`mail-multiple`, `people-list`, `people-edit`). All but the envelope and the hand are `GUESS:`.
+ *    Labels, Highlight Merge Fields, Insert Merge Field, Rules, Match Fields, Update Labels and Finish &
+ *    Merge carry no icon and are labelled.
+ * 5. **Highlight Merge Fields is a toggle**: press it and it draws pressed. No dialog launchers, as in
+ *    Office. Start Mail Merge and Write & Insert Fields are the primary groups.
+ */
 export const Mailings: Story = { render: () => ribbon('mailings') };
 
 /** Unit 8. */

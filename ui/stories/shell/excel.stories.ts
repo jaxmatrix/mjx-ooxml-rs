@@ -43,6 +43,7 @@ import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
 import { designLayoutMenus } from '../ribbons/design-layout-menus.ts';
 import { drawMenus } from '../ribbons/draw-menus.ts';
 import { insertMenus } from '../ribbons/insert-menus.ts';
+import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
@@ -558,6 +559,50 @@ function ribbon(): TemplateResult {
               size="small"
               data-opens="shell-excel-formulas-calculation-calculation-options"
             ></mjx-button>`,
+            // Data (unit 7). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Data Types is an in-ribbon gallery with nothing selected, because a new cell has no data type.
+            'excel.data.get-external-data.from-other-sources': html`<mjx-button
+              label="From Other Sources"
+              icon="database"
+              size="small"
+              data-opens="shell-excel-data-get-external-data-from-other-sources"
+            ></mjx-button>`,
+            'excel.data.queries-connections.refresh-all': html`<mjx-split-button
+              label="Refresh All"
+              icon="arrow-clockwise"
+              size="large"
+              data-opens="shell-excel-data-queries-connections-refresh-all"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.data-types.data-types': html`<mjx-gallery id="xl-data-types" label="Data Types" style=${ribbonGalleryStyle}>
+              ${dataTypeGalleryItems()}
+            </mjx-gallery>`,
+            'excel.data.data-tools.data-validation': html`<mjx-split-button
+              label="Data Validation"
+              icon="table-simple-checkmark"
+              size="small"
+              data-opens="shell-excel-data-data-tools-data-validation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.forecast.what-if-analysis': html`<mjx-button
+              label="What-If Analysis"
+              size="small"
+              data-opens="shell-excel-data-forecast-what-if-analysis"
+            ></mjx-button>`,
+            'excel.data.outline.group': html`<mjx-split-button
+              label="Group"
+              icon="group-list"
+              size="large"
+              data-opens="shell-excel-data-outline-group"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.outline.ungroup': html`<mjx-split-button
+              label="Ungroup"
+              size="small"
+              data-opens="shell-excel-data-outline-ungroup"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
           },
         })}
         ${excelContextualSets()}
@@ -769,6 +814,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       </mjx-menu>
       ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
       ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
+      ${mailingsAnimationsDataMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count
