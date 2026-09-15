@@ -48,6 +48,13 @@ import { insertMenus } from '../ribbons/insert-menus.ts';
 import { mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
 import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
 import { reviewMenus } from '../ribbons/review-menus.ts';
+import {
+  tableLineWeights,
+  tableToolsMenus,
+  wordBorderLineStyles,
+  wordTableStyleGalleryFooter,
+  wordTableStyleGalleryItems,
+} from '../ribbons/table-tools-menus.ts';
 import { viewMenus } from '../ribbons/view-menus.ts';
 import {
   citationStyles,
@@ -813,7 +820,81 @@ function ribbon(): TemplateResult {
             ></mjx-button>`,
           },
         })}
-        ${wordContextualSets({ sets: ['table-tools'] })}
+        ${wordContextualSets({
+          sets: ['table-tools'],
+          controls: {
+            // Table Design (a contextual tab). This document's selection is in a table, so the shell draws Table
+            // Tools and binds the same thirteen commands `Ribbons/Word` binds, under its own ids. The gallery, the
+            // two fields and both menus are `stories/ribbons/table-tools-menus.ts`'s; the pickers and the gallery's
+            // pictures read this document's palette. Border Painter is the generic toggle.
+            'word.table-design.table-style-options.header-row': html`<mjx-checkbox id="word-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.total-row': html`<mjx-checkbox id="word-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+            'word.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="word-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.first-column': html`<mjx-checkbox id="word-table-design-first-column" label="First Column" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.last-column': html`<mjx-checkbox id="word-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+            'word.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="word-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+            'word.table-design.table-styles.gallery': html`<mjx-gallery
+              id="word-table-styles"
+              label="Table Styles"
+              value="table-grid"
+              style=${ribbonGalleryStyle}
+            >
+              ${wordTableStyleGalleryItems(documentThemePalette)} ${wordTableStyleGalleryFooter()}
+            </mjx-gallery>`,
+            'word.table-design.table-styles.shading': html`<mjx-color-picker
+              id="word-table-design-shading"
+              style=${ribbonColourFieldStyle}
+              label="Shading"
+              show-no-fill
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            ></mjx-color-picker>`,
+            'word.table-design.borders.border-styles': html`<mjx-button
+              label="Border Styles"
+              icon="line-style"
+              size="large"
+              data-opens="shell-word-table-design-borders-border-styles"
+            ></mjx-button>`,
+            'word.table-design.borders.line-style': html`<mjx-dropdown
+              id="word-table-design-line-style"
+              label="Line Style"
+              value="single"
+              style=${ribbonFieldStyle}
+            >
+              ${wordBorderLineStyles.map(
+                (style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.table-design.borders.line-weight': html`<mjx-dropdown
+              id="word-table-design-line-weight"
+              label="Line Weight"
+              value="0.5"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${tableLineWeights.map(
+                (weight) => html`<mjx-option value=${weight.value} label=${weight.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.table-design.borders.pen-colour': html`<mjx-color-picker
+              id="word-table-design-pen-colour"
+              style=${ribbonColourFieldStyle}
+              label="Pen Colour"
+              show-automatic
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            ></mjx-color-picker>`,
+            'word.table-design.borders.borders': html`<mjx-split-button
+              label="Borders"
+              icon="border-all"
+              size="large"
+              menu-label="Borders"
+              data-opens="shell-word-table-design-borders-borders"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -963,7 +1044,7 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
       ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
       ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
       ${mailingsAnimationsDataMenus('word', 'shell')} ${reviewMenus('word', 'shell')}
-      ${viewMenus('word', 'shell')}
+      ${viewMenus('word', 'shell')} ${tableToolsMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

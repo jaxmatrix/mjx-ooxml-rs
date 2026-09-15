@@ -1347,7 +1347,8 @@ is drawn:
 
 ### The contextual tab sets (the four common sets)
 
-**Declared, not authored.** A contextual tab is one Office shows only while something is selected, under a coloured
+**Declared, then authored one tab of one application at a time; Word's Table Design is the first.** A contextual tab
+is one Office shows only while something is selected, under a coloured
 band naming its set, and the census writes it as a row whose `tab_set` is a `TabSet*` id. Until this unit the three
 modules drew their sets with a hand-written one-button stub, with no census entry behind it. Now each set is a
 `RibbonContextualSetEntry` in `dev/ribbons/census.ts`: a kebab id, the census set id, an English band label and its
@@ -1380,7 +1381,9 @@ placeholder priority and the id checks now sweep contextual tabs too.
 
 **Rendering.** `contextualSetsFor` in `stories/ribbons/ribbon-parts.ts` draws each set as the
 `<mjx-contextual-tab-set>` it always was, label from the census. `<app>ContextualSets(options)` takes an optional
-`sets` list, and each contextual tab goes through a `contextualBuilders` entry that is `placeholderTab` today.
+`sets` list and a host's `controls`, and each contextual tab goes through a `contextualBuilders` entry. Every entry
+was `placeholderTab` when the sets were declared; **Word's Table Design is the first to be replaced**, see *Word's
+Table Design* below.
 
 - **`Ribbons/*` draws all four sets**, so each contextual tab has its own story (`TableDesign`, `TableLayout`,
   `PictureFormat`, `ShapeFormat`, `ChartDesign`, `ChartFormat`).
@@ -1406,7 +1409,73 @@ line with a `<app><Tab>Tab` function, and binds and documents it as every earlie
 ⚠ **What the menu gate will meet.** `appearanceOfCommand` in `tests/ribbons.test.ts` answers `contextual` for a
 contextual tab's command, and `surfaceFindings` treats that like `always`: a menu declared for a contextual command is
 required of both hosts. A shell draws only one set, so the first unit that declares a menu on a set its shell does
-not draw must decide whether that shell draws the set or the gate learns which sets each host draws.
+not draw must decide whether that shell draws the set or the gate learns which sets each host draws. **Word's Table
+Design did not have to decide**: both Word hosts draw Table Tools, so both bind its menus and the gate is unchanged.
+The question is still open for PowerPoint's Table Design, whose shell draws Picture Tools.
+
+### Word's Table Design
+
+**One tab of one application, and the first contextual tab authored.** Three groups and fourteen commands, in
+Office's order, which is also the census's: Table Style Options, Table Styles, Borders. It is `TabTableToolsDesign` in
+`TabSetTableTools`, under the *Table Tools* band while the insertion point is in a table: which parts of the table its
+style sets apart, which style it wears, and the pen its borders are drawn with.
+
+**The census's groups, read.** `GroupTableLayout` (13) is Table Style Options, `GroupTableStylesWord` (6) Table
+Styles, `GroupTableBorders` (13) Borders. The ids, labels and priorities are the contextual unit's, unchanged.
+
+**It renders in both Word hosts**, because both draw Table Tools: `Ribbons/Word` for its `TableDesign` story and
+`Shell/Word` because its document's selection is in a table. Each binds thirteen commands and renders
+`tableToolsMenus('word', host)`.
+
+- **Six checkboxes**: Header Row, Total Row and Banded Rows down the first column; First Column, Last Column and
+  Banded Columns down the second. Header Row, First Column and Banded Rows are ticked, Word's `w:tblLook` for an
+  inserted table (`04A0`).
+- **One gallery**, Table Styles: Word's 105 built-in styles by Word's own names, under *Plain Tables* (7), *Grid
+  Tables* (49) and *List Tables* (49), starting on Table Grid, with Modify Table Style…, Clear and New Table Style…
+  under it.
+- **Two colour pickers**: Shading (*No Colour*) and Pen Colour (*Automatic*), over the document's palette.
+- **Two fields**: Line Style (No Border and twenty-four styles, each value its `ST_Border` token, on Single) and Line
+  Weight (¼ pt to 6 pt, on ½ pt).
+- **One dropdown**, Border Styles, the first command of Borders as Microsoft 365 draws it: *Theme Borders*,
+  twenty-one borders, then Border Sampler. Table Styles holds only the gallery and Shading.
+- **One split button**, Borders: Office's sixteen entries, View Gridlines ticked.
+- **One toggle**, Border Painter, unpressed, and **one dialog launcher**, *Borders and Shading*, on Borders.
+
+**Written once, in `stories/ribbons/table-tools-menus.ts`, for three Table Design tabs.** What all three applications
+share is shared, and Word's alone says so in its name:
+
+- `tableStylePicture` and `tableStyleGalleryItems`: a style is a `TableStyleSpec` (name, category, the document
+  colour it is tinted by, and a `TableStylePicture` look), and the picture is a small table drawn in **the document's
+  palette**, which the host passes. PowerPoint's and Excel's units write their own style lists and reuse both.
+- `tableLineWeights`: the nine weights, in points, which PowerPoint's Pen Weight also offers.
+- `wordBorderLineStyles`, Word's Border Styles menu and Word's Borders menu are Word's.
+
+⚠ **A picture is static markup built with `lit/static-html.js`.** `<mjx-gallery-item>` captures its children into a
+fragment the gallery clones, so its art must carry no lit binding, and 105 pictures cannot be 105 hand-written
+templates. Each is one markup string made static with `unsafeStatic`. **Only a colour that passes `hexColour` reaches
+that string**; anything else becomes a token, so a palette value cannot inject markup. The file holds no colour
+literal, so `tests/design-values.test.ts`' list of files that carry one is unchanged.
+
+**No survivors.** The checkboxes are refused by the gate; the gallery, Shading, Border Styles, Line Style, Line Weight,
+Pen Colour and Borders all open something. Border Painter passes rule 1 and fails rule 2, because unlabelled its brush
+is Format Painter's.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The counts.** Table Style Options counts 13 and draws 6; Table Styles counts 6 and draws 2; Borders counts 13 and
+  draws 6 and a launcher. `GUESS:` each reading, in `dev/ribbons/census.ts`. Nothing is padded.
+- **Shading and Pen Colour are the catalogue's colour picker**, where Office draws a bucket split button and a pen
+  dropdown.
+- **Line Style and Line Weight carry names**, where Office draws pictures of lines. `GUESS:` the style names.
+- **Every gallery picture**, the footer's order, the border styles' three weights, the Borders menu's separators, the
+  checkboxes' columns and View Gridlines ticked are `GUESS:`.
+- **The census's spelling wins** (*Pen Colour*), except in the style names, which keep Word's *Colorful*: a style name
+  is data in the document.
+- **Office presses Border Painter** when a border style, line style, weight or colour is chosen. Nothing dispatches
+  here, so it does not.
+- **Glyphs**, all `GUESS:`. One is new: `line-style` (Border Styles). Reused: `border-all` (Borders, now at 24) and
+  `paint-brush` (Border Painter, now at 24 and filled). The six checkboxes, the gallery, both colour pickers and both
+  fields carry none.
 
 ### The priority ladder, and why a group declares a *priority* rather than a width
 

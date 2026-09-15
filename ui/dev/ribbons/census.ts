@@ -115,9 +115,11 @@
  * as functions of the colour-mode tab it shares with Greyscale; see the *commands the colour modes show* section.
  * **PowerPoint's Greyscale** followed, PowerPoint's eighth and last view tab authored, calling the same two
  * functions; see that section's *PowerPoint's Greyscale* part. It was the last core or view placeholder, so every
- * in-scope core and view tab of the three applications now carries its commands. **The contextual tabs carry none
- * yet**: see *The contextual tab sets* below, which declares their groups so each can be authored one tab of one
- * application at a time. `commands` stays optional rather than required, because an empty array would claim a tab
+ * in-scope core and view tab of the three applications now carries its commands. **The contextual tabs follow**:
+ * see *The contextual tab sets* below, which declares their groups so each can be authored one tab of one
+ * application at a time. **Word's Table Design** was the first, its menus and gallery art written once in
+ * `stories/ribbons/table-tools-menus.ts` for PowerPoint's and Excel's Table Design units; see the *commands Table
+ * Design shows* section. `commands` stays optional rather than required, because an empty array would claim a tab
  * had been authored and found to hold nothing.
  *
  * ## The contextual tab sets
@@ -165,9 +167,9 @@
  *    PowerPoint's Chart Styles counts 2 and Excel's Chart Data counts 2, so neither can be `standard` however much a
  *    person reaches for it. Both are `secondary`, because the chart's own on-canvas buttons reach them.
  *
- * **No contextual tab carries commands.** Each per-tab unit authors one tab of one application, exactly as the view
- * tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at the priority declared
- * here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
+ * **One contextual tab carries commands: Word's Table Design.** Each per-tab unit authors one tab of one application,
+ * exactly as the view tabs were; until then `stories/ribbons/<app>.ts` renders the tab through `placeholderTab`, at
+ * the priority declared here. The two hosts draw different sets: `Ribbons/*` draws all four so each tab has a story, and `Shell/*` draws
  * the one set its document's selection would show (Word's and Excel's Table Tools, PowerPoint's Picture Tools),
  * because Office never shows four sets at once.
  *
@@ -6575,6 +6577,143 @@ export const ribbonCensus: Readonly<Record<RibbonApplication, readonly RibbonTab
   excel: excelRibbonTabs,
 };
 
+// ── the commands Table Design shows ──────────────────────────────────────────
+//
+// ## Word's Table Design
+//
+// The unit after the contextual sets were declared, one tab of one application: **Word's `TabTableToolsDesign`, in
+// `TabSetTableTools`**, all three in-scope groups and fourteen commands, and **the first contextual tab authored**.
+// Office shows it under the *Table Tools* band while the insertion point is in a table: which parts of the table its
+// style sets apart, which style it wears, and the pen the Borders group draws borders with.
+//
+// ## Office's three groups, read onto the census's three
+//
+// | Census group (count) | Label | What it holds here |
+// |---|---|---|
+// | `GroupTableLayout` (13) | Table Style Options | Header Row, Total Row, Banded Rows, First Column, Last Column, Banded Columns |
+// | `GroupTableStylesWord` (6) | Table Styles | the Table Styles gallery, Shading |
+// | `GroupTableBorders` (13) | Borders | Border Styles, Line Style, Line Weight, Pen Colour, Borders, Border Painter; the Borders and Shading launcher |
+//
+// **Every id, label and priority is the contextual unit's, unchanged.** `GroupTableLayout` is still the misleading
+// id: it names a layout and sits on the Design tab, where the only group its position and count fit is Table Style
+// Options. `GUESS:` that reading, as the header's item 2 records it.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Six toggles drawn as checkboxes**, bound by both hosts. **One in-ribbon gallery**, Table Styles, over Word's 105
+// built-in styles with three footer commands. **Two colour pickers**, Shading and Pen Colour, over the document's
+// palette. **Two fields**, Line Style and Line Weight. **One dropdown**, Border Styles. **One split button**, Borders.
+// **One toggle**, Border Painter, the generic toggle, unpressed. **One dialog launcher**, Borders and Shading, on
+// Borders. Every list is in `stories/ribbons/table-tools-menus.ts`, **written for PowerPoint's and Excel's Table
+// Design to reuse where their entries are Word's**: the table picture, the gallery item builder and the nine line
+// weights. **No exclusive set, no split toggle, no survivor.**
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The counts.** **Table Style Options counts 13 and draws 6.** `GUESS:` no reading this unit found reaches 13 (a
+//    box and a label per checkbox is 12), and nothing is padded. **Table Styles counts 6 and draws 2.** `GUESS:` the
+//    gallery, its two scroll arrows, its More button, and the two halves of Shading make six. **Borders counts 13 and
+//    draws 6 and a launcher.** `GUESS:` the census counts some of the Borders menu; no reading reaches 13 exactly.
+// 2. **The six checkboxes are declared down each column**: Header Row, Total Row, Banded Rows, then First Column, Last
+//    Column, Banded Columns. That is Office's two columns of three read down each column, as Notes Master's
+//    placeholders are. The brief lists them across the rows. `GUESS:` the columns.
+// 3. **Header Row, First Column and Banded Rows start ticked**, and the other three unticked. That is the table look
+//    Word writes on an inserted table, `w:tblLook w:val="04A0"`: first row, first column, and no vertical banding.
+//    `GUESS:` that the checkboxes show exactly that look.
+// 4. **The gallery starts on Table Grid**, Insert Table's style, and draws Word's 105 built-in styles by Word's own
+//    names: *Plain Tables* (7), *Grid Tables* (49) and *List Tables* (49), seven families each drawn without an accent
+//    and in the six accents. **The style names keep Word's spelling**, *Colorful*, where the census writes *Colour*: a
+//    style name is data a document carries (`w:style/w:name`). The pictures are drawn in the **document's palette**,
+//    so a style tinted by Accent 2 is the document's second accent. `GUESS:` each picture's look, the footer's order
+//    (Modify Table Style…, Clear, New Table Style…), and that no *Custom* section shows for a document with none.
+// 5. **The census's spelling wins everywhere else**: *Pen Colour*, where Office writes *Pen Color*.
+// 6. **Shading and Pen Colour are drawn as the catalogue's colour picker**, a field with a swatch. Office draws Shading
+//    as a large split button with a paint bucket, and Pen Color as a small dropdown with a pen, each opening a colour
+//    grid. The picker is the catalogue's one colour control and the one that reads a document's palette, so it is
+//    used for both, as Home's Font Colour and Design's Page Colour already are. Shading offers *No Colour*, Pen
+//    Colour *Automatic*.
+// 7. **Line Style and Line Weight carry names.** Office draws each entry as a picture of the line with no text. The
+//    style names are `GUESS:`, from the Borders and Shading dialog, and each value is the style's `ST_Border` token.
+//    Line Style starts on Single and Line Weight on ½ pt, a new table's border.
+// 8. **Office presses Border Painter itself** once a border style, line style, weight or colour is chosen. Nothing
+//    here dispatches a command, so it stays where a person leaves it; that is loop 2's.
+//
+// ## Survivors: none, and why each group keeps none
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Table Style Options**: none. All six are checkboxes, which the gate refuses.
+// - **Table Styles**: none. The gallery and Shading's colour grid both fail rule 1.
+// - **Borders**: none. Border Styles opens a menu, Line Style, Line Weight and Pen Colour open lists and Borders is a
+//   split button, all rule 1.
+//   **Border Painter passes rule 1 and fails rule 2**: unlabelled, its brush is Format Painter's, a different command
+//   a person reaches for on Home.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Microsoft 365's shape**: Border Styles, Borders and Border Painter are `large`; Line Style, Line
+// Weight and Pen Colour are stacked in a column; the gallery is in-ribbon; the six checkboxes are two columns of three.
+// Three commands carry a glyph, and every glyph is `GUESS:`:
+//
+// - **Border Styles draws `line-style`**, three lines of different dashes, new: a border style is a line's style,
+//   weight and colour chosen together. Not `border-all`, which Borders draws beside it.
+// - **Borders draws `border-all`**, Home's Borders glyph, now at 24 too: the same command, the same resting face.
+// - **Border Painter draws `paint-brush`**, Format Painter's brush, now at 24 and filled while pressed. Office's own
+//   Border Painter glyph is a brush over a border. See the survivors on why that shared brush keeps it off the
+//   survivor row.
+//
+// **Eleven commands carry no glyph, and say why**: the six checkboxes draw their tick box; the gallery is its
+// pictures; Shading and Pen Colour are colour pickers, which draw a swatch; Line Style and Line Weight are fields.
+
+/**
+ * Word's `GroupTableLayout` on Table Design, labelled **Table Style Options**: six checkboxes, two columns of three
+ * read down each column. See disagreements 1, 2 and 3.
+ *
+ * **All six are toggles drawn as checkboxes** a host binds; Header Row, First Column and Banded Rows start ticked.
+ *
+ * **No survivor**: six checkboxes.
+ */
+const wordTableDesignTableStyleOptions: readonly RibbonCommand[] = [
+  { id: 'word.table-design.table-style-options.header-row', label: 'Header Row', toggle: true, pressed: true },
+  { id: 'word.table-design.table-style-options.total-row', label: 'Total Row', toggle: true },
+  { id: 'word.table-design.table-style-options.banded-rows', label: 'Banded Rows', toggle: true, pressed: true },
+  { id: 'word.table-design.table-style-options.first-column', label: 'First Column', toggle: true, pressed: true },
+  { id: 'word.table-design.table-style-options.last-column', label: 'Last Column', toggle: true },
+  { id: 'word.table-design.table-style-options.banded-columns', label: 'Banded Columns', toggle: true },
+];
+
+/**
+ * Word's `GroupTableStylesWord`, labelled **Table Styles**: the gallery and Shading. See disagreements 1, 4 and 6.
+ *
+ * **The gallery** and **Shading**, a colour picker, carry no glyph. Both are bound by a host.
+ *
+ * **No survivor**: a gallery and a colour grid.
+ */
+const wordTableDesignTableStyles: readonly RibbonCommand[] = [
+  { id: 'word.table-design.table-styles.gallery', label: 'Table Styles' },
+  { id: 'word.table-design.table-styles.shading', label: 'Shading' },
+];
+
+/**
+ * Word's `GroupTableBorders`, labelled **Borders**, as Microsoft 365 draws it: Border Styles large and first, then Line
+ * Style, Line Weight and Pen Colour in a column, then Borders and Border Painter large, and the Borders and Shading
+ * launcher the tab module passes. See disagreements 1, 6, 7 and 8.
+ *
+ * **Border Styles is a large dropdown** a host binds. **Line Style and Line Weight are fields** and **Pen Colour a
+ * colour picker**, bound by a host. **Borders is a split button** a host binds. **Border Painter is the generic
+ * toggle**, unpressed.
+ *
+ * **No survivor**: a menu, three lists, a split button, and a brush that reads as Format Painter.
+ */
+const wordTableDesignBorders: readonly RibbonCommand[] = [
+  { id: 'word.table-design.borders.border-styles', label: 'Border Styles', icon: 'line-style', size: 'large' },
+  { id: 'word.table-design.borders.line-style', label: 'Line Style' },
+  { id: 'word.table-design.borders.line-weight', label: 'Line Weight' },
+  { id: 'word.table-design.borders.pen-colour', label: 'Pen Colour' },
+  { id: 'word.table-design.borders.borders', label: 'Borders', icon: 'border-all', size: 'large' },
+  { id: 'word.table-design.borders.border-painter', label: 'Border Painter', icon: 'paint-brush', size: 'large', toggle: true },
+];
+
 // ── the contextual tab sets ──────────────────────────────────────────────────
 //
 // See the *contextual tab sets* section of this file's header: the four common sets, their groups transcribed from
@@ -6609,9 +6748,9 @@ export const wordRibbonContextualSets: readonly RibbonContextualSetEntry[] = [
         appearance: 'contextual',
         source: { kind: 'contextual', tabSet: 'TabSetTableTools', tab: 'TabTableToolsDesign' },
         groups: [
-          { id: 'GroupTableLayout', label: 'Table Style Options', priority: 'standard', controls: 13, inScope: true },
-          { id: 'GroupTableStylesWord', label: 'Table Styles', priority: 'primary', controls: 6, inScope: true },
-          { id: 'GroupTableBorders', label: 'Borders', priority: 'primary', controls: 13, inScope: true },
+          { id: 'GroupTableLayout', label: 'Table Style Options', priority: 'standard', controls: 13, inScope: true, commands: wordTableDesignTableStyleOptions },
+          { id: 'GroupTableStylesWord', label: 'Table Styles', priority: 'primary', controls: 6, inScope: true, commands: wordTableDesignTableStyles },
+          { id: 'GroupTableBorders', label: 'Borders', priority: 'primary', controls: 13, inScope: true, commands: wordTableDesignBorders },
         ],
       },
       {

@@ -454,9 +454,9 @@ export const iconRequests: readonly IconRequest[] = [
   // galleries and every picker, which are bound by a host rather than drawn as buttons.
   {
     name: 'paint-brush',
-    sizes: [20],
-    variants: ['regular'],
-    why: "Format Painter, on the Clipboard group of all three applications — and the row that replaces a `settings` cog that had been standing in for it since the shells were written. A brush is what Office draws and what the command does: it picks formatting up and puts it down somewhere else.",
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Format Painter, on the Clipboard group of all three applications — and the row that replaces a `settings` cog that had been standing in for it since the shells were written. A brush is what Office draws and what the command does: it picks formatting up and puts it down somewhere else. **Since Word's Table Design unit, also Border Painter**, the large toggle in the Borders group, so 24 and the filled drawing too: Office's own glyph for it is a brush over a border, and the command paints the pen's border onto the edges it is dragged across. Sharing Format Painter's brush is why Border Painter is no survivor (demotion rule 2). `GUESS:`.",
   },
   {
     name: 'font-increase',
@@ -592,9 +592,9 @@ export const iconRequests: readonly IconRequest[] = [
   },
   {
     name: 'border-all',
-    sizes: [20],
+    sizes: [20, 24],
     variants: ['regular'],
-    why: "Borders, on Word's Paragraph group and Excel's Font group — replacing a bare `table`, which said *insert a table* rather than *draw lines around this*. `border-all` is the member Office shows resting, and the other fifteen border glyphs Fluent ships belong to the menu underneath it, which stays shallow per decision 3 of the approved plan.",
+    why: "Borders, on Word's Paragraph group and Excel's Font group — replacing a bare `table`, which said *insert a table* rather than *draw lines around this*. `border-all` is the member Office shows resting, and the other fifteen border glyphs Fluent ships belong to the menu underneath it, which stays shallow per decision 3 of the approved plan. **Since Word's Table Design unit, also Table Design's Borders**, the large split button in the Borders group: the same command and the same resting face, so 24 as well. `GUESS:`.",
   },
   {
     name: 'text-proofing-tools',
@@ -2117,6 +2117,17 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20],
     variants: ['regular'],
     why: "Layout, the small dropdown in Slide Master Home's Master Slides group, which applies one of the master's layouts: a frame divided into a title row and two panes, the arrangement of placeholders a layout is. Not `slide-layout`, which Insert Layout draws in the same group. `GUESS:`.",
+  },
+  // ── Table Design (Word's) ─────────────────────────────────────────────────
+  //
+  // One new glyph. Borders reuses `border-all` and Border Painter `paint-brush`, each of which says so. Every other
+  // Table Design command is a checkbox, the gallery, a colour picker or a field, and carries none.
+  // `dev/ribbons/census.ts` gives the reasoning.
+  {
+    name: 'line-style',
+    sizes: [24],
+    variants: ['regular'],
+    why: "Border Styles, the large dropdown in Word's Table Design, which loads the pen with one of the theme's borders: three lines in three dashes, a border's style chosen from a set. Not `border-all`, which Borders draws beside it, nor `line-thickness`, which is one line's weight. Large alone, so 24 alone. `GUESS:`.",
   },
 ];
 

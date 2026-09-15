@@ -5,7 +5,7 @@
  * Fluent UI System Icons are MIT licensed, © Microsoft Corporation. The licence is
  * reproduced in ui/src/icons/LICENSE-fluent.txt.
  *
- * 580 glyphs, 218790 bytes of path data, subset from the
+ * 585 glyphs, 220117 bytes of path data, subset from the
  * 20,679 files the package ships. `npm run icons:check` re-derives this file and fails on
  * any difference; tests/browser/icons.spec.ts asserts that the built bundle contains
  * exactly these ids and no others.
@@ -535,6 +535,18 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 20 20',
     paths: ['M5.5 2a.5.5 0 0 0-.5.5V11c0 1.1.9 2 2 2h1v3a2 2 0 1 0 4 0v-3h1a2 2 0 0 0 2-2V2.5a.5.5 0 0 0-.5-.5zm.5 8h8v1a1 1 0 0 1-1 1h-1.5a.5.5 0 0 0-.5.5V16a1 1 0 1 1-2 0v-3.5a.5.5 0 0 0-.5-.5H7a1 1 0 0 1-1-1zm8-1H6V3h4v1.5a.5.5 0 0 0 1 0V3h1v2.5a.5.5 0 0 0 1 0V3h1z'],
   },
+  'mjx-fluent:paint-brush-20-filled': {
+    viewBox: '0 0 20 20',
+    paths: ['M10 4.5V2H5.5a.5.5 0 0 0-.5.5V9h10V2.5a.5.5 0 0 0-.5-.5H13v3.5a.5.5 0 0 1-1 0V2h-1v2.5a.5.5 0 0 1-1 0m5 5.5H5v1c0 1.1.9 2 2 2h1.5v3.5a1.5 1.5 0 1 0 3 0V13H13a2 2 0 0 0 2-2z'],
+  },
+  'mjx-fluent:paint-brush-24-regular': {
+    viewBox: '0 0 24 24',
+    paths: ['M5.75 2a.75.75 0 0 0-.75.75v11.5c0 1.24 1 2.25 2.25 2.25H9.5v3a2.5 2.5 0 1 0 5 0v-3h2.25c1.24 0 2.25-1 2.25-2.25V2.75a.75.75 0 0 0-.75-.75zm.75 9V3.5h6v1.75a.75.75 0 1 0 1.5 0V3.5h1v2.75a.75.75 0 1 0 1.5 0V3.5h1V11zm0 3.25V12.5h11v1.75c0 .41-.34.75-.75.75h-3a.75.75 0 0 0-.75.75v3.75a1 1 0 0 1-2 0v-3.75a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 1-.75-.75'],
+  },
+  'mjx-fluent:paint-brush-24-filled': {
+    viewBox: '0 0 24 24',
+    paths: ['M12.5 2v3.25a.75.75 0 0 0 1.5 0V2h1v4.25a.75.75 0 0 0 1.5 0V2h1.75c.41 0 .75.34.75.75V11H5V2.75c0-.41.34-.75.75-.75zM5 12.5v1.75c0 1.24 1 2.25 2.25 2.25H10V20a2 2 0 1 0 4 0v-3.5h2.75c1.24 0 2.25-1 2.25-2.25V12.5z'],
+  },
   'mjx-fluent:font-increase-20-regular': {
     viewBox: '0 0 20 20',
     paths: ['M13.85 4.85a.5.5 0 0 1-.7-.7l2-2c.2-.2.5-.2.7 0l2 2a.5.5 0 0 1-.7.7L15.5 3.21zM10 4a.5.5 0 0 0-.46.31l-4.5 11a.5.5 0 1 0 .92.38l1.54-3.76V12h5v-.07l1.54 3.76a.5.5 0 1 0 .92-.38l-4.5-11A.5.5 0 0 0 10 4m0 1.82L12.12 11H7.88z'],
@@ -666,6 +678,10 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
   'mjx-fluent:border-all-20-regular': {
     viewBox: '0 0 20 20',
     paths: ['M3 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zm3-2a2 2 0 0 0-2 2v3.5h5.5V4zm4.5 0v5.5H16V6a2 2 0 0 0-2-2zm5.5 6.5h-5.5V16H14a2 2 0 0 0 2-2zM9.5 16v-5.5H4V14c0 1.1.9 2 2 2z'],
+  },
+  'mjx-fluent:border-all-24-regular': {
+    viewBox: '0 0 24 24',
+    paths: ['M3 5.75A2.75 2.75 0 0 1 5.75 3h12.5A2.75 2.75 0 0 1 21 5.75v12.5A2.75 2.75 0 0 1 18.25 21H5.75A2.75 2.75 0 0 1 3 18.25zm9.75 13.75h5.5c.69 0 1.25-.56 1.25-1.25v-5.5h-6.75zm-1.5-6.75H4.5v5.5c0 .69.56 1.25 1.25 1.25h5.5zm1.5-1.5h6.75v-5.5c0-.69-.56-1.25-1.25-1.25h-5.5zm-1.5-6.75h-5.5c-.69 0-1.25.56-1.25 1.25v5.5h6.75z'],
   },
   'mjx-fluent:text-proofing-tools-20-regular': {
     viewBox: '0 0 20 20',
@@ -2339,10 +2355,14 @@ export const iconGlyphs: Readonly<Record<string, IconGlyph>> = {
     viewBox: '0 0 20 20',
     paths: ['M3 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zm3-2a2 2 0 0 0-2 2v3.5h5.5V4zm4.5 5.5H16V6a2 2 0 0 0-2-2h-3.5zm5.5 1H4V14c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2z'],
   },
+  'mjx-fluent:line-style-24-regular': {
+    viewBox: '0 0 24 24',
+    paths: ['M2.75 5a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5zm7.5 0a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5zm7.5 0a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5zm3.5 6.5H2.75l-.1.01a.75.75 0 0 0 .1 1.5h18.5l.1-.01a.75.75 0 0 0-.1-1.5m-18 5.5a1.25 1.25 0 0 0 0 2.5h17.5a1.25 1.25 0 1 0 0-2.5z'],
+  },
 };
 
 /** How many glyphs the subset carries. The bundle gate compares against this. */
-export const subsetGlyphCount = 580;
+export const subsetGlyphCount = 585;
 
 /**
  * Total bytes of SVG path data in the subset.
@@ -2351,7 +2371,7 @@ export const subsetGlyphCount = 580;
  * rather than computed at runtime is that a budget computed from the same data it is
  * measuring can never be exceeded — the identity-value trap in arithmetic form.
  */
-export const subsetPathBytes = 218790;
+export const subsetPathBytes = 220117;
 
 /** The sentinel every id above carries, restated so a Node-side gate need not guess. */
 export const generatedIconIdPrefix = 'mjx-fluent:';

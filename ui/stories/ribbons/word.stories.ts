@@ -34,6 +34,13 @@ import { outlineLevels, showLevels } from './outlining-menus.ts';
 import { printPreviewMenus } from './print-preview-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
+import {
+  tableLineWeights,
+  tableToolsMenus,
+  wordBorderLineStyles,
+  wordTableStyleGalleryFooter,
+  wordTableStyleGalleryItems,
+} from './table-tools-menus.ts';
 import { viewMenus } from './view-menus.ts';
 import { wordContextualSets, wordTabs } from './word.ts';
 
@@ -49,11 +56,11 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * ## What is authored and what is not
  *
  * **Every core and view tab is authored**: File, Home, Insert, Draw, Design, Layout, References, Mailings, Review,
- * View, Outlining, Print Preview and Background Removal. **The six contextual tabs are placeholders** — Table Design
- * and Layout, Picture Format, Shape Format, Chart Design and Format — each one group carrying the tab's name, at the
- * priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is the shape unit 0 gave
- * every core tab: the census transcribed, the ladder already right and every tab present, so each later unit is a
- * small diff rather than a new file.
+ * View, Outlining, Print Preview and Background Removal. **Of the six contextual tabs, Table Design is authored**, the
+ * first. **The other five are placeholders** — Table Tools' Layout, Picture Format, Shape Format, Chart Design and
+ * Format — each one group carrying the tab's name, at the priority `dev/ribbons/census.ts` declares for it, holding
+ * one button that says so. That is the shape unit 0 gave every core tab: the census transcribed, the ladder already
+ * right and every tab present, so each later unit is a small diff rather than a new file.
  *
  * **Every story draws all four contextual sets**, as every story draws the view tabs, so a contextual tab can be
  * reached from any story; Office shows one set at a time, and `Shell/Word` draws Table Tools alone.
@@ -63,9 +70,9 @@ import { wordContextualSets, wordTabs } from './word.ts';
  * than an obvious placeholder, and a placeholder occupies exactly as much of the layout as a
  * command does.
  *
- * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design,
- * Layout, References, Mailings, Review, View and Print Preview tabs' menus open, the pickers open, the gallery previews — and no document changes, because command
- * dispatch is loop 2.
+ * **Nothing here dispatches a command.** The paste button's menu opens, the Insert, Draw, Design, Layout, References,
+ * Mailings, Review, View, Print Preview and Table Design tabs' menus open, the pickers open, the galleries preview —
+ * and no document changes, because command dispatch is loop 2.
  */
 
 const conventions = storyConventions({
@@ -84,9 +91,9 @@ const meta: Meta = {
         component:
           'Word’s twelve core tabs, its File tab and its six contextual tabs, each shown selected inside the whole ' +
           'ribbon. Every core and view tab is authored: File, Home, Insert, Draw, Design, Layout, References, ' +
-          'Mailings, Review, View, Outlining, Print Preview and Background Removal. The contextual tabs of the four ' +
-          'common sets — Table Design, Layout, Picture Format, Shape Format, Chart Design and Format — are ' +
-          'placeholders carrying the census’s own priorities.',
+          'Mailings, Review, View, Outlining, Print Preview and Background Removal. Of the contextual tabs of the ' +
+          'four common sets, Table Design is authored; Layout, Picture Format, Shape Format, Chart Design and Format ' +
+          'are placeholders carrying the census’s own priorities.',
       },
     },
     mjx: conventions,
@@ -726,6 +733,72 @@ const bindings: ControlOverrides = {
   ></mjx-button>`,
   'word.print-preview.preview.show-ruler': html`<mjx-checkbox id="ribbons-word-print-preview-show-ruler" label="Show Ruler"></mjx-checkbox>`,
   'word.print-preview.preview.magnifier': html`<mjx-checkbox id="ribbons-word-print-preview-magnifier" label="Magnifier" checked="true"></mjx-checkbox>`,
+  // Table Design (a contextual tab, in Table Tools). Both Word hosts draw Table Tools, so `Shell/Word` binds the same
+  // thirteen commands under its own ids. Table Style Options' six are checkboxes; the gallery and the two fields are
+  // filled from `stories/ribbons/table-tools-menus.ts`, the pickers from the document's palette; Border Styles and
+  // Borders open their menus from that file. Border Painter is the generic toggle and is not bound.
+  'word.table-design.table-style-options.header-row': html`<mjx-checkbox id="ribbons-word-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+  'word.table-design.table-style-options.total-row': html`<mjx-checkbox id="ribbons-word-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+  'word.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="ribbons-word-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+  'word.table-design.table-style-options.first-column': html`<mjx-checkbox id="ribbons-word-table-design-first-column" label="First Column" checked="true"></mjx-checkbox>`,
+  'word.table-design.table-style-options.last-column': html`<mjx-checkbox id="ribbons-word-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+  'word.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="ribbons-word-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+  'word.table-design.table-styles.gallery': html`<mjx-gallery
+    id="ribbons-word-table-styles"
+    label="Table Styles"
+    value="table-grid"
+    style=${ribbonGalleryStyle}
+  >
+    ${wordTableStyleGalleryItems(documentThemePalette)} ${wordTableStyleGalleryFooter()}
+  </mjx-gallery>`,
+  'word.table-design.table-styles.shading': html`<mjx-color-picker
+    id="ribbons-word-table-design-shading"
+    style=${ribbonColourFieldStyle}
+    label="Shading"
+    show-no-fill
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'word.table-design.borders.border-styles': html`<mjx-button
+    label="Border Styles"
+    icon="line-style"
+    size="large"
+    data-opens="ribbons-word-table-design-borders-border-styles"
+  ></mjx-button>`,
+  'word.table-design.borders.line-style': html`<mjx-dropdown
+    id="ribbons-word-table-design-line-style"
+    label="Line Style"
+    value="single"
+    style=${ribbonFieldStyle}
+  >
+    ${wordBorderLineStyles.map((style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'word.table-design.borders.line-weight': html`<mjx-dropdown
+    id="ribbons-word-table-design-line-weight"
+    label="Line Weight"
+    value="0.5"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${tableLineWeights.map((weight) => html`<mjx-option value=${weight.value} label=${weight.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'word.table-design.borders.pen-colour': html`<mjx-color-picker
+    id="ribbons-word-table-design-pen-colour"
+    style=${ribbonColourFieldStyle}
+    label="Pen Colour"
+    show-automatic
+    .themePalette=${documentThemePalette}
+    .standardColors=${standardColors}
+    .recentColors=${recentColors}
+  ></mjx-color-picker>`,
+  'word.table-design.borders.borders': html`<mjx-split-button
+    label="Borders"
+    icon="border-all"
+    size="large"
+    menu-label="Borders"
+    data-opens="ribbons-word-table-design-borders-borders"
+    @mjx-menu-request=${openDeclaredSurface}
+  ></mjx-split-button>`,
 };
 
 /**
@@ -741,7 +814,7 @@ const bindings: ControlOverrides = {
 function ribbon(selected: string): TemplateResult {
   return html`
     <mjx-ribbon label="Word" selected=${selected} @mjx-activate=${openDeclaredSurface}>
-      ${wordTabs({ controls: bindings, includeViewTabs: true })} ${wordContextualSets()}
+      ${wordTabs({ controls: bindings, includeViewTabs: true })} ${wordContextualSets({ controls: bindings })}
     </mjx-ribbon>
     <mjx-menu id="ribbons-word-paste" label="Paste options" floating>
       <mjx-menu-section label="Paste">
@@ -757,6 +830,7 @@ function ribbon(selected: string): TemplateResult {
     ${designLayoutMenus('word', 'ribbons')} ${referencesTransitionsFormulasMenus('word', 'ribbons')}
     ${mailingsAnimationsDataMenus('word', 'ribbons')} ${reviewMenus('word', 'ribbons')}
     ${viewMenus('word', 'ribbons')} ${printPreviewMenus('word', 'ribbons')}
+    ${tableToolsMenus('word', 'ribbons')}
   `;
 }
 
@@ -1106,16 +1180,43 @@ export const PrintPreview: Story = { render: () => ribbon('print-preview') };
 export const BackgroundRemoval: Story = { render: () => ribbon('background-removal') };
 
 /**
- * **Table Design** — Table Tools' first tab, a contextual placeholder until its unit authors it.
- *
- * What to look at, on all six contextual stories:
+ * **Table Design**: the style a table wears and the pen its borders are drawn with. Table Tools' first tab, and the
+ * first contextual tab authored; Office shows it only while the insertion point is in a table. Three groups: Table
+ * Style Options, Table Styles and Borders. What to look at, least certain first. **Items 1 and 2 hold on every
+ * contextual story**, placeholders included:
  *
  * 1. **The band.** The strip draws *Table Tools* over this tab and Layout, in the contextual tone, after every core
  *    tab; the tab's accessible name is *Table Design, Table Tools*.
- * 2. **The placeholder collapses at the census's priority.** Its one group is drawn `primary`, because Table Styles
- *    and Borders are declared primary, so the tab gives way as late as it will once authored.
- * 3. **Three groups are declared**: Table Style Options, Table Styles and Borders. The first is `GroupTableLayout`
- *    in the census, a misleading id on this tab; `dev/ribbons/census.ts` records the reading.
+ * 2. **The collapse order is the census's.** A placeholder's one group is drawn at the strongest priority its tab
+ *    declares. Here, authored: Table Style Options is `standard` and gives way first, and Table Styles and Borders
+ *    are `primary` and give way last.
+ * 3. **Border Styles is Borders' first command**, large, left of Line Style, as Microsoft 365 draws it; Table Styles
+ *    holds only the gallery and Shading. Press it: *Theme Borders*, twenty-one entries from *Single solid line, ½ pt,
+ *    Text 1* to *Single solid line, 1 ½ pt, Accent 6*, then Border Sampler.
+ * 4. ⚠ **The gallery's pictures.** Expand Table Styles: *Plain Tables* (7), then *Grid Tables* and *List Tables* (49
+ *    each), one family to a row of seven, Table Grid selected. Every picture is drawn in the document's palette, so
+ *    the six accent columns should be the six accents Shading's theme row shows. Judge whether Grid Table 4, Grid
+ *    Table 5 Dark and Grid Table 6 Colorful read as different styles. Under the list: Modify Table Style…, Clear and
+ *    New Table Style…. `GUESS:` every picture.
+ * 5. ⚠ **Shading and Pen Colour are colour fields**, where Office draws a paint bucket split button and a small pen
+ *    dropdown. Open each: the document's theme colours, standard colours and recent colours, with *No Colour* on
+ *    Shading and *Automatic* on Pen Colour.
+ * 6. **Six checkboxes, two columns of three**: Header Row, Total Row and Banded Rows down the first; First Column, Last
+ *    Column and Banded Columns down the second. Header Row, Banded Rows and First Column are ticked, the look Word
+ *    writes on an inserted table. `GUESS:` the start.
+ * 7. **Line Style and Line Weight are fields with names.** Line Style lists No Border and twenty-four styles, Single
+ *    selected; Line Weight lists ¼ pt to 6 pt, ½ pt selected. Office draws pictures of lines instead of names.
+ * 8. **Borders is a split button.** The face does nothing here; the arrow opens sixteen entries: the four edges; No,
+ *    All, Outside and Inside Borders; the inside and diagonal lines; Horizontal Line; then Draw Table, View Gridlines
+ *    (ticked) and Borders and Shading….
+ * 9. **Border Painter is a toggle**, unpressed. Press it: the brush fills. Press again: it releases.
+ * 10. **The launcher at Borders' corner is *Borders and Shading*.** No other group has one.
+ * 11. **Glyphs to judge**, all `GUESS:`: Border Styles' three dashed lines, the one new glyph; Borders' grid, Home's
+ *     Borders glyph, now large; Border Painter's brush, Format Painter's, now large and filled when pressed.
+ * 12. **No survivor anywhere.** Drag narrow: each group collapses to a trigger with nothing beside it, and every
+ *     command opens from its popup.
+ * 13. **Also in `Shell/Word`**, which draws Table Tools: select Table Design there and every list, menu and starting
+ *     state above is the same, under the shell's own ids.
  */
 export const TableDesign: Story = { render: () => ribbon('table-design') };
 

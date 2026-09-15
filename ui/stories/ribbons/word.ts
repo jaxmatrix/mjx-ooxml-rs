@@ -63,10 +63,14 @@
  *
  * ## The contextual tabs
  *
- * **Six contextual tabs in four sets are declared and every one is a placeholder**: Table Design and Layout (Table
- * Tools), Picture Format (Picture Tools), Shape Format (Drawing Tools), and Chart Design and Format (Chart Tools).
- * `dev/ribbons/census.ts` carries their groups and no commands, so each can be authored one tab at a time with the
- * same small diff; `wordContextualSets` draws them. Every other in-scope set is recorded there as unbuilt.
+ * **Six contextual tabs in four sets are declared**: Table Design and Layout (Table Tools), Picture Format (Picture
+ * Tools), Shape Format (Drawing Tools), and Chart Design and Format (Chart Tools). `wordContextualSets` draws them.
+ * Every other in-scope set is recorded in `dev/ribbons/census.ts` as unbuilt.
+ *
+ * **Table Design is authored**, the first contextual tab: three groups and fourteen commands, the style a table wears
+ * and the pen its borders are drawn with. Its gallery, fields and two menus are in
+ * `stories/ribbons/table-tools-menus.ts`, written for PowerPoint's and Excel's Table Design units to reuse, and both
+ * Word hosts bind it, because both draw Table Tools. **The other five are placeholders**, each until its own unit.
  *
  * ## The three view tabs
  *
@@ -527,13 +531,43 @@ export function wordTabs(
 // ── the contextual tabs ──────────────────────────────────────────────────────
 
 /**
+ * Table Design: Table Style Options, Table Styles, Borders — the first contextual tab authored, in **Office's** order,
+ * which is also the census's. It sits under the *Table Tools* band.
+ *
+ * ⚠ **A contextual tab: Office shows it only while the insertion point is in a table.** Both Word hosts draw Table
+ * Tools, so both bind it: `Ribbons/Word` because every contextual set has a story there, and `Shell/Word` because
+ * its document's selection is in a table. `dev/ribbons/census.ts` records every disagreement, what the counts
+ * might be among them.
+ *
+ * **Eleven of the tab's fourteen commands are bound by a host**: the six Table Style Options checkboxes; the Table
+ * Styles gallery; Shading and Pen Colour, colour pickers; Line Style and Line Weight, fields. Border Styles and
+ * Borders open their menus from `stories/ribbons/table-tools-menus.ts`, as a dropdown and a split button, which makes
+ * thirteen. Border Painter is the generic toggle.
+ *
+ * **One dialog launcher, on Borders**, which opens Borders and Shading. Table Style Options and Table Styles have
+ * none in Office. **No survivor.**
+ */
+export function wordTableDesignTab(options: TabOptions = {}): TemplateResult {
+  const tableDesign = entry('table-design');
+  const controls = options.controls ?? {};
+  return tab(
+    tableDesign.id,
+    tableDesign.label,
+    censusGroup(tableDesign, 'GroupTableLayout', {}, controls),
+    censusGroup(tableDesign, 'GroupTableStylesWord', {}, controls),
+    censusGroup(tableDesign, 'GroupTableBorders', { launcher: 'Borders and Shading' }, controls),
+  );
+}
+
+/**
  * Which function builds which contextual tab. Keyed by the census's own kebab ids, exactly as `builders` is.
  *
- * **Every entry is `placeholderTab` today**: the four common sets are declared in `dev/ribbons/census.ts` with
- * their groups and no commands, and each tab's unit replaces its one line here with a `word<Tab>Tab` function.
+ * **Table Design is authored; every other entry is `placeholderTab` today.** The four common sets are declared in
+ * `dev/ribbons/census.ts` with their groups, and each tab's unit replaces its one line here with a `word<Tab>Tab`
+ * function, as Table Design's did.
  */
 const contextualBuilders: Readonly<Record<string, (options: TabOptions) => TemplateResult>> = {
-  'table-design': () => placeholderTab(entry('table-design')),
+  'table-design': wordTableDesignTab,
   'table-layout': () => placeholderTab(entry('table-layout')),
   'picture-format': () => placeholderTab(entry('picture-format')),
   'shape-format': () => placeholderTab(entry('shape-format')),
