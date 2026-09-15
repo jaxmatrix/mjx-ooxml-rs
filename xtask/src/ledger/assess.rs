@@ -38,7 +38,7 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 
-use super::evidence::{tier_of, Double, Evidence, Split, Tier};
+use super::evidence::{short_suite, tier_of, Double, Evidence, Split, Tier};
 use super::rows::{Capability, Kind, STAND_INS};
 
 /// What a ledger row says about one capability.
@@ -232,16 +232,6 @@ pub(crate) fn assess(capability: &'static Capability, evidence: &Evidence) -> Re
         limitations,
         caps,
     })
-}
-
-/// `crates/mjx-scene-pptx/tests/a_thing.rs` as `mjx-scene-pptx: a_thing`.
-fn short_suite(path: &str) -> String {
-    let trimmed = path.strip_prefix("crates/").unwrap_or(path);
-    let trimmed = trimmed.strip_suffix(".rs").unwrap_or(trimmed);
-    match trimmed.split_once("/tests/") {
-        Some((crate_name, stem)) => format!("{crate_name}: {stem}"),
-        None => trimmed.to_owned(),
-    }
 }
 
 #[cfg(test)]

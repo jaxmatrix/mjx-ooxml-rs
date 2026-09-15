@@ -181,6 +181,16 @@ pub(crate) const ALLOWANCES: &[Allowance] = &[Allowance {
              picture, and the stand-in replaces nothing this journey draws",
 }];
 
+/// A suite's workspace path as its crate and file stem, the way the generated document names a suite.
+pub(crate) fn short_suite(path: &str) -> String {
+    let trimmed = path.strip_prefix("crates/").unwrap_or(path);
+    let trimmed = trimmed.strip_suffix(".rs").unwrap_or(trimmed);
+    match trimmed.split_once("/tests/") {
+        Some((crate_name, stem)) => format!("{crate_name}: {stem}"),
+        None => trimmed.to_owned(),
+    }
+}
+
 /// Whether `code` names `identifier` as a whole identifier rather than as part of a longer one.
 fn contains_identifier(code: &str, identifier: &str) -> bool {
     let is_identifier = |character: char| character.is_alphanumeric() || character == '_';
@@ -824,6 +834,14 @@ fn read_schema_census(root: &Path) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_suite_path_is_shortened_to_its_crate_and_stem() {
+        assert_eq!(
+            short_suite("crates/mjx-layout-docx/tests/a_thing.rs"),
+            "mjx-layout-docx: a_thing"
+        );
+    }
 
     #[test]
     fn prose_about_assertions_is_not_an_assertion() {

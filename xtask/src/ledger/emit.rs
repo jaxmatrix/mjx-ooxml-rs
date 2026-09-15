@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 
 use super::assess::{Assessed, State};
-use super::evidence::{self, Double, Evidence, Provenance, Split};
+use super::evidence::{self, short_suite, Double, Evidence, Provenance, Split};
 use super::rows::{Kind, Section};
 
 /// Renders the whole document.
@@ -53,7 +53,7 @@ fn caps(out: &mut String, rows: &[Assessed]) {
         listed(evidence::RENDERING_TIER),
         evidence::RENDERING_JOURNEYS
             .iter()
-            .map(|path| format!("`{}`", short(path)))
+            .map(|path| format!("`{}`", short_suite(path)))
             .collect::<Vec<_>>()
             .join(", "),
         listed(evidence::LAYOUT_TIER),
@@ -71,7 +71,7 @@ fn caps(out: &mut String, rows: &[Assessed]) {
         let _ = writeln!(
             out,
             "| `{}` | {} | {} |",
-            short(allowance.suite),
+            short_suite(allowance.suite),
             allowance.double.name(),
             allowance.reason
         );
@@ -372,7 +372,7 @@ fn limitations(out: &mut String, rows: &[Assessed]) {
                 out,
                 "| `{}` | {text} | `{}` |",
                 row.capability.id,
-                short(path)
+                short_suite(path)
             );
         }
     }
@@ -421,7 +421,7 @@ fn table(out: &mut String, rows: &[Assessed]) {
                 row.capability
                     .evidence
                     .iter()
-                    .map(|path| format!("`{}`", short(path)))
+                    .map(|path| format!("`{}`", short_suite(path)))
                     .collect::<Vec<_>>()
                     .join("<br>")
             };
@@ -470,30 +470,9 @@ fn grouped(value: u64) -> String {
     out
 }
 
-/// `crates/mjx-layout-docx/tests/a_thing.rs` as `mjx-layout-docx: a_thing`.
-fn short(path: &str) -> String {
-    let trimmed = path
-        .strip_prefix("crates/")
-        .unwrap_or(path)
-        .strip_suffix(".rs")
-        .unwrap_or(path);
-    match trimmed.split_once("/tests/") {
-        Some((crate_name, stem)) => format!("{crate_name}: {stem}"),
-        None => trimmed.to_owned(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_suite_path_is_shortened_to_its_crate_and_stem() {
-        assert_eq!(
-            short("crates/mjx-layout-docx/tests/a_thing.rs"),
-            "mjx-layout-docx: a_thing"
-        );
-    }
 
     #[test]
     fn a_figure_is_grouped_at_the_thousand() {
