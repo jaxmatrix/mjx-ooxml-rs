@@ -215,7 +215,9 @@ const textCommands: readonly MiniCommand[] = [
  *
  * `wordTabs()` leaves out the `appearance: 'view'` tabs — Outlining, Print Preview, Background
  * Removal — because Office shows them only inside the view they name, and a shell that carried
- * them in its default strip would be showing a ribbon that does not exist.
+ * them in its default strip would be showing a ribbon that does not exist. That is also why
+ * **Outlining's commands are bound in `Ribbons/Word` and not here**: a binding for a tab this
+ * strip never draws would be a binding to nothing.
  */
 function ribbon(): TemplateResult {
   return surface(

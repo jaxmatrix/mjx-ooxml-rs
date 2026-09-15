@@ -30,6 +30,7 @@ import { designLayoutMenus, styleSetGalleryItems } from './design-layout-menus.t
 import { drawMenus } from './draw-menus.ts';
 import { insertMenus } from './insert-menus.ts';
 import { mailingsAnimationsDataMenus } from './mailings-animations-data-menus.ts';
+import { outlineLevels, showLevels } from './outlining-menus.ts';
 import { referencesTransitionsFormulasMenus } from './references-transitions-formulas-menus.ts';
 import { reviewMenus } from './review-menus.ts';
 import { viewMenus } from './view-menus.ts';
@@ -46,7 +47,7 @@ import { wordContextualSets, wordTabs } from './word.ts';
  *
  * ## What is authored and what is not
  *
- * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review and View** are real. Every other tab is a placeholder — one group carrying the tab's name,
+ * **File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View and Outlining** are real. Every other tab is a placeholder — one group carrying the tab's name,
  * at the priority `dev/ribbons/census.ts` declares for it, holding one button that says so. That is
  * unit 0 of the ribbon programme: the scaffold, with the census transcribed, the ladder already
  * right and every tab present, so each later unit is a small diff rather than a new file.
@@ -76,7 +77,7 @@ const meta: Meta = {
       description: {
         component:
           'Word’s twelve core tabs and its File tab, each shown selected inside the whole ribbon. ' +
-          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review and View are authored; the rest are placeholders carrying the census’s own ' +
+          'File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View and Outlining are authored; the rest are placeholders carrying the census’s own ' +
           'priorities.',
       },
     },
@@ -672,6 +673,28 @@ const bindings: ControlOverrides = {
     size="large"
     data-opens="ribbons-word-view-window-switch-windows"
   ></mjx-button>`,
+  // Outlining (Word alone, and a view tab). `Shell/Word` never draws a view tab, so these four bindings are
+  // written here and nowhere else. Outline Level and Show Level are dropdown fields over
+  // `stories/ribbons/outlining-menus.ts`; Show Text Formatting (ticked, as the census declares) and Show First
+  // Line Only are checkboxes. The tab opens no menu.
+  'word.outlining.outlining-tools.outline-level': html`<mjx-dropdown
+    id="ribbons-word-outlining-outline-level"
+    label="Outline Level"
+    value="body-text"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${outlineLevels.map((level) => html`<mjx-option value=${level.value} label=${level.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'word.outlining.outlining-tools.show-level': html`<mjx-dropdown
+    id="ribbons-word-outlining-show-level"
+    label="Show Level"
+    value="all-levels"
+    style=${ribbonNarrowFieldStyle}
+  >
+    ${showLevels.map((level) => html`<mjx-option value=${level.value} label=${level.label}></mjx-option>`)}
+  </mjx-dropdown>`,
+  'word.outlining.outlining-tools.show-text-formatting': html`<mjx-checkbox id="ribbons-word-outlining-show-text-formatting" label="Show Text Formatting" checked="true"></mjx-checkbox>`,
+  'word.outlining.outlining-tools.show-first-line-only': html`<mjx-checkbox id="ribbons-word-outlining-show-first-line-only" label="Show First Line Only"></mjx-checkbox>`,
 };
 
 /**
@@ -971,7 +994,33 @@ export const Review: Story = { render: () => ribbon('review') };
  */
 export const View: Story = { render: () => ribbon('view') };
 
-/** Unit 10, and a tab Office shows only in Outline view — see `dev/ribbons/census.ts`. */
+/**
+ * **Outlining**: a document restructured by its headings, and a view tab Office shows only in Outline view.
+ * Authored after PowerPoint's Recording, one tab of one application, and the first view tab authored. Three
+ * groups: Outlining Tools, Master Document and Close. What to look at, least certain first:
+ *
+ * 1. ⚠ **Promote and Demote are the tab's only survivors.** Drag narrow until Outlining Tools collapses: the
+ *    left and right arrows stay beside the trigger, and the other ten open from it in order. `GUESS:` that a
+ *    bare left arrow reads as *promote* rather than *back*.
+ * 2. ⚠ **Collapse Subdocuments is a small toggle** with the brief's label. `GUESS:` Office relabels it
+ *    *Expand Subdocuments* rather than drawing it pressed, and draws it large; *Subdocuments* does not wrap.
+ *    Press it and it fills; press again and it releases.
+ * 3. ⚠ **Close Outline View is large with a three-word label.** It should wrap to two lines without an
+ *    ellipsis, under a cross in a square. The group label reads *Outlining Tools*, the census's, where Office
+ *    writes *Outline Tools*.
+ * 4. ⚠ **The level row.** Promote to Heading 1 (arrow to a wall, left), Promote (left), the Outline Level
+ *    field on *Body Text*, Demote (right), Demote to Body Text (arrow to a wall, right), then Move Up, Move
+ *    Down, Expand (plus in a box) and Collapse (minus in a box). Open Outline Level: Level 1 to Level 9, then
+ *    Body Text. `GUESS:` the list's order and the field's place between the arrows.
+ * 5. **Master Document is drawn whole, Show Document pressed.** Office hides Create, Insert, Unlink, Merge,
+ *    Split and Lock Document until Show Document is pressed; releasing it here hides nothing. Lock Document
+ *    fills while pressed. Glyphs to judge, all `GUESS:`: stacked pages, lines drawn together, a page with a
+ *    plus, a page with an arrow, a struck link, two paths joining, one path dividing, a padlock.
+ * 6. **Show Level** reads *All Levels* and lists Level 1 to Level 9, then All Levels. **Show Text Formatting**
+ *    is ticked and **Show First Line Only** is not.
+ * 7. **Not in `Shell/Word`**: switch to the shell and the strip has no Outlining tab, as in Office outside
+ *    Outline view. No menus, no dialog launchers.
+ */
 export const Outlining: Story = { render: () => ribbon('outlining') };
 
 /** Unit 10, and a view tab. */

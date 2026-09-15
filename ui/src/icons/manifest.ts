@@ -734,7 +734,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-down',
     sizes: [20],
     variants: ['regular'],
-    why: "Fill, on Excel's Editing group. A judgement: the menu's default and overwhelmingly commonest entry is Fill Down, and a plain down arrow is what Office puts on the button. `arrow-download` was refused because a tray under the arrow says *save this to my machine*, and `drop` because a droplet reads as colour. **Since unit 7, also Move Earlier's partner, Move Later**, on PowerPoint's Animations tab, labelled: the animation moves down the list.",
+    why: "Fill, on Excel's Editing group. A judgement: the menu's default and overwhelmingly commonest entry is Fill Down, and a plain down arrow is what Office puts on the button. `arrow-download` was refused because a tray under the arrow says *save this to my machine*, and `drop` because a droplet reads as colour. **Since unit 7, also Move Earlier's partner, Move Later**, on PowerPoint's Animations tab, labelled: the animation moves down the list. **Since Word's Outlining unit, also Move Down**, icon-only, in Outlining Tools, the same verb; that this is already Fill's glyph is why Move Down does not survive a collapse. `GUESS:`.",
   },
   // ── Insert (Word, PowerPoint, Excel) ────────────────────────────────────────
   //
@@ -1344,7 +1344,7 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'arrow-up',
     sizes: [20],
     variants: ['regular'],
-    why: "Move Earlier, on PowerPoint's Animations tab, labelled: the animation moves up the list.",
+    why: "Move Earlier, on PowerPoint's Animations tab, labelled: the animation moves up the list. **Since Word's Outlining unit, also Move Up**, icon-only, in Outlining Tools: the paragraph moves up the outline, the same verb. `GUESS:`.",
   },
   {
     name: 'globe',
@@ -1440,13 +1440,13 @@ export const iconRequests: readonly IconRequest[] = [
     name: 'add-square',
     sizes: [20],
     variants: ['regular'],
-    why: "Show Detail, on Excel's Outline group: the plus in a box the outline draws in the margin.",
+    why: "Show Detail, on Excel's Outline group: the plus in a box the outline draws in the margin. **Since Word's Outlining unit, also Expand**, icon-only, in Outlining Tools: the same verb on Word's outline. `GUESS:`.",
   },
   {
     name: 'subtract-square',
     sizes: [20],
     variants: ['regular'],
-    why: "Hide Detail, beside Show Detail: the minus in a box.",
+    why: "Hide Detail, beside Show Detail: the minus in a box. **Since Word's Outlining unit, also Collapse**, icon-only, in Outlining Tools, beside Expand. `GUESS:`.",
   },
   // ── Review (Word's Review) ──────────────────────────────────────────────────
   //
@@ -1912,6 +1912,90 @@ export const iconRequests: readonly IconRequest[] = [
     sizes: [20, 24],
     variants: ['regular'],
     why: "Preview, the large button in PowerPoint's Recording Preview group, which plays the current slide's recording: a play mark. Not `slide-transition`, Transitions' Preview, which previews a transition. `GUESS:`.",
+  },
+  // ── Outlining (Word's) ────────────────────────────────────────────────────
+  //
+  // Word's Outlining tab, the only application with one, and the first view tab authored. **20 for a small or
+  // icon-only command, 20 and 24 for a large one, and `filled` for every toggle.** `arrow-up`, `arrow-down`,
+  // `add-square` and `subtract-square` above gained a command rather than a row here. The reasoning for every
+  // glyph is the *commands Outlining shows* section of `dev/ribbons/census.ts`.
+  {
+    name: 'arrow-previous',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Promote to Heading 1, icon-only, in Word's Outlining Tools: an arrow out, stopped at a wall, all the way out to the top level. Not `chevron-double-left`, a panel's collapse chevron. `GUESS:`.",
+  },
+  {
+    name: 'arrow-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Promote, icon-only, in Word's Outlining Tools, and a survivor: an arrow out, one level. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'arrow-right',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Demote, icon-only, in Word's Outlining Tools, and a survivor: an arrow in, one level. `GUESS:` that it reads unlabelled.",
+  },
+  {
+    name: 'arrow-next',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Demote to Body Text, icon-only, in Word's Outlining Tools: an arrow in, stopped at a wall, all the way in to body text. `GUESS:`.",
+  },
+  {
+    name: 'document-multiple',
+    sizes: [20, 24],
+    variants: ['regular', 'filled'],
+    why: "Show Document, the large toggle in Word's Outlining Master Document group, pressed: pages stacked, a master document and its subdocuments. `GUESS:`.",
+  },
+  {
+    name: 'arrow-collapse-all',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Collapse Subdocuments, the small toggle in Word's Outlining Master Document group: lines drawn in towards each other, every subdocument folded to its link. `GUESS:`.",
+  },
+  {
+    name: 'document-add',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Create, small, in Word's Outlining Master Document group: a new subdocument made from the selected heading. `GUESS:`.",
+  },
+  {
+    name: 'document-arrow-left',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Insert, small, in Word's Outlining Master Document group: a document with an arrow, an existing file brought in as a subdocument. `GUESS:`.",
+  },
+  {
+    name: 'link-dismiss',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Unlink, small, in Word's Outlining Master Document group: a link struck off, the subdocument's text copied in and its file let go. `GUESS:`.",
+  },
+  {
+    name: 'merge',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Merge, small, in Word's Outlining Master Document group: two paths joining, the selected subdocuments made one. `GUESS:`.",
+  },
+  {
+    name: 'arrow-split',
+    sizes: [20],
+    variants: ['regular'],
+    why: "Split, small, in Word's Outlining Master Document group: one path dividing, a subdocument split at the selection. Not `split-horizontal`, View's Split, which splits a window. `GUESS:`.",
+  },
+  {
+    name: 'lock-closed',
+    sizes: [20],
+    variants: ['regular', 'filled'],
+    why: "Lock Document, the small toggle in Word's Outlining Master Document group: a padlock, filled while the subdocument is locked. Not `document-lock`, Protect Document and Restrict Editing. `GUESS:`.",
+  },
+  {
+    name: 'dismiss-square',
+    sizes: [20, 24],
+    variants: ['regular'],
+    why: "Close Outline View, the large button in Word's Outlining Close group: a cross in a square, Office's own picture of the command. Not the plain `dismiss`, which closes a panel, a chip or a dialog. `GUESS:`.",
   },
 ];
 

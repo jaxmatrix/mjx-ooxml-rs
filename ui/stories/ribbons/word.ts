@@ -45,6 +45,10 @@
  * commands, the tab that changes how a document is looked at and never the document — the views, the
  * zoom and the windows. Almost all of it is toggles; Switch Windows is its one menu.
  *
+ * **Outlining** followed PowerPoint's Recording, one tab of one application, and the first view tab authored:
+ * three groups and twenty-one commands, the tab that restructures a document by its headings. It opens no menu;
+ * its two fields and two checkboxes are bound by `Ribbons/Word`, the only host that draws a view tab.
+ *
  * Every other tab is `placeholderTab`: one group carrying the tab's name, at the priority the census
  * declares, holding one honest button. Later units replace them one tab at a time, and each of
  * those is a small diff against a file that already has the right shape.
@@ -53,7 +57,9 @@
  *
  * Outlining, Print Preview and Background Removal are `appearance: 'view'` — Office shows them only
  * inside the view they name — so `wordTabs()` leaves them out unless asked. The catalogue still
- * gives each one a story, because a tab nobody can look at cannot be audited.
+ * gives each one a story, because a tab nobody can look at cannot be audited. **Outlining is authored**,
+ * and a host that binds a view tab's commands is therefore `Ribbons/Word` alone; the other two are
+ * placeholders.
  *
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
@@ -383,11 +389,34 @@ export function wordViewTab(options: TabOptions = {}): TemplateResult {
   );
 }
 
-// ── the tabs their own units author ──────────────────────────────────────────
-
-export function wordOutliningTab(): TemplateResult {
-  return placeholderTab(entry('outlining'));
+/**
+ * Outlining: Outlining Tools, Master Document, Close — the first view tab authored, in **Office's** order,
+ * which is also the census's.
+ *
+ * ⚠ **A view tab: Office shows it only inside Outline view**, so `wordTabs()` leaves it out unless
+ * `includeViewTabs` is asked for. Only `Ribbons/Word` asks, which is why the tab's bindings are written there
+ * and nowhere else. The first group's label is the census's *Outlining Tools*, where Office writes *Outline
+ * Tools*; `dev/ribbons/census.ts` records it and every other disagreement.
+ *
+ * **Four of the tab's twenty-one commands are bound by the host**: Outline Level and Show Level are dropdown
+ * fields over `stories/ribbons/outlining-menus.ts`, and Show Text Formatting and Show First Line Only are
+ * checkboxes. Everything else is the generic button or toggle. **No menus**: Office's Outlining tab opens none.
+ *
+ * **No dialog launchers**, as in Office. **Two survivors**, Promote and Demote, in Outlining Tools.
+ */
+export function wordOutliningTab(options: TabOptions = {}): TemplateResult {
+  const outlining = entry('outlining');
+  const controls = options.controls ?? {};
+  return tab(
+    outlining.id,
+    outlining.label,
+    censusGroup(outlining, 'GroupOutliningTools', {}, controls),
+    censusGroup(outlining, 'GroupMasterDocument', {}, controls),
+    censusGroup(outlining, 'GroupOutliningClose', {}, controls),
+  );
 }
+
+// ── the tabs their own units author ──────────────────────────────────────────
 
 export function wordPrintPreviewTab(): TemplateResult {
   return placeholderTab(entry('print-preview'));

@@ -840,6 +840,48 @@ command.
   glyphs; Record shares Slide Show's Record. `delete`, `arrow-reset` and `arrow-export` gain 24s;
   `save-arrow-right`, `video-clip` and `play-circle` are new. Every command carries an icon.
 
+### Word's Outlining
+
+**One tab of one application, and the first view tab authored**, after PowerPoint's Recording. Three groups and
+twenty-one commands, drawn in Office's order, which is also the census's: Outlining Tools, Master Document,
+Close. The tab restructures a document by its headings: levels, order, and the subdocuments a master document
+is saved as.
+
+⚠ **A view tab renders in the catalogue alone.** Office shows Outlining only inside Outline view, and `tabsFor`
+leaves every `appearance: 'view'` tab out of a strip unless `includeViewTabs` is asked for. Only `Ribbons/Word`
+asks, so its four bindings are written in `stories/ribbons/word.stories.ts` and nowhere else; `Shell/Word` never
+draws the tab.
+
+- **Two fields a host binds**: Outline Level (*Body Text*) and Show Level (*All Levels*), each a dropdown over
+  `stories/ribbons/outlining-menus.ts`, which lists Level 1 to Level 9 and then Body Text or All Levels.
+- **Two checkboxes a host binds**: Show Text Formatting (ticked) and Show First Line Only.
+- **Toggles**: Show Document (pressed), Collapse Subdocuments and Lock Document.
+- **Buttons**: Promote to Heading 1, Promote, Demote, Demote to Body Text, Move Up, Move Down, Expand and
+  Collapse (all icon-only), Create, Insert, Unlink, Merge, Split and Close Outline View.
+- **No menu, no gallery, no split button, no exclusive set, no dialog launcher.** `outlining-menus.ts` holds
+  the two fields' lists and declares no menu, because Office's tab opens none.
+
+**Survivors**: Promote and Demote, in Outlining Tools. One press moves a paragraph one level, and one undo takes
+it back. Promote to Heading 1, Demote to Body Text, Move Down and Lock Document fail rule 2 on their glyphs, and
+Move Up is not kept alone without its pair. Expand and Collapse pass, and are not kept because four survivors
+would exceed the ceiling of three.
+
+⚠ **What is not Office's shape, or is `GUESS:`.**
+
+- **The first group's label is the census's, *Outlining Tools***, where Office writes *Outline Tools*.
+- **The Outline Level field sits between Promote and Demote**, where Office draws it; the brief listed it first.
+  Its list puts Body Text last, as the ribbon's box is remembered, where Word's Paragraph dialog puts it first.
+- **Master Document is drawn whole, with Show Document pressed.** Office shows Create, Insert, Unlink, Merge,
+  Split and Lock Document only while Show Document is pressed. Office greys five of the eight in a document
+  with no subdocuments; all are drawn available.
+- **Collapse Subdocuments is a toggle, as the brief lists it**, and Office may relabel it *Expand Subdocuments*
+  instead of drawing it pressed, which is why Word View's Split is a plain button. It is small where Office
+  draws it large, because *Subdocuments* does not wrap. *Close Outline View* is large and may not wrap cleanly.
+- **Every glyph is judged from Fluent's drawings.** Move Up and Move Down share Animations' Move Earlier and
+  Move Later; Expand and Collapse share Excel's Show Detail and Hide Detail. The four level arrows, the Master
+  Document glyphs and Close's cross in a square are new.
+- **The two fields and the two checkboxes carry no icon**: a field draws its value, a checkbox its tick box.
+
 ### The priority ladder, and why a group declares a *priority* rather than a width
 
 Office's collapse ordering is per-group, and MJXOFF-183 also forbids measuring in a resize handler.

@@ -94,7 +94,8 @@
  * followed it, in that section's *PowerPoint's View* part, and **Excel's View** followed that, in its *Excel's View*
  * part. **PowerPoint's Slide Show** followed the three View tabs, one tab of one application again; see the
  * *commands Slide Show shows* section. **PowerPoint's Recording** followed Slide Show, one tab of one application
- * again; see the *commands Recording shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
+ * again; see the *commands Recording shows* section. **Word's Outlining** followed Recording, the first view tab
+ * authored; see the *commands Outlining shows* section. Every remaining tab is still a placeholder until its own unit. That is why `commands` is optional rather
  * than required — an empty array would claim a tab had been authored and found to hold nothing.
  *
  * ## Node-importable
@@ -4162,6 +4163,175 @@ const powerpointRecordingHelp: readonly RibbonCommand[] = [
   { id: 'powerpoint.recording.help.help', label: 'Help', icon: 'question-circle', size: 'large' },
 ];
 
+// ── the commands Outlining shows ─────────────────────────────────────────────
+//
+// The ribbon programme's unit after Recording: **Word's Outlining tab**, all three in-scope groups and
+// twenty-one commands, one tab of one application, and **the first `appearance: 'view'` tab authored**. Word
+// alone has it: PowerPoint's outline is a pane of Normal view, not a tab.
+//
+// ## A view tab renders in the catalogue alone
+//
+// Office shows Outlining only inside Outline view, and View's Outline button is the way in. `tabsFor` leaves
+// every `appearance: 'view'` tab out of a strip unless `includeViewTabs` is asked for, and **only
+// `Ribbons/Word` asks**. `Shell/Word` draws the default strip, so it never renders this tab and binds none of
+// its commands. The four host bindings are in `stories/ribbons/word.stories.ts` alone, and a binding written
+// in the shell would be a binding to nothing.
+//
+// ## The shapes, decided by what Office's popup is
+//
+// **Two fields a host binds**: Outline Level (Level 1 to Level 9, then Body Text, reading *Body Text*) and Show
+// Level (Level 1 to Level 9, then All Levels, reading *All Levels*), both `<mjx-dropdown>` over lists written
+// once in `stories/ribbons/outlining-menus.ts`. **Two checkboxes a host binds**: Show Text Formatting (ticked)
+// and Show First Line Only. **Three toggles**: Show Document (pressed), Collapse Subdocuments and Lock
+// Document. **Buttons**: the four level arrows, Move Up, Move Down, Expand, Collapse, Create, Insert, Unlink,
+// Merge, Split and Close Outline View. **No menu, no gallery, no split button, no exclusive set, no dialog
+// launcher**: nothing on Word's Outlining tab opens a popup but its two fields' own lists.
+//
+// ## ⚠ Where the census, the brief and Office disagree, recorded rather than smoothed over
+//
+// 1. **The first group's label is the census's, *Outlining Tools*; Office writes *Outline Tools*.** A label is
+//    not an argument `censusGroup` accepts, so the census's is drawn, as Design's *Style Set* is.
+// 2. **The Outline Level field is third, between Promote and Demote, where Office draws it**: the top row reads
+//    Promote to Heading 1, Promote, the field, Demote, Demote to Body Text. The brief lists the field first.
+//    `GUESS:` Office's order, from memory of Word 2010 to Microsoft 365, which all draw that row alike.
+// 3. **Outline Level lists Level 1 to Level 9 and then Body Text; Word's Paragraph dialog lists Body Text
+//    first.** The ribbon's order is kept, and the field reads *Body Text* because a new document's paragraph
+//    is Normal text. `GUESS:` the list's order. Show Level lists Level 1 to Level 9 and then All Levels, and
+//    reads *All Levels*, Outline view's start.
+// 4. **Show Text Formatting starts ticked** and Show First Line Only unticked, as a new Outline view does.
+// 5. **Office shows Master Document as Show Document and Collapse Subdocuments alone** until Show Document is
+//    pressed, and only then draws Create, Insert, Unlink, Merge, Split and Lock Document. The catalogue draws
+//    all eight, so **Show Document starts pressed**: the face shows what the pressed state shows. Nothing
+//    hides the six when it is released, because that is command dispatch, which is loop 2's.
+// 6. **Collapse Subdocuments is a toggle, as the brief lists it**, starting unpressed. `GUESS:` Office may
+//    relabel it *Expand Subdocuments* while collapsed rather than drawing it pressed, which is why Word View's
+//    Split is a plain button; the brief's shape is kept and the doubt is recorded. **Lock Document** is a
+//    toggle Office draws pressed while the subdocument is locked.
+// 7. **Office greys** Collapse Subdocuments, Unlink, Merge, Split and Lock Document in a document with no
+//    subdocuments, which the catalogue's is. All are drawn available, because `disabled` is loop 2's.
+// 8. **The census's counts equal the faces**, and nothing is padded: Outlining Tools is 12, Master Document 8,
+//    Close 1.
+//
+// ## Survivors: Promote and Demote, and nothing else
+//
+// A survivor passes **all four** of `demotionRules`, judged on the shape Office draws.
+//
+// - **Promote and Demote survive.** Each moves the selected paragraph one level out or in with one press
+//   (Alt+Shift+Left and Alt+Shift+Right), and one undo takes it back. `arrow-left` and `arrow-right` are no
+//   other command's glyph in this subset, and in an outline an arrow out and an arrow in are the verbs.
+//   Two, under the ceiling, and ten commands stay in the popup. `GUESS:` rule 2 on both glyphs, since a bare
+//   left arrow is *back* in a browser.
+// - **Promote to Heading 1 and Demote to Body Text pass rule 1 and fail rule 2**: `arrow-previous` and
+//   `arrow-next` are an arrow to a stop, and unlabelled they read as *to the start* and *to the end*, the
+//   neighbours of Mailings' First Record and Last Record.
+// - **Move Up and Move Down pass rule 1 and fail rule 2**: `arrow-down` is already Excel's Fill. Keeping only
+//   Move Up would split a pair.
+// - **Expand and Collapse** change what the outline shows, not the document, and pass rule 1 as View's zoom
+//   presets do; their plus and minus in a box are Excel's Show Detail and Hide Detail, the same meaning. They
+//   are not kept because two more would reach four, over the ceiling, and one would split a pair. `GUESS:`
+//   choosing the level verbs over them.
+// - **Outline Level and Show Level** are fields, and **Show Text Formatting and Show First Line Only** are
+//   checkboxes, which the gate refuses.
+// - **Master Document**: Show Document changes the group's own face, which a survivor row cannot show.
+//   Collapse Subdocuments asks to save the master document first. Insert opens a file picker. Create, Unlink,
+//   Merge and Split restructure which files the document is saved as. Lock Document passes rule 1 and fails
+//   rule 2: an unlabelled padlock reads as *protect*, which is Review's Restrict Editing and Info's Protect Document.
+// - **Close Outline View** leaves the view and takes the tab with it, and it is its group's only command.
+//
+// ## Sizes, and every glyph
+//
+// **Size follows Office's shape.** The four level arrows, Move Up, Move Down, Expand and Collapse are
+// `icon`, as Office draws them: icon-only, two rows beside the field. Show Document and Close Outline View
+// are `large`. **Collapse Subdocuments is small where Office draws it large**, because *Subdocuments* is one
+// twelve-letter word that cannot wrap inside `largeControlWidthUnits`, which is Review's Check Accessibility.
+// Create, Insert, Unlink, Merge, Split and Lock Document are small, in two columns, as Office draws them.
+// `GUESS:` that *Close Outline View* wraps to two lines without an ellipsis; `Ribbons/Word → Outlining` names
+// it as a thing to look at.
+//
+// **Every command on the tab's face carries a glyph except the two fields and the two checkboxes**: a field
+// draws its value and a checkbox its tick box. Every glyph below is `GUESS:`, judged from Fluent's drawings
+// rather than from a build this project can cite:
+//
+// - **Promote draws `arrow-left` and Demote `arrow-right`**: out one level, in one level, the way the text
+//   moves. **Promote to Heading 1 draws `arrow-previous` and Demote to Body Text `arrow-next`**: the same
+//   arrows stopped at a wall, all the way out and all the way in. Office draws a double arrow; Fluent's
+//   `chevron-double-left` is a panel's collapse chevron, which would break the family of four.
+// - **Move Up draws `arrow-up` and Move Down `arrow-down`**, PowerPoint's Move Earlier and Move Later: the
+//   paragraph moves up or down the list, the same verb.
+// - **Expand draws `add-square` and Collapse `subtract-square`**, Excel's Show Detail and Hide Detail: the plus
+//   and minus in a box an outline draws in its margin, the same verb.
+// - **Show Document draws `document-multiple`**, pages stacked: a master document and its subdocuments. It is
+//   filled while pressed.
+// - **Collapse Subdocuments draws `arrow-collapse-all`**, lines drawn in towards each other, every subdocument
+//   folded to its link. Filled while pressed.
+// - **Create draws `document-add`**, a new subdocument. **Insert draws `document-arrow-left`**, a document with
+//   an arrow, an existing file brought in. **Unlink draws `link-dismiss`**, a link struck off: the subdocument's
+//   text is copied in and its file let go. **Merge draws `merge`**, two paths joining. **Split draws
+//   `arrow-split`**, one path dividing; not View's `split-horizontal`, which splits a window.
+// - **Lock Document draws `lock-closed`**, a padlock, filled while locked. Not `document-lock`, which is
+//   Protect Document and Restrict Editing.
+// - **Close Outline View draws `dismiss-square`**, a cross in a square, Office's own picture of the command.
+//   Not the plain `dismiss`, which closes a panel, a chip or a dialog.
+
+/**
+ * Word's `GroupOutliningTools`, labelled **Outlining Tools** (Office: Outline Tools): the four level arrows
+ * round the Outline Level field, Move Up, Move Down, Expand and Collapse, then the Show Level field and two
+ * checkboxes. See disagreements 1 to 4.
+ *
+ * **The two fields are bound by each host as `<mjx-dropdown>`**, over `stories/ribbons/outlining-menus.ts`.
+ * **Show Text Formatting and Show First Line Only are toggles drawn as checkboxes**, bound as
+ * `<mjx-checkbox>`, the first ticked. Everything else is an icon-only button.
+ *
+ * **Survivors: Promote and Demote.** See this section's header.
+ */
+const wordOutliningOutlineTools: readonly RibbonCommand[] = [
+  { id: 'word.outlining.outlining-tools.promote-to-heading-1', label: 'Promote to Heading 1', icon: 'arrow-previous', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.promote', label: 'Promote', icon: 'arrow-left', size: 'icon', essential: true },
+  { id: 'word.outlining.outlining-tools.outline-level', label: 'Outline Level' },
+  { id: 'word.outlining.outlining-tools.demote', label: 'Demote', icon: 'arrow-right', size: 'icon', essential: true },
+  { id: 'word.outlining.outlining-tools.demote-to-body-text', label: 'Demote to Body Text', icon: 'arrow-next', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.move-up', label: 'Move Up', icon: 'arrow-up', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.move-down', label: 'Move Down', icon: 'arrow-down', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.expand', label: 'Expand', icon: 'add-square', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.collapse', label: 'Collapse', icon: 'subtract-square', size: 'icon' },
+  { id: 'word.outlining.outlining-tools.show-level', label: 'Show Level' },
+  { id: 'word.outlining.outlining-tools.show-text-formatting', label: 'Show Text Formatting', toggle: true, pressed: true },
+  { id: 'word.outlining.outlining-tools.show-first-line-only', label: 'Show First Line Only', toggle: true },
+];
+
+/**
+ * Word's Master Document group: Show Document large, Collapse Subdocuments, then Create, Insert and Unlink
+ * in a column and Merge, Split and Lock Document in another.
+ *
+ * **Show Document is a large toggle, pressed**, because the catalogue draws the six commands Office shows only
+ * while it is; see disagreement 5. **Collapse Subdocuments and Lock Document are small toggles**, unpressed;
+ * see disagreement 6. **Create, Insert, Unlink, Merge and Split are small buttons**: Create makes the selected
+ * heading a subdocument, Insert opens a file picker for an existing one, Unlink copies a subdocument's text in
+ * and lets its file go, Merge joins the selected subdocuments, and Split divides one at the selection.
+ *
+ * **No survivor**: see this section's header.
+ */
+const wordOutliningMasterDocument: readonly RibbonCommand[] = [
+  { id: 'word.outlining.master-document.show-document', label: 'Show Document', icon: 'document-multiple', size: 'large', toggle: true, pressed: true },
+  { id: 'word.outlining.master-document.collapse-subdocuments', label: 'Collapse Subdocuments', icon: 'arrow-collapse-all', toggle: true },
+  { id: 'word.outlining.master-document.create', label: 'Create', icon: 'document-add' },
+  { id: 'word.outlining.master-document.insert', label: 'Insert', icon: 'document-arrow-left' },
+  { id: 'word.outlining.master-document.unlink', label: 'Unlink', icon: 'link-dismiss' },
+  { id: 'word.outlining.master-document.merge', label: 'Merge', icon: 'merge' },
+  { id: 'word.outlining.master-document.split', label: 'Split', icon: 'arrow-split' },
+  { id: 'word.outlining.master-document.lock-document', label: 'Lock Document', icon: 'lock-closed', toggle: true },
+];
+
+/**
+ * Word's `GroupOutliningClose`, labelled **Close**: Close Outline View, large, which returns to the view the
+ * document was in and takes the tab away.
+ *
+ * **No survivor**: nothing a press can take back, and the only command.
+ */
+const wordOutliningClose: readonly RibbonCommand[] = [
+  { id: 'word.outlining.close.close-outline-view', label: 'Close Outline View', icon: 'dismiss-square', size: 'large' },
+];
+
 // ── the commands File shows ──────────────────────────────────────────────────
 //
 // The ribbon programme's unit 1, and the first tab authored after the scaffold. Decision 1 of the
@@ -4539,9 +4709,9 @@ export const wordRibbonTabs: readonly RibbonTabEntry[] = [
     appearance: 'view',
     source: { kind: 'core', tab: 'TabOutlining' },
     groups: [
-      { id: 'GroupOutliningTools', label: 'Outlining Tools', priority: 'primary', controls: 12, inScope: true },
-      { id: 'GroupMasterDocument', label: 'Master Document', priority: 'standard', controls: 8, inScope: true },
-      { id: 'GroupOutliningClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true },
+      { id: 'GroupOutliningTools', label: 'Outlining Tools', priority: 'primary', controls: 12, inScope: true, commands: wordOutliningOutlineTools },
+      { id: 'GroupMasterDocument', label: 'Master Document', priority: 'standard', controls: 8, inScope: true, commands: wordOutliningMasterDocument },
+      { id: 'GroupOutliningClose', label: 'Close', priority: 'ancillary', controls: 1, inScope: true, commands: wordOutliningClose },
     ],
   },
   {
