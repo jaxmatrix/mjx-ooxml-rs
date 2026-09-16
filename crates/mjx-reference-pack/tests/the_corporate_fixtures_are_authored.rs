@@ -22,10 +22,12 @@
 //!
 //! * a slide background (`p:bg`), a soft line break (`a:br`), a field (`a:fld`), a picture crop
 //!   (`a:srcRect`), a connector (`p:cxnSp`) and a diagram's cached drawing (`dsp:drawing`);
-//! * a worksheet's frozen pane and `sheetViews`, a custom `numFmt`, a rich-text cell and an
-//!   `xdr:sp` text box;
-//! * Word's tracked changes (`w:ins`/`w:del`), an anchored picture (`wp:anchor`), a text box
-//!   (`w:txbxContent`), a header's content and a theme part.
+//! * a worksheet's frozen pane and `sheetViews`, a custom `numFmt`, a rich-text cell, an `xdr:sp`
+//!   text box and an `x:alignment` inside an `x:xf` (the `applyAlignment` flag beside it *is*
+//!   typed, and is written by the typed writer);
+//! * Word's tracked changes (`w:ins`/`w:del`), a run's own decorations (`w:u` / `w:strike` /
+//!   `w:highlight`), an anchored picture (`wp:anchor`), a text box (`w:txbxContent`), a header's
+//!   content and a theme part.
 //!
 //! That list is not a shortcut: it is the same list the three format crates' own suites splice by
 //! hand for the same reason, and each entry is a writer somebody may add later. [`splice`] refuses a
@@ -136,12 +138,22 @@ pub fn relate(package: &mut Package, source: &str, rel_type: &str, rel_id: &str,
         .unwrap_or_else(|error| panic!("relating `{target}` from `{source}`: {error}"));
 }
 
+/// Whether `MJX_AUTHOR_FIXTURES` asks for the fixtures to be rewritten.
+///
+/// **Only `1`.** The variable was read with `is_some()` until RC03's audit, which made
+/// `MJX_AUTHOR_FIXTURES=0` rewrite the fixtures and then compare them against themselves — a run in
+/// which the byte-identity check below passes unconditionally and proves nothing. Every other value,
+/// the empty string and `0` included, leaves the gate asserting.
+pub fn authoring_is_requested(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|value| value == std::ffi::OsStr::new("1"))
+}
+
 /// **The committed fixtures are what these writers produce.**
 ///
 /// With `MJX_AUTHOR_FIXTURES=1` this writes them instead, which is how they are (re)generated.
 #[test]
 fn the_committed_corporate_fixtures_are_what_the_writers_produce() {
-    let authoring = std::env::var_os("MJX_AUTHOR_FIXTURES").is_some();
+    let authoring = authoring_is_requested(std::env::var_os("MJX_AUTHOR_FIXTURES").as_deref());
     for (name, author) in CORPORATE {
         let authored = author();
         assert!(
@@ -173,6 +185,30 @@ fn the_committed_corporate_fixtures_are_what_the_writers_produce() {
             "`{name}` is committed with different bytes than these writers produce"
         );
     }
+}
+
+/// **Only `1` turns the authoring on**, so no other value can disable the gate above.
+///
+/// Without this, `MJX_AUTHOR_FIXTURES=0` — which reads as *off* to every reader and every shell —
+/// rewrote the three fixtures and compared them against what had just been written.
+#[test]
+fn every_value_but_one_leaves_the_gate_asserting() {
+    use std::ffi::OsStr;
+    assert!(
+        authoring_is_requested(Some(OsStr::new("1"))),
+        "`MJX_AUTHOR_FIXTURES=1` is how the fixtures are regenerated"
+    );
+    for refused in ["0", "", "true", "yes", "on", "11", " 1"] {
+        assert!(
+            !authoring_is_requested(Some(OsStr::new(refused))),
+            "`MJX_AUTHOR_FIXTURES={refused:?}` turned the authoring on, which rewrites the \
+             committed fixtures and makes the byte-identity gate compare them against themselves"
+        );
+    }
+    assert!(
+        !authoring_is_requested(None),
+        "an unset variable is not a request to rewrite the corpus"
+    );
 }
 
 /// The authored packages open, and each holds more parts than a near-empty container would.
