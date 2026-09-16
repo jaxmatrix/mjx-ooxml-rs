@@ -1029,6 +1029,7 @@ dependencies = [
 name = "mjx-reference-pack"
 version = "0.0.174"
 dependencies = [
+ "mjx-chart",
  "mjx-dml",
  "mjx-docx",
  "mjx-fixtures",
@@ -1037,6 +1038,7 @@ dependencies = [
  "mjx-layout-docx",
  "mjx-layout-pptx",
  "mjx-layout-xlsx",
+ "mjx-omml",
  "mjx-ooxml-core",
  "mjx-ooxml-types",
  "mjx-opc",
@@ -1046,6 +1048,7 @@ dependencies = [
  "mjx-scene",
  "mjx-scene-pptx",
  "mjx-scene-xlsx",
+ "mjx-sml",
  "mjx-text",
  "mjx-xlsx",
 ]

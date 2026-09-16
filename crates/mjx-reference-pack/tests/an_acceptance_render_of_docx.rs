@@ -35,11 +35,19 @@ const FIXTURE: &str = "corporate.docx";
 // Layout losses as [chart, diagram, object, ink, picture, shape, unshaped, not read, approximated].
 // **Filled from the first green run and pinned there** — all zeroes is the claim that the corporate
 // document lays out losslessly, and it is false today. Never widen this to make a run pass.
-const EXPECTED_LAYOUT_LOSSES: [usize; 9] = [0; 9];
+//
+// The three are the document's pictures: the inline logo, the floating one and the header's. Word's
+// box model places a frame and does not lay its content out, which is RC11 (MJXOFF-306) for the
+// pixels and RC09 (MJXOFF-255) for the scene companion that would carry them.
+const EXPECTED_LAYOUT_LOSSES: [usize; 9] = [0, 0, 0, 0, 3, 0, 0, 0, 0];
 
 // How many fragments of each kind page 0 holds, as [boxes, lines, glyphs, images, shapes, tables].
 // Filled from the first green run and pinned there, on the same terms.
-const EXPECTED_FRAGMENTS: [usize; 6] = [0; 6];
+//
+// No image, shape or table fragment: Word's box model frames a picture without laying its content
+// out (the three picture losses above), and the table reaches page 0 as boxes and lines rather than
+// as a `Fragment::Table`. Both are what RC20 (MJXOFF-314) and RC11 (MJXOFF-306) change.
+const EXPECTED_FRAGMENTS: [usize; 6] = [41, 25, 23, 0, 0, 0];
 
 // The bundled faces only, so the layout does not depend on what the machine has installed. Word's
 // pagination is emergent — one substituted face moves every page boundary in the document — so this

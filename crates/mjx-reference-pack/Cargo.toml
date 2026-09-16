@@ -76,6 +76,18 @@ mjx-scene-xlsx.workspace = true
 # Rank 1.6, test-only. `FragmentTree`, `BoxModel` and `PageIndex` — the vocabulary the box model
 # answers in, which neither of the two above re-exports.
 mjx-layout.workspace = true
+# Rank 2.1 and 2.2, test-only (MJXOFF-300). The corporate workbook and document are authored with
+# this workspace's own writers, and two of those writers live below the format crates without being
+# re-exported by them: `mjx-xlsx` projects no SpreadsheetML spec type (`CellValue`, `BorderSpec`,
+# `ConditionalRuleSpec`, `SharedStringTable`), and `mjx-docx` projects no `mjx_omml::Math`, which
+# `Document::append_math` takes. Both are downward edges from the top of the workspace, which
+# nothing may depend on.
+mjx-sml.workspace = true
+mjx-omml.workspace = true
+# Rank 2.2, test-only. `ChartData` — what both `Presentation::add_chart` and `Workbook::add_chart`
+# take. `mjx-pptx` re-exports it and `mjx-xlsx` does not, so the workbook half would otherwise have
+# to name the deck's crate to describe a chart.
+mjx-chart.workspace = true
 # The committed corpus, so the end-to-end gate derives its decks from one place.
 mjx-fixtures.workspace = true
 

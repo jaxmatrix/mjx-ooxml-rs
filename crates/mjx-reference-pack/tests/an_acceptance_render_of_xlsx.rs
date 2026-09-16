@@ -31,7 +31,10 @@
 
 use std::path::{Path, PathBuf};
 
-use mjx_layout::{BoxModel, Constraints, FragmentTree, LayoutLosses, LayoutSize, PageIndex};
+use mjx_layout::{
+    BoxModel, Constraints, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, LayoutSize,
+    PageIndex,
+};
 use mjx_layout_xlsx::{constraints_for, SheetBoxModel, SheetGrid};
 use mjx_ooxml_core::measure::Emu;
 use mjx_paint::{
@@ -53,11 +56,32 @@ const VIEWPORT_INCHES: (f64, f64) = (8.0, 5.0);
 // The page's whole loss vector, layout then scene then painter. **Filled from the first green run
 // and pinned there** — an empty vector is the claim that the corporate sheet renders losslessly,
 // and it is false today. Never widen this to make a run pass.
-const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[];
+const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[
+    // The drawing's four anchored objects — the chart, the picture and the text box among them —
+    // are framed and not laid out: a worksheet's drawing layer is RC28 (MJXOFF-321).
+    (
+        LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
+            FrameContent::Picture,
+        )),
+        4,
+    ),
+    // One thing the sheet states that the reader does not carry to the box model.
+    (LossCategory::Layout(LayoutLossKind::DroppedByReader), 1),
+    // Three values the grid approximated rather than resolved exactly.
+    (LossCategory::Layout(LayoutLossKind::ValueApproximated), 3),
+];
 
 // Every labelled placeholder, as (label, [left, top, right, bottom]) in unzoomed device pixels, in
 // paint order. Filled from the first green run and pinned there, on the same terms.
-const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[];
+const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[
+    // The four anchored objects the drawing layer does not place (RC28, MJXOFF-321), and the one
+    // thing the reader dropped — each a labelled box in the cell band it was anchored to.
+    ("Picture not rendered", [328, 40, 389, 60]),
+    ("Content not read", [450, 40, 511, 60]),
+    ("Picture not rendered", [328, 60, 389, 80]),
+    ("Picture not rendered", [328, 80, 389, 100]),
+    ("Picture not rendered", [328, 100, 389, 120]),
+];
 
 // How many draws used stand-in geometry rather than the document's own shape. A worksheet issues no
 // outline handle at all today, so this is expected to stay zero; it is pinned like the rest.

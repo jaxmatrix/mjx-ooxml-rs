@@ -15,14 +15,20 @@
 //!
 //! * **no `NoImages`** — the picture bytes come out of the package itself;
 //! * **no test-supplied theme** — the deck's own theme part is the only one;
-//! * **no test-local outline closure** — `SlideGeometry` is left unregistered, because the closure
-//!   the two older suites each carry a copy of is exactly the production hole RC03 exists to
-//!   expose. An outline nothing can answer is asserted as a **stand-in**, by count, rather than
-//!   filled in here.
+//! * **no test-local outline closure** — the outlines come from
+//!   [`mjx_reference_pack::outlines::shape_outline`], the production reader, registered into the
+//!   real [`mjx_geometry::PresetGeometryProvider`] that `SlideGeometry` wraps. Until RC03's
+//!   implementation half, this journey left the provider unregistered and counted every shape as a
+//!   stand-in; that measured the test's own abstinence rather than the library's reach.
 //!
-//! [`the_journey_uses_no_test_double`] holds that last paragraph as a property of this file rather
-//! than as a promise in it, and it runs without the fixture — so it is the assertion that keeps the
-//! ignored one below from being vacuous while the fixture is still being authored.
+//! What remains a **stand-in** is therefore only what the real provider genuinely cannot answer: a
+//! `custGeom` shape, whose path tables RC24 (MJXOFF-318) owns. [`EXPECTED_STAND_INS`] is that
+//! count, pinned, and a stand-in is never mistaken for the document's own geometry because
+//! `mjx_paint::DrawReport::placeholders` counts it.
+//!
+//! [`the_journey_uses_no_test_double`] holds that as a property of this file rather than as a
+//! promise in it, and it runs without the fixture — so it is the assertion that keeps the ignored
+//! one below from being vacuous while the fixture is still being authored.
 //!
 //! # ⚠ This is not parity
 //!
@@ -32,14 +38,18 @@
 
 use std::path::{Path, PathBuf};
 
-use mjx_layout::{BoxModel, FragmentTree, LayoutLosses, PageIndex};
+use mjx_dml::Size;
+use mjx_layout::{BoxModel, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, PageIndex};
 use mjx_layout_pptx::{constraints_for, PageCatalogue, SlideBoxModel, SlideDeck};
 use mjx_paint::{
     render_offscreen, DrawReport, EncodedImages, Pixels, Resources, SoftwarePainter,
     SOFTWARE_PAINTER,
 };
-use mjx_pptx::Presentation;
-use mjx_scene::{build_page, DisplayList, LossCategory, SceneOptions, SceneRect};
+use mjx_pptx::{Presentation, Surface};
+use mjx_reference_pack::outlines::shape_outline;
+use mjx_scene::{
+    build_page, DisplayList, LossCategory, PainterLossKind, SceneLossKind, SceneOptions, SceneRect,
+};
 use mjx_scene_pptx::{SlideGeometry, SlideResources};
 use mjx_text::{FontResolver, GlyphAtlas};
 
@@ -49,15 +59,70 @@ const FIXTURE: &str = "corporate.pptx";
 // The page's whole loss vector, layout then scene then painter. **Filled from the first green run
 // and pinned there** — an empty vector is the claim that the corporate deck renders losslessly, and
 // it is false today. Never widen this to make a run pass.
-const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[];
+const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[
+    // The SmartArt frame: its cached drawing is carried and nothing lays the diagram out (RC28).
+    (
+        LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
+            FrameContent::Diagram,
+        )),
+        1,
+    ),
+    // One text body measured with nominal metrics rather than shaped.
+    (
+        LossCategory::Layout(LayoutLossKind::TextMeasuredNotShaped),
+        1,
+    ),
+    // The chart part is reached and no chart engine draws it yet (RC06).
+    (LossCategory::Scene(SceneLossKind::ChartNotResolved), 1),
+    // Every run on the slide takes a default colour: the companion carries no run paint (RC16).
+    (LossCategory::Scene(SceneLossKind::TextPaintDefaulted), 21),
+    // The two pictures: the decoder that turns their bytes into pixels is RC11.
+    (LossCategory::Paint(PainterLossKind::ImageWithNoPixels), 2),
+    // The connector's arrowhead (RC14) and the custom geometry's outline (RC24).
+    (LossCategory::Paint(PainterLossKind::LineEndNotDrawn), 1),
+    (LossCategory::Paint(PainterLossKind::OutlineUnresolved), 1),
+];
 
 // Every labelled placeholder, as (label, [left, top, right, bottom]) in unzoomed device pixels, in
 // paint order. Filled from the first green run and pinned there, on the same terms.
-const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[];
+const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[
+    // The chart frame and the SmartArt frame, each drawn as a labelled grey box where its content
+    // would go. RC06 (MJXOFF-302) and RC28 (MJXOFF-321) are what replace them with a render.
+    ("Chart not rendered", [58, 394, 557, 643]),
+    ("Diagram not rendered", [586, 394, 874, 643]),
+];
 
-// How many draws used stand-in geometry rather than the document's own shape, because this journey
-// registers no outline. Filled from the first green run and pinned there, on the same terms.
-const EXPECTED_STAND_INS: usize = 0;
+// How many draws used stand-in geometry rather than the document's own shape. The provider is the
+// real one, so this is what it cannot answer — a `custGeom` until RC24 (MJXOFF-318) lands its path
+// tables. Filled from the first green run and pinned there, on the same terms.
+//
+// **One**, and it is the `custGeom` icon. Every other shape on the slide — the title box, the two
+// pictures, the overlay, the connector, the table and the list — resolves to the document's own
+// `a:prstGeom` through `mjx-geometry`'s real preset tables. A custom path has no preset to look up,
+// so it reaches the stand-in policy and is counted here rather than mistaken for the document's
+// own geometry. RC24 (MJXOFF-318) is what makes this zero.
+const EXPECTED_STAND_INS: usize = 1;
+
+// How many labelled placeholders the **painter** drew, which is not the same number as the display
+// list carries and must not be asserted as though it were.
+//
+// The list's [`EXPECTED_PLACEHOLDERS`] are the two the *scene* could not resolve — the chart frame
+// and the diagram frame. The painter draws those two and then its own, for losses that arise below
+// the display list: this deck's two pictures reach it as bytes it cannot decode (RC11). A page with
+// no painter-tier loss makes the two counts equal, which is why the Excel journey asserts them
+// against one constant; a page with one does not, and equating them there would either hide a
+// painter placeholder or demand a scene one that does not exist.
+const EXPECTED_LOSS_PLACEHOLDERS: usize = 5;
+
+// How many outline handles the production reader could not answer, counted before anything was
+// painted — which is **not** the number of stand-ins drawn, and the difference is the point.
+//
+// Three handles go unanswered: the slide's two inherited placeholders, which state no `a:prstGeom`
+// of their own and take their geometry from the layout (RC24's `pptx-placeholder-geometry`), and
+// the `custGeom` icon. Only the icon is drawn, so [`EXPECTED_STAND_INS`] is one: an outline nobody
+// asks for costs no pixels. Asserting these two as one number would either demand a draw that does
+// not happen or hide a shape the reader silently failed to address.
+const EXPECTED_UNREGISTERED_OUTLINES: usize = 3;
 
 // The bundled faces only, so the render does not depend on what the machine has installed.
 fn resolver() -> FontResolver {
@@ -89,6 +154,8 @@ struct Journey {
     list: DisplayList,
     drawn: DrawReport,
     pixels: Pixels,
+    // What the provider knew it could not answer, counted before a pixel was drawn.
+    stand_ins_before_painting: usize,
 }
 
 // The encoded bytes of every picture the page asks for, read out of the package itself.
@@ -129,8 +196,18 @@ fn journey() -> Journey {
         .layout_page(&deck, PageIndex::new(0), &constraints, None)
         .expect("the slide lays out");
 
-    // Deliberately unregistered: see this module's own documentation.
-    let geometry = SlideGeometry::new();
+    // The production reader answers what each handle draws; nothing about it is local to this file.
+    let mut geometry = SlideGeometry::new();
+    geometry.register_all(model.catalogue(), |request| {
+        let extents = Size::from_emu(request.rect.width().emu(), request.rect.height().emu());
+        shape_outline(
+            &mut presentation,
+            Surface::Slide(request.surface_index as usize),
+            &request.shape,
+            extents,
+        )
+    });
+    let stand_ins_before_painting = geometry.unregistered();
     let images = package_images(&mut presentation, model.catalogue());
     let options = SceneOptions::new(constraints.page);
     let resources = SlideResources::new(model.catalogue().clone(), options.device_scale);
@@ -172,6 +249,7 @@ fn journey() -> Journey {
         list,
         drawn: render.drawn,
         pixels: render.pixels,
+        stand_ins_before_painting,
     }
 }
 
@@ -212,13 +290,32 @@ fn the_corporate_deck_reaches_pixels_with_its_losses_named() {
         "every labelled placeholder, with the label it reads and the rectangle it covers"
     );
     assert_eq!(
-        journey.drawn.loss_placeholders,
-        EXPECTED_PLACEHOLDERS.len(),
-        "the painter drew one placeholder per loss the list carries"
+        journey.drawn.loss_placeholders, EXPECTED_LOSS_PLACEHOLDERS,
+        "the painter drew a placeholder for every loss it could not draw through, which is the two \
+         the list carries plus its own; see this constant's own note"
+    );
+    assert!(
+        EXPECTED_LOSS_PLACEHOLDERS >= EXPECTED_PLACEHOLDERS.len(),
+        "the painter drew fewer placeholders than the display list carries, so a scene loss reached \
+         the page without being drawn at all"
     );
     assert_eq!(
         journey.drawn.placeholders, EXPECTED_STAND_INS,
-        "how many draws fell back to stand-in geometry, because this journey registers no outline"
+        "how many draws fell back to stand-in geometry, with the real provider registered"
+    );
+    // The provider's own count, taken before anything was painted. It is the larger of the two:
+    // see this constant's own note for which shapes make up the difference.
+    assert_eq!(
+        journey.stand_ins_before_painting, EXPECTED_UNREGISTERED_OUTLINES,
+        "the production reader answered a different number of outline handles than it did on the \
+         run this was pinned from"
+    );
+    assert!(
+        journey.stand_ins_before_painting >= journey.drawn.placeholders,
+        "the painter drew more stand-ins ({}) than the provider had unanswered handles ({}), which \
+         means a shape whose outline *was* read still fell back",
+        journey.drawn.placeholders,
+        journey.stand_ins_before_painting
     );
 
     let png = mjx_paint::export::png(
@@ -268,9 +365,14 @@ fn the_journey_uses_no_test_double() {
              bytes instead",
         ),
         (
-            concat!("register", "_all"),
-            "registering outlines from a test-local closure is the production hole RC03 exists to \
-             expose; assert the stand-in count instead",
+            concat!("fn ", "outline_of"),
+            "an outline reader defined in this file is a second implementation of the production \
+             one; call `mjx_reference_pack::outlines::shape_outline` instead",
+        ),
+        (
+            concat!("ShapeOutline", " {"),
+            "an outline built here is geometry this suite invented rather than read out of the \
+             document; the production reader is what answers that",
         ),
     ];
     // Code only. This file's own prose names both needles — it has to, to say what it refuses — and
@@ -293,5 +395,11 @@ fn the_journey_uses_no_test_double() {
     assert!(
         code.contains("SlideGeometry::new()"),
         "the code scan found none of this journey's own source, so its refusals above are vacuous"
+    );
+    // The positive half of the rule: the production reader is not merely un-replaced, it is called.
+    assert!(
+        code.contains("shape_outline("),
+        "this journey registers no outline from the production reader, so the provider it renders \
+         through is not the one the library ships"
     );
 }
