@@ -495,7 +495,10 @@ export const survivorPlacement: {
     'which inside a ribbon is <mjx-ribbon> — so it reports when a container condition can have ' +
     'changed or a hidden tab becomes rendered; a MutationObserver, when a child arrives, leaves or ' +
     'changes its slot; and a change to the group’s own priority or simplified attribute. None of ' +
-    'the three measures anything. A command is moved between slots, never rebuilt, and a group ' +
+    'the three measures anything, and all three go through GroupSettleBatch, which reads every ' +
+    'queued group’s presentation before it re-slots any of them — so toggling the simplified ' +
+    'ribbon costs one style recalculation rather than one per group. A command is moved between ' +
+    'slots, never rebuilt, and a group ' +
     'whose presentation stops being a popup closes itself without moving focus, so neither the ' +
     'dismissal listener nor the focus trap outlives the popup.',
   checkedBy:
@@ -527,6 +530,21 @@ export const survivorPlacement: {
     {
       alternative: 'Rendering the survivors a second time beside the trigger.',
       because: 'Two copies of a command is how one gets lost. Rule 4 of demotionRules.',
+    },
+    {
+      alternative:
+        'Settling synchronously in attributeChangedCallback, as it did until MJXOFF-342.',
+      because:
+        '<mjx-ribbon> writes simplified on every group it owns in one loop, so one toggle ran N ' +
+        'forced style reads interleaved with N re-slots, each read invalidated by the write ' +
+        'before it. The probe callback had avoided exactly that since it was written.',
+    },
+    {
+      alternative: 'Deferring the batched flush to a frame (requestAnimationFrame) instead.',
+      because:
+        'Slot assignment has to land before the paint that follows the attribute write, or the ' +
+        'simplified ribbon flashes its full-width layout. A microtask is after every attribute ' +
+        'in the loop and before that paint.',
     },
     {
       alternative: 'Observing the ribbon host, or the group, instead of a probe.',
@@ -563,6 +581,103 @@ export function placeGroupCommands<Command>(
     survivors: commands.filter((command) => isEssential(command)),
     panel: commands.filter((command) => !isEssential(command)),
   };
+}
+
+// ── settling, batched ────────────────────────────────────────────────────────
+
+/**
+ * What a batch does to one group — **injected, so this file still has no DOM in it.**
+ *
+ * `read` is the forced style read (`getComputedStyle` of `--mjx-group-presentation`), `write` is
+ * the slot assignment that follows it, and `settles` is the question the probe callback already
+ * asked before it read anything: *is this group still connected?* `defer` is how a flush is put
+ * off — `queueMicrotask` in the component, and a function the suite drives by hand in Node, for
+ * the reason `ToastQueue` gives: a queue that owned its own timer could only be tested by waiting.
+ */
+export interface GroupSettleOperations<Group> {
+  /** Whether the group still wants settling when the batch drains. */
+  readonly settles: (group: Group) => boolean;
+  /** The style read. Called at most once per group per flush, and before any write. */
+  readonly read: (group: Group) => GroupPresentation;
+  /** The slot writes for one group, for the presentation that flush read. */
+  readonly write: (group: Group, presentation: GroupPresentation) => void;
+  /** How a requested flush is deferred. */
+  readonly defer: (flush: () => void) => void;
+}
+
+/**
+ * **Every read, then every write** — the one order in which a ribbon-wide change costs one style
+ * recalculation instead of one per group.
+ *
+ * The shared `ResizeObserver` had this property from the start: its callback reads every group's
+ * presentation into a list and only then re-slots, *"so a page of forty groups costs one style
+ * read rather than forty interleaved with forty writes"*. The attribute path did not.
+ * `<mjx-ribbon>` writes or removes `simplified` on **every** group it owns in one loop, and each
+ * write ran `attributeChangedCallback` → a synchronous read → slot writes, so toggling the
+ * simplified ribbon on a thirteen-group tab forced thirteen style recalculations, each one
+ * invalidated by the re-slot before it. That is the same defect the probe callback was written to
+ * avoid, reached by another door.
+ *
+ * So both doors now lead here. A caller `request`s a group; the batch keeps each group once,
+ * defers one flush, and the flush reads every queued group before it writes any of them. **A
+ * microtask, not a frame**: slot assignment must land before the first paint that follows the
+ * attribute write, or a simplified ribbon would flash its full-width layout. The probe callback
+ * requests its groups and then flushes **synchronously**, because it already runs before paint and
+ * re-slotting inside it is what the probe exists to make safe — deferring there would move a write
+ * out of the callback for no gain.
+ *
+ * Three properties are worth stating because each is a way this could go wrong:
+ *
+ * - **A group queued twice in one tick is read once and written once.** A ribbon that re-rendered
+ *   twice before the microtask ran would otherwise pay for both.
+ * - **The queue a flush drains is not the queue a write may add to.** `write` can close a popup,
+ *   which dispatches an event, which a host may answer by setting an attribute. That request goes
+ *   into a fresh queue and is flushed after, rather than being dropped or mutating the list being
+ *   walked.
+ * - **A group that has since disconnected is neither read nor written.** `settles` is asked before
+ *   the read, which is where the probe callback asked it too.
+ */
+export class GroupSettleBatch<Group> {
+  readonly #operations: GroupSettleOperations<Group>;
+  #queued = new Set<Group>();
+  /** Whether a deferred flush is already on its way, so N requests arrange one. */
+  #deferred = false;
+
+  constructor(operations: GroupSettleOperations<Group>) {
+    this.#operations = operations;
+  }
+
+  /** How many distinct groups are waiting. For a gate; the component never asks. */
+  get queued(): number {
+    return this.#queued.size;
+  }
+
+  /** Queue a group for settling, and arrange a flush if one is not already coming. */
+  request(group: Group): void {
+    this.#queued.add(group);
+    if (this.#deferred) return;
+    this.#deferred = true;
+    this.#operations.defer(() => {
+      this.flush();
+    });
+  }
+
+  /** Settle everything queued: every read, then every write. A no-op when nothing is queued. */
+  flush(): void {
+    this.#deferred = false;
+    if (this.#queued.size === 0) return;
+    const draining = [...this.#queued];
+    // A fresh set rather than `clear()`: a write may request a group, and that request belongs to
+    // the next flush rather than to the list this one is walking.
+    this.#queued = new Set();
+
+    const readings: { readonly group: Group; readonly presentation: GroupPresentation }[] = [];
+    for (const group of draining) {
+      if (!this.#operations.settles(group)) continue;
+      readings.push({ group, presentation: this.#operations.read(group) });
+    }
+    for (const reading of readings) this.#operations.write(reading.group, reading.presentation);
+  }
 }
 
 /**

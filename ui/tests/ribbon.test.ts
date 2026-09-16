@@ -11,6 +11,7 @@ import {
   groupPresentations,
   groupPriorities,
   groupPriorityNames,
+  GroupSettleBatch,
   placeGroupCommands,
   presentedCommandOrder,
   ribbonCss,
@@ -218,6 +219,231 @@ describe('where a survivor draws', () => {
     expect(survivorPlacement.rejected.some((entry) => entry.alternative.includes('d01cf93'))).toBe(
       true,
     );
+  });
+});
+
+// ── settling a ribbon-wide change ────────────────────────────────────────────
+
+/**
+ * `GroupSettleBatch`, which is the component's *only* route from *"CSS's answer may have changed"*
+ * to a re-slot — MJXOFF-342.
+ *
+ * The property under test is not that settling works; `tests/browser/ribbon.spec.ts` reads the real
+ * slots at three widths for that. It is the **order** the work happens in. A style read that
+ * follows a slot write is a forced recalculation, so a ribbon-wide `simplified` toggle over N
+ * groups costs N of them if each group settles inside its own `attributeChangedCallback`, and one
+ * if every group is read before any is written. That is a property of a sequence, so it is asserted
+ * over a sequence — in Node, with the flush driven by hand, for the reason `ToastQueue` states.
+ */
+describe('settling a ribbon-wide change', () => {
+  /** A group as the batch sees one: something to read, something to write, nothing else. */
+  interface FakeGroup {
+    readonly label: string;
+    presentation: GroupPresentation;
+    connected: boolean;
+    settledTo: GroupPresentation | undefined;
+    survivors: readonly string[] | undefined;
+  }
+
+  const commands = [
+    { name: 'grow', essential: false },
+    { name: 'bold', essential: true },
+    { name: 'strike', essential: false },
+  ] as const;
+
+  interface Step {
+    readonly kind: 'read' | 'write';
+    readonly label: string;
+  }
+
+  function fakeGroup(label: string, presentation: GroupPresentation = 'full'): FakeGroup {
+    return { label, presentation, connected: true, settledTo: undefined, survivors: undefined };
+  }
+
+  /** The batch with its three operations logged and its flush held, so a test can run time. */
+  function harness(options: { readonly onWrite?: (group: FakeGroup) => void } = {}) {
+    const steps: Step[] = [];
+    const deferred: (() => void)[] = [];
+    const batch = new GroupSettleBatch<FakeGroup>({
+      settles: (group) => group.connected,
+      read: (group) => {
+        steps.push({ kind: 'read', label: group.label });
+        return group.presentation;
+      },
+      write: (group, presentation) => {
+        steps.push({ kind: 'write', label: group.label });
+        group.settledTo = presentation;
+        group.survivors = placeGroupCommands(
+          presentation,
+          commands,
+          (command) => command.essential,
+        ).survivors.map((command) => command.name);
+        options.onWrite?.(group);
+      },
+      defer: (flush) => {
+        deferred.push(flush);
+      },
+    });
+    /** Run every deferred flush, including any a write arranged. */
+    const settle = (): void => {
+      let guard = 0;
+      while (deferred.length > 0) {
+        guard += 1;
+        expect(guard, 'the batch is deferring flushes without end').toBeLessThan(10);
+        deferred.shift()?.();
+      }
+    };
+    return { batch, steps, deferred, settle };
+  }
+
+  /** A read that happens after any write has happened: one forced style recalculation. */
+  function forcedRecalculations(steps: readonly Step[]): number {
+    let written = false;
+    let forced = 0;
+    for (const step of steps) {
+      if (step.kind === 'write') written = true;
+      else if (written) forced += 1;
+    }
+    return forced;
+  }
+
+  it('reads every group before it writes any of them, however many there are', () => {
+    // The shape a ribbon-wide `simplified` toggle makes: <mjx-ribbon> writes the attribute on every
+    // group it owns in one loop, so the batch receives N requests and no flush until the loop ends.
+    for (const count of [1, 4, 40]) {
+      const groups = Array.from({ length: count }, (_, index) => fakeGroup(`g${String(index)}`));
+      const { batch, steps, deferred, settle } = harness();
+      for (const group of groups) batch.request(group);
+
+      expect(steps, `${String(count)} groups settled inside the loop`).toEqual([]);
+      expect(deferred.length, 'N requests arranged more than one flush').toBe(1);
+
+      settle();
+      expect(steps.map((step) => step.kind)).toEqual([
+        ...Array.from({ length: count }, () => 'read'),
+        ...Array.from({ length: count }, () => 'write'),
+      ]);
+    }
+  });
+
+  it('costs the same number of forced style recalculations at 1 group and at 40', () => {
+    // The bound the ticket asks for, stated as a number rather than as a shape. Settling inside
+    // `attributeChangedCallback` — what this replaced — makes this count `groups - 1`: 0, 3, 39.
+    const counts = [1, 4, 40];
+    const forced = counts.map((count) => {
+      const { batch, steps, settle } = harness();
+      for (let index = 0; index < count; index += 1) batch.request(fakeGroup(`g${String(index)}`));
+      settle();
+      return forcedRecalculations(steps);
+    });
+    expect(forced).toEqual([0, 0, 0]);
+    expect(new Set(forced).size, 'the cost of a toggle depends on how many groups there are').toBe(
+      1,
+    );
+  });
+
+  it('reads and writes a group queued twice in one tick exactly once', () => {
+    const group = fakeGroup('font');
+    const { batch, steps, settle } = harness();
+    for (let index = 0; index < 5; index += 1) batch.request(group);
+    expect(batch.queued).toBe(1);
+    settle();
+    expect(steps).toEqual([
+      { kind: 'read', label: 'font' },
+      { kind: 'write', label: 'font' },
+    ]);
+  });
+
+  it('settles each group to its own presentation, and places its commands for it', () => {
+    // Reading first must not cost correctness: each group is written with the answer *it* read.
+    const groups = [
+      fakeGroup('font', 'full'),
+      fakeGroup('paragraph', 'reduced'),
+      fakeGroup('styles', 'collapsed'),
+    ];
+    const { batch, settle } = harness();
+    for (const group of groups) batch.request(group);
+    settle();
+
+    expect(groups.map((group) => group.settledTo)).toEqual(['full', 'reduced', 'collapsed']);
+    expect(groups.map((group) => group.survivors)).toEqual([[], [], ['bold']]);
+  });
+
+  it('neither reads nor writes a group that disconnected before the flush', () => {
+    const staying = fakeGroup('font');
+    const leaving = fakeGroup('styles');
+    const { batch, steps, settle } = harness();
+    batch.request(staying);
+    batch.request(leaving);
+    leaving.connected = false;
+    settle();
+
+    expect(steps.map((step) => step.label)).toEqual(['font', 'font']);
+    expect(leaving.settledTo, 'a disconnected group was settled').toBeUndefined();
+  });
+
+  it('arranges a new flush for a request made after one drained', () => {
+    const group = fakeGroup('font');
+    const { batch, steps, deferred, settle } = harness();
+    batch.request(group);
+    settle();
+    expect(deferred.length).toBe(0);
+
+    group.presentation = 'collapsed';
+    batch.request(group);
+    expect(deferred.length, 'a request after a flush arranged nothing, so it would be lost').toBe(1);
+    settle();
+    expect(steps.length).toBe(4);
+    expect(group.settledTo).toBe('collapsed');
+  });
+
+  it('keeps a request made during a write for the next flush, rather than dropping it', () => {
+    // A write closes a popup, which dispatches an event, which a host may answer by setting an
+    // attribute — a request arriving while the batch is walking its own list.
+    const font = fakeGroup('font');
+    const styles = fakeGroup('styles', 'collapsed');
+    let requested = false;
+    const harnessed = harness({
+      onWrite: (group) => {
+        if (group !== font || requested) return;
+        requested = true;
+        harnessed.batch.request(styles);
+      },
+    });
+    harnessed.batch.request(font);
+    harnessed.settle();
+
+    expect(harnessed.steps.map((step) => `${step.kind}:${step.label}`)).toEqual([
+      'read:font',
+      'write:font',
+      'read:styles',
+      'write:styles',
+    ]);
+    expect(styles.settledTo).toBe('collapsed');
+  });
+
+  it('is the only route <mjx-ribbon-group> takes from an attribute to a re-slot', () => {
+    // The batching above is a property of a class the component has to actually use. Node cannot
+    // upgrade a custom element — this tier has no DOM at all — so what is checked here is that the
+    // attribute path still hands the group to the batch instead of settling inside the callback.
+    const source = readFileSync(
+      resolve(import.meta.dirname, '../src/ribbon/ribbon-group.ts'),
+      'utf8',
+    );
+    // The method, not the module note that names it and not the batch's own `write`, both of which
+    // mention settling for good reasons.
+    const start = source.indexOf('\n  attributeChangedCallback(');
+    expect(start, 'attributeChangedCallback was found in no recognisable shape').toBeGreaterThan(-1);
+    const body = source.slice(start, source.indexOf('\n  }', start));
+    expect(body, 'the attribute path no longer re-renders at all').toContain('render()');
+    expect(body).toContain('#settleBatch.request(this)');
+    expect(
+      body.includes('#settle('),
+      'attributeChangedCallback settles inline again, which is one forced style read per group ' +
+        'for a ribbon-wide simplified toggle. See GroupSettleBatch in ribbon-model.ts.',
+    ).toBe(false);
+    // The probe callback is the one path that may drain synchronously: it already runs before paint.
+    expect(source).toContain('MjxRibbonGroup.#settleBatch.flush()');
   });
 });
 

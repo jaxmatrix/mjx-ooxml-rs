@@ -62,6 +62,18 @@
  * DOM, because a manually assigned slot is never told about a new child or a changed `slot`, and a
  * change to the group's own `priority` or `simplified` attribute, which changes CSS's answer.
  *
+ * ⚠ **All three ask through the same batch, and that is the whole of MJXOFF-342.** The attribute
+ * path used to read and re-slot *inside* `attributeChangedCallback`, which is fine for one group
+ * and wrong for a ribbon: `<mjx-ribbon>` writes or removes `simplified` on every group it owns in
+ * one loop, so toggling the simplified form on a thirteen-group tab forced thirteen style
+ * recalculations interleaved with thirteen re-slots — the exact cost the probe callback had been
+ * written to avoid. So every path now `request`s the group on `GroupSettleBatch`
+ * (`ribbon-model.ts`), which keeps each group once, reads every queued group's presentation and
+ * only then writes any of them. The attribute and mutation paths let the batch defer its flush to
+ * a **microtask** — after the ribbon's whole loop and before the paint that would otherwise flash
+ * the full-width layout; the probe callback queues its groups and flushes **synchronously**,
+ * because it already runs before paint and re-slotting inside it is what the probe makes safe.
+ *
  * `<mjx-gallery>` answers a different question and observes differently: it watches **itself, its
  * parent group and its clipping ancestor**, with no probe, because it has a column count and a
  * flyout position to recompute from real sizes rather than a presentation to read back.
@@ -95,6 +107,7 @@ import {
   essentialSlotName,
   groupPresentationProperty,
   groupPresentations,
+  GroupSettleBatch,
   isGroupPriority,
   placeGroupCommands,
   ribbonEvents,
@@ -164,6 +177,22 @@ export class MjxRibbonGroup extends HTMLElement {
   /** The one observer every group's probe shares. Created on first connection. */
   static #probeObserver: ResizeObserver | undefined;
   static readonly #groupsByProbe = new WeakMap<Element, MjxRibbonGroup>();
+  /**
+   * The one batch every group's settle goes through — see the module note.
+   *
+   * `queueMicrotask` is wrapped rather than passed, because it is a method of the global object and
+   * an unbound reference is an illegal invocation in some engines.
+   */
+  static readonly #settleBatch = new GroupSettleBatch<MjxRibbonGroup>({
+    settles: (group) => group.isConnected,
+    read: (group) => group.presentation,
+    write: (group, presentation) => {
+      group.#settle(presentation);
+    },
+    defer: (flush) => {
+      queueMicrotask(flush);
+    },
+  });
 
   connectedCallback(): void {
     if (this.#root === undefined) this.#build();
@@ -190,7 +219,12 @@ export class MjxRibbonGroup extends HTMLElement {
   attributeChangedCallback(name: string): void {
     if (this.#root === undefined) return;
     this.render();
-    if (this.isConnected && placementAttributes.includes(name)) this.#settle(this.presentation);
+    // Queued, never settled here: a ribbon-wide `simplified` toggle writes this attribute on every
+    // group in one loop, and a style read inside the loop is a forced recalculation per group. The
+    // batch drops a group that has disconnected by the time it drains, which is why `isConnected`
+    // is not asked again here — asking now would refuse a group that is about to be connected in
+    // the same tick.
+    if (placementAttributes.includes(name)) MjxRibbonGroup.#settleBatch.request(this);
   }
 
   /** The group's name — drawn under its commands, and the popup's accessible name. */
@@ -440,7 +474,7 @@ export class MjxRibbonGroup extends HTMLElement {
     const relevant = records.some((record) =>
       record.type === 'childList' ? record.target === this : record.target.parentNode === this,
     );
-    if (relevant && this.isConnected) this.#settle(this.presentation);
+    if (relevant) MjxRibbonGroup.#settleBatch.request(this);
   };
 
   static #watchProbe(group: MjxRibbonGroup): void {
@@ -465,20 +499,22 @@ export class MjxRibbonGroup extends HTMLElement {
   }
 
   /**
-   * The container's width changed, or a group became rendered. **Every read, then every write.**
+   * The container's width changed, or a group became rendered. **Every read, then every write**,
+   * which is the batch's own rule and no longer this callback's own copy of it.
+   *
+   * Flushed synchronously rather than deferred: this callback already runs before paint, and
+   * re-slotting inside it is exactly what observing a probe rather than the group makes safe.
    *
    * The sizes in the entries are deliberately ignored: which presentation a width means is CSS's
    * decision, and asking CSS is the whole of the answer.
    */
   static readonly #onProbeReports = (entries: readonly ResizeObserverEntry[]): void => {
-    const readings: { readonly group: MjxRibbonGroup; readonly presentation: GroupPresentation }[] =
-      [];
     for (const entry of entries) {
       const group = MjxRibbonGroup.#groupsByProbe.get(entry.target);
-      if (group === undefined || !group.isConnected) continue;
-      readings.push({ group, presentation: group.presentation });
+      if (group === undefined) continue;
+      MjxRibbonGroup.#settleBatch.request(group);
     }
-    for (const reading of readings) reading.group.#settle(reading.presentation);
+    MjxRibbonGroup.#settleBatch.flush();
   };
 
   // ── the popup ──────────────────────────────────────────────────────────────
