@@ -70,6 +70,9 @@ pub struct Decoration {
     pub outline: Option<LineSpec>,
     /// What is applied to it once it is drawn, or `None` when nothing is.
     pub effects: Option<EffectListSpec>,
+    /// How many of the colours above stated an opacity the resolution could not carry — see
+    /// [`ShapeDecoration::lost_opacities`](crate::ShapeDecoration).
+    pub lost_opacities: usize,
 }
 
 /// What a [`GeometryRef`] this box model issued resolves to.
@@ -793,6 +796,7 @@ fn decoration_handle(
         fill: decoration.fill.clone(),
         outline: decoration.outline.clone(),
         effects: decoration.effects.clone(),
+        lost_opacities: decoration.lost_opacities,
     });
     Some(handle)
 }
@@ -1080,6 +1084,9 @@ fn build_table(
                 // here would draw that edge on all four sides.
                 outline: None,
                 effects: None,
+                // A cell's fill comes from the table ladder, which does not report a dropped
+                // opacity. Owned by MJXOFF-243 (RC04), colour opacity.
+                lost_opacities: 0,
             },
         );
 
@@ -1169,6 +1176,8 @@ fn build_cell_borders(
                 fill: line.fill.clone(),
                 outline: None,
                 effects: None,
+                // As the cell's own fill above. Owned by MJXOFF-243 (RC04), colour opacity.
+                lost_opacities: 0,
             },
         );
         if decoration.is_none() {

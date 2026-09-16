@@ -103,6 +103,15 @@ impl ResourceResolver for SlideResources {
                 None => Vec::new(),
             },
         };
+        // A colour whose opacity was dropped one crate below is painted at full opacity: the right
+        // colour at the wrong alpha, which is an approximation of the paint rather than a missing
+        // one — so it draws, takes no placeholder over content that *is* drawn, and is counted once
+        // per colour at this shape's own source. Nothing counted it at all until MJXOFF-300, so a
+        // 35 % overlay hid the table row beneath it and the page reported itself lossless.
+        // Owned by MJXOFF-243 (RC04), colour opacity.
+        for _ in 0..entry.lost_opacities {
+            lost.push(SceneLossKind::PaintApproximated);
+        }
         resolved_with(decoration, lost)
     }
 

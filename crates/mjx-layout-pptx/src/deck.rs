@@ -261,10 +261,21 @@ pub struct ShapeDecoration {
     /// than exotic. `tests/the_opacity_is_lost_at_the_spec_boundary.rs` proves it is still lost, so
     /// that fixing it is a test going green rather than a thing nobody remembers.
     pub effects: Option<EffectListSpec>,
+    /// How many of the colours above stated an opacity the resolution could not carry.
+    ///
+    /// Carried because the loss is otherwise **invisible**: a resolved colour is a valid triplet, so
+    /// the layer above cannot tell a 35 % overlay from an opaque one and would paint a slab over
+    /// whatever is beneath it while reporting a lossless page. The companion turns each one into a
+    /// `mjx_scene::SceneLossKind::PaintApproximated` at this shape's own source.
+    /// Owned by MJXOFF-243 (RC04), colour opacity.
+    pub lost_opacities: usize,
 }
 
 impl ShapeDecoration {
     /// Whether it paints nothing at all, in which case a fragment carries no handle.
+    ///
+    /// A dropped opacity is not paint: it is a property of a colour one of the three above states,
+    /// so a decoration with nothing but a count paints nothing and is still empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.fill.is_none() && self.outline.is_none() && self.effects.is_none()
@@ -501,11 +512,22 @@ fn read_shape(
     let decoration = match kind {
         // Only a shape and a connector carry `p:spPr`'s fill and outline. Asking for a group's or a
         // graphic frame's would be asking a question the schema does not have an answer to.
-        ShapeKind::Shape | ShapeKind::ConnectionShape => ShapeDecoration {
-            fill: deck.effective_shape_fill(surface, path.clone())?,
-            outline: deck.effective_shape_outline(surface, path.clone())?,
-            effects: deck.effective_shape_effects(surface, path.clone())?,
-        },
+        ShapeKind::Shape | ShapeKind::ConnectionShape => {
+            // The reporting form of each ladder: one walk, two answers — what the shape paints, and
+            // how many of the colours in it lost an opacity on the way to a hex triplet.
+            let (fill, fill_lost) =
+                deck.effective_shape_fill_reporting_lost_opacity(surface, path.clone())?;
+            let (outline, outline_lost) =
+                deck.effective_shape_outline_reporting_lost_opacity(surface, path.clone())?;
+            let (effects, effects_lost) =
+                deck.effective_shape_effects_reporting_lost_opacity(surface, path.clone())?;
+            ShapeDecoration {
+                fill,
+                outline,
+                effects,
+                lost_opacities: fill_lost.count() + outline_lost.count() + effects_lost.count(),
+            }
+        }
         _ => ShapeDecoration::default(),
     };
 

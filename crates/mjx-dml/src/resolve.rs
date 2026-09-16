@@ -26,6 +26,8 @@
 //! the tests; the rarely-seen `comp`/`gray`/`gamma`/`invGamma` follow a documented interpretation and
 //! are **not** guaranteed pixel-identical to Microsoft Office's renderer.
 
+use std::cell::Cell;
+
 use mjx_ooxml_core::{Interner, RawAttribute, RawNode};
 use mjx_ooxml_types::support::HexColorRgb;
 
@@ -194,13 +196,68 @@ pub fn resolve_color(
     })
 }
 
+/// How many resolved colours carried an opacity the resolved value has nowhere to put.
+///
+/// A baked colour is a [`ColorSpec::Srgb`] six-digit hex **triplet** and an `a:alpha` transform is a
+/// fourth channel, so [`resolve_color`] computes an opacity that every `resolve_*` function below
+/// then discards — each of them says so in its own documentation, and that is still true.
+///
+/// **Carrying the channel through is MJXOFF-243 (RC04), and this type is not that.** It is what
+/// stops the drop being *silent* in the meantime: a caller that asks for the reporting form learns
+/// that the value it is about to paint is the right colour at the wrong opacity, and can count the
+/// approximation instead of reporting a lossless page. A 35 % overlay painted opaque hides whatever
+/// is under it, which is a visible loss that nothing named until MJXOFF-300.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LostOpacities(usize);
+
+impl LostOpacities {
+    /// A count of `count` colours, for a caller that accumulated one across several resolutions.
+    #[must_use]
+    pub const fn new(count: usize) -> Self {
+        Self(count)
+    }
+
+    /// How many colours were resolved with an opacity the result does not carry.
+    #[must_use]
+    pub const fn count(self) -> usize {
+        self.0
+    }
+
+    /// Whether any colour lost one.
+    #[must_use]
+    pub const fn any(self) -> bool {
+        self.0 > 0
+    }
+}
+
+/// One colour, baked to a concrete [`ColorSpec`], counting an opacity the triplet cannot carry.
+fn baked_color(
+    color: &Color,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+    lost: &Cell<usize>,
+) -> ColorSpec {
+    resolve_color(color, scheme, map, placeholder, interner).map_or_else(
+        || color.spec(interner),
+        |resolved| {
+            if resolved.alpha < 1.0 {
+                lost.set(lost.get().saturating_add(1));
+            }
+            ColorSpec::Srgb(resolved.to_hex())
+        },
+    )
+}
+
 /// Resolves every color of `fill` to concrete RGB, producing an interner-free [`FillSpec`] whose
 /// colors are [`ColorSpec::Srgb`] hex values. `placeholder` is the resolved `phClr` substitute (a
 /// shape's `a:fillRef` color) used when `fill` is a theme fill-style; pass `None` for an explicit
 /// shape fill. A color that cannot be resolved falls back to its own (unresolved) [`ColorSpec`].
 ///
 /// Note: [`FillSpec`] colors are RGB-only, so a resolved alpha (from an `a:alpha` transform) is not
-/// represented in the result.
+/// represented in the result — [`resolve_fill_reporting_lost_opacity`] is the same resolution, with
+/// a count of the colours that lost one.
 #[must_use]
 pub fn resolve_fill(
     fill: &Fill,
@@ -209,11 +266,34 @@ pub fn resolve_fill(
     placeholder: Option<ResolvedColor>,
     interner: &Interner,
 ) -> FillSpec {
+    resolve_fill_reporting_lost_opacity(fill, scheme, map, placeholder, interner).0
+}
+
+/// [`resolve_fill`], and how many of the colours it baked stated an opacity the result cannot carry.
+#[must_use]
+pub fn resolve_fill_reporting_lost_opacity(
+    fill: &Fill,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> (FillSpec, LostOpacities) {
+    let lost = Cell::new(0);
+    let spec = fill_counting_lost_opacity(fill, scheme, map, placeholder, interner, &lost);
+    (spec, LostOpacities(lost.get()))
+}
+
+/// [`resolve_fill`]'s body, with the dropped opacities counted into `lost`.
+fn fill_counting_lost_opacity(
+    fill: &Fill,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+    lost: &Cell<usize>,
+) -> FillSpec {
     let to_spec = |color: &Color| -> ColorSpec {
-        resolve_color(color, scheme, map, placeholder, interner).map_or_else(
-            || color.spec(interner),
-            |resolved| ColorSpec::Srgb(resolved.to_hex()),
-        )
+        baked_color(color, scheme, map, placeholder, interner, lost)
     };
     match fill {
         Fill::None(_) => FillSpec::None,
@@ -264,14 +344,40 @@ pub fn resolve_line(
     placeholder: Option<ResolvedColor>,
     interner: &Interner,
 ) -> LineSpec {
+    resolve_line_reporting_lost_opacity(line, scheme, map, placeholder, interner).0
+}
+
+/// [`resolve_line`], and how many of the colours it baked stated an opacity the result cannot carry.
+#[must_use]
+pub fn resolve_line_reporting_lost_opacity(
+    line: &LineProperties,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> (LineSpec, LostOpacities) {
+    let lost = Cell::new(0);
+    let spec = line_counting_lost_opacity(line, scheme, map, placeholder, interner, &lost);
+    (spec, LostOpacities(lost.get()))
+}
+
+/// [`resolve_line`]'s body, with the dropped opacities counted into `lost`.
+fn line_counting_lost_opacity(
+    line: &LineProperties,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+    lost: &Cell<usize>,
+) -> LineSpec {
     LineSpec {
         width: line.width(interner).ok().flatten(),
         cap: line.cap(interner).ok().flatten(),
         compound: line.compound(interner).ok().flatten(),
         pen_alignment: line.pen_alignment(interner).ok().flatten(),
-        fill: line
-            .fill(interner)
-            .map(|fill| resolve_fill(&fill, scheme, map, placeholder, interner)),
+        fill: line.fill(interner).map(|fill| {
+            fill_counting_lost_opacity(&fill, scheme, map, placeholder, interner, lost)
+        }),
         dash: line.dash(interner),
         join: line.join(interner),
         head_end: line.head_end(interner),
@@ -398,11 +504,39 @@ pub fn resolve_effects(
     placeholder: Option<ResolvedColor>,
     interner: &Interner,
 ) -> EffectListSpec {
+    resolve_effects_reporting_lost_opacity(effects, scheme, map, placeholder, interner).0
+}
+
+/// [`resolve_effects`], and how many of the colours it baked stated an opacity the result cannot
+/// carry.
+///
+/// The standard Office theme's third effect style is a shadow at 63 %, so this count is one on
+/// every shape that takes its effects from a theme — which is what makes the loss universal rather
+/// than exotic.
+#[must_use]
+pub fn resolve_effects_reporting_lost_opacity(
+    effects: &EffectList,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> (EffectListSpec, LostOpacities) {
+    let lost = Cell::new(0);
+    let spec = effects_counting_lost_opacity(effects, scheme, map, placeholder, interner, &lost);
+    (spec, LostOpacities(lost.get()))
+}
+
+/// [`resolve_effects`]'s body, with the dropped opacities counted into `lost`.
+fn effects_counting_lost_opacity(
+    effects: &EffectList,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+    lost: &Cell<usize>,
+) -> EffectListSpec {
     let to_spec = |color: &Color| -> ColorSpec {
-        resolve_color(color, scheme, map, placeholder, interner).map_or_else(
-            || color.spec(interner),
-            |resolved| ColorSpec::Srgb(resolved.to_hex()),
-        )
+        baked_color(color, scheme, map, placeholder, interner, lost)
     };
 
     let mut spec = effects.spec(interner);
@@ -431,7 +565,7 @@ pub fn resolve_effects(
         spec.fill_overlay.as_mut(),
         effects.fill_overlay_fill(interner),
     ) {
-        overlay.fill = resolve_fill(&fill, scheme, map, placeholder, interner);
+        overlay.fill = fill_counting_lost_opacity(&fill, scheme, map, placeholder, interner, lost);
     }
     spec
 }
