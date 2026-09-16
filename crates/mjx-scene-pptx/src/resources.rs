@@ -88,11 +88,11 @@ impl ResourceResolver for SlideResources {
                 Some(outline) => part(stroke_style(outline, self.scale, &image), None, &mut lost),
                 None => None,
             },
-            // A shape's own transparency is `a:alpha` on its fill's colour, not a group opacity, and
-            // that alpha is gone one crate below (see `crate::paint`). Stating `1.0` is therefore
-            // not a placeholder for a value that exists — there is no per-shape opacity in
-            // DrawingML for this to carry — and a `PushOpacity` this crate never emits is one the
-            // painter never has to open a layer for.
+            // A shape's own transparency is `a:alpha` on its fill's colour, which each colour now
+            // carries itself (see `crate::paint`). Stating `1.0` is therefore not a placeholder for
+            // a value that exists — there is no per-shape opacity in DrawingML for this to carry —
+            // and a `PushOpacity` this crate never emits is one the painter never has to open a
+            // layer for.
             opacity: 1.0,
             effects: match entry.effects.as_ref() {
                 Some(effects) => part(
@@ -103,15 +103,16 @@ impl ResourceResolver for SlideResources {
                 None => Vec::new(),
             },
         };
-        // A colour whose opacity was dropped one crate below is painted at full opacity: the right
-        // colour at the wrong alpha, which is an approximation of the paint rather than a missing
-        // one — so it draws, takes no placeholder over content that *is* drawn, and is counted once
-        // per colour at this shape's own source. Nothing counted it at all until MJXOFF-300, so a
-        // 35 % overlay hid the table row beneath it and the page reported itself lossless.
-        // Owned by MJXOFF-243 (RC04), colour opacity.
-        for _ in 0..entry.lost_opacities {
-            lost.push(SceneLossKind::PaintApproximated);
-        }
+        // `entry.lost_opacities` counts the colours whose opacity the resolution could not carry,
+        // and since MJXOFF-243 it is zero: a non-opaque colour reaches `color_of` as a triplet under
+        // one `a:alpha` and reaches the display list with that alpha. Nothing is added to `lost`
+        // here, so a decoration that resolves answers **whole** — which is the difference between a
+        // 35 % overlay letting the table row beneath it through and painting a slab over it.
+        debug_assert_eq!(
+            entry.lost_opacities, 0,
+            "a resolved colour carries its own opacity; a count here is a colour that reached the \
+             catalogue through something other than `mjx-dml`'s resolution"
+        );
         resolved_with(decoration, lost)
     }
 

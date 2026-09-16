@@ -72,7 +72,7 @@ The two figures below **are** independent. Each is summed by the generator from 
 | **In-scope controls, all three** | **11,869** | `data/command-surface.tsv` |
 | **Declared elements, ECMA-376** | **3,404** | `data/schema-census.txt` |
 
-The workspace holds **35** crates and **411** integration suites, of which the rows below name **265**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
+The workspace holds **35** crates and **415** integration suites, of which the rows below name **265**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
 
 ## The provenance of the evidence
 
@@ -95,17 +95,11 @@ Each of these is written in the module documentation of the suite that **asserts
 |---|---|---|
 | `run-colour-pptx` | a render counts 14 loss(es) labelled `Text colour approximated` | `mjx-reference-pack: a_real_deck_reaches_pixels` |
 | `paragraph-borders-and-rules` | `w:pBdr/w:between` is carried on the paragraph's decoration and placed nowhere — it changes no stroke rectangle, so no rule is drawn between two paragraphs that share the border | `mjx-layout-docx: no_rule_rounds_to_nothing` |
-| `fills` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `outlines` | an arrowhead (`a:headEnd`, `a:tailEnd`) is carried through the display list and never tessellated, so no line draws its line ends | `mjx-scene: a_line_end_is_carried_and_never_tessellated` |
 | `outlines` | a custom dash (`a:custDash`) draws as the preset `Dash`, because `LineSpec` does not model its stops | `mjx-scene-pptx: a_custom_dash_draws_as_the_preset_dash` |
-| `effects` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
-| `colour-resolution` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
-| `colour-resolution-pptx` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
-| `shape-styles` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `chart-axes-and-scales` | chart text is *measured* and not shaped, so every rectangle a label or a title occupies is a few percent off and the furniture around it moves with the error | `mjx-layout-chart: the_furniture_is_drawn` |
 | `chart-furniture` | chart text is *measured* and not shaped, so every rectangle a label or a title occupies is a few percent off and the furniture around it moves with the error | `mjx-layout-chart: the_furniture_is_drawn` |
 | `math-typesetting` | `mjx-text` parses no OpenType `MATH` table, so a stretchy delimiter is *scaled* rather than assembled from glyph variants and its stroke weight grows with its height | `mjx-layout-docx: an_equation_is_typeset` |
-| `themes-pptx` | a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under the shape instead of a soft one | `mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` |
 | `word-columns` | `w:cols@sep` is reported on the page report and NOT drawn — no fragment is placed for a column separator and it changes no geometry, so a two-column page with a separator looks exactly like one without | `mjx-layout-docx: columns_balance_at_a_continuous_break` |
 | `word-track-changes` | a change bar is only a flag on the composed paragraph, reported in the two marking views — nothing places a bar in the margin or draws one | `mjx-layout-docx: a_deletion_changes_the_page` |
 | `excel-conditional-formatting` | a conditional-formatting rule whose condition is a formula — an `expression` rule, a `cellIs` with a reference operand, a `cfvo` of `type="formula"` — is reported unevaluated and painted as nothing, because evaluating it needs a calculation engine | `mjx-layout-xlsx: the_conditional_ledger_is_computed` |
@@ -268,9 +262,9 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
 | `run-formatting` | Text decorations in the shared display-list vocabulary — underline, strikethrough, double strike, highlight, baseline offset | `not-started` | **none** | 0 | 0 | — |
-| `run-formatting-pptx` | PowerPoint run formatting — family, size, bold, italic, underline, strikethrough, caps | `partial` | `mjx-dml: character_model`<br>`mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments` | 70 | 239 | — |
+| `run-formatting-pptx` | PowerPoint run formatting — family, size, bold, italic, underline, strikethrough, caps | `partial` | `mjx-dml: character_model`<br>`mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments` | 70 | 241 | — |
 | `run-formatting-docx` | Word run formatting — family, size, bold, italic, caps, small caps, raised and lowered text | `partial` | `mjx-docx: run_properties`<br>`mjx-layout-docx: a_document_becomes_fragments` | 7 | 82 | — |
-| `run-colour-pptx` | A PowerPoint run drawn at pixels in its own resolved colour, rather than black | `partial` | `mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-reference-pack: a_real_deck_reaches_pixels::the_text_deck_loses_exactly_its_run_colours` | 42 | 130 | — |
+| `run-colour-pptx` | A PowerPoint run drawn at pixels in its own resolved colour, rather than black | `partial` | `mjx-pptx: text_formatting`<br>`mjx-layout-pptx: a_slide_becomes_fragments`<br>`mjx-reference-pack: a_real_deck_reaches_pixels::the_text_deck_loses_exactly_its_run_colours` | 42 | 132 | — |
 | `run-colour-docx` | A Word run drawn at pixels in its own colour, highlight and shading | `preserved-not-rendered` | `mjx-docx: run_properties` | 3 | 64 | — |
 | `text-shaping` | Shaping and script itemisation | `partial` | `mjx-text: shaping`<br>`mjx-text: itemisation` | 34 | 128 | — |
 | `bidirectional-text` | Bidirectional text — the UBA, and a bidi-aware run order | `partial` | `mjx-text: bidirectional_text` | 11 | 62 | — |
@@ -310,15 +304,15 @@ Each of these has evidence that asserts something, and none of it proves the cap
 | `shape-adjustments` | Adjustment handles, and the guide formulas they drive | `partial` | `mjx-geometry: an_adjustment_moves_the_shape`<br>`mjx-geometry: every_adjustment_moves_its_shape`<br>`mjx-dml: guide_formula`<br>`mjx-pptx: preset_adjustments` | 77 | 185 | — |
 | `custom-geometry` | Custom freeform geometry — `a:custGeom` paths | `partial` | `mjx-dml: custom_geometry_model`<br>`mjx-geometry: the_third_route_is_the_parser`<br>`mjx-pptx: custom_geometry` | 37 | 133 | — |
 | `connectors` | Connectors and their connection sites | `partial` | `mjx-geometry: a_connector_lands_on_the_outline` | 8 | 37 | — |
-| `fills` | Fills — solid, gradient with stop and tile semantics, 54 preset patterns, picture, texture | `partial` | `mjx-dml: fill_model`<br>`mjx-pptx: fill`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary`<br>`mjx-paint: the_tables_are_tables` | 35 | 77 | — |
+| `fills` | Fills — solid, gradient with stop and tile semantics, 54 preset patterns, picture, texture | `partial` | `mjx-dml: fill_model`<br>`mjx-pptx: fill`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary`<br>`mjx-paint: the_tables_are_tables` | 36 | 78 | — |
 | `outlines` | Outlines — weight, dash, cap, join, compound, arrowheads | `partial` | `mjx-dml: line_model`<br>`mjx-scene: a_line_end_is_carried_and_never_tessellated`<br>`mjx-scene-pptx: a_custom_dash_draws_as_the_preset_dash`<br>`mjx-scene: fragments_alone_drive_the_builder::a_decorated_box_becomes_a_fill_and_a_stroke_over_a_rectangle` | 13 | 41 | — |
-| `effects` | Effects — `outerShdw`, `innerShdw`, `glow`, `softEdge`, `reflection`, `blur`, and the effect DAG | `partial` | `mjx-dml: effect_model`<br>`mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary`<br>`mjx-paint: two_painters_agree::every_effect_kind_is_drawn_the_same_way_by_both` | 19 | 70 | — |
-| `colour-resolution` | Colour resolution — scheme colours, the transform chain, and an opacity that survives it once | `partial` | `mjx-dml: color_model`<br>`mjx-dml: resolve_model`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 42 | 104 | — |
-| `colour-resolution-pptx` | PowerPoint colour resolution — the theme, the colour map and a slide's own override, from every surface | `partial` | `mjx-pptx: surfaces`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 17 | 38 | — |
+| `effects` | Effects — `outerShdw`, `innerShdw`, `glow`, `softEdge`, `reflection`, `blur`, and the effect DAG | `partial` | `mjx-dml: effect_model`<br>`mjx-scene-pptx: every_effect_reaches_the_root`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary`<br>`mjx-paint: two_painters_agree::every_effect_kind_is_drawn_the_same_way_by_both` | 20 | 71 | — |
+| `colour-resolution` | Colour resolution — scheme colours, the transform chain, and an opacity that survives it once | `partial` | `mjx-dml: color_model`<br>`mjx-dml: resolve_model`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 43 | 105 | — |
+| `colour-resolution-pptx` | PowerPoint colour resolution — the theme, the colour map and a slide's own override, from every surface | `partial` | `mjx-pptx: surfaces`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 18 | 39 | — |
 | `colour-resolution-xlsx` | SpreadsheetML colour resolution — the indexed palette, system colours, and theme positions with no caller-supplied theme | `partial` | `mjx-sml: style_resources`<br>`mjx-scene-xlsx: a_real_sheet_resolves` | 22 | 142 | — |
 | `colour-resolution-docx` | Word colour resolution — automatic colour, and theme colours with their tint and shade | `preserved-not-rendered` | `mjx-docx: effective` | 10 | 15 | — |
 | `three-dimensional-shapes` | 3-D rotation and extrusion — `a:scene3d` and `a:sp3d` | `preserved-not-rendered` | `mjx-dml: shape3d_model`<br>`mjx-pptx: shape_3d` | 25 | 96 | — |
-| `shape-styles` | Shape styles and theme style references | `partial` | `mjx-dml: style_model`<br>`mjx-pptx: shape_list_style`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 20 | 51 | — |
+| `shape-styles` | Shape styles and theme style references | `partial` | `mjx-dml: style_model`<br>`mjx-pptx: shape_list_style`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 21 | 52 | — |
 | `grouping-and-transforms` | Grouping, nested group transforms, flipping and rotation | `partial` | `mjx-dml: transform_model`<br>`mjx-pptx: groups`<br>`mjx-pptx: grouping`<br>`mjx-layout-pptx: nested_group_transforms_compose` | 57 | 152 | — |
 | `z-order-and-placement` | Z-order, size and position, alignment and distribution | `partial` | `mjx-pptx: placement`<br>`mjx-pptx: transform`<br>`mjx-layout-pptx: a_slide_becomes_fragments` | 39 | 95 | — |
 | `text-in-a-shape` | The text body inside a shape — insets, anchoring, and the geometry that bounds it | `partial` | `mjx-dml: text_model`<br>`mjx-geometry: text_goes_inside_the_shape`<br>`mjx-layout-pptx: the_body_geometry_is_honoured` | 58 | 169 | — |
@@ -387,7 +381,7 @@ Each of these has evidence that asserts something, and none of it proves the cap
 
 | Row | Capability | State | Evidence | Tests | Assertions | `Spec`/`Doc`/`Engine` |
 |---|---|---|---|---:|---:|---|
-| `themes-pptx` | PowerPoint themes — colour, font and effect schemes reaching every shape | `partial` | `mjx-dml: theme_model`<br>`mjx-pptx: theme`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 22 | 102 | — |
+| `themes-pptx` | PowerPoint themes — colour, font and effect schemes reaching every shape | `partial` | `mjx-dml: theme_model`<br>`mjx-pptx: theme`<br>`mjx-scene-pptx: the_opacity_is_lost_at_the_spec_boundary` | 23 | 103 | — |
 | `themes-xlsx` | Excel themes — a workbook's theme colours resolving without the caller supplying the theme | `partial` | `mjx-sml: theme_index`<br>`mjx-scene-xlsx: a_real_sheet_resolves` | 7 | 25 | — |
 | `themes-docx` | Word themes — theme colours and theme fonts, resolved before a value reaches the box model | `preserved-not-rendered` | `mjx-docx: effective` | 10 | 15 | — |
 | `styles-and-inheritance-pptx` | PowerPoint inheritance — the seven-tier text ladder and the transform ladder | `partial` | `mjx-pptx: text_inheritance`<br>`mjx-pptx: transform_inheritance`<br>`mjx-layout-pptx: the_ladder_is_consumed` | 27 | 51 | — |

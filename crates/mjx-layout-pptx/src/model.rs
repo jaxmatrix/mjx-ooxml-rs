@@ -70,8 +70,8 @@ pub struct Decoration {
     pub outline: Option<LineSpec>,
     /// What is applied to it once it is drawn, or `None` when nothing is.
     pub effects: Option<EffectListSpec>,
-    /// How many of the colours above stated an opacity the resolution could not carry — see
-    /// [`ShapeDecoration::lost_opacities`](crate::ShapeDecoration).
+    /// How many of the colours above stated an opacity the resolution could not carry — **zero**,
+    /// since MJXOFF-243; see [`ShapeDecoration::lost_opacities`](crate::ShapeDecoration).
     pub lost_opacities: usize,
 }
 

@@ -73,10 +73,11 @@
 //! geometry: a cell is a rectangle and so is a border band, which is why [`SheetGeometry`] answers
 //! no handle at all.
 //!
-//! # ⚠ The MJXOFF-243 opacity loss is **not** on this path
+//! # ⚠ The MJXOFF-243 opacity loss was **not** on this path
 //!
-//! `mjx-scene-pptx` records that a DrawingML colour arrives opaque, because `mjx-dml`'s
-//! `resolve_fill` bakes it to a six-digit hex triplet. **Excel's colours do not travel that road.**
+//! `mjx-scene-pptx` recorded that a DrawingML colour arrived opaque, because `mjx-dml`'s
+//! `resolve_fill` baked it to a six-digit hex triplet; RC04 fixed it there. **Excel's colours never
+//! travelled that road.**
 //! A SpreadsheetML colour is `CT_Color` — one element with five attributes — its `@rgb` is
 //! `AARRGGBB` with the alpha *first*, and `mjx_sml::styles::resolve_color` answers with a `ResolvedColor`
 //! carrying that alpha as a `f64`. Nothing here discards it, and

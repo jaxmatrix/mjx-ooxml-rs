@@ -18,15 +18,15 @@
 //! *last* index — so a shape with a glow and a shadow would render its shadow and silently lose its
 //! glow, with no error anywhere. `tests/every_effect_reaches_the_root.rs` is what refuses that.
 //!
-//! # ⚠ Every effect colour here is opaque, and none of them should be
+//! # An effect colour's opacity is the sharpest case of all, and it arrives
 //!
 //! An `a:outerShdw`'s colour is almost always alpha'd — the standard Office theme's effect style is
-//! `<a:srgbClr val="000000"><a:alpha val="63000"/></a:srgbClr>` — and `mjx-dml`'s `resolve_effects`
-//! bakes that to a `ColorSpec::Srgb` hex triplet, which has no alpha. So a shadow drawn from this
-//! translation is a **solid black** shadow rather than a 63% one. That is the sharpest consequence
-//! of the loss described in [`crate::paint`], and it is why
-//! `tests/the_opacity_is_lost_at_the_spec_boundary.rs` reads the loss off a real fixture rather
-//! than describing it.
+//! `<a:srgbClr val="000000"><a:alpha val="63000"/></a:srgbClr>`, so every shape a person styles
+//! from PowerPoint's gallery has a 63 % shadow. Until MJXOFF-243 (RC04) `mjx-dml` baked that to a
+//! bare triplet and the shadow drew **solid black**: a slab under the shape instead of a soft one.
+//! `resolve_effects` now keeps the channel as the colour's one transform and [`color_of`] reads it,
+//! and `tests/the_opacity_is_lost_at_the_spec_boundary.rs` reads the value off a real fixture
+//! rather than describing it.
 
 use mjx_dml::{ColorSpec, EffectListSpec};
 use mjx_ooxml_core::measure::{Angle, Emu};

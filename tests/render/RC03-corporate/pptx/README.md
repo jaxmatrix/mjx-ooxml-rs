@@ -56,17 +56,19 @@ and that sitting re-runs these same cases later (`docs/validation/07-the-referen
 
 The acceptance journey pins the whole loss vector rather than describing it. Today the deck reaches
 pixels with: the SmartArt frame unlaid (RC28), one text body measured rather than shaped, the chart
-unresolved (RC06), 21 runs taking a default colour (RC16), **the overlay band's 35 % fill painted
-opaque** (RC04), both pictures undecoded (RC11), the connector's arrowhead undrawn (RC14) and the
-custom geometry's outline unresolved (RC24). Three outline handles go unanswered — the two inherited
-placeholders and the `custGeom` icon — and exactly one of them is drawn as a stand-in.
+unresolved (RC06), 21 runs taking a default colour (RC16), both pictures undecoded (RC11), the
+connector's arrowhead undrawn (RC14) and the custom geometry's outline unresolved (RC24). Three
+outline handles go unanswered — the two inherited placeholders and the `custGeom` icon — and exactly
+one of them is drawn as a stand-in.
 
-**The overlay is the one worth reading twice.** `mjx-dml` bakes a colour to a six-digit hex triplet
-and drops the alpha, so a band the document states at 35 % paints as a solid slab over the table's
-third row — the row is in the display list and not in the picture. Until RC03's audit **nothing
-counted that**: no loss kind named a discarded opacity and `color_of` answered `Ok` for a valid
-triplet, so the render called itself lossless while losing a row. Carrying the channel through is
-RC04 (MJXOFF-243); the count is what stops the loss being silent in the meantime.
+**The overlay used to be the one worth reading twice, and RC04 (MJXOFF-243) removed it.** `mjx-dml`
+baked a colour to a six-digit hex triplet and dropped the alpha, so a band the document states at
+35 % painted as a solid slab over the table's third row — the row was in the display list and not in
+the picture. Until RC03's audit **nothing counted that**: no loss kind named a discarded opacity and
+`color_of` answered `Ok` for a valid triplet, so the render called itself lossless while losing a
+row. A resolved colour now carries its own `a:alpha`, the band paints translucent, the vector no
+longer names `(Scene(PaintApproximated), 1)` and
+`tests/render/RC04-alpha/05-corporate-overlay/` measures the blend in the third row's own pixels.
 
 The journey also pins a **structural floor** the ink-coverage bound cannot give it: 46 boxes, 17
 lines, 21 glyph runs, 2 images, 18 shapes and 1 table fragment, and 8 `FillPath`, 1 `StrokePath`, 21

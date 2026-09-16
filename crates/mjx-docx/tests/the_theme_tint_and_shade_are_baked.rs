@@ -1,13 +1,15 @@
 //! **`w:themeTint` and `w:themeShade` are applied to the theme colour they modify** (MJXOFF-243, RC04).
 //!
-//! # What is true today, and why it is not a footnote
+//! # What was true before this, and why it was not a footnote
 //!
-//! `crates/mjx-docx/docs/effective_properties.md` states the gap outright: the two attributes are
+//! `crates/mjx-docx/docs/effective_properties.md` stated the gap outright: the two attributes were
 //! *"read back on [`EffectiveColor`]'s own theme-colour siblings but **not baked into the resolved
 //! `RRGGBB`**"*, because baking them would mean either reimplementing DrawingML's transform outside
 //! `mjx-dml` or building synthetic markup to carry it. So a run that says *accent1, half as light*
-//! resolves today to accent1 exactly, and a reader painting from `EffectiveColor::Hex` paints the
-//! wrong colour with nothing to tell it so.
+//! resolved to accent1 exactly, and a reader painting from `EffectiveColor::Hex` painted the wrong
+//! colour with nothing to tell it so. The second of those two costs is the one RC04 paid: the rule
+//! is expressed as the `a:lumMod`/`a:lumOff` pair that says the same thing, on the synthetic
+//! `a:schemeClr` this reader already builds, so `mjx-dml` still owns the arithmetic.
 //!
 //! # The rule, sourced rather than guessed
 //!
@@ -38,6 +40,7 @@
 
 use mjx_docx::{Document, EffectiveColor};
 use mjx_fixtures::fixture;
+use mjx_opc::{Package, PartName};
 
 /// `tests/fixtures/run_properties.docx`, whose second paragraph's run states every `EG_RPrBase`
 /// member — including the `w:color` this suite is about.
@@ -122,6 +125,58 @@ fn a_theme_colour_with_no_tint_or_shade_is_untouched() {
         Some(EffectiveColor::Hex("4F81BD".to_owned())),
         "paragraph 6's run names `accent1` and states no tint or shade, so it must still resolve to \
          the theme's own 4F81BD"
+    );
+}
+
+/// The shade arm, on the same run with its `w:themeTint` taken away.
+///
+/// # Why this splices rather than reading a fixture
+///
+/// **No committed fixture states a shade without a tint on a run the ladder reaches.** The only
+/// two shade-only colours in the corpus are `corporate.docx`'s `CorporateTitle` and
+/// `CorporateAccent` styles, and that document's body names neither, so
+/// [`Document::effective_run_properties`] never walks to them. Editing a committed fixture to
+/// create the case would move bytes four other suites assert about — `run_properties.rs`,
+/// `leaf_attributes.rs`, `roundtrip.rs` and the schema gate — to prove one arm.
+///
+/// So the case is made here, out of the same fixture, by deleting exactly the one attribute whose
+/// precedence [`a_theme_colours_tint_is_baked_into_the_resolved_value`] is about. That is what makes
+/// the pair a *pair*: the same run, the same theme, the same shade byte, and the only difference is
+/// the attribute the specification says wins. The shade arm would otherwise be reachable only
+/// through the assertion that it is **not** taken, which no implementation has to execute.
+#[test]
+fn a_theme_colours_shade_is_baked_when_no_tint_overrides_it() {
+    let document = PartName::new("/word/document.xml").expect("a part name");
+    let mut package = Package::open(&fixture("run_properties.docx")).expect("the fixture opens");
+    let markup = String::from_utf8(
+        package
+            .part_bytes(&document)
+            .expect("the fixture carries a document part")
+            .to_vec(),
+    )
+    .expect("the document part is UTF-8");
+    let without_tint = markup.replace(r#" w:themeTint="80""#, "");
+    assert_ne!(
+        without_tint, markup,
+        "the fixture's run no longer states `w:themeTint=\"80\"`, so this case would be reading \
+         whatever the file says instead of a shade with no tint over it"
+    );
+    package
+        .replace_part_bytes(&document, without_tint.into_bytes())
+        .expect("the document part is replaceable");
+
+    let mut spliced =
+        Document::open(&package.save().expect("it saves")).expect("the spliced document opens");
+    assert_eq!(
+        spliced
+            .effective_run_properties(1, 0)
+            .expect("paragraph 1, run 0")
+            .color,
+        Some(EffectiveColor::Hex(ACCENT1_SHADED.to_owned())),
+        "with the tint gone the run states `w:themeColor=\"accent1\" w:themeShade=\"40\"`, and \
+         the fixture's theme defines accent1 as {ACCENT1}. `L' = L * (64/255)` gives \
+         {ACCENT1_SHADED}; {ACCENT1} here is the shade read and not applied, and {ACCENT1_TINTED} \
+         is the tint applied from a document that no longer states one"
     );
 }
 

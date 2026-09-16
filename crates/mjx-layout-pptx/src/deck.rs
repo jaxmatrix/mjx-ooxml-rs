@@ -254,20 +254,22 @@ pub struct ShapeDecoration {
     pub outline: Option<LineSpec>,
     /// Its effective effect list, or `None` when it has none.
     ///
-    /// ⚠ **The colours in it have lost their opacity**, and this is not a defect of this crate:
-    /// `mjx-dml`'s `resolve_effects` bakes every effect colour to a `ColorSpec::Srgb` hex triplet,
-    /// which has no alpha channel, and says so in its own documentation. The standard Office theme
-    /// puts `<a:alpha val="63000"/>` on the shadow of every shape, so this loss is universal rather
-    /// than exotic. `tests/the_opacity_is_lost_at_the_spec_boundary.rs` proves it is still lost, so
-    /// that fixing it is a test going green rather than a thing nobody remembers.
+    /// **The colours in it keep their opacity**, which they did not until MJXOFF-243 (RC04):
+    /// `mjx-dml`'s `resolve_effects` used to bake every effect colour to a `ColorSpec::Srgb` hex
+    /// triplet, which has no alpha channel. The standard Office theme puts
+    /// `<a:alpha val="63000"/>` on the shadow of every shape, so that loss was universal rather
+    /// than exotic — a solid slab under every styled shape.
+    /// `mjx-scene-pptx`'s `tests/the_opacity_is_lost_at_the_spec_boundary.rs`, kept under its old
+    /// name, now asserts the preservation off the same real fixture.
     pub effects: Option<EffectListSpec>,
-    /// How many of the colours above stated an opacity the resolution could not carry.
+    /// How many of the colours above stated an opacity the resolution could not carry — **zero**,
+    /// since MJXOFF-243 (RC04).
     ///
-    /// Carried because the loss is otherwise **invisible**: a resolved colour is a valid triplet, so
-    /// the layer above cannot tell a 35 % overlay from an opaque one and would paint a slab over
-    /// whatever is beneath it while reporting a lossless page. The companion turns each one into a
-    /// `mjx_scene::SceneLossKind::PaintApproximated` at this shape's own source.
-    /// Owned by MJXOFF-243 (RC04), colour opacity.
+    /// It was added because the loss was otherwise **invisible**: a resolved colour was a valid
+    /// triplet, so the layer above could not tell a 35 % overlay from an opaque one and painted a
+    /// slab over whatever was beneath it while reporting a lossless page. A resolved colour now
+    /// carries its own `a:alpha`, so this counts nothing and the companion reports nothing — which
+    /// is the evidence the approximation is gone rather than merely unmeasured.
     pub lost_opacities: usize,
 }
 

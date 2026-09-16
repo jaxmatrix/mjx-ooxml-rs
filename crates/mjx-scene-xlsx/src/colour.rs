@@ -18,9 +18,10 @@
 //!
 //! # ⚠ The MJXOFF-243 loss is **not** on this path, and that is worth stating precisely
 //!
-//! MJXOFF-243 records that `mjx-dml`'s `resolve_fill` / `resolve_line` / `resolve_effects` bake
-//! every colour down to a `ColorSpec::Srgb` hex triplet, which has no alpha channel — so every
-//! theme shadow in a `.pptx` currently renders solid. **Excel's colours do not travel that road.**
+//! MJXOFF-243 recorded that `mjx-dml`'s `resolve_fill` / `resolve_line` / `resolve_effects` baked
+//! every colour down to a `ColorSpec::Srgb` hex triplet, which has no alpha channel, so every theme
+//! shadow in a `.pptx` rendered solid; RC04 closed it by keeping the `a:alpha` as the colour's one
+//! surviving transform. **Excel's colours never travelled that road.**
 //! `mjx_sml::Color` keeps `@rgb` as the file's own eight hex digits, *alpha first*, and
 //! `mjx_sml::styles::resolve_color` answers with a [`ResolvedColor`] whose `alpha` is a `f64` in
 //! `0.0..=1.0`. Nothing in this crate discards it, and `tests/the_alpha_survives.rs` asserts that

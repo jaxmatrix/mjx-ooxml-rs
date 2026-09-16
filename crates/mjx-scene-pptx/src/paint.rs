@@ -9,16 +9,22 @@
 //! module reads a document, and nothing decides what a shape *says* — it decides only how to write
 //! the same thing in the other vocabulary.
 //!
-//! # ⚠ Opacity is already gone by the time a value gets here
+//! # The opacity arrives, and it arrives as a transform
 //!
-//! `ColorSpec::Srgb` is a six-digit hex triplet and has no alpha channel, and `resolve_fill` /
-//! `resolve_line` / `resolve_effects` are documented as dropping the resolved alpha for exactly that
-//! reason. So [`color_of`] returns an **opaque** colour for every colour a document can state, and
-//! the `<a:alpha val="63000"/>` the standard Office theme puts on every shadow is not here to be
-//! read. That is a loss at the seam below this crate; it is asserted rather than described in
-//! `tests/the_opacity_is_lost_at_the_spec_boundary.rs`.
+//! `ColorSpec::Srgb` is a six-digit hex triplet with no alpha channel, so `mjx-dml`'s resolution
+//! hands a non-opaque colour over as `Transformed { base: Srgb(hex), transforms: [Alpha(x)] }` and
+//! bakes every *other* transform into the hex (MJXOFF-243). [`color_of`] therefore reads exactly
+//! two shapes — a triplet, and a triplet under one `a:alpha` — and refuses anything else, because a
+//! transform chain reaching here is one nothing resolved and painting its base would put a shape on
+//! screen in a colour the document does not state.
+//!
+//! **The colour stays straight all the way down.** A `mjx_scene::Color` is the channels as the
+//! document states them with the opacity beside them; `mjx_paint::Pixels::rgba` is premultiplied,
+//! and that conversion belongs to the painter. Confusing the two darkens every translucent thing on
+//! the page by exactly the factor nobody notices, which is why
+//! `crates/mjx-reference-pack/tests/render_rc04_alpha.rs` pins both conventions in one test.
 
-use mjx_dml::{ColorSpec, FillSpec, LineDash, LineSpec};
+use mjx_dml::{ColorSpec, ColorTransform, FillSpec, LineDash, LineSpec};
 use mjx_ooxml_types::drawingml::{
     CompoundLine, LineCap as DrawingLineCap, LineEndLength, LineEndType, LineEndWidth, PatternType,
     PenAlignment, PresetLineDash,
@@ -31,7 +37,8 @@ use mjx_scene::{
 
 /// The colour a resolved [`ColorSpec`] names, or `None` when it names none this build can read.
 ///
-/// **Always opaque.** See the module's own warning: the alpha was dropped one crate below.
+/// A bare triplet is opaque; a triplet under one `a:alpha` carries that opacity as
+/// `round(ratio * 255)`, which is the conversion [`mjx_scene::Color`] documents on the other side.
 pub fn color_of(spec: &ColorSpec) -> Result<Color, SceneLossKind> {
     let hex = match spec {
         ColorSpec::Srgb(hex) => hex.as_str(),
@@ -43,21 +50,20 @@ pub fn color_of(spec: &ColorSpec) -> Result<Color, SceneLossKind> {
         ColorSpec::Other { value, .. } => {
             value.as_deref().ok_or(SceneLossKind::ColourNotResolved)?
         }
-        // ⚠ **A transformed colour draws nothing, and that is a stated gap rather than an
-        // oversight.** `ColorSpec::Transformed` arrived with the document graph's own work and
-        // carries `lumMod`, `lumOff`, `tint`, `shade` and `alpha` — arithmetic on the colour
-        // underneath, not a different kind of colour. `mjx_dml::Color::from_spec` flattens the
-        // chain, but it builds *markup*: it answers what to write, not what to paint, so there is
-        // nothing here to read a resolved channel out of.
-        // Owned by MJXOFF-243 (RC04), transformed colours.
-        //
-        // The two things this could do instead are both worse. Painting `base` and dropping the
-        // transforms puts a shape on screen in a colour the document does not state — the exact
-        // silent-wrong-colour failure this crate exists to avoid — and inventing the arithmetic
-        // here would put a second implementation of DrawingML's colour model above the crate that
-        // owns it. So it takes the answer the scheme arm above already takes, for the same reason:
-        // drawing nothing is honest, it is visible, and it is reportable.
-        ColorSpec::Transformed { .. } => return Err(SceneLossKind::ColourNotResolved),
+        // A resolved colour keeps exactly one transform, its `a:alpha`, and everything else is
+        // already in the triplet underneath (MJXOFF-243). So this arm reads the opacity and defers
+        // the colour to the base; any other transform arrived from somewhere that did not resolve
+        // it, and painting the base while dropping the arithmetic would put a shape on screen in a
+        // colour the document does not state — the silent-wrong-colour failure this crate exists to
+        // avoid. Drawing nothing is honest, visible and reportable, so that is what it does.
+        ColorSpec::Transformed { base, transforms } => {
+            let [ColorTransform::Alpha(alpha)] = transforms.as_slice() else {
+                return Err(SceneLossKind::ColourNotResolved);
+            };
+            let mut color = color_of(base)?;
+            color.alpha = (alpha.ratio().clamp(0.0, 1.0) * 255.0).round() as u8;
+            return Ok(color);
+        }
     };
     let digits = hex.strip_prefix('#').unwrap_or(hex);
     let unreadable = SceneLossKind::ColourNotResolved;

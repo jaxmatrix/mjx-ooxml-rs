@@ -8,10 +8,10 @@ use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color,
     resolve_effects_reporting_lost_opacity, resolve_fill, resolve_fill_reporting_lost_opacity,
     resolve_line, resolve_line_reporting_lost_opacity, CellBorder, CharacterPropertiesSpec,
-    ColorMap, ColorSpec, EffectList, EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel,
-    LineProperties, LineSpec, LostOpacities, OnOffStyle, ParagraphPropertiesSpec, ResolvedColor,
-    SchemeColor, SchemeColors, TableStyleBorder, TableStyleCellStyle, TableStylePart,
-    TableStyleTextStyle, TextBody, TextFont, TextListStyle, Theme, ThemeableLineStyle, Transform2D,
+    ColorMap, EffectList, EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel, LineProperties,
+    LineSpec, LostOpacities, OnOffStyle, ParagraphPropertiesSpec, ResolvedColor, SchemeColor,
+    SchemeColors, TableStyleBorder, TableStyleCellStyle, TableStylePart, TableStyleTextStyle,
+    TextBody, TextFont, TextListStyle, Theme, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement};
 use mjx_ooxml_types::namespaces::PML;
@@ -1286,7 +1286,7 @@ fn style_text_spec(
     }
     if let Some(color) = text_style.color(interner) {
         if let Some(resolved) = resolve_color(&color, scheme, map, None, interner) {
-            spec = spec.with_fill(FillSpec::Solid(ColorSpec::Srgb(resolved.to_hex())));
+            spec = spec.with_fill(FillSpec::Solid(resolved.to_spec()));
         }
     }
     spec

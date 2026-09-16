@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use mjx_dml::{resolve_color, ColorMap, FontSchemeSlot, ResolvedColor, SchemeColors};
+use mjx_dml::{resolve_color, ColorMap, FontSchemeSlot, Fraction, ResolvedColor, SchemeColors};
 use mjx_ooxml_core::{AttributeError, FromXml, FromXmlError, Interner};
 use mjx_ooxml_types::shared::{
     RelativeHorizontalAlignment, RelativeVerticalAlignment, VerticalTextPosition,
@@ -20,8 +20,8 @@ use mjx_ooxml_types::wordprocessingml::{
     HalfPointMeasure, HeightRule, HexadecimalColor, HighlightColor, HorizontalAnchor,
     Justification, ShadingPattern, SignedHalfPointMeasure, SignedTwipsMeasure, TabStopLeader,
     TabStopType, TextBoxTightWrap, TextEffect as TextEffectKind, TextFlowDirection,
-    TextFrameWrapping, TextScale, ThemeColor, ThemeFont, Underline as UnderlineKind,
-    VerticalAnchor, VerticalTextAlignment,
+    TextFrameWrapping, TextScale, ThemeColor, ThemeFont, TwoDigitHexadecimalNumber,
+    Underline as UnderlineKind, VerticalAnchor, VerticalTextAlignment,
 };
 
 use crate::address::{BlockPath, RunPath};
@@ -47,8 +47,8 @@ use super::{Document, MainDocument};
 // -------------------------------------------------------------------------------------------
 
 /// A resolved colour: either `auto` (let the renderer choose) or a concrete `RRGGBB`, already
-/// resolved through any `themeColor` reference. `themeTint`/`themeShade`, when present, are **not**
-/// baked in — see [the guide](crate::effective_properties) for why.
+/// resolved through any `themeColor` reference **with its `themeTint` or `themeShade` applied** —
+/// see [the guide](crate::effective_properties) for the rule and where it comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectiveColor {
     /// The wire value `"auto"` — the file's own way of leaving the choice to the renderer.
@@ -406,13 +406,20 @@ impl ThemeContext {
         }
     }
 
-    /// Resolves a `w:themeColor` reference to a concrete colour, or `None` when the theme does not
-    /// define that slot (or this document has no theme at all).
-    fn resolve(&self, color: ThemeColor) -> Option<ResolvedColor> {
+    /// Resolves a `w:themeColor` reference, with its `w:themeTint` or `w:themeShade` applied, to a
+    /// concrete colour — `None` when the theme does not define that slot (or this document has no
+    /// theme at all).
+    fn resolve(
+        &self,
+        color: ThemeColor,
+        tint: Option<&TwoDigitHexadecimalNumber>,
+        shade: Option<&TwoDigitHexadecimalNumber>,
+    ) -> Option<ResolvedColor> {
         let scheme_colors = self.colors.as_ref()?;
         let scheme_color = word_theme_color_to_scheme_color(color)?;
         let mut scratch = self.scratch.borrow_mut();
-        let synthetic = mjx_dml::Color::scheme(&mut scratch, scheme_color);
+        let synthetic =
+            mjx_dml::Color::from_spec(&mut scratch, &theme_color_spec(scheme_color, tint, shade))?;
         resolve_color(
             &synthetic,
             scheme_colors,
@@ -432,14 +439,58 @@ impl ThemeContext {
     }
 }
 
+/// `w:themeTint` / `w:themeShade` as the DrawingML transforms that say the same thing.
+///
+/// ECMA-376 Part 1's own `themeShade` / `themeTint` attribute prose gives the rule in full: convert
+/// the theme colour to HSL, modify the luminance — `L' = L * Shade` for a shade and
+/// `L' = L * Tint + (1 - Tint)` for a tint — and convert back. That is exactly an `a:lumMod`
+/// followed, for a tint, by an `a:lumOff`, which `mjx-dml`'s own transform application already
+/// performs in HSL. So the rule is **expressed** here and **applied** there, rather than
+/// implemented a second time above the crate that owns DrawingML's colour model.
+///
+/// ⚠ It is HSL luminance and **not** DrawingML's `a:tint` / `a:shade`, which work in linear light
+/// and give a different answer for the same byte. Picking the wrong pair is the way this goes
+/// subtly wrong everywhere at once.
+///
+/// Both bytes are *"a hex encoding of the value (from 0-255)"*, so `80` is `128/255`. When a tint is
+/// supplied the shade is ignored, which the specification states outright.
+fn theme_color_spec(
+    scheme: mjx_dml::SchemeColor,
+    tint: Option<&TwoDigitHexadecimalNumber>,
+    shade: Option<&TwoDigitHexadecimalNumber>,
+) -> mjx_dml::ColorSpec {
+    let base = mjx_dml::ColorSpec::Scheme(scheme);
+    if let Some(tint) = tint.and_then(theme_luminance_factor) {
+        return base
+            .with_luminance_modulation(Fraction::from_ratio(tint))
+            .with_luminance_offset(Fraction::from_ratio(1.0 - tint));
+    }
+    if let Some(shade) = shade.and_then(theme_luminance_factor) {
+        return base.with_luminance_modulation(Fraction::from_ratio(shade));
+    }
+    base
+}
+
+/// An `ST_UcharHexNumber` as the proportion of one it encodes, or `None` when it is not readable as
+/// one — the same treatment every other unreadable attribute gets, the file not saying.
+fn theme_luminance_factor(value: &TwoDigitHexadecimalNumber) -> Option<f64> {
+    u8::from_str_radix(value.to_wire().trim(), 16)
+        .ok()
+        .map(|byte| f64::from(byte) / 255.0)
+}
+
 /// Resolves a `w:color`/`w:u`/`w:bdr`-shaped colour (a required or `auto`-defaulted hex plus the
 /// theme triple) against `theme`.
 fn resolve_wml_color(
     hex_value: &HexadecimalColor,
     theme_color: Option<ThemeColor>,
+    theme_tint: Option<&TwoDigitHexadecimalNumber>,
+    theme_shade: Option<&TwoDigitHexadecimalNumber>,
     theme: &ThemeContext,
 ) -> EffectiveColor {
-    if let Some(resolved) = theme_color.and_then(|color| theme.resolve(color)) {
+    if let Some(resolved) =
+        theme_color.and_then(|color| theme.resolve(color, theme_tint, theme_shade))
+    {
         return EffectiveColor::Hex(resolved.to_hex());
     }
     if hex_value.to_wire().eq_ignore_ascii_case("auto") {
@@ -842,7 +893,15 @@ fn extract_wml_color(
 ) -> Result<EffectiveColor, DocxError> {
     let hex_value = attr(color.hex_value(interner))?;
     let theme_color = attr(color.theme_color(interner))?;
-    Ok(resolve_wml_color(&hex_value, theme_color, theme))
+    let theme_tint = attr(color.theme_tint(interner))?;
+    let theme_shade = attr(color.theme_shade(interner))?;
+    Ok(resolve_wml_color(
+        &hex_value,
+        theme_color,
+        theme_tint.as_ref(),
+        theme_shade.as_ref(),
+        theme,
+    ))
 }
 
 fn extract_underline(
@@ -853,9 +912,17 @@ fn extract_underline(
     let style = attr(underline.style(interner))?;
     let color = attr(underline.color(interner))?;
     let theme_color = attr(underline.theme_color(interner))?;
+    let theme_tint = attr(underline.theme_tint(interner))?;
+    let theme_shade = attr(underline.theme_shade(interner))?;
     Ok(EffectiveUnderline {
         style,
-        color: resolve_wml_color(&color, theme_color, theme),
+        color: resolve_wml_color(
+            &color,
+            theme_color,
+            theme_tint.as_ref(),
+            theme_shade.as_ref(),
+            theme,
+        ),
     })
 }
 
@@ -867,9 +934,17 @@ pub(super) fn extract_border(
     let style = attr(border.style(interner))?;
     let color = attr(border.color(interner))?;
     let theme_color = attr(border.theme_color(interner))?;
+    let theme_tint = attr(border.theme_tint(interner))?;
+    let theme_shade = attr(border.theme_shade(interner))?;
     Ok(EffectiveBorder {
         style,
-        color: resolve_wml_color(&color, theme_color, theme),
+        color: resolve_wml_color(
+            &color,
+            theme_color,
+            theme_tint.as_ref(),
+            theme_shade.as_ref(),
+            theme,
+        ),
         width_eighths_of_a_point: attr(border.width_eighths_of_a_point(interner))?,
         spacing_points: attr(border.spacing_points(interner))?,
         shadow: attr(border.shadow(interner))?,
@@ -885,12 +960,32 @@ pub(super) fn extract_shading(
     let pattern = attr(shading.pattern(interner))?;
     let pattern_color = attr(shading.color(interner))?;
     let pattern_theme_color = attr(shading.theme_color(interner))?;
+    let pattern_tint = attr(shading.theme_tint(interner))?;
+    let pattern_shade = attr(shading.theme_shade(interner))?;
     let fill_color = attr(shading.fill_color(interner))?;
     let fill_theme_color = attr(shading.theme_fill_color(interner))?;
+    let fill_tint = attr(shading.theme_fill_tint(interner))?;
+    let fill_shade = attr(shading.theme_fill_shade(interner))?;
     Ok(EffectiveShading {
         pattern,
-        pattern_color: pattern_color.map(|hex| resolve_wml_color(&hex, pattern_theme_color, theme)),
-        fill: fill_color.map(|hex| resolve_wml_color(&hex, fill_theme_color, theme)),
+        pattern_color: pattern_color.map(|hex| {
+            resolve_wml_color(
+                &hex,
+                pattern_theme_color,
+                pattern_tint.as_ref(),
+                pattern_shade.as_ref(),
+                theme,
+            )
+        }),
+        fill: fill_color.map(|hex| {
+            resolve_wml_color(
+                &hex,
+                fill_theme_color,
+                fill_tint.as_ref(),
+                fill_shade.as_ref(),
+                theme,
+            )
+        }),
     })
 }
 

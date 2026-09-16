@@ -10,9 +10,14 @@ uses.
 **Proved by** `rc04_02_the_display_list_is_straight_and_the_readback_is_premultiplied`: the display
 list's one solid paint is `Color { red: 0x1F, green: 0x38, blue: 0x64, alpha: 0x80 }` — the channels
 **straight**, as the document states them — while the software painter's readback of the same pixel
-is `0F 1C 32 80`, each channel scaled by the alpha, because `mjx_paint::Pixels::rgba` is
+is `10 1C 32 80`, each channel scaled by the alpha, because `mjx_paint::Pixels::rgba` is
 premultiplied and says so in its own documentation. The page outside the rectangle stays
 `00 00 00 00`.
+
+The red byte was written `0F` when this case was authored and is `10`: `31 * 128/255` is `15.57`,
+and `mjx-paint` quantises with `.round()` in all three of the places it converts a channel to a
+byte. It is the only one of the four channels where rounding and truncating differ, which is why the
+other three were right either way.
 
 This is the case that catches an inconsistency instead of letting it darken the page quietly: if the
 display list ever carried premultiplied channels, every translucent thing would be multiplied by its
@@ -31,6 +36,10 @@ assertion `left == right` failed: the display list must carry the colour **strai
   left: [Color { red: 31, green: 56, blue: 100, alpha: 255 }]
  right: [Color { red: 31, green: 56, blue: 100, alpha: 128 }]
 ```
+
+(The pixel assertion below it reddened a second time once the list was carrying the alpha, at
+`left: [16, …] right: [15, …]` — the authored `0F` against the painter's own rounding. The
+expectation moved to `10`; the painter did not.)
 
 The colour survives; the opacity does not, so the list carries `0xFF` where the document says 50 %.
 The pixel assertion is not reached until that is fixed.

@@ -873,6 +873,13 @@ fn coalescing_does_not_merge_across_a_differing_hyperlink() {
 // (resolved) properties really do compare equal — and only then asserts that they are nevertheless
 // left alone. That ordering is what makes them proofs rather than coincidences: restore the old
 // two-condition merge and the coalesce assertion reddens while the premise assertion stays green.
+//
+// **The alpha case's premise stopped being true in MJXOFF-243 (RC04)**, and its test says so rather
+// than being deleted. Resolution now carries a colour's `a:alpha`, so the two runs' effective specs
+// differ and the effective comparison alone would already refuse the merge; the third condition is
+// still what refuses the theme-link case beneath it, which no resolution can tell apart. The test
+// is kept because the *behaviour* it pins — an `a:alpha` is never deleted by a merge — is the same
+// promise, now held by two things instead of one.
 
 /// A two-run text box whose runs are given `first` and `second` respectively.
 fn deck_with_two_runs(
@@ -899,17 +906,31 @@ fn coalescing_does_not_merge_two_runs_that_differ_only_by_an_alpha() {
         &CharacterPropertiesSpec::new().with_color(red.with_alpha(Fraction::from_ratio(0.5))),
     );
 
-    // The premise: resolution drops the `a:alpha`, so the two runs' effective specs are equal.
+    // The premise, as MJXOFF-243 (RC04) changed it: resolution carries the `a:alpha`, so the two
+    // runs' effective specs now *differ* and the effective comparison alone already keeps them
+    // apart. Before RC04 they compared equal, and only `resolution_sensitive_eq` refused the merge.
     let opaque = pres
         .effective_run_properties(0, shape, 0, 0)
         .expect("run 0");
     let half = pres
         .effective_run_properties(0, shape, 0, 1)
         .expect("run 1");
-    assert_eq!(
+    assert_ne!(
         opaque, half,
-        "the resolved comparison cannot tell a half-transparent red from an opaque one — that is \
-         the loss this test exists for"
+        "a half-transparent red and an opaque one resolve to the same effective spec, so the \
+         opacity is being dropped somewhere between the run and the answer"
+    );
+    assert_eq!(
+        opaque.fill(),
+        Some(&FillSpec::Solid(ColorSpec::Srgb("FF0000".to_owned()))),
+        "the opaque run's fill is a bare triplet"
+    );
+    assert_eq!(
+        half.fill(),
+        Some(&FillSpec::Solid(
+            ColorSpec::Srgb("FF0000".to_owned()).with_alpha(Fraction::from_ratio(0.5))
+        )),
+        "the half-transparent run's fill is the same triplet under one `a:alpha`"
     );
 
     assert_eq!(

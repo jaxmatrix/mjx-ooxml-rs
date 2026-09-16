@@ -17,6 +17,14 @@
 //! confused darkens every translucent thing on the page by exactly the factor nobody notices.
 //! [`rc04_02_the_display_list_is_straight_and_the_readback_is_premultiplied`] is that test.
 //!
+//! **Its red byte is `0x10` and was written `0x0F`** (MJXOFF-243, at implementation). Premultiplying
+//! `0x1F` by `0x80` is `31 * 128/255 = 15.57`, and every float-to-byte conversion in `mjx-paint`
+//! rounds — `gradient.rs`, `software/compose.rs` and `software/mod.rs` all spell it
+//! `(channel.clamp(0.0, 1.0) * 255.0).round()`. `0x0F` is what `31 / 2` gives, which is the
+//! arithmetic of the sentence rather than of the painter, and it is the one channel of the four
+//! where rounding and truncation differ. The assertion is unweakened: it is still an exact
+//! four-byte equality, and a **straight** readback would answer `0x1F` and fail it.
+//!
 //! # Every case owns its folder
 //!
 //! `tests/render/RC04-alpha/<NN>-<name>/` holds the input, a README saying what the case is, the
@@ -332,7 +340,7 @@ fn rc04_01_five_opacities_paint_five_different_greys() {
 /// Two conventions meet here and nothing but this test holds them apart. `mjx_scene::Color` is a
 /// colour and a separate alpha — `1F3864` at 50 % is `1F 38 64 80`, with the channels untouched.
 /// `mjx_paint::Pixels::rgba` is premultiplied, so the same colour drawn on a transparent page reads
-/// back as `0F 1C 32 80`: each channel scaled by the alpha. An implementation that confused the two
+/// back as `10 1C 32 80`: each channel scaled by the alpha. An implementation that confused the two
 /// would darken every translucent thing on the page by exactly the factor nobody notices.
 #[test]
 #[ignore = "render test: run with --ignored (MJXOFF-243)"]
@@ -375,17 +383,18 @@ fn rc04_02_the_display_list_is_straight_and_the_readback_is_premultiplied() {
             alpha: 0x80,
         }],
         "the display list must carry the colour **straight** — the channels as the document states \
-         them, with the opacity beside them. A premultiplied `0F 1C 32 80` here would be the \
+         them, with the opacity beside them. A premultiplied `10 1C 32 80` here would be the \
          painter's convention leaking one stage down."
     );
 
     let pixels = software(NAME, &mut page);
     assert_eq!(
         at(&pixels, 3.0, 2.5),
-        [0x0F, 0x1C, 0x32, 0x80],
+        [0x10, 0x1C, 0x32, 0x80],
         "`Pixels::rgba` is premultiplied, so a half-opaque `1F3864` on a transparent page reads \
-         back with each channel halved. A straight `1F 38 64 80` here means the painter is writing \
-         the other convention into a buffer everything else reads as premultiplied."
+         back with each channel scaled by the alpha: `31 * 128/255` rounds to `0x10`, `56 * 128/255` \
+         to `0x1C` and `100 * 128/255` to `0x32`. A straight `1F 38 64 80` here means the painter \
+         is writing the other convention into a buffer everything else reads as premultiplied."
     );
     assert_eq!(
         at(&pixels, 0.2, 0.2),

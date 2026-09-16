@@ -210,12 +210,20 @@ fn every_excluded_surface_is_a_row_with_its_reason() {
 /// Each is derived from a `MJX-LEDGER-LIMITATION:` marker in the suite that asserts it, so this
 /// test fails if a marker is deleted from a suite — which is the direction that matters. A defect
 /// that stops being asserted must not quietly stop being reported.
+///
+/// **A defect that is *fixed* leaves this list, and that is the one sanctioned way out of it.**
+/// MJXOFF-243 (RC04) removed *"a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so
+/// every theme-styled shadow renders at 100 %"*, which stood here until then. The marker went with
+/// the defect rather than ahead of it: `crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs`
+/// now asserts the 63 % shadow is *preserved* under the same name, and
+/// `crates/mjx-reference-pack/tests/render_rc04_alpha.rs` measures it in pixels. Six rows — `fills`,
+/// `effects`, `colour-resolution`, `colour-resolution-pptx`, `shape-styles` and `themes-pptx` —
+/// dropped their limitation line in the same commit.
 #[test]
 fn the_known_wrong_on_purpose_items_are_named_in_the_ledger() {
     let committed =
         std::fs::read_to_string(workspace_root().join(LEDGER)).expect("the committed ledger");
     for fragment in [
-        "theme-styled shadow renders at 100 %",
         "dashed or dotted edge draws solid",
         "chart text is *measured* and not shaped",
         "stretchy delimiter is",

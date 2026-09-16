@@ -55,23 +55,20 @@
 //! no geometry: [`SlideGeometry`] reads the document's own `a:prstGeom` and hands it to
 //! `mjx-geometry`'s table.
 //!
-//! # ⚠ Two losses at the seam below, both stated rather than hidden
+//! # ⚠ One loss at the seam below, stated rather than hidden
 //!
-//! 1. **Colour opacity.** `mjx-dml`'s `resolve_fill` / `resolve_line` / `resolve_effects` bake every
-//!    colour to a `ColorSpec::Srgb` hex triplet, which has no alpha channel, and each says so in its
-//!    own documentation. So an `<a:alpha val="63000"/>` — which the standard Office theme puts on
-//!    the shadow of every shape — arrives here as opaque. Nothing in this crate can recover it, and
-//!    nothing here pretends to:
-//!    `crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs` asserts the loss, so
-//!    that fixing the seam is a test going red and being deleted rather than a thing nobody
-//!    remembers. See that file for what the fix costs and why it is not this crate's.
-//! 2. **A picture's crop and its adjustments.** `a:srcRect`, `a:duotone`, `a:clrChange`,
-//!    `a:alphaModFix` and `a:lum` are not modelled anywhere in this workspace — `mjx-dml`'s
-//!    `PictureFill` preserves them as opaque `RawNode`s and exposes the relationship id and the
-//!    tile/stretch mode alone — so a picture is drawn whole and unadjusted. That is a thing to
-//!    *model*, in `mjx-dml`, before it can be consumed here.
+//! **A picture's crop and its adjustments.** `a:srcRect`, `a:duotone`, `a:clrChange`,
+//! `a:alphaModFix` and `a:lum` are not modelled anywhere in this workspace — `mjx-dml`'s
+//! `PictureFill` preserves them as opaque `RawNode`s and exposes the relationship id and the
+//! tile/stretch mode alone — so a picture is drawn whole and unadjusted. That is a thing to
+//! *model*, in `mjx-dml`, before it can be consumed here.
 //!
-//! Neither is parity with PowerPoint, and nothing in this crate is described as such. Confirmation
+//! **Colour opacity used to be the first of two**, and MJXOFF-243 (RC04) closed it: a resolved
+//! colour that is not opaque arrives as a triplet under one `a:alpha`, `paint::color_of` reads the
+//! channel, and `tests/the_opacity_is_lost_at_the_spec_boundary.rs` — kept under its old name —
+//! asserts the preservation the way it used to assert the loss.
+//!
+//! That is not parity with PowerPoint, and nothing in this crate is described as such. Confirmation
 //! is a human sitting against real Microsoft Office on Windows
 //! (`docs/validation/07-the-reference-pack.md`); LibreOffice is a change detector and not a
 //! reference, and the user has said its export of shades and gradients is not to be trusted at all.
