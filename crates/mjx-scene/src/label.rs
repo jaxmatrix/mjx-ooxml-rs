@@ -30,7 +30,7 @@ const CELL_PIXELS: [f32; 3] = [3.0, 2.0, 1.0];
 ///
 /// D8 puts a placeholder in the element's own space, and a label that covered the content beside it
 /// would be worse than no label: the neighbour rendered correctly. So every line is laid out inside
-/// `within` less a one-cell margin, and a block that would not fit is not drawn at that size.
+/// `within` less a one-cell margin, and a block that would not fit is omitted at that size.
 ///
 /// # A word is never cut
 ///
