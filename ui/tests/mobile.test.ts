@@ -405,6 +405,41 @@ describe('the command bar follows U04’s ladder', () => {
     expect(font.length).toBeGreaterThan(essentialCommandLimit);
   });
 
+  test('EVERY RUNG HAS A POPUP-FREE COMMAND, or the ladder below is missing a step', () => {
+    // MJXOFF-343: correcting Find left `ancillary` holding nothing but popups, and the cheap repair
+    // would have been to retarget the ladder test at three rungs that still had one. This says the
+    // fixture must carry the whole ladder, so that repair reddens here instead of passing quietly.
+    for (const priority of groupPriorityNames) {
+      expect(
+        wordPhoneCommands.some((command) => command.priority === priority && !command.hasPopup),
+        `${priority} has no popup-free command in the fixture, so that rung of the demotion ladder ` +
+          'cannot be built from it and every ordering assertion here is weaker than it reads',
+      ).toBe(true);
+    }
+  });
+
+  test('the fixture agrees with the census about what Office draws as a split button', () => {
+    // `tests/ribbon.test.ts` runs this same comparison over the *ribbon* specimen against the same
+    // judgement in `dev/ribbons/census.ts`: Paste, Find and Underline are split buttons in Word, and
+    // rule 1 refuses anything with a menu behind it however plainly this catalogue draws it. A
+    // fixture that kept one while the census refused it is exactly how the two drifted before.
+    // ⚠ Underline is the third name on that list and is deliberately NOT asserted here — this
+    // fixture still declares it essential, because Font's four essential commands are what make the
+    // per-group ceiling bite. That gap is written down in the fixture's own doc comment.
+    for (const label of ['Paste', 'Find']) {
+      const command = wordPhoneCommands.find((entry) => entry.label === label);
+      expect(command, `${label} is no longer in the fixture`).toBeDefined();
+      expect(
+        command?.hasPopup,
+        `${label} is a split button in Word, so it must carry hasPopup`,
+      ).toBe(true);
+      expect(
+        command?.essential,
+        `${label} opens a menu, so it cannot be declared a survivor`,
+      ).toBe(false);
+    }
+  });
+
   test('every command has an icon and a name', () => {
     expect(commandBarUnnameable(wordPhoneCommands)).toEqual([]);
     expect(

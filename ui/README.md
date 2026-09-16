@@ -4167,10 +4167,26 @@ Three gates, and the second is the one that matters:
 
 `wordPhoneCommands` is Word's Home tab declared in *ribbon* order — Clipboard first, and Clipboard is
 `secondary` — so the two genuinely disagree. Font contributes four essential commands so the
-per-group ceiling of three has something to refuse, and four commands carry `hasPopup` so demotion
-rule 1 does. **Paste is one of the four, and is not essential** — in this fixture and in the
+per-group ceiling of three has something to refuse, and five commands carry `hasPopup` so demotion
+rule 1 does. **Paste is one of the five, and is not essential** — in this fixture and in the
 contextual bar's shared four alike — because it is a split button in Office, which is the judgement
-the ribbon census makes for every Clipboard group.
+the ribbon census makes for every Clipboard group. **Find is another** (MJXOFF-343): Word's Find is a
+split button over Find, Advanced Find and Go To, so it fails rule 1 for Paste's reason, and it
+stopped being declared a survivor here the moment the census said so.
+
+Which left `ancillary` holding nothing but popups, and the fixture has to span the whole ladder or
+the ordering tests quietly lose a rung. So the thirteenth command is **Ruler, from Word's Draw tab** —
+the one command the census says in as many words *passes rules 1 and 2*, kept out of the ribbon's
+survivor row only because Stencils is a one-command group and a survivor there would leave the
+collapsed popup empty. **A phone bar has no per-group popup to leave empty**, so that objection does
+not travel and the rules do. `EVERY RUNG HAS A POPUP-FREE COMMAND` is the gate that holds it, and it
+reddens rather than letting the next such correction be repaired by retargeting the ladder at three
+rungs that still work.
+
+⚠ **Underline is the one disagreement with the census left in this fixture**, and it is deliberate:
+Word's Underline is a split button too, and demoting it would leave Font with three essential
+commands, which is the ceiling rather than something that bites against it. It is written down in the
+fixture and excluded from the split-button gate by name.
 
 ### The sheet was **completed**, not replaced
 

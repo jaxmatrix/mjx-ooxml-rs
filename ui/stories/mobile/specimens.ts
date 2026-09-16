@@ -90,8 +90,11 @@ export function documentArea(text: string): TemplateResult {
  * turned the whole demotion suite into a test of nothing, which is the failure MJXOFF-193's
  * *the tight fixture really is tight* exists to prevent, met a second time.
  *
- * Four commands carry `hasPopup` — Paste, Font colour, Bullets and Styles — so demotion rule 1 has
- * something to refuse, and Font contributes four essential commands so the per-group ceiling of
+ * **The thirteenth command is Word's Draw tab**, and it is here because Word's Home tab has nothing
+ * that can fill its slot; see `Ruler` below.
+ *
+ * Five commands carry `hasPopup` — Paste, Font colour, Bullets, Styles and Find — so demotion rule 1
+ * has something to refuse, and Font contributes four essential commands so the per-group ceiling of
  * three has something to bite on.
  *
  * **Paste carries `hasPopup` and is not essential**, as the ribbon census judges it: Paste is a split
@@ -99,6 +102,18 @@ export function documentArea(text: string): TemplateResult {
  * behind it. Until unit 2b it was the fixture's first essential command. Being declared first, it
  * is also what the naive partition takes first, so it is now a rule-1 break the naive answer makes
  * as well as a priority inversion.
+ *
+ * **Find carries `hasPopup` and is not essential either** (MJXOFF-343). `dev/ribbons/census.ts`
+ * judges Word's Find a split button — Find, Advanced Find, Go To — so it fails rule 1 for exactly
+ * Paste's reason, however plainly this catalogue happens to draw it. It was declared a survivor here
+ * until the census said otherwise, which is the same drift unit 2b found in the ribbon specimen.
+ *
+ * ⚠ **Underline is the one disagreement left, and it is deliberate rather than missed.** The census
+ * refuses it on the same ground — Word's Underline is a split button over the underline styles and
+ * the underline colour — and this fixture still declares it `essential` with no popup, because
+ * Font's *four* essential commands are what make the per-group ceiling of three bite at all. Fixing
+ * it needs a fifth Font survivor to replace it with, which is not MJXOFF-343's, so it is written
+ * down here rather than smoothed over.
  */
 export const wordPhoneCommands: readonly MobileCommand[] = [
   {
@@ -205,6 +220,28 @@ export const wordPhoneCommands: readonly MobileCommand[] = [
     label: 'Find',
     icon: 'search',
     group: 'Editing',
+    priority: 'ancillary',
+    essential: false,
+    hasPopup: true,
+  },
+  // **Ruler, from Word's Draw tab — the fixture's popup-free ancillary rung** (MJXOFF-343).
+  //
+  // Word's *Home* tab cannot fill this slot. Its one ancillary group is Editing, and the census
+  // judges all three of Find, Replace and Select rule-1 failures: a split button, a dialog and a
+  // menu. Ruler is the command that census says in as many words **passes rules 1 and 2** — one
+  // press lays the stencil on the page and one press takes it away, and a ruler is no other
+  // command's glyph — and the only reason it keeps nothing in the ribbon is that Stencils is a
+  // one-command group, so a survivor there would leave the collapsed popup empty.
+  //
+  // **A phone bar has no per-group popup to leave empty.** There is one rail and everything is in
+  // it, so that objection does not travel and the rules do. Its group is `ancillary` in the
+  // census's own table, so the priority is read rather than invented, and a ruler you place with a
+  // finger is a touch command besides.
+  {
+    id: 'ruler',
+    label: 'Ruler',
+    icon: 'ruler',
+    group: 'Stencils',
     priority: 'ancillary',
     essential: true,
     hasPopup: false,

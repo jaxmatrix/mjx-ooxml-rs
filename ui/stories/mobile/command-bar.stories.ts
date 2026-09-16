@@ -91,9 +91,10 @@ export const TheDemotionLadderMadeVisible: Story = {
   render: () =>
     html`
       ${note(
-        'Word’s Home tab, declared in ribbon order — Clipboard first. What survives into the ' +
-          'visible run is Font’s, because Font is the group the tab exists for. Scroll the rail ' +
-          'sideways, or open the overflow: every command declared is still there.',
+        'Word’s Home tab, declared in ribbon order — Clipboard first — and Draw’s Ruler last, ' +
+          'which is the fixture’s one ancillary command that opens nothing. What survives into ' +
+          'the visible run is Font’s, because Font is the group the tab exists for. Scroll the ' +
+          'rail sideways, or open the overflow: every command declared is still there.',
       )}
       ${phoneStage(
         documentArea('The document. The bar sits under it, where a thumb is.'),
