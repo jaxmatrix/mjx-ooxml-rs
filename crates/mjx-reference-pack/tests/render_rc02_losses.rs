@@ -113,10 +113,10 @@ fn deck_page(bytes: &[u8]) -> Page {
         .expect("the slide lays out");
     let mut geometry = SlideGeometry::new();
     geometry.register_all(model.catalogue(), |request| {
-        outline_of(
+        mjx_reference_pack::outlines::shape_outline(
             &mut presentation,
-            request.surface_index as usize,
-            request.shape.iter().map(|&index| index as usize).collect(),
+            mjx_pptx::Surface::Slide(request.surface_index as usize),
+            &request.shape,
             mjx_dml::Size::from_emu(request.rect.width().emu(), request.rect.height().emu()),
         )
     });
@@ -203,31 +203,6 @@ fn finish(
         geometry,
         images,
     }
-}
-
-// The document's own preset geometry for one shape, as the deck journey registers it.
-fn outline_of(
-    presentation: &mut Presentation,
-    surface: usize,
-    path: Vec<usize>,
-    extents: mjx_dml::Size,
-) -> Option<mjx_geometry::ShapeOutline> {
-    let surface = mjx_pptx::Surface::Slide(surface);
-    let preset = presentation.shape_preset(surface, path.clone()).ok()??;
-    let adjustments = presentation
-        .shape_adjustments(surface, path, mjx_dml::GuideContext::from_size(extents))
-        .unwrap_or_default();
-    Some(mjx_geometry::ShapeOutline {
-        preset,
-        extents,
-        adjustments: adjustments
-            .into_iter()
-            .filter(|adjustment| adjustment.is_overridden)
-            .map(|adjustment| {
-                mjx_geometry::AdjustmentOverride::new(adjustment.spec.wire_name, adjustment.value)
-            })
-            .collect(),
-    })
 }
 
 // The encoded bytes of every picture the page asks for, read out of the package itself.

@@ -72,6 +72,7 @@ pub mod deck;
 pub mod hanging;
 pub mod ingest;
 pub mod layout;
+pub mod outlines;
 pub mod pack;
 pub mod plates;
 pub mod scene;

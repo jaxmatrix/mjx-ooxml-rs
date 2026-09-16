@@ -99,11 +99,10 @@ fn journey(fixture: &str, slide: usize) -> Journey {
     geometry.register_all(model.catalogue(), |request| {
         let extents =
             mjx_dml::Size::from_emu(request.rect.width().emu(), request.rect.height().emu());
-        let path: Vec<usize> = request.shape.iter().map(|&index| index as usize).collect();
-        outline_of(
+        mjx_reference_pack::outlines::shape_outline(
             &mut presentation,
-            request.surface_index as usize,
-            path,
+            mjx_pptx::Surface::Slide(request.surface_index as usize),
+            &request.shape,
             extents,
         )
     });
@@ -159,40 +158,6 @@ fn journey(fixture: &str, slide: usize) -> Journey {
         unregistered_outlines,
         outline_requests,
     }
-}
-
-/// The `a:prstGeom` of one shape, as `mjx-geometry` wants it, or `None` when the shape has none.
-///
-/// Two readers, because they answer two different questions: `shape_preset` says *which* preset —
-/// the `ST_ShapeType` token the path tables are indexed by — and `shape_adjustments` says what its
-/// guides have been moved to. Only the **overridden** adjustments are carried across, for the reason
-/// `ShapeOutline::from_preset_geometry` gives: the defaults are already in the generated table, and
-/// copying them into every registry entry would put two sources of one number in the process.
-///
-/// A shape with a custom path, or with none of its own, answers `None` and reaches the provider's
-/// stand-in policy — counted, never mistaken for the document's own geometry.
-fn outline_of(
-    presentation: &mut Presentation,
-    surface: usize,
-    path: Vec<usize>,
-    extents: mjx_dml::Size,
-) -> Option<mjx_geometry::ShapeOutline> {
-    let surface = mjx_pptx::Surface::Slide(surface);
-    let preset = presentation.shape_preset(surface, path.clone()).ok()??;
-    let adjustments = presentation
-        .shape_adjustments(surface, path, mjx_dml::GuideContext::from_size(extents))
-        .unwrap_or_default();
-    Some(mjx_geometry::ShapeOutline {
-        preset,
-        extents,
-        adjustments: adjustments
-            .into_iter()
-            .filter(|adjustment| adjustment.is_overridden)
-            .map(|adjustment| {
-                mjx_geometry::AdjustmentOverride::new(adjustment.spec.wire_name, adjustment.value)
-            })
-            .collect(),
-    })
 }
 
 /// How many fragments of each kind a tree holds.
