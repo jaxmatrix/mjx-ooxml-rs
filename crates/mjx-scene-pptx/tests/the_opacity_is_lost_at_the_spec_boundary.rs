@@ -1,54 +1,36 @@
-//! ⚠ **This suite asserts a defect, on purpose.** When it goes red, the defect is fixed and this
-//! file is deleted.
+//! **The opacity survives the spec boundary** (MJXOFF-243, RC04).
 //!
-//! # What is lost, and where
+// The name is kept from MJXOFF-170, which wrote this file to assert the *loss*; RC04 inverted it.
 //!
-//! `mjx-dml`'s `resolve_fill`, `resolve_line` and `resolve_effects` bake a DrawingML colour down to
-//! a `ColorSpec::Srgb` hex **triplet**. A triplet has three channels. An `a:alpha` colour transform
-//! is a fourth, `resolve_color` computes it into a `ResolvedColor` that carries it — and then each
-//! of the three `resolve_*` functions throws it away, saying so in its own doc comment:
+//! # What this file used to say
 //!
-//! > Note: `FillSpec` colors are RGB-only, so a resolved alpha (from an `a:alpha` transform) is not
-//! > represented in the result.
+//! Between MJXOFF-170 and RC04 this suite asserted a defect on purpose: `mjx-dml`'s `resolve_fill`,
+//! `resolve_line` and `resolve_effects` baked a DrawingML colour down to a `ColorSpec::Srgb` hex
+//! **triplet**, and an `a:alpha` transform is a fourth channel with nowhere to go. The file is kept
+//! rather than deleted because the fixture, the reasoning and the measurement are the same — only
+//! the expected answer changed — and because a reader who finds the old name in a ledger row, a
+//! commit message or `crates/mjx-scene-pptx/src/paint.rs` should land somewhere that says what
+//! happened.
 //!
-//! # Why that is not a footnote
+//! # Why the case is the standard Office theme's shadow
 //!
 //! The **standard Office theme's third effect style** is
 //! `<a:outerShdw blurRad="40000" dist="20000" dir="5400000" rotWithShape="0"><a:schemeClr
 //! val="phClr"><a:alpha val="63000"/></a:schemeClr></a:outerShdw>` — so every shape that takes its
 //! effects from the theme, which is every shape a person styles with PowerPoint's gallery, has a
-//! **63 %** shadow. Rendered from the spec, it is a **100 %** shadow: a solid slab of colour under
-//! the shape instead of a soft one.
+//! **63 %** shadow. Rendered without the channel it was a **100 %** shadow: a solid slab of colour
+//! under the shape instead of a soft one. That is what makes this the case worth pinning: it is not
+//! exotic, it is on every deck anybody sends.
 //!
-//! It is not exotic and it is not this crate's to fix. `crates/mjx-scene-pptx` receives a
-//! `ColorSpec` and cannot invent the channel that is not in it.
+//! # The two halves, and why both are here
 //!
-//! # What fixing it costs, so that the next reader does not have to measure it again
-//!
-//! Two shapes of fix, both larger than the crate that suffers from the loss:
-//!
-//! 1. **Widen `ColorSpec`.** It is constructed at 263 sites across the workspace, matched in both
-//!    bindings' `paint.rs`, projected into `mjx_ooxml`'s facade, and exercised by four walkthrough
-//!    parity suites in three languages. A new variant would be missed silently by every existing
-//!    `ColorSpec::Srgb` match; changing `Srgb(String)` to a struct variant touches all 263.
-//! 2. **Grow an opacity vocabulary beside the spec**, and thread it through the three effective
-//!    ladders in `crates/mjx-pptx/src/presentation/effective.rs` — each of which walks placeholder
-//!    candidates across three parts and resolves a theme style — so that one ladder walk answers
-//!    twice.
-//!
-//! Either is a work item of its own. MJXOFF-170 chose to state the loss and prove it rather than to
-//! start one halfway.
-//!
-//! # The parity ledger reads the next line
-//!
-//! So this defect cannot be true in the code and absent from the document a reader treats as
-//! authority. `cargo run -p xtask -- ledger` refuses to run if no row cites this file.
-//!
-//! MJX-LEDGER-LIMITATION: a resolved `a:alpha` is destroyed at the `mjx-dml` boundary, so every
-//! theme-styled shadow renders at 100 % instead of the standard theme's 63 % — a solid slab under
-//! the shape instead of a soft one.
+//! The first test reads the alpha out of the theme part's **own bytes**, before resolution. Without
+//! it the rest would be asserting that an opaque colour is opaque, which is true of a file that
+//! never stated an alpha and proves nothing at all. The second and third read the same value out of
+//! the resolved spec and out of the `mjx_scene::Color` a painter receives — the two forms RC04
+//! decided on.
 
-use mjx_dml::ColorSpec;
+use mjx_dml::{ColorSpec, ColorTransform, Fraction};
 use mjx_pptx::{Presentation, Surface};
 use mjx_scene_pptx::paint::color_of;
 
@@ -58,6 +40,9 @@ fn effects_theme() -> Presentation {
     let bytes = mjx_fixtures::fixture("effects_theme.pptx");
     Presentation::open(&bytes).expect("a well-formed package")
 }
+
+/// 63 % as the byte a `mjx_scene::Color` carries: `round(0.63 * 255)` is `160.65`, so `0xA1`.
+const SIXTY_THREE_PERCENT: u8 = 0xA1;
 
 #[test]
 fn the_theme_shadow_this_suite_is_about_really_is_alpha_in_the_file() {
@@ -80,7 +65,7 @@ fn the_theme_shadow_this_suite_is_about_really_is_alpha_in_the_file() {
 }
 
 #[test]
-fn the_resolved_shadow_colour_arrives_opaque() {
+fn the_resolved_shadow_colour_keeps_its_opacity() {
     let mut deck = effects_theme();
     let effects = deck
         .effective_shape_effects(Surface::Slide(0), vec![1])
@@ -92,41 +77,60 @@ fn the_resolved_shadow_colour_arrives_opaque() {
         .as_ref()
         .expect("theme effect style 3 is an outer shadow");
 
-    // The colour did resolve — `phClr` became the reference's `accent1`, which is the ladder
-    // working. What it did not keep is the alpha.
+    // The colour resolved — `phClr` became the reference's `accent1`, which is the ladder working —
+    // and the opacity travelled with it as the one transform a resolved colour keeps.
+    let ColorSpec::Transformed { base, transforms } = &shadow.color else {
+        panic!(
+            "the shadow's colour resolved to {:?}. A 63 % shadow is a triplet under one \
+             `a:alpha`; a bare `Srgb` here is the colour at 100 %, which paints a solid slab under \
+             every theme-styled shape.",
+            shadow.color
+        );
+    };
     assert!(
-        matches!(&shadow.color, ColorSpec::Srgb(hex) if hex.len() == 6),
-        "the shadow's colour resolved to something other than a six-digit hex triplet: {:?}. If it \
-         is now a four-channel value, the seam has been fixed — delete this suite.",
-        shadow.color
+        matches!(base.as_ref(), ColorSpec::Srgb(hex) if hex.len() == 6),
+        "the shadow's base colour is {base:?} rather than a six-digit triplet"
     );
-
-    let colour = color_of(&shadow.color).expect("a six-digit triplet reads as a colour");
     assert_eq!(
-        colour.alpha, 0xff,
-        "the shadow's colour arrived with an alpha of {:#04x}. The document says 63 % — about \
-         {:#04x} — so if this is no longer 0xff the loss described at the top of this file has been \
-         repaired, and this whole suite should be deleted rather than adjusted.",
-        colour.alpha,
-        (0.63_f32 * 255.0).round() as u8
+        transforms,
+        &vec![ColorTransform::Alpha(Fraction::from_ratio(0.63))],
+        "the document says 63 %, and every other transform is baked into the triplet"
     );
 }
 
 #[test]
-fn a_fill_loses_it_the_same_way() {
-    // The same loss on the other resolver, so that a fix to one and not the other is caught. A
-    // theme fill style's colours carry `a:alpha` and `a:lumMod` alike, and only the second survives.
+fn the_shadow_reaches_the_scene_at_the_opacity_the_theme_states() {
+    let mut deck = effects_theme();
+    let shadow = deck
+        .effective_shape_effects(Surface::Slide(0), vec![1])
+        .expect("the shape resolves its effects")
+        .expect("the shape's `a:effectRef` names theme effect style 3")
+        .outer_shadow
+        .expect("theme effect style 3 is an outer shadow");
+
+    let colour = color_of(&shadow.color).expect("a resolved colour reads as a colour");
+    assert_eq!(
+        colour.alpha, SIXTY_THREE_PERCENT,
+        "the shadow arrived at an alpha of {:#04x}; the document says 63 %, which is {:#04x}",
+        colour.alpha, SIXTY_THREE_PERCENT
+    );
+}
+
+#[test]
+fn an_opaque_fill_on_the_same_deck_is_still_opaque() {
+    // The control: the same deck's theme fill style states no `a:alpha`, so its colour must still
+    // resolve to a bare triplet. Without this, wrapping every colour in an alpha would pass above.
     let mut deck = effects_theme();
     let fill = deck
         .effective_shape_fill(Surface::Slide(0), vec![1])
         .expect("the shape resolves its fill");
 
     if let Some(mjx_dml::FillSpec::Solid(colour)) = &fill {
-        let resolved = color_of(colour).ok();
-        assert!(
-            resolved.is_none_or(|resolved| resolved.alpha == 0xff),
-            "a resolved fill colour arrived with an alpha channel. If `resolve_fill` now carries \
-             one, this suite has done its job — delete it."
+        let resolved = color_of(colour).expect("a resolved colour reads as a colour");
+        assert_eq!(
+            resolved.alpha, 0xff,
+            "the shape's fill states no opacity and arrived at {:#04x}",
+            resolved.alpha
         );
     }
 }

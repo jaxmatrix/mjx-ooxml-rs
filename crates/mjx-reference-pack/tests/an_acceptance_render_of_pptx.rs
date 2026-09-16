@@ -79,12 +79,8 @@ const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[
     (LossCategory::Scene(SceneLossKind::ChartNotResolved), 1),
     // Every run on the slide takes a default colour: the companion carries no run paint (RC16).
     (LossCategory::Scene(SceneLossKind::TextPaintDefaulted), 21),
-    // The overlay band's 35 % fill. `mjx-dml` resolves the colour to a hex triplet and drops the
-    // alpha, so the band paints **opaque** over the table's third row — the row is in the display
-    // list and not in the picture. RC04 (MJXOFF-243) carries the channel through; until then this
-    // is the count that stops the loss being silent, and it is one because the slide states one
-    // `a:alpha`.
-    (LossCategory::Scene(SceneLossKind::PaintApproximated), 1),
+    // The overlay band's 35 % fill reaches the painter as a 35 % fill (RC04, MJXOFF-243), so the
+    // deck approximates no paint and this vector names none.
     // The two pictures: the decoder that turns their bytes into pixels is RC11.
     (LossCategory::Paint(PainterLossKind::ImageWithNoPixels), 2),
     // The connector's arrowhead (RC14) and the custom geometry's outline (RC24).

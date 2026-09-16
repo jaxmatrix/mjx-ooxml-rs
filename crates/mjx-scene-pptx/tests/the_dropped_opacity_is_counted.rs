@@ -1,31 +1,37 @@
-//! **A colour whose opacity was dropped is counted, not silently painted opaque** (MJXOFF-300).
+//! **No opacity is dropped, so nothing counts one** (MJXOFF-243, RC04).
 //!
-//! # The defect this closes
+// The name is kept from MJXOFF-300, which wrote this file to assert the count; RC04 inverted it.
 //!
-//! `tests/the_opacity_is_lost_at_the_spec_boundary.rs` proves the alpha is destroyed at the
-//! `mjx-dml` boundary, and that is still true — carrying it through is MJXOFF-243 (RC04). What was
-//! *also* true until RC03's audit is that nothing counted the loss: `color_of` answers `Ok` for a
-//! valid triplet, no loss kind named a discarded opacity, and a 35 % overlay therefore painted as a
-//! solid slab over the row beneath it while the render reported itself lossless.
+//! # What this file used to say
 //!
-//! So the resolution now reports what it could not represent, the box model carries the count, and
-//! this crate raises one [`SceneLossKind::PaintApproximated`] per dropped opacity at the shape's own
-//! source. An approximation rather than a placeholder is the right kind: the shape *is* drawn, in
-//! the right colour at the wrong opacity, and a placeholder over it would hide the content.
+//! MJXOFF-300 found that a 35 % overlay painted as a solid slab over the table row beneath it while
+//! the render called itself lossless: `color_of` answered `Ok` for a valid triplet and no loss kind
+//! named a discarded opacity. Its answer was to *count* the drop —
+//! `mjx_dml::LostOpacities` through `ShapeDecoration::lost_opacities` to one
+//! `SceneLossKind::PaintApproximated` per colour — so the approximation was visible while RC04 was
+//! still ahead.
+//!
+//! RC04 carries the channel, so there is nothing left to approximate. The count must go to **zero**,
+//! and the decoration that was `Partial` must answer whole. A fix that carried the alpha and left
+//! the count standing would leave every consumer — the acceptance render, the parity ledger, a
+//! host's own report — declaring a loss the library no longer takes.
 //!
 //! # Proved by mutation
 //!
-//! Deleting the `lost.push(SceneLossKind::PaintApproximated)` in `src/resources.rs` fails
-//! [`the_overlays_dropped_opacity_is_counted_where_it_is_met`], naming the decoration that answered
-//! whole.
+//! Leaving the `lost.push(SceneLossKind::PaintApproximated)` in `src/resources.rs` in place while
+//! `mjx-dml` carries the alpha fails [`no_decoration_on_the_corporate_slide_loses_an_opacity`] and
+//! [`the_overlays_decoration_answers_whole`], naming the decoration that still reports one.
 
 use mjx_layout::{BoxModel, DecorationRef, PageIndex};
 use mjx_layout_pptx::{constraints_for, SlideBoxModel, SlideDeck};
-use mjx_scene::{DeviceScale, Resolved, ResourceResolver, SceneLossKind};
+use mjx_scene::{Color, DeviceScale, FillStyle, Resolved, ResourceResolver, SceneLossKind};
 use mjx_scene_pptx::SlideResources;
 
 // The corporate deck's overlay rectangle is `1F3864` at 35 % — the one alpha on the slide.
 const FIXTURE: &str = "corporate.pptx";
+
+/// 35 % as the byte a `mjx_scene::Color` carries: `round(0.35 * 255)` is `89.25`, so `0x59`.
+const THIRTY_FIVE_PERCENT: u8 = 0x59;
 
 // The bundled faces only, so the layout does not depend on what the machine has installed.
 fn model() -> SlideBoxModel {
@@ -63,41 +69,57 @@ fn decorations() -> (SlideResources, Vec<(DecorationRef, usize)>) {
     )
 }
 
-/// **Exactly one decoration on the corporate slide lost an opacity**, and it is counted where it is met.
+/// **No decoration on the corporate slide loses an opacity**, because the resolution carries it.
 #[test]
-fn the_overlays_dropped_opacity_is_counted_where_it_is_met() {
-    let (resources, entries) = decorations();
+fn no_decoration_on_the_corporate_slide_loses_an_opacity() {
+    let (_, entries) = decorations();
     let lost: Vec<(DecorationRef, usize)> = entries
         .iter()
         .copied()
         .filter(|(_, count)| *count > 0)
         .collect();
     assert_eq!(
-        lost.len(),
-        1,
-        "the corporate slide states one `a:alpha` — the overlay rectangle's 35 % fill — and {} \
-         decoration(s) report a dropped opacity",
-        lost.len()
-    );
-    let (handle, count) = lost[0];
-    assert_eq!(count, 1, "the overlay states one colour, so one opacity");
-
-    let answer = resources.decoration(handle);
-    let Resolved::Partial(_, losses) = &answer else {
-        panic!(
-            "the overlay's decoration answered {answer:?}. A fill whose opacity was dropped is \
-             drawn — in the right colour at the wrong opacity — so it is `Partial`, never whole \
-             and never unanswerable."
-        );
-    };
-    assert_eq!(
-        losses,
-        &vec![SceneLossKind::PaintApproximated],
-        "a dropped opacity is an approximation: the shape is drawn, so it takes no placeholder"
+        lost,
+        vec![],
+        "the slide states one `a:alpha` — the overlay rectangle's 35 % fill — and the box model \
+         still reports it as an opacity the resolution could not carry"
     );
 }
 
-/// Every other decoration on the slide still answers whole, so the count above is not everything.
+/// The overlay's decoration answers whole, at the opacity the slide states.
+#[test]
+fn the_overlays_decoration_answers_whole() {
+    let (resources, entries) = decorations();
+    let overlay = entries
+        .iter()
+        .map(|(handle, _)| *handle)
+        .find(|handle| {
+            matches!(
+                resources.decoration(*handle),
+                Resolved::Answered(decoration) | Resolved::Partial(decoration, _)
+                    if decoration.fill
+                        == FillStyle::Solid(Color {
+                            red: 0x1F,
+                            green: 0x38,
+                            blue: 0x64,
+                            alpha: THIRTY_FIVE_PERCENT,
+                        })
+            )
+        })
+        .expect(
+            "no decoration on the corporate slide is `1F3864` at 35 %. The overlay band states \
+             exactly that, so either its alpha is not carried or its colour is wrong.",
+        );
+
+    let answer = resources.decoration(overlay);
+    assert!(
+        matches!(answer, Resolved::Answered(_)),
+        "the overlay's decoration answered {answer:?}. Every part of it resolves and its opacity is \
+         carried, so there is nothing left to report and it is whole."
+    );
+}
+
+/// Every other decoration still answers whole, so the assertion above is not the only one that could.
 #[test]
 fn a_decoration_that_lost_nothing_still_answers_whole() {
     let (resources, entries) = decorations();
@@ -109,16 +131,18 @@ fn a_decoration_that_lost_nothing_still_answers_whole() {
         .count();
     assert!(
         whole >= 1,
-        "no decoration on the corporate slide answers whole, so the assertion that one of them \
-         answers `Partial` measures nothing"
+        "no decoration on the corporate slide answers whole"
     );
 }
 
-/// An approximation draws, so it never takes a placeholder — the property the kind is chosen for.
+/// The kind still draws rather than standing in, for whatever else reaches it.
+///
+/// `PaintApproximated` is not deleted by RC04 — a hatch with no preset and a `a:grpFill` still take
+/// it — so the property it was chosen for has to stay true.
 #[test]
 fn an_approximated_paint_draws_rather_than_standing_in() {
     assert!(
         !SceneLossKind::PaintApproximated.draws_placeholder(),
-        "a dropped opacity would put a grey box over content that is drawn"
+        "an approximated paint would put a grey box over content that is drawn"
     );
 }
