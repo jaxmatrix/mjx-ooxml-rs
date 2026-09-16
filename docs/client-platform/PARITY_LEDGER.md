@@ -72,7 +72,7 @@ The two figures below **are** independent. Each is summed by the generator from 
 | **In-scope controls, all three** | **11,869** | `data/command-surface.tsv` |
 | **Declared elements, ECMA-376** | **3,404** | `data/schema-census.txt` |
 
-The workspace holds **35** crates and **410** integration suites, of which the rows below name **265**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
+The workspace holds **35** crates and **411** integration suites, of which the rows below name **265**. A suite no row names is not a defect — most of them are unit-level gates on one crate's own invariants — but the gap between those two numbers is the honest measure of how much of the test estate this ledger actually reads.
 
 ## The provenance of the evidence
 

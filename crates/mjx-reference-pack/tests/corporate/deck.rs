@@ -6,7 +6,8 @@ use mjx_dml::{
     FillSpec, Fraction, LineEnd, LineSpec, LineWidth, ParagraphPropertiesSpec, Path2DSpec,
     PathFillMode, Point, SchemeColor, ShapeGeometry,
 };
-use mjx_ooxml_types::drawingml::{LineEndType, PresetShapeType};
+use mjx_ooxml_types::drawingml::{LineEndType, PresetShapeType, TextStrike, TextUnderline};
+use mjx_ooxml_types::presentationml::PlaceholderType;
 use mjx_pptx::{DiagramContent, Geometry, Package, Presentation, ShapeBounds, SlideSize, Surface};
 
 use super::{add_related_part, part_text, set_part_text, splice, LOGO_PNG};
@@ -19,6 +20,12 @@ const MASTER: &str = "/ppt/slideMasters/slideMaster1.xml";
 const TITLE_HEAD: &str = "Quarterly review";
 /// The whole title. One run until `set_text_range_properties` splits it in two.
 const TITLE: &str = "Quarterly review across EMEA and APAC";
+/// The body placeholder's own line. Like the title, it states no size and takes the master's.
+const BODY: &str = "Revenue ahead of plan in every region";
+/// The bulleted list, one paragraph per line, each decorated differently.
+const BULLETS: [&str; 3] = ["Margin expanded", "Pipeline healthy", "Headcount flat"];
+/// The corner radius the overlay's `roundRect` states, as a fraction of its shorter side.
+const OVERLAY_CORNER_RADIUS: f64 = 0.25;
 
 /// The master's gradient background. `p:bg` is `p:cSld`'s first child, before `p:spTree`.
 const BACKGROUND: &str = concat!(
@@ -55,14 +62,58 @@ const CONNECTOR: &str = concat!(
     "<a:prstGeom prst=\"straightConnector1\"><a:avLst/></a:prstGeom></p:spPr></p:cxnSp>"
 );
 
+/// The three nodes the diagram's data model states, as (model id, label).
+const DIAGRAM_NODES: [(&str, &str); 3] = [
+    ("{7F2C4F4E-0001-4E2E-9F4E-000000000001}", "Plan"),
+    ("{7F2C4F4E-0002-4E2E-9F4E-000000000002}", "Build"),
+    ("{7F2C4F4E-0003-4E2E-9F4E-000000000003}", "Ship"),
+];
+
+/// One cached box: a rounded rectangle in `accent1`, with its label, at a vertical offset.
+fn cached_node(model_id: &str, label: &str, top: i64) -> String {
+    format!(
+        concat!(
+            "<dsp:sp modelId=\"{model_id}\">",
+            "<dsp:nvSpPr><dsp:cNvPr id=\"0\" name=\"\"/><dsp:cNvSpPr/></dsp:nvSpPr>",
+            "<dsp:spPr><a:xfrm><a:off x=\"0\" y=\"{top}\"/>",
+            "<a:ext cx=\"2743200\" cy=\"709295\"/></a:xfrm>",
+            "<a:prstGeom prst=\"roundRect\"><a:avLst/></a:prstGeom>",
+            "<a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></dsp:spPr>",
+            "<dsp:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\"/>",
+            "<a:t>{label}</a:t></a:r></a:p></dsp:txBody>",
+            "</dsp:sp>"
+        ),
+        model_id = model_id,
+        top = top,
+        label = label,
+    )
+}
+
 /// The SmartArt frame's cached drawing, which `add_diagram` deliberately does not write.
-const CACHED_DRAWING: &str = concat!(
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
-    "<dsp:drawing xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\" ",
-    "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">",
-    "<dsp:spTree><dsp:nvGrpSpPr><dsp:cNvPr id=\"0\" name=\"\"/><dsp:cNvGrpSpPr/></dsp:nvGrpSpPr>",
-    "<dsp:grpSpPr/></dsp:spTree></dsp:drawing>"
-);
+///
+/// **Three real shapes**, one per node of the vertical list, each a rounded box with its own text —
+/// which is what Office caches and what a renderer draws until it runs the layout algorithms
+/// itself. An empty `dsp:spTree` would be a drawing with nothing cached in it, and it is this part
+/// that puts the Microsoft diagram-drawing namespace on the schema gate's preserved-foreign list.
+fn cached_drawing() -> String {
+    let nodes: String = DIAGRAM_NODES
+        .iter()
+        .enumerate()
+        .map(|(index, (model_id, label))| cached_node(model_id, label, index as i64 * 790_575))
+        .collect();
+    format!(
+        concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<dsp:drawing xmlns:dsp=\"http://schemas.microsoft.com/office/drawing/2008/diagram\" ",
+            "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">",
+            "<dsp:spTree><dsp:nvGrpSpPr><dsp:cNvPr id=\"0\" name=\"\"/>",
+            "<dsp:cNvGrpSpPr/></dsp:nvGrpSpPr><dsp:grpSpPr/>",
+            "{nodes}",
+            "</dsp:spTree></dsp:drawing>"
+        ),
+        nodes = nodes
+    )
+}
 
 /// The cached drawing's content type and relationship type, as Office writes them.
 const DRAWING_CONTENT_TYPE: &str = "application/vnd.ms-office.drawingml.diagramDrawing+xml";
@@ -73,9 +124,15 @@ pub(crate) fn corporate_deck() -> Vec<u8> {
     let mut deck = Presentation::blank(SlideSize::widescreen()).expect("a blank deck");
     deck.add_slide_from_layout(0).expect("one slide");
     author_master(&mut deck);
-    author_slide(&mut deck);
+    let cropped = author_slide(&mut deck);
+    // The cropped picture's own relationship, read before the package is taken apart: the crop is
+    // spliced onto *that* picture rather than onto whichever one a writer happens to emit first.
+    let crop_rel_id = deck
+        .picture_image_rel_id(0, cropped)
+        .expect("the cropped picture reads")
+        .expect("the cropped picture names an image relationship");
     let saved = deck.save().expect("the authored deck saves");
-    finish(splice_the_unwritable(saved))
+    finish(splice_the_unwritable(saved, &crop_rel_id))
 }
 
 /// The furniture every slide inherits: a logo picture and an accent band.
@@ -101,19 +158,20 @@ fn author_master(deck: &mut Presentation) {
     .expect("the band's fill");
 }
 
-/// The slide itself, in paint order.
-fn author_slide(deck: &mut Presentation) {
+/// The slide itself, in paint order. Answers the index of the picture the crop belongs to.
+fn author_slide(deck: &mut Presentation) -> usize {
+    // The title and the summary line go in the **placeholders the layout offers**, which is where a
+    // corporate deck puts them — and neither states a size of its own, so the master's
+    // `p:titleStyle` and `p:bodyStyle` are what lay them out. A placeholder holding an empty run
+    // exercises that inheritance with no glyph, which is what it did until MJXOFF-300's audit.
     let title = deck
-        .add_text_box(0, TITLE, ShapeBounds::from_inches(0.6, 0.35, 9.0, 1.2))
-        .expect("the title");
-    deck.set_shape_run_properties(
-        0,
-        title,
-        &CharacterPropertiesSpec::new()
-            .with_size_points(32.0)
-            .with_bold(true),
-    )
-    .expect("the title's run properties");
+        .shape_for_placeholder(0, PlaceholderType::Title)
+        .expect("the slide's shapes read")
+        .expect("the layout offers a title placeholder");
+    deck.set_shape_text_content(0, title, TITLE)
+        .expect("the title's text");
+    deck.set_shape_run_properties(0, title, &CharacterPropertiesSpec::new().with_bold(true))
+        .expect("the title's run properties");
     // Colouring part of a run splits it, which is what puts two runs in the title's one paragraph.
     deck.set_text_range_properties(
         0,
@@ -121,13 +179,20 @@ fn author_slide(deck: &mut Presentation) {
         0,
         0..TITLE_HEAD.len(),
         &CharacterPropertiesSpec::new()
-            .with_size_points(32.0)
             .with_bold(true)
             .with_color(ColorSpec::Scheme(SchemeColor::Accent1)),
     )
     .expect("the title's first run");
 
-    deck.add_picture(0, LOGO_PNG, ShapeBounds::from_inches(0.6, 1.9, 3.0, 2.0))
+    let summary = deck
+        .shape_for_placeholder(0, PlaceholderType::Body)
+        .expect("the slide's shapes read")
+        .expect("the layout offers a body placeholder");
+    deck.set_shape_text_content(0, summary, BODY)
+        .expect("the body placeholder's text");
+
+    let cropped = deck
+        .add_picture(0, LOGO_PNG, ShapeBounds::from_inches(0.6, 1.9, 3.0, 2.0))
         .expect("the cropped picture");
     let masked = deck
         .add_picture(0, LOGO_PNG, ShapeBounds::from_inches(3.9, 1.9, 2.0, 2.0))
@@ -187,10 +252,20 @@ fn author_slide(deck: &mut Presentation) {
     let overlay = deck
         .add_shape(
             0,
-            PresetShapeType::Rectangle,
+            PresetShapeType::RoundedRectangle,
             ShapeBounds::from_inches(0.6, 3.25, 12.1, 0.6),
         )
         .expect("the overlay");
+    // A stated adjustment, so the deck's `a:avLst` says something: every other preset here takes
+    // the generated table's default, which exercises the adjustment path with nothing.
+    deck.set_shape_geometry(
+        0,
+        overlay,
+        Geometry::Preset(ShapeGeometry::RoundedRectangle {
+            corner_radius: Fraction::from_ratio(OVERLAY_CORNER_RADIUS),
+        }),
+    )
+    .expect("the overlay's corner radius");
     deck.set_shape_fill(
         0,
         overlay,
@@ -205,7 +280,7 @@ fn author_slide(deck: &mut Presentation) {
     let bullets = deck
         .add_text_box(
             0,
-            "Margin expanded\nPipeline healthy\nHeadcount flat",
+            &BULLETS.join("\n"),
             ShapeBounds::from_inches(9.4, 4.1, 3.4, 2.0),
         )
         .expect("the list");
@@ -220,6 +295,24 @@ fn author_slide(deck: &mut Presentation) {
         )
         .expect("a Wingdings bullet");
     }
+    // One decoration per bullet: the three a reviewer's mark-up leaves on a list.
+    let decorations = [
+        CharacterPropertiesSpec::new().with_underline(TextUnderline::Single),
+        CharacterPropertiesSpec::new().with_strike(TextStrike::SingleStrike),
+        CharacterPropertiesSpec::new().with_highlight(ColorSpec::Srgb("FFFF00".to_owned())),
+    ];
+    for (paragraph, decoration) in decorations.iter().enumerate() {
+        deck.set_text_range_properties(
+            0,
+            bullets,
+            paragraph,
+            0..BULLETS[paragraph].len(),
+            decoration,
+        )
+        .expect("a decorated bullet");
+    }
+
+    cropped
 }
 
 /// A chevron drawn as a custom geometry, so the slide carries an `a:custGeom`.
@@ -245,8 +338,40 @@ fn chevron() -> CustomGeometrySpec {
     }
 }
 
+/// Splices the crop into the picture whose `a:blip` names `rel_id`, before that picture's own
+/// `a:stretch`.
+///
+/// **Anchored on the picture, not on a position.** Until MJXOFF-300's audit this spliced before *the
+/// first `a:stretch` on the slide*, so a change to the order the writers emit shapes in would have
+/// moved the crop to the other picture with every gate still green.
+fn splice_crop_onto(slide: &mut String, rel_id: &str) {
+    let embed = format!("r:embed=\"{rel_id}\"");
+    let mut at = 0usize;
+    let insert = loop {
+        let Some(offset) = slide[at..].find("<p:pic") else {
+            panic!(
+                "no `p:pic` on the slide carries `{embed}`, so the crop has no picture to sit on. \
+                 A writer that renamed the relationship, or a picture that stopped naming one, \
+                 lands here."
+            );
+        };
+        let start = at + offset;
+        let end = slide[start..]
+            .find("</p:pic>")
+            .map_or(slide.len(), |end| start + end);
+        if slide[start..end].contains(&embed) {
+            let stretch = slide[start..end].find("<a:stretch>").unwrap_or_else(|| {
+                panic!("the cropped picture states no `a:stretch` for the crop to precede")
+            });
+            break start + stretch;
+        }
+        at = end;
+    };
+    slide.insert_str(insert, CROP);
+}
+
 /// The six elements this workspace has a reader for and no writer.
-fn splice_the_unwritable(saved: Vec<u8>) -> Package {
+fn splice_the_unwritable(saved: Vec<u8>, crop_rel_id: &str) -> Package {
     let mut package = Package::open(&saved).expect("the authored deck reopens");
 
     let mut master = part_text(&package, MASTER);
@@ -264,8 +389,7 @@ fn splice_the_unwritable(saved: Vec<u8>) -> Package {
         &run_end,
         &format!("{run_end}<a:br><a:rPr lang=\"en-US\"/></a:br>"),
     );
-    // The first `a:stretch` on the slide belongs to the first picture, which is the cropped one.
-    splice(&mut slide, "<a:stretch>", &format!("{CROP}<a:stretch>"));
+    splice_crop_onto(&mut slide, crop_rel_id);
     splice(
         &mut slide,
         "</p:spTree>",
@@ -281,7 +405,7 @@ fn splice_the_unwritable(saved: Vec<u8>) -> Package {
         DRAWING_CONTENT_TYPE,
         DRAWING_REL,
         "rId10",
-        CACHED_DRAWING.as_bytes().to_vec(),
+        cached_drawing().into_bytes(),
     );
     package
 }

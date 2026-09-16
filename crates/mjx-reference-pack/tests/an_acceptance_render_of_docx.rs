@@ -47,7 +47,7 @@ const EXPECTED_LAYOUT_LOSSES: [usize; 9] = [0, 0, 0, 0, 3, 0, 0, 0, 0];
 // No image, shape or table fragment: Word's box model frames a picture without laying its content
 // out (the three picture losses above), and the table reaches page 0 as boxes and lines rather than
 // as a `Fragment::Table`. Both are what RC20 (MJXOFF-314) and RC11 (MJXOFF-306) change.
-const EXPECTED_FRAGMENTS: [usize; 6] = [41, 25, 23, 0, 0, 0];
+const EXPECTED_FRAGMENTS: [usize; 6] = [42, 26, 26, 0, 0, 0];
 
 // The bundled faces only, so the layout does not depend on what the machine has installed. Word's
 // pagination is emergent — one substituted face moves every page boundary in the document — so this

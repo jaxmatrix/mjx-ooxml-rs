@@ -116,14 +116,11 @@ const NOT_IN_THE_CORPORATE_FIXTURES: &[Excused] = &[
     Excused { row: "pptx-text-effects", reason: "glow, reflection and shadow on text belong to a poster rather than a review deck" },
     Excused { row: "pptx-text-rotation", reason: "every text body here is horizontal; RC37 owns the rotated specimen" },
     Excused { row: "pptx-three-dimensional", reason: "a 3-D bevel or camera is a decorative extreme; RC45 owns it" },
-    Excused { row: "pptx-underline-strike-highlight", reason: "no run here is underlined, struck or highlighted. A corporate deck could carry one; this one does not, and RC13 states each decoration in a specimen built to prove it renders" },
     Excused { row: "pptx-wordart-warp", reason: "warped text is WordArt, which a corporate deck does not use" },
     // ---- Excel ----
-    Excused { row: "xlsx-alignment", reason: "every cell here takes the default alignment its type implies; RC34 owns the specimen that states `xf@alignment`" },
     Excused { row: "xlsx-autofilter-buttons", reason: "the table states no auto-filter, so there is no dropdown button to draw; RC31 owns the furniture" },
     Excused { row: "xlsx-chartsheets", reason: "a chartsheet is a sheet that is only a chart; this workbook's chart sits on the worksheet, which is where a report puts it" },
     Excused { row: "xlsx-comment-indicators", reason: "a cell comment is a reviewer's annotation rather than the report's content" },
-    Excused { row: "xlsx-font-decorations", reason: "the rich-text cell states weight and colour and no decoration. A report could underline a total; this one does not, and RC13 owns the decoration specimen" },
     Excused { row: "xlsx-hyperlink-cells", reason: "no cell here links out; RC18 owns the specimen where a hyperlink's colour and underline resolve" },
     Excused { row: "xlsx-ink", reason: "ink is a stylus annotation, not something a workbook is authored with" },
     Excused { row: "xlsx-legacy-drawings", reason: "the drawing here is DrawingML, which is what this workspace's writers emit; a legacy `xl/drawings/vmlDrawingN.vml` arrives only from Office and RC44 owns it" },
@@ -157,7 +154,6 @@ const NOT_IN_THE_CORPORATE_FIXTURES: &[Excused] = &[
     Excused { row: "docx-smartart-and-ole", reason: "the deck carries the SmartArt this ticket commits; a Word diagram is the same `dgm:` parts reached a second way, and RC45 owns OLE" },
     Excused { row: "docx-spacing-scale-kerning", reason: "character spacing and scaling are typographic tuning a corporate template does not state; RC29 owns the specimen" },
     Excused { row: "docx-text-effects", reason: "glow and shadow on body text belong to a poster rather than a report" },
-    Excused { row: "docx-underline-strike-highlight", reason: "no run here is underlined, struck or highlighted. A corporate report could carry one; this one does not, and RC13 states each decoration in a specimen built to prove it renders" },
     Excused { row: "docx-vertical-alignment-and-position", reason: "the superscripts in this document belong to its equation, which carries its own; RC13 owns the run-level specimen" },
     // ---- Shared ----
     Excused { row: "shared-chart-data-tables", reason: "a data table under a chart is a chart *feature* RC42 states; the charts here are plain" },
@@ -177,7 +173,6 @@ const NOT_IN_THE_CORPORATE_FIXTURES: &[Excused] = &[
     Excused { row: "shared-smartart-layout-algorithms", reason: "running a diagram's layout algorithm is what RC42 builds; this fixture carries the *cached* drawing instead, which is what a file actually holds" },
     Excused { row: "shared-svg-and-metafiles", reason: "an SVG or a metafile is a picture format none of these fixtures embeds; RC44 owns them" },
     Excused { row: "shared-svg-selectable-text", reason: "whether exported SVG carries selectable text is an exporter's behaviour rather than an element in a document" },
-    Excused { row: "shared-text-decorations", reason: "no run in any of the three fixtures is decorated; RC13 owns the specimen, and the same reason the three per-format decoration rows carry applies here" },
     Excused { row: "shared-text-engine-breadth", reason: "the text engine's breadth — bidi, shaping, script itemisation — is measured against specimens chosen to stress it, not against a corporate page of English" },
     Excused { row: "shared-viewer-budgets", reason: "a viewport's byte ceilings and frame budget are the viewer's behaviour under load; no committed file can state one" },
 ];

@@ -33,6 +33,22 @@ const TRACKED_CHANGES: &str = concat!(
     "</w:p>"
 );
 
+/// A run underlined, one struck through and one highlighted.
+///
+/// Spliced for the same reason the tracked changes above are: `mjx-docx` keeps the mutator that
+/// attaches a `w:rPr` to a **body** run crate-private, so a decoration a corporate report really
+/// carries has no public writer to state it with.
+const DECORATED_RUNS: &str = concat!(
+    "<w:p>",
+    "<w:r><w:rPr><w:u w:val=\"single\"/></w:rPr>",
+    "<w:t xml:space=\"preserve\">Signed off by finance</w:t></w:r>",
+    "<w:r><w:rPr><w:strike/></w:rPr>",
+    "<w:t xml:space=\"preserve\"> and by legal</w:t></w:r>",
+    "<w:r><w:rPr><w:highlight w:val=\"yellow\"/></w:rPr>",
+    "<w:t xml:space=\"preserve\"> — circulate on Monday</w:t></w:r>",
+    "</w:p>"
+);
+
 /// A floating picture. The namespaces are declared on the drawing, because the body's root
 /// declares only `w:` and `r:`.
 const ANCHORED_PICTURE: &str = concat!(
@@ -305,7 +321,7 @@ fn splice_the_unwritable(saved: Vec<u8>, header: &str) -> Package {
     splice(
         &mut body,
         "<w:body>",
-        &format!("<w:body>{TRACKED_CHANGES}{ANCHORED_PICTURE}{TEXT_BOX}"),
+        &format!("<w:body>{TRACKED_CHANGES}{DECORATED_RUNS}{ANCHORED_PICTURE}{TEXT_BOX}"),
     );
     set_part_text(&mut package, DOCUMENT, body);
 

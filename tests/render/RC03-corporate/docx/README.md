@@ -15,10 +15,11 @@ MJX_AUTHOR_FIXTURES=1 cargo test -p mjx-reference-pack --test the_corporate_fixt
 
 That suite re-authors the document on every run and fails if the committed bytes differ.
 
-Five elements are **spliced as markup** rather than written by a typed writer, because `mjx-docx`
+Six elements are **spliced as markup** rather than written by a typed writer, because `mjx-docx`
 keeps the mutators they would need crate-private: the tracked changes (`w:ins` / `w:del`), the
-floating picture (`wp:anchor`), the text box (`w:txbxContent`), the header's own content, and the
-theme part `Document::blank` does not write. The styles, numbering, table, inline picture, footnote,
+sign-off paragraph's decorated runs (`w:u` / `w:strike` / `w:highlight`), the floating picture
+(`wp:anchor`), the text box (`w:txbxContent`), the header's own content, and the theme part
+`Document::blank` does not write. The styles, numbering, table, inline picture, footnote,
 equation and page border are all written through the typed API.
 
 **Proved by** `crates/mjx-reference-pack/tests/the_corporate_fixtures_are_corporate.rs` and
@@ -52,7 +53,7 @@ sitting re-runs these same cases later (`docs/validation/07-the-reference-pack.m
 
 The journey pins the whole loss vector of the last stage Word reaches. Today page 0 lays out with
 three pictures framed but not laid out — the inline logo, the floating one and the header's — and
-nothing else lost. The page holds 41 boxes, 25 lines and 23 glyph runs, and no image, shape or table
+nothing else lost. The page holds 42 boxes, 26 lines and 26 glyph runs, and no image, shape or table
 fragment: the table reaches the page as boxes and lines rather than as a `Fragment::Table`.
 
 ## Checklist coverage
@@ -81,3 +82,4 @@ fragment: the table reaches the page as boxes and lines rather than as a `Fragme
 | docx-equations | the paragraph's `m:oMath` |
 | docx-equation-model | the same equation, read back through the read-once residency |
 | shared-box-model-issued-contract | page 0's fragment tree, the contract Word answers in |
+| docx-underline-strike-highlight | the sign-off paragraph's three runs: `w:u`, `w:strike` and `w:highlight` |

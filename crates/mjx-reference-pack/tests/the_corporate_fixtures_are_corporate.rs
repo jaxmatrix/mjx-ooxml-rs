@@ -35,9 +35,12 @@
 
 use std::collections::BTreeSet;
 
+use mjx_dml::{GuideContext, ShapeGeometry, Size};
 use mjx_docx::Document;
+use mjx_ooxml_types::presentationml::PlaceholderType;
 use mjx_opc::Package;
 use mjx_pptx::{Geometry, Presentation, Surface};
+use mjx_reference_pack::outlines::shape_outline;
 use mjx_xlsx::Workbook;
 
 /// The three fixtures RC03 commits.
@@ -603,4 +606,259 @@ fn the_corporate_document_carries_its_elements() {
     );
 
     assert_probes("corporate.docx", DOCUMENT_PROBES);
+}
+
+// ---------------------------------------------------------------------------------------------
+// What RC03's audit found claimed and unexercised (MJXOFF-300)
+//
+// Four of the coverage claims above were true of the README and not of the file: every `a:avLst`
+// was empty, the inherited placeholders held empty runs, the cached drawing was an empty
+// `dsp:spTree`, and the crop was spliced before *the first* `a:stretch` on the slide rather than
+// onto a picture. Each is now an element, and each element has an assertion here.
+// ---------------------------------------------------------------------------------------------
+
+/// What the blank master states in `p:titleStyle` (`sz="4400"`) — the size a title placeholder that
+/// states none of its own is laid out at. Sourced from `crates/mjx-pptx/src/blank.rs`.
+const MASTER_TITLE_POINTS: f64 = 44.0;
+
+/// What that master states in `p:bodyStyle`'s first outline level (`sz="2800"`), on the same terms.
+const MASTER_BODY_POINTS: f64 = 28.0;
+
+/// The corner radius the overlay's `roundRect` states, as a fraction of its shorter side.
+const OVERLAY_CORNER_RADIUS: f64 = 0.25;
+
+/// One part of a fixture, as text.
+fn part_markup(fixture: &str, part: &str) -> String {
+    let bytes = mjx_fixtures::fixture(fixture);
+    let package = Package::open(&bytes).expect("the fixture is a well-formed package");
+    let name = mjx_opc::PartName::new(part).expect("a part name");
+    let payload = package
+        .part_payload(&name)
+        .unwrap_or_else(|| panic!("`{part}` is not in `{fixture}`"));
+    String::from_utf8(payload.into_owned()).expect("the part is UTF-8")
+}
+
+/// Every `p:pic` element of a part, each as the text between its own tags.
+fn picture_elements(markup: &str) -> Vec<&str> {
+    let mut pictures = Vec::new();
+    let mut rest = markup;
+    while let Some(start) = rest.find("<p:pic") {
+        let after = &rest[start..];
+        let end = after
+            .find("</p:pic>")
+            .map_or(after.len(), |at| at + "</p:pic>".len());
+        pictures.push(&after[..end]);
+        rest = &after[end..];
+    }
+    pictures
+}
+
+/// **A preset on the slide really carries an overridden adjustment**, which is what
+/// `pptx-shape-adjustments` claims and what an empty `a:avLst` does not exercise.
+#[test]
+fn a_preset_shapes_adjustment_is_overridden_and_the_production_reader_carries_it() {
+    let bytes = mjx_fixtures::fixture("corporate.pptx");
+    let mut deck = Presentation::open(&bytes).expect("the corporate deck opens");
+    let count = deck
+        .shape_count(Surface::Slide(0))
+        .expect("the slide reads");
+
+    let shape = (0..count)
+        .find(|shape| {
+            matches!(
+                deck.shape_geometry(Surface::Slide(0), *shape),
+                Ok(Geometry::Preset(ShapeGeometry::RoundedRectangle { .. }))
+            )
+        })
+        .expect(
+            "no shape on the slide is a `roundRect`. Every `a:prstGeom` here stated an empty \
+             `a:avLst`, which is a shape with nothing to adjust — so the coverage claim on \
+             `pptx-shape-adjustments` was about an element the fixture did not carry.",
+        );
+
+    let Ok(Geometry::Preset(ShapeGeometry::RoundedRectangle { corner_radius })) =
+        deck.shape_geometry(Surface::Slide(0), shape)
+    else {
+        unreachable!("just matched")
+    };
+    assert!(
+        (corner_radius.ratio() - OVERLAY_CORNER_RADIUS).abs() < 1e-9,
+        "the typed reader saw a corner radius of {corner_radius:?}, not the one the fixture states"
+    );
+
+    let bounds = deck
+        .effective_shape_bounds(Surface::Slide(0), shape)
+        .expect("the shape's bounds read")
+        .expect("the shape states its own bounds");
+    let extents = Size::from_emu(bounds.width_emu, bounds.height_emu);
+    let adjustments = deck
+        .shape_adjustments(Surface::Slide(0), shape, GuideContext::from_size(extents))
+        .expect("the adjustments resolve");
+    let overridden: Vec<&str> = adjustments
+        .iter()
+        .filter(|adjustment| adjustment.is_overridden)
+        .map(|adjustment| adjustment.spec.wire_name)
+        .collect();
+    assert_eq!(
+        overridden,
+        vec!["adj"],
+        "the shape's `a:avLst` overrides {overridden:?}; a preset whose every adjustment is the \
+         table's default exercises the adjustment path with nothing"
+    );
+
+    // And the production reader carries it across, which is what the provider actually resolves.
+    let outline = shape_outline(
+        &mut deck,
+        Surface::Slide(0),
+        &[u32::try_from(shape).expect("a small shape tree")],
+        extents,
+    )
+    .expect("the production reader answers a preset shape");
+    let carried: Vec<&str> = outline
+        .adjustments
+        .iter()
+        .map(|adjustment| adjustment.wire_name.as_str())
+        .collect();
+    assert_eq!(
+        carried,
+        vec!["adj"],
+        "`mjx_reference_pack::outlines::shape_outline` carried {carried:?} to the geometry \
+         provider, so the override never reaches the outline that is drawn"
+    );
+}
+
+/// **The inherited placeholders hold real text**, laid out at the size the master states.
+///
+/// `pptx-master-and-layout-shapes` and `pptx-placeholder-geometry` are claimed against these two
+/// shapes, and until RC03's audit both held a single empty run: the master's title style was
+/// exercised by no glyph.
+#[test]
+fn the_inherited_placeholders_carry_text_at_the_masters_own_size() {
+    let bytes = mjx_fixtures::fixture("corporate.pptx");
+    let mut deck = Presentation::open(&bytes).expect("the corporate deck opens");
+
+    for (kind, points) in [
+        (PlaceholderType::Title, MASTER_TITLE_POINTS),
+        (PlaceholderType::Body, MASTER_BODY_POINTS),
+    ] {
+        let shape = deck
+            .shape_for_placeholder(Surface::Slide(0), kind)
+            .expect("the slide's shapes read")
+            .unwrap_or_else(|| panic!("the slide offers no `{kind:?}` placeholder to fill"));
+        let text = deck
+            .shape_text(Surface::Slide(0), shape)
+            .expect("the placeholder's text reads");
+        assert!(
+            !text.trim().is_empty(),
+            "the `{kind:?}` placeholder holds no text, so the master's own text style is \
+             exercised by nothing"
+        );
+        let effective = deck
+            .effective_run_properties(Surface::Slide(0), shape, 0, 0)
+            .expect("the run's effective properties resolve");
+        assert_eq!(
+            effective.size_points(),
+            Some(points),
+            "the `{kind:?}` placeholder's first run is laid out at {:?} rather than at the \
+             {points} points the master states. The placeholder states no size of its own, so this \
+             number can only have come from the master — which is the inheritance the two coverage \
+             claims are about.",
+            effective.size_points()
+        );
+    }
+}
+
+/// **The SmartArt frame's cached drawing holds real shapes**, which is the whole reason the
+/// diagram-drawing namespace is on the preserved-foreign allowlist.
+#[test]
+fn the_smartart_cached_drawing_holds_real_shapes() {
+    let bytes = mjx_fixtures::fixture("corporate.pptx");
+    let mut deck = Presentation::open(&bytes).expect("the corporate deck opens");
+    let count = deck
+        .shape_count(Surface::Slide(0))
+        .expect("the slide reads");
+    let frame = (0..count)
+        .find(|shape| {
+            matches!(
+                deck.graphic_frame_kind(Surface::Slide(0), *shape),
+                Ok(Some(mjx_pptx::GraphicFrameKind::Diagram))
+            )
+        })
+        .expect("the slide frames a SmartArt diagram");
+
+    let parts = deck
+        .diagram_parts(Surface::Slide(0), frame)
+        .expect("the diagram's parts resolve")
+        .expect("the frame names a diagram");
+    let drawing = parts
+        .drawing
+        .expect("the diagram's data part reaches a cached drawing");
+    let markup = String::from_utf8(
+        deck.diagram_part_bytes(&drawing)
+            .expect("the cached drawing's bytes")
+            .into_owned(),
+    )
+    .expect("the cached drawing is UTF-8");
+
+    // `<dsp:sp ` with the space: `<dsp:spTree>` and `<dsp:spPr>` are not shapes, and a needle that
+    // counted them would have read an empty drawing as holding one.
+    let shapes = markup.matches("<dsp:sp ").count();
+    assert!(
+        shapes >= 3,
+        "the cached drawing holds {shapes} shape(s). An empty `dsp:spTree` is a drawing with \
+         nothing cached in it, and it is the sole justification for the diagram-drawing namespace \
+         on the schema gate's preserved-foreign allowlist."
+    );
+    for label in ["Plan", "Build", "Ship"] {
+        assert!(
+            markup.contains(&format!("<a:t>{label}</a:t>")),
+            "the cached drawing carries no shape reading `{label}`, so its boxes are empty"
+        );
+    }
+}
+
+/// **The crop sits on the picture it was authored for**, and on no other.
+///
+/// The splice anchored on *the first `a:stretch` on the slide* until RC03's audit, so a change to
+/// the order the writers emit pictures in would have moved the crop to the other picture with every
+/// gate still green — the fixture would still have carried an `a:srcRect`, on the wrong shape.
+#[test]
+fn the_crop_sits_on_the_cropped_picture_and_on_no_other() {
+    let markup = part_markup("corporate.pptx", "/ppt/slides/slide1.xml");
+    let pictures = picture_elements(&markup);
+    assert_eq!(
+        pictures.len(),
+        2,
+        "the corporate slide holds {} `p:pic` shape(s); MJXOFF-300 lists a cropped one and an \
+         ellipse-masked one",
+        pictures.len()
+    );
+
+    let cropped: Vec<&&str> = pictures
+        .iter()
+        .filter(|picture| picture.contains("<a:srcRect"))
+        .collect();
+    assert_eq!(
+        cropped.len(),
+        1,
+        "{} of the slide's pictures carry an `a:srcRect`",
+        cropped.len()
+    );
+    // 0.6 in by 1.9 in, 3.0 in by 2.0 in — the cropped picture's own placement, which is what says
+    // *which* picture this is without depending on the order the writers emit them in.
+    assert!(
+        cropped[0].contains(r#"<a:off x="548640" y="1737360"/>"#)
+            && cropped[0].contains(r#"cx="2743200""#),
+        "the `a:srcRect` sits on a picture at some other position, so the crop has moved to the \
+         wrong shape: {}",
+        cropped[0]
+    );
+    let masked = pictures
+        .iter()
+        .find(|picture| picture.contains(r#"x="3566160""#))
+        .expect("the ellipse-masked picture sits at 3.9 in");
+    assert!(
+        !masked.contains("<a:srcRect"),
+        "the ellipse-masked picture carries the crop as well"
+    );
 }

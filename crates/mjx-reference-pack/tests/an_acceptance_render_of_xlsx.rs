@@ -57,34 +57,54 @@ const VIEWPORT_INCHES: (f64, f64) = (8.0, 5.0);
 // and pinned there** — an empty vector is the claim that the corporate sheet renders losslessly,
 // and it is false today. Never widen this to make a run pass.
 const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[
-    // The drawing's four anchored objects — the chart, the picture and the text box among them —
-    // are framed and not laid out: a worksheet's drawing layer is RC28 (MJXOFF-321).
+    // **The four conditional-format icons in `E2:E5`**, and not the drawing's anchored objects —
+    // which is what this comment said until RC03's audit measured it. `mjx-layout-xlsx` records a
+    // frame it cannot lay out at each cell whose effective format resolves an icon-set icon, under
+    // `FrameContent::Picture` because an icon *is* a small picture the grid places and does not
+    // draw (RC31, MJXOFF-324, is what draws them). The chart, the picture and the text box in
+    // `xl/drawings/drawing1.xml` are three anchors and are **not** in this count at all: a
+    // worksheet's fragment tree carries no drawing today, so they are not framed, not laid out and
+    // not lost — they are absent, which RC28 (MJXOFF-321) changes.
     (
         LossCategory::Layout(LayoutLossKind::FrameContentNotLaidOut(
             FrameContent::Picture,
         )),
         4,
     ),
-    // One thing the sheet states that the reader does not carry to the box model.
+    // **The diagonal edge of the bordered cell `G2`.** A `mjx_scene::Decoration` carries one
+    // stroke and a cell's four sides are emitted as filled bands, so a diagonal — which crosses the
+    // cell rather than bounding it — has nothing to be emitted as, and the box model records it as
+    // dropped at that cell rather than dropping it quietly. RC14 (MJXOFF-309) is what draws it.
     (LossCategory::Layout(LayoutLossKind::DroppedByReader), 1),
     // Three values the grid approximated rather than resolved exactly.
     (LossCategory::Layout(LayoutLossKind::ValueApproximated), 3),
 ];
 
-// Every labelled placeholder, as (label, [left, top, right, bottom]) in unzoomed device pixels, in
-// paint order. Filled from the first green run and pinned there, on the same terms.
-const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[
-    // The four anchored objects the drawing layer does not place (RC28, MJXOFF-321), and the one
-    // thing the reader dropped — each a labelled box in the cell band it was anchored to.
-    ("Picture not rendered", [328, 40, 389, 60]),
-    ("Content not read", [450, 40, 511, 60]),
-    ("Picture not rendered", [328, 60, 389, 80]),
-    ("Picture not rendered", [328, 80, 389, 100]),
-    ("Picture not rendered", [328, 100, 389, 120]),
+// Every labelled placeholder, as (label, [left, top, right, bottom] in unzoomed device pixels, and
+// **the cell it stands on** as [row, column] counted from zero), in paint order.
+//
+// The third column is what says *which* element each placeholder is about, and it is the reason
+// this constant no longer describes the drawing's anchors: five rectangles in a column look like
+// anchored objects and are the four icon-set cells of `E2:E5` plus the diagonal-bordered `G2`. A
+// pinned rectangle cannot tell those apart; a pinned address can.
+const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4], [u32; 2])] = &[
+    ("Picture not rendered", [328, 40, 389, 60], [1, 4]),
+    ("Content not read", [450, 40, 511, 60], [1, 6]),
+    ("Picture not rendered", [328, 60, 389, 80], [2, 4]),
+    ("Picture not rendered", [328, 80, 389, 100], [3, 4]),
+    ("Picture not rendered", [328, 100, 389, 120], [4, 4]),
 ];
 
-// How many draws used stand-in geometry rather than the document's own shape. A worksheet issues no
-// outline handle at all today, so this is expected to stay zero; it is pinned like the rest.
+// How many draws used stand-in geometry rather than the document's own shape.
+//
+// ⚠ **Zero against zero, and stated as such.** A worksheet's fragment tree carries no
+// `ShapeFragment` and no `ImageFragment` today — the drawing layer is RC28 (MJXOFF-321) — so
+// `SheetGeometry` is handed no outline handle to refuse and the image table below is read by no
+// draw. This constant, and the `NoImages` refusal in [`the_journey_uses_no_test_double`], are
+// therefore **structural guards rather than measurements**: they say nothing has started standing
+// in and nothing has started answering *"there are no pictures"*, and they begin measuring the day
+// a drawing reaches the page. Giving the sheet a shape whose outline must be resolved is RC28's to
+// make meaningful, not this fixture's.
 const EXPECTED_STAND_INS: usize = 0;
 
 // The bundled faces only, so the render does not depend on what the machine has installed.
@@ -246,19 +266,26 @@ fn the_corporate_workbook_reaches_pixels_with_its_losses_named() {
         "the display list carries every loss the layout recorded"
     );
 
-    let drawn_placeholders: Vec<(String, [i32; 4])> = journey
+    let drawn_placeholders: Vec<(String, [i32; 4], Vec<u32>)> = journey
         .list
         .placeholders()
         .into_iter()
-        .map(|placeholder| (placeholder.label, rounded(placeholder.rect)))
+        .map(|placeholder| {
+            (
+                placeholder.label,
+                rounded(placeholder.rect),
+                placeholder.source.path().segments().to_vec(),
+            )
+        })
         .collect();
-    let expected: Vec<(String, [i32; 4])> = EXPECTED_PLACEHOLDERS
+    let expected: Vec<(String, [i32; 4], Vec<u32>)> = EXPECTED_PLACEHOLDERS
         .iter()
-        .map(|(label, rect)| ((*label).to_owned(), *rect))
+        .map(|(label, rect, cell)| ((*label).to_owned(), *rect, cell.to_vec()))
         .collect();
     assert_eq!(
         drawn_placeholders, expected,
-        "every labelled placeholder, with the label it reads and the rectangle it covers"
+        "every labelled placeholder, with the label it reads, the rectangle it covers and the \
+         cell it stands on as [row, column]"
     );
     assert_eq!(
         journey.drawn.loss_placeholders,

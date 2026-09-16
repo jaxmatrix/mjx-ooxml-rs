@@ -17,11 +17,13 @@ MJX_AUTHOR_FIXTURES=1 cargo test -p mjx-reference-pack --test the_corporate_fixt
 That suite re-authors the workbook on every run and fails if the committed bytes differ, so the
 fixture cannot drift from the code that claims to author it.
 
-Four elements are **spliced as markup** rather than written by a typed writer, because this
+Five elements are **spliced as markup** rather than written by a typed writer, because this
 workspace has a reader for each and no writer: the two custom `numFmt` codes, the `sheetViews`
-carrying the frozen pane and the gridline flag, the rich-text cell's runs, and the `xdr:sp` text
-box. The cell formats that *point at* the two number formats are written through the typed writer,
-so only the format codes themselves are markup.
+carrying the frozen pane and the gridline flag, the rich-text cell's runs, the `xdr:sp` text box,
+and the money column's `x:alignment`. The cell formats that *point at* the two number formats are
+written through the typed writer, so only the format codes themselves are markup — and the
+`applyAlignment` flag beside the alignment element is typed too, because `CellFormatSpec` carries
+the flag and not the `CT_CellAlignment` it applies.
 
 **Proved by** `crates/mjx-reference-pack/tests/the_corporate_fixtures_are_corporate.rs` and
 `crates/mjx-reference-pack/tests/an_acceptance_render_of_xlsx.rs`.
@@ -45,10 +47,24 @@ that sitting re-runs these same cases later (`docs/validation/07-the-reference-p
 
 ## What the render loses today
 
-The acceptance journey pins the whole loss vector. Today the band reaches pixels with four anchored
-objects framed but not laid out — the chart, the picture and the text box among them (RC28) — one
-thing the reader dropped, and three values the grid approximated. Five labelled placeholders are
-drawn, and no draw falls back to stand-in geometry: a worksheet issues no outline handle at all.
+The acceptance journey pins the whole loss vector, and since RC03's audit it pins **the cell each
+placeholder stands on** as well — because five rectangles in a column look like anchored objects and
+are not.
+
+* **Four `FrameContentNotLaidOut(Picture)`: the conditional-format icons in `E2:E5`.** The grid
+  places an icon-set icon and does not draw it, and records it under `Picture` because an icon is a
+  small picture (RC31 draws them). The chart, the picture and the text box in
+  `xl/drawings/drawing1.xml` are three anchors and are **not** in this count: a worksheet's fragment
+  tree carries no drawing at all today, so they are absent rather than lost, which RC28 changes.
+* **One `DroppedByReader`: the diagonal edge of `G2`.** A cell's four sides are emitted as filled
+  bands and a `Decoration` carries one stroke, so the diagonal — which crosses the cell rather than
+  bounding it — has nothing to be emitted as. RC14 draws it.
+* Three values the grid approximated rather than resolved exactly.
+
+Five labelled placeholders are drawn. No draw falls back to stand-in geometry, and that is a
+**structural guard rather than a measurement**: a worksheet issues no outline handle and no image
+draw at all today, so the zero is asserted against a page that could not have produced anything
+else. It begins measuring when RC28 puts a drawing on the page.
 
 ## Checklist coverage
 
@@ -71,3 +87,5 @@ drawn, and no draw falls back to stand-in geometry: a worksheet issues no outlin
 | xlsx-render-losses | the journey's pinned loss vector and its five labelled placeholders |
 | shared-chart-model | the chart's categories and one series, as `ChartData` wrote them |
 | shared-chart-series-marks | the same series, whose bars the chart engine will place |
+| xlsx-font-decorations | the `Superseded total` cell's font: bold, accounting-underlined and struck through |
+| xlsx-alignment | the money column's `xf` alignment, which states `horizontal="right"` |

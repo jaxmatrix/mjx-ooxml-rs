@@ -1,10 +1,13 @@
 # RC03 — the corporate deck (`tests/fixtures/corporate.pptx`)
 
 One widescreen slide shaped like a page somebody would actually send: a master carrying a logo, an
-accent band and a gradient background; a title in two colours with a soft line break; slide-number
-and date fields; a cropped picture and an ellipse-masked one; a custom-geometry icon; an arrow
-connector; a bar chart on the theme's accents; a SmartArt frame with its cached drawing; a styled
-3×3 table; a semi-transparent overlay; and a Wingdings bulleted list.
+accent band and a gradient background; a title in two colours with a soft line break **in the
+layout's own title placeholder**, and a summary line in its body placeholder, neither stating a font
+size so that the master's `p:titleStyle` and `p:bodyStyle` are what lay them out; slide-number and
+date fields; a cropped picture and an ellipse-masked one; a custom-geometry icon; an arrow
+connector; a bar chart on the theme's accents; a SmartArt frame whose cached drawing holds three
+real boxes; a styled 3×3 table; a semi-transparent rounded overlay stating its own corner radius;
+and a Wingdings bulleted list whose three bullets are underlined, struck through and highlighted.
 
 **How it is authored.** `crates/mjx-reference-pack/tests/the_corporate_fixtures_are_authored.rs`
 builds it with this workspace's own writers and nothing else — no file was copied from
@@ -22,7 +25,10 @@ Six elements are **spliced as markup** rather than written by a typed writer, be
 has a reader for each and no writer: the master's `p:bg`, the title's `a:br`, the two `a:fld`
 fields, the picture's `a:srcRect`, the `p:cxnSp` connector and the SmartArt frame's `dsp:drawing`.
 The splices refuse a missing anchor, so a writer that starts emitting one of them fails there rather
-than producing a fixture quietly missing the element.
+than producing a fixture quietly missing the element. The crop is anchored on **the cropped
+picture's own relationship id**: it went before *the first `a:stretch` on the slide* until RC03's
+audit, which would have moved it to the other picture the day a writer changed the order it emits
+shapes in, with every gate still green.
 
 **Proved by** `crates/mjx-reference-pack/tests/the_corporate_fixtures_are_corporate.rs` (the elements,
 through the typed model where a reader exists) and
@@ -50,10 +56,22 @@ and that sitting re-runs these same cases later (`docs/validation/07-the-referen
 
 The acceptance journey pins the whole loss vector rather than describing it. Today the deck reaches
 pixels with: the SmartArt frame unlaid (RC28), one text body measured rather than shaped, the chart
-unresolved (RC06), 21 runs taking a default colour (RC16), both pictures undecoded (RC11), the
-connector's arrowhead undrawn (RC14) and the custom geometry's outline unresolved (RC24). Three
-outline handles go unanswered — the two inherited placeholders and the `custGeom` icon — and exactly
-one of them is drawn as a stand-in.
+unresolved (RC06), 21 runs taking a default colour (RC16), **the overlay band's 35 % fill painted
+opaque** (RC04), both pictures undecoded (RC11), the connector's arrowhead undrawn (RC14) and the
+custom geometry's outline unresolved (RC24). Three outline handles go unanswered — the two inherited
+placeholders and the `custGeom` icon — and exactly one of them is drawn as a stand-in.
+
+**The overlay is the one worth reading twice.** `mjx-dml` bakes a colour to a six-digit hex triplet
+and drops the alpha, so a band the document states at 35 % paints as a solid slab over the table's
+third row — the row is in the display list and not in the picture. Until RC03's audit **nothing
+counted that**: no loss kind named a discarded opacity and `color_of` answered `Ok` for a valid
+triplet, so the render called itself lossless while losing a row. Carrying the channel through is
+RC04 (MJXOFF-243); the count is what stops the loss being silent in the meantime.
+
+The journey also pins a **structural floor** the ink-coverage bound cannot give it: 46 boxes, 17
+lines, 21 glyph runs, 2 images, 18 shapes and 1 table fragment, and 8 `FillPath`, 1 `StrokePath`, 21
+`DrawGlyphs` and 2 `DrawImage` commands — plus a named assertion that each of the **third row's**
+three cells has a glyph run starting inside it, which is the row the overlay covers.
 
 ## Checklist coverage
 
@@ -89,3 +107,5 @@ one of them is drawn as a stand-in.
 | shared-headless-painters | the render, taken through the pure-Rust software painter with no graphics stack |
 | shared-box-model-issued-contract | the catalogue's geometry and image handles, which the journey resolves |
 | shared-image-decoding | the two pictures, which reach the painter as bytes it cannot yet decode |
+| pptx-underline-strike-highlight | the three bullets, one underlined, one struck through and one highlighted |
+| shared-text-decorations | those three bullets, the document's decorated runs and the workbook's struck total — one decorated run per fixture |

@@ -2,11 +2,13 @@
 //! (MJXOFF-300).
 
 use mjx_chart::{ChartData, ChartKind};
-use mjx_ooxml_types::spreadsheetml::{BorderStyle, ConditionalFormatValueObjectType, IconSetType};
+use mjx_ooxml_types::spreadsheetml::{
+    BorderStyle, ConditionalFormatValueObjectType, IconSetType, UnderlineType,
+};
 use mjx_sml::{
     BorderEdgeSpec, BorderSpec, CellFormatSpec, CellFormatTarget, CellRange, CellRangeList,
     CellReference, CellSpan, CellValue, ColorScaleSpec, ColumnWidth, ConditionalRuleSpec,
-    ConditionalRuleSpecKind, ConditionalValueObjectSpec, DataBarSpec, IconSetSpec,
+    ConditionalRuleSpecKind, ConditionalValueObjectSpec, DataBarSpec, FontProperties, IconSetSpec,
     TableStyleReferenceSpec, WorksheetTableSpec,
 };
 use mjx_xlsx::drawing_geometry::{CellMarker, ResizingBehavior};
@@ -80,10 +82,11 @@ pub(crate) fn corporate_workbook() -> Vec<u8> {
     author_table(&mut book);
     author_conditional_formats(&mut book);
     author_borders(&mut book);
+    author_font_decorations(&mut book);
     author_columns(&mut book);
     author_drawing(&mut book);
     let saved = book.save().expect("the authored workbook saves");
-    finish(splice_the_unwritable(saved))
+    splice_the_alignment(finish(splice_the_unwritable(saved)))
 }
 
 /// One cell reference, parsed.
@@ -232,6 +235,35 @@ fn author_borders(book: &mut Workbook) {
         .expect("the bordered cell");
 }
 
+/// A superseded total, struck through and underlined the way an accountant marks one.
+fn author_font_decorations(book: &mut Workbook) {
+    let font = book
+        .append_font(&FontProperties {
+            font_name: Some("Calibri".to_owned()),
+            size_in_points: Some(11.0),
+            bold: Some(true),
+            // The accounting underline, which is the one Excel draws differently from a text one.
+            underline: Some(UnderlineType::SingleAccounting),
+            strikethrough: Some(true),
+            ..FontProperties::default()
+        })
+        .expect("the decorated font");
+    let style = book
+        .append_cell_format(
+            CellFormatTarget::CellFormats,
+            &CellFormatSpec {
+                font_index: Some(font),
+                applies_font: Some(true),
+                ..CellFormatSpec::skeleton_cell_format()
+            },
+        )
+        .expect("the decorated format");
+    book.set_cell_value(0, at("G3"), CellValue::InlineString("Superseded total"))
+        .expect("the decorated cell");
+    book.set_cell_style(0, at("G3"), Some(style))
+        .expect("the decorated cell's format");
+}
+
 /// The money and date columns are narrow, which is what makes their formats worth reading.
 fn author_columns(book: &mut Workbook) {
     book.set_column_width(
@@ -318,6 +350,9 @@ fn finish(package: Package) -> Vec<u8> {
                 &CellFormatSpec {
                     number_format_id: Some(format),
                     applies_number_format: Some(true),
+                    // The money column is right-aligned. `applyAlignment` is typed; the
+                    // `x:alignment` element it applies is not, and is spliced below.
+                    applies_alignment: (format == ACCOUNTING_FORMAT).then_some(true),
                     ..CellFormatSpec::skeleton_cell_format()
                 },
             )
@@ -327,5 +362,27 @@ fn finish(package: Package) -> Vec<u8> {
                 .expect("a formatted cell");
         }
     }
-    book.save().expect("the corporate workbook saves")
+    book.save().expect("the formatted workbook saves")
+}
+
+/// The right-aligned money column's `x:alignment`, which no typed writer can attach.
+///
+/// `CellFormatSpec` carries `applyAlignment` and not the element it applies: the element is
+/// `mjx_sml::CellAlignment`, an attribute bag built through a part's own interner, and
+/// `Workbook`'s stylesheet editor is crate-private — so the flag is written by the typed writer
+/// above and the element is spliced here, exactly as the frozen pane and the number formats are.
+fn splice_the_alignment(saved: Vec<u8>) -> Vec<u8> {
+    let mut package = Package::open(&saved).expect("the formatted workbook reopens");
+    let mut styles = part_text(&package, STYLES);
+    let anchor = format!("<xf numFmtId=\"{ACCOUNTING_FORMAT}\"");
+    let start = styles.find(&anchor).unwrap_or_else(|| {
+        panic!("`{anchor}` is in no `x:xf`, so the money column's format was never written")
+    });
+    let end = styles[start..]
+        .find("/>")
+        .map(|at| start + at)
+        .expect("the accounting `x:xf` is self-closing");
+    styles.replace_range(end..end + 2, "><alignment horizontal=\"right\"/></xf>");
+    set_part_text(&mut package, STYLES, styles);
+    package.save().expect("the corporate workbook saves")
 }

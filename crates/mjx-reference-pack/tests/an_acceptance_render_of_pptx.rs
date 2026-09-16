@@ -39,7 +39,9 @@
 use std::path::{Path, PathBuf};
 
 use mjx_dml::Size;
-use mjx_layout::{BoxModel, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, PageIndex};
+use mjx_layout::{
+    BoxModel, Fragment, FragmentTree, FrameContent, LayoutLossKind, LayoutLosses, PageIndex,
+};
 use mjx_layout_pptx::{constraints_for, PageCatalogue, SlideBoxModel, SlideDeck};
 use mjx_paint::{
     render_offscreen, DrawReport, EncodedImages, Pixels, Resources, SoftwarePainter,
@@ -48,7 +50,8 @@ use mjx_paint::{
 use mjx_pptx::{Presentation, Surface};
 use mjx_reference_pack::outlines::shape_outline;
 use mjx_scene::{
-    build_page, DisplayList, LossCategory, PainterLossKind, SceneLossKind, SceneOptions, SceneRect,
+    build_page, Command, DeviceScale, DisplayList, LossCategory, PainterLossKind, SceneLossKind,
+    SceneOptions, SceneRect,
 };
 use mjx_scene_pptx::{SlideGeometry, SlideResources};
 use mjx_text::{FontResolver, GlyphAtlas};
@@ -76,6 +79,12 @@ const EXPECTED_LOSSES: &[(LossCategory, usize)] = &[
     (LossCategory::Scene(SceneLossKind::ChartNotResolved), 1),
     // Every run on the slide takes a default colour: the companion carries no run paint (RC16).
     (LossCategory::Scene(SceneLossKind::TextPaintDefaulted), 21),
+    // The overlay band's 35 % fill. `mjx-dml` resolves the colour to a hex triplet and drops the
+    // alpha, so the band paints **opaque** over the table's third row — the row is in the display
+    // list and not in the picture. RC04 (MJXOFF-243) carries the channel through; until then this
+    // is the count that stops the loss being silent, and it is one because the slide states one
+    // `a:alpha`.
+    (LossCategory::Scene(SceneLossKind::PaintApproximated), 1),
     // The two pictures: the decoder that turns their bytes into pixels is RC11.
     (LossCategory::Paint(PainterLossKind::ImageWithNoPixels), 2),
     // The connector's arrowhead (RC14) and the custom geometry's outline (RC24).
@@ -91,6 +100,17 @@ const EXPECTED_PLACEHOLDERS: &[(&str, [i32; 4])] = &[
     ("Chart not rendered", [58, 394, 557, 643]),
     ("Diagram not rendered", [586, 394, 874, 643]),
 ];
+
+// How many fragments of each kind the slide holds, as [boxes, lines, glyphs, images, shapes,
+// tables]. **Filled from the first green run and pinned there**, on the same terms as the loss
+// vector: a loss vector is about a tree, and until RC03's audit this journey asserted only that the
+// tree held more than its root — so losing all nine table cells would have passed it.
+const EXPECTED_FRAGMENTS: [usize; 6] = [46, 17, 21, 2, 18, 1];
+
+// How many commands of each kind the display list carries, as [pushTransform, pushClip,
+// pushOpacity, pushEffect, pop, fillPath, strokePath, drawGlyphs, drawImage]. Pinned on the same
+// terms: the ink-coverage bound below passes over a page that has lost a third of its content.
+const EXPECTED_COMMANDS: [usize; 9] = [0, 0, 0, 0, 0, 8, 1, 21, 2];
 
 // How many draws used stand-in geometry rather than the document's own shape. The provider is the
 // real one, so this is what it cannot answer — a `custGeom` until RC24 (MJXOFF-318) lands its path
@@ -147,6 +167,53 @@ fn rounded(rect: SceneRect) -> [i32; 4] {
     [rect.left, rect.top, rect.right, rect.bottom].map(|value| value.round() as i32)
 }
 
+// How many fragments of each kind a tree holds.
+fn fragment_vector(tree: &FragmentTree) -> [usize; 6] {
+    let mut counts = [0; 6];
+    for (_, node) in tree.nodes() {
+        match node.fragment() {
+            Fragment::Box(_) => counts[0] += 1,
+            Fragment::Line(_) => counts[1] += 1,
+            Fragment::GlyphRun(_) => counts[2] += 1,
+            Fragment::Image(_) => counts[3] += 1,
+            Fragment::Shape(_) => counts[4] += 1,
+            Fragment::Table(_) => counts[5] += 1,
+        }
+    }
+    counts
+}
+
+// How many commands of each kind a display list carries.
+fn command_vector(list: &DisplayList) -> [usize; 9] {
+    let mut counts = [0; 9];
+    for command in list.commands() {
+        let slot = match command {
+            Command::PushTransform(_) => 0,
+            Command::PushClip(_) => 1,
+            Command::PushOpacity(_) => 2,
+            Command::PushEffect(_) => 3,
+            Command::Pop => 4,
+            Command::FillPath { .. } => 5,
+            Command::StrokePath { .. } => 6,
+            Command::DrawGlyphs { .. } => 7,
+            Command::DrawImage { .. } => 8,
+        };
+        counts[slot] += 1;
+    }
+    counts
+}
+
+// Every glyph run's pen origin in the list, in device pixels from the page's top-left corner.
+fn glyph_origins(list: &DisplayList) -> Vec<(f32, f32)> {
+    list.commands()
+        .filter_map(|command| match command {
+            Command::DrawGlyphs { run, .. } => list.glyph_run(run),
+            _ => None,
+        })
+        .map(|run| (run.origin.x, run.origin.y))
+        .collect()
+}
+
 // What the corporate deck's first slide produced on its way to pixels.
 struct Journey {
     tree: FragmentTree,
@@ -156,6 +223,8 @@ struct Journey {
     pixels: Pixels,
     // What the provider knew it could not answer, counted before a pixel was drawn.
     stand_ins_before_painting: usize,
+    // The scale the list's device pixels are expressed at, so a fragment's EMU can be compared to them.
+    scale: DeviceScale,
 }
 
 // The encoded bytes of every picture the page asks for, read out of the package itself.
@@ -250,6 +319,7 @@ fn journey() -> Journey {
         drawn: render.drawn,
         pixels: render.pixels,
         stand_ins_before_painting,
+        scale: options.device_scale,
     }
 }
 
@@ -349,6 +419,63 @@ fn the_corporate_deck_reaches_pixels_with_its_losses_named() {
         journey.tree.nodes().count() > 1,
         "the corporate slide laid out as its root and nothing else"
     );
+    assert_eq!(
+        fragment_vector(&journey.tree),
+        EXPECTED_FRAGMENTS,
+        "how many fragments of each kind the slide holds, as [boxes, lines, glyphs, images, shapes, \
+         tables]. Pin this from the first green run; a coverage bound passes over a page that has \
+         lost a third of its content."
+    );
+    assert_eq!(
+        command_vector(&journey.list),
+        EXPECTED_COMMANDS,
+        "how many commands of each kind the display list carries, as [pushTransform, pushClip, \
+         pushOpacity, pushEffect, pop, fillPath, strokePath, drawGlyphs, drawImage]"
+    );
+
+    // The table's **third row**, named rather than counted: it is the row the semi-transparent
+    // overlay sits on top of, so a fix that dropped it — or an overlay drawn as an opaque slab over
+    // a row the list never carried — is the failure this assertion exists to catch.
+    let third_row: Vec<[f32; 4]> = journey
+        .tree
+        .nodes()
+        .filter_map(|(_, node)| {
+            let Fragment::Box(box_fragment) = node.fragment() else {
+                return None;
+            };
+            let cell = box_fragment.cell?;
+            if cell.row != 2 {
+                return None;
+            }
+            let rect = node.rect();
+            Some([
+                mjx_scene::pixels_from_emu(rect.left, journey.scale),
+                mjx_scene::pixels_from_emu(rect.top, journey.scale),
+                mjx_scene::pixels_from_emu(rect.right, journey.scale),
+                mjx_scene::pixels_from_emu(rect.bottom, journey.scale),
+            ])
+        })
+        .collect();
+    assert_eq!(
+        third_row.len(),
+        3,
+        "the corporate table's third row holds three cells and the page laid {} out",
+        third_row.len()
+    );
+    let origins = glyph_origins(&journey.list);
+    for cell in &third_row {
+        let [left, top, right, bottom] = *cell;
+        let drawn = origins
+            .iter()
+            .filter(|(x, y)| *x >= left && *x <= right && *y >= top && *y <= bottom)
+            .count();
+        assert!(
+            drawn >= 1,
+            "no glyph run in the display list starts inside the third-row cell at {cell:?}. The \
+             row is laid out and its text never reached the list, which is the loss the ink bound \
+             above cannot see."
+        );
+    }
 }
 
 /// **This journey substitutes nothing**, held as a property of the file rather than a promise in it.
