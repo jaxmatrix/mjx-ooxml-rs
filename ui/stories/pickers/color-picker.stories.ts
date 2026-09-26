@@ -4,6 +4,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyConventions } from '../../src/story/conventions.ts';
 import {
   chooseSwatchIndicator,
+  colorPickerEntryStates,
   describeWorstIndicator,
   indicatorSweepColors,
   swatchStateNames,
@@ -135,7 +136,93 @@ export const TheStatesMatrix: Story = {
         'by choosing one swatch, putting the keyboard on another and handing the picker a theme ' +
         'the document does not fully define — which is what *A Theme With Holes* does.',
     )}
+    ${note(
+      'The entries beneath the palette add three states. Their paint is the menu’s own state table, ' +
+        'so what is recorded here is where the keyboard is. All three are producible in *Entries ' +
+        'Beneath The Palette*.',
+    )}
+    ${grid(
+      ...colorPickerEntryStates.map(
+        (state) => html`
+          <div data-entry-state-cell=${state.name} style="display:grid;gap:var(--mjx-density-step)">
+            <p class="mjx-type-label" style="margin:0;color:var(--theme-text-secondary)">${state.name}</p>
+            <p class="mjx-type-dense" style="margin:0;color:var(--theme-text-primary)">${state.description}</p>
+          </div>
+        `,
+      ),
+    )}
   `,
+};
+
+/** The commands Office lists under a colour grid, slotted as one menu beneath the palette. */
+export const EntriesBeneathThePalette: Story = {
+  name: 'Entries Beneath The Palette',
+  render: () => {
+    furnish('#outline-entries', {
+      theme: documentThemePalette,
+      standard: standardColors,
+      recent: recentColors,
+      open: true,
+    });
+    const report = (event: Event): void => {
+      const detail = (event as CustomEvent<{ label: string; value: string; checked: boolean }>).detail;
+      const log = document.querySelector('#outline-entries-log');
+      if (log !== null) log.textContent = `Chose “${detail.label}” (value ${detail.value}).`;
+    };
+    return html`
+      ${note(
+        'Shape Outline, with Office’s entries under the grid: More Outline Colours…, Eyedropper, and ' +
+          'Weight, Dashes and Arrows, each a submenu. They are one <mjx-menu slot="entries">, the ' +
+          'catalogue’s own menu, drawn flush on the palette. Press Arrow Down from the last row of ' +
+          'recent colours: focus moves onto More Outline Colours… and the grid drops its cursor. ' +
+          'Arrow Up from there returns to the swatch you left. Arrow Right on Weight opens it; choose ' +
+          'a weight and the picker closes, the field keeps its colour, and the line below says what ' +
+          'was chosen. The chip reads No Outline, from no-fill-label.',
+      )}
+      <div style=${stage('44rem')}>
+        <mjx-color-picker
+          id="outline-entries"
+          label="Shape Outline"
+          show-no-fill
+          no-fill-label="No Outline"
+          value="theme:accent1"
+          style="inline-size:18rem"
+          @mjx-menu-activate=${report}
+        >
+          <mjx-menu slot="entries" label="Shape Outline">
+            <mjx-menu-item label="More Outline Colours…"></mjx-menu-item>
+            <mjx-menu-item label="Eyedropper"></mjx-menu-item>
+            <mjx-menu-item label="Weight">
+              <mjx-menu slot="submenu" label="Weight">
+                <mjx-menu-item kind="radio" label="¼ pt" value="0.25"></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="½ pt" value="0.5"></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="1 pt" value="1" checked></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="3 pt" value="3"></mjx-menu-item>
+                <mjx-menu-separator></mjx-menu-separator>
+                <mjx-menu-item label="More Lines…"></mjx-menu-item>
+              </mjx-menu>
+            </mjx-menu-item>
+            <mjx-menu-item label="Dashes">
+              <mjx-menu slot="submenu" label="Dashes">
+                <mjx-menu-item kind="radio" label="Solid" value="solid" checked></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="Round Dot" value="sysDot"></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="Dash" value="dash"></mjx-menu-item>
+              </mjx-menu>
+            </mjx-menu-item>
+            <mjx-menu-item label="Arrows">
+              <mjx-menu slot="submenu" label="Arrows">
+                <mjx-menu-item kind="radio" label="No Arrows" value="none/none" checked></mjx-menu-item>
+                <mjx-menu-item kind="radio" label="Arrow at End" value="none/triangle"></mjx-menu-item>
+              </mjx-menu>
+            </mjx-menu-item>
+          </mjx-menu>
+        </mjx-color-picker>
+        <p id="outline-entries-log" class="mjx-type-dense" role="status" style="color:var(--theme-text-primary)">
+          Nothing chosen yet.
+        </p>
+      </div>
+    `;
+  },
 };
 
 /** The theme row is the **document's**, and the value it reports is a slot. */

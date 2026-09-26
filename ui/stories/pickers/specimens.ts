@@ -21,6 +21,7 @@ import { html, type TemplateResult } from 'lit';
 
 import { typeRoleClass } from '../../src/foundations/typography.ts';
 import {
+  colorPickerEntryStates,
   fontAvailabilityNames,
   swatchStateNames,
   swatchStates,
@@ -321,9 +322,15 @@ export function fontPickerTokenDependencies(): readonly TokenPath[] {
   ].sort((a, b) => a.localeCompare(b));
 }
 
-/** The swatch states matrix, from the table's own descriptions. */
+/**
+ * The colour picker's states matrix: the five swatch states from the table's own descriptions, then the three the
+ * entries beneath the palette add, from theirs.
+ */
 export function swatchStatesFor(): readonly { name: string; description: string }[] {
-  return swatchStateNames.map((name) => ({ name, description: swatchStates[name].description }));
+  return [
+    ...swatchStateNames.map((name) => ({ name, description: swatchStates[name].description })),
+    ...colorPickerEntryStates.map((state) => ({ name: state.name, description: state.description })),
+  ];
 }
 
 /** The font picker's states matrix: one row per availability, plus the field's own two. */
@@ -360,13 +367,21 @@ export const colorPickerKeyboard = [
   { keys: 'Escape', does: 'closes without committing; a second press restores the committed value' },
   { keys: 'Tab', does: 'leaves, and the palette closes. One tab stop for the whole control.' },
   { keys: 'any colour, typed', does: 'commits it — hex, rgb(), hsl(), or a theme slot by name' },
+  { keys: 'Arrow Down, on the last row', does: 'moves onto the first entry beneath the palette, when there are entries' },
+  { keys: 'Arrow Up, on the first entry', does: 'returns to the swatch the keyboard left' },
+  { keys: 'Arrow Down / Arrow Up, on the entries', does: 'moves between the entries, as in any menu' },
+  { keys: 'Enter / Space, on an entry', does: 'runs it and closes the picker; on an entry with ▸, opens its submenu' },
+  { keys: 'Arrow Right / Arrow Left, on the entries', does: 'opens and closes a submenu, mirrored under right-to-left' },
+  { keys: 'Escape, on an entry', does: 'closes the picker and returns to the field; in a submenu, closes that submenu' },
 ];
 
 export const colorPickerScreenReader =
   'The field announces as a combo box with its label and the name of the colour — "Accent 1, ' +
   'Lighter 40%", never a hex value, because a theme colour is a slot. Each swatch announces its ' +
   'own name and its position in the set; a swatch the document cannot supply announces as ' +
-  'disabled with the reason. The palette is a listbox, so focus never leaves the field.';
+  'disabled with the reason. The swatches are a listbox, so focus stays on the field while it ' +
+  'moves among them. The entries beneath them are a menu named for the command: arrowing onto ' +
+  'one moves focus to it, and it announces as a menu item, with its submenu, or checked when it is.';
 
 export const fontPickerKeyboard = [
   { keys: 'Arrow Down / Arrow Up', does: 'opens the list, then moves through it' },

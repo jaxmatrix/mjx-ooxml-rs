@@ -255,7 +255,11 @@ export abstract class MjxListField extends HTMLElement implements ListSurfaceHos
 
     const surface = this.createSurface(this.#id);
     surface.element.id = `${this.#id}-list`;
-    entry.setAttribute('aria-controls', surface.element.id);
+    // The listbox the combobox controls. The popup itself, unless the popup holds more than the
+    // listbox (a colour picker's entries), in which case the surface names the listbox inside it.
+    const controlled = surface.controlledElement ?? surface.element;
+    if (controlled.id === '') controlled.id = `${this.#id}-listbox`;
+    entry.setAttribute('aria-controls', controlled.id);
 
     const explanation = createExplanationElement(explanationElementId);
 

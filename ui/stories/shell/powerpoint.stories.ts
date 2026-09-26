@@ -43,7 +43,48 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { powerpointContextualSets, powerpointTabs } from '../ribbons/powerpoint.ts';
-import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
+import { colourPickerEntries, outlineEntries } from '../ribbons/colour-picker-entries.ts';
+import {
+  pictureStyleGalleryItems,
+  pictureToolsMenus,
+  powerpointPictureMeasures,
+} from '../ribbons/picture-tools-menus.ts';
+import {
+  backgroundStyleEntries,
+  designLayoutMenus,
+  themeColourEntries,
+  themeEffectEntries,
+  themeFontEntries,
+  themeGalleryItems,
+  variantGalleryItems,
+} from '../ribbons/design-layout-menus.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
+import {
+  followTransitionEffectOptions,
+  referencesTransitionsFormulasMenus,
+  startingTransition,
+  transitionGalleryItems,
+} from '../ribbons/references-transitions-formulas-menus.ts';
+import {
+  animationGalleryFooter,
+  animationGalleryItems,
+  mailingsAnimationsDataMenus,
+  startingAnimation,
+} from '../ribbons/mailings-animations-data-menus.ts';
+import { recordingMenus } from '../ribbons/recording-menus.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
+import { slideShowMenus, slideShowMonitors } from '../ribbons/slide-show-menus.ts';
+import { viewMenus } from '../ribbons/view-menus.ts';
+import {
+  advanceAfterTimes,
+  animationDelays,
+  animationStarts,
+  copyCounts,
+  durationSeconds,
+  printerList,
+  transitionSounds,
+} from '../ribbons/ribbon-parts.ts';
 
 /**
  * **PowerPoint, assembled** — the ribbon, the thumbnail rail, the slide surface, a task pane and
@@ -156,7 +197,14 @@ const shapeCommands: readonly MiniCommand[] = [
  *
  * `powerpointTabs()` leaves out the eight `appearance: 'view'` tabs — the two colour modes, the
  * four masters, Print Preview and Background Removal — because Office shows none of them in the
- * ordinary strip. The contextual set stays here as a call rather than as markup, for the reason it
+ * ordinary strip. That is also why **Print Preview's bindings and menus are in `Ribbons/PowerPoint` and
+ * not here**: a binding for a tab this strip never draws would be a binding to nothing, and
+ * `tests/ribbons.test.ts` refuses a shell that opens a view tab's menu. **Table Design's and Table Layout's bindings
+ * and menus are in `Ribbons/PowerPoint` and not here for the same reason**: this deck's selection is a picture, so this strip draws
+ * Picture Tools alone and never Table Tools, and the same test refuses a shell that opens a menu of a contextual set
+ * it never draws. **Picture Format's bindings and menus are here**, for the same reason turned round: this strip does
+ * draw Picture Tools, so its Picture Format is the authored tab and binds exactly what `Ribbons/PowerPoint` binds, under
+ * this page's ids. The contextual set stays here as a call rather than as markup, for the reason it
  * always had: a coloured band naming a set of tabs is the most obviously *compositional* thing in
  * a ribbon, and whether it belongs to this chrome is not a question a component's own story can put.
  */
@@ -196,7 +244,6 @@ function ribbon(): TemplateResult {
               )}
             </mjx-combo-box>`,
             'powerpoint.home.clipboard.paste': html`<mjx-split-button
-              slot="essential"
               label="Paste"
               icon="clipboard-paste"
               size="large"
@@ -245,9 +292,572 @@ function ribbon(): TemplateResult {
             >
               <mjx-button label="Arrange" icon="layer"></mjx-button>
             </mjx-screentip>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'powerpoint.insert.slides.new-slide': html`<mjx-split-button
+              label="New Slide"
+              icon="slide-add"
+              size="large"
+              data-opens="shell-powerpoint-insert-slides-new-slide"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.tables.table': html`<mjx-button
+              label="Table"
+              icon="table"
+              size="large"
+              data-opens="shell-powerpoint-insert-tables-table"
+            ></mjx-button>`,
+            'powerpoint.insert.images.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-pictures"
+            ></mjx-button>`,
+            'powerpoint.insert.images.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-screenshot"
+            ></mjx-button>`,
+            'powerpoint.insert.images.photo-album': html`<mjx-split-button
+              label="Photo Album"
+              icon="image-multiple"
+              size="large"
+              data-opens="shell-powerpoint-insert-images-photo-album"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-powerpoint-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'powerpoint.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="large"
+              data-opens="shell-powerpoint-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'powerpoint.insert.camera.cameo': html`<mjx-split-button
+              label="Cameo"
+              icon="camera"
+              size="large"
+              data-opens="shell-powerpoint-insert-camera-cameo"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.links.zoom': html`<mjx-button
+              label="Zoom"
+              size="small"
+              data-opens="shell-powerpoint-insert-links-zoom"
+            ></mjx-button>`,
+            'powerpoint.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="large"
+              data-opens="shell-powerpoint-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="large"
+              data-opens="shell-powerpoint-insert-text-wordart"
+            ></mjx-button>`,
+            'powerpoint.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-powerpoint-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.insert.media-clips.video': html`<mjx-button
+              label="Video"
+              icon="video"
+              size="large"
+              data-opens="shell-powerpoint-insert-media-clips-video"
+            ></mjx-button>`,
+            'powerpoint.insert.media-clips.audio': html`<mjx-button
+              label="Audio"
+              icon="speaker-2"
+              size="large"
+              data-opens="shell-powerpoint-insert-media-clips-audio"
+            ></mjx-button>`,
+            // Draw (unit 4). Five dropdowns and a split Eraser, each opening its menu from
+            // `stories/ribbons/draw-menus.ts`. `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-powerpoint-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-powerpoint-draw-pens-pens"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-powerpoint-draw-pens-colour"
+            ></mjx-button>`,
+            'powerpoint.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-powerpoint-draw-pens-thickness"
+            ></mjx-button>`,
+            'powerpoint.draw.write.eraser': html`<mjx-split-button
+              toggle
+              exclusive="powerpoint.draw.write.tools"
+              label="Eraser"
+              icon="eraser"
+              size="large"
+              data-opens="shell-powerpoint-draw-write-eraser"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-powerpoint-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
+            // Design (unit 5). Themes and Variants are in-ribbon galleries. Variants' four footer buttons open
+            // menus with literal ids written beside this ribbon, because they are gallery footers rather than census
+            // commands; Slide Size opens its menu from `stories/ribbons/design-layout-menus.ts`.
+            'powerpoint.design.themes.themes': html`<mjx-gallery
+              id="ppt-themes"
+              label="Themes"
+              value="office-theme"
+              style=${ribbonGalleryStyle}
+            >
+              ${themeGalleryItems()}
+              <mjx-button slot="footer" label="Browse for Themes…"></mjx-button>
+              <mjx-button slot="footer" label="Save Current Theme…"></mjx-button>
+            </mjx-gallery>`,
+            'powerpoint.design.variants.variants': html`<mjx-gallery
+              id="ppt-variants"
+              label="Variants"
+              value="variant-1"
+              style=${ribbonGalleryStyle}
+            >
+              ${variantGalleryItems()}
+              <mjx-button slot="footer" label="Colours" icon="color" data-opens="ppt-variants-colours"></mjx-button>
+              <mjx-button slot="footer" label="Fonts" icon="text-font" data-opens="ppt-variants-fonts"></mjx-button>
+              <mjx-button slot="footer" label="Effects" icon="square-shadow" data-opens="ppt-variants-effects"></mjx-button>
+              <mjx-button slot="footer" label="Background Styles" icon="color-background" data-opens="ppt-variants-background-styles"></mjx-button>
+            </mjx-gallery>`,
+            'powerpoint.design.customise.slide-size': html`<mjx-button
+              label="Slide Size"
+              icon="slide-size"
+              size="large"
+              data-opens="shell-powerpoint-design-customise-slide-size"
+            ></mjx-button>`,
+            // Transitions (unit 6). The gallery is in-ribbon and starts on Fade, and Effect Options follows each commit: its
+            // menu is re-rendered from `stories/ribbons/references-transitions-formulas-menus.ts`. Timing is fields over
+            // `ribbon-parts.ts`'s lists: a duration is seconds, which a measure input does not carry, so it is a combo box.
+            'powerpoint.transitions.transition-styles.transitions': html`<mjx-gallery
+              id="ppt-transitions"
+              label="Transition to This Slide"
+              value=${startingTransition}
+              @mjx-gallery-commit=${followTransitionEffectOptions('shell')}
+              style=${ribbonGalleryStyle}
+            >
+              ${transitionGalleryItems()}
+            </mjx-gallery>`,
+            'powerpoint.transitions.transition-styles.effect-options': html`<mjx-button
+              label="Effect Options"
+              size="small"
+              data-opens="shell-powerpoint-transitions-transition-styles-effect-options"
+            ></mjx-button>`,
+            'powerpoint.transitions.timing.sound': html`<mjx-dropdown
+              id="ppt-transition-sound"
+              label="Sound"
+              value="no-sound"
+              style=${ribbonColourFieldStyle}
+            >
+              ${transitionSounds.map(
+                (sound) => html`<mjx-option value=${sound.value} label=${sound.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'powerpoint.transitions.timing.duration': html`<mjx-combo-box
+              id="ppt-transition-duration"
+              label="Duration"
+              value="00.70"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'powerpoint.transitions.timing.advance-slide': html`<mjx-label>Advance Slide</mjx-label>`,
+            'powerpoint.transitions.timing.on-mouse-click': html`<mjx-checkbox id="ppt-on-mouse-click" label="On Mouse Click" checked="true"></mjx-checkbox>`,
+            'powerpoint.transitions.timing.after': html`<mjx-checkbox id="ppt-advance-after-checkbox" label="After"></mjx-checkbox>`,
+            'powerpoint.transitions.timing.advance-after': html`<mjx-combo-box
+              id="ppt-advance-after"
+              label="Advance Slide After"
+              value="00:00.00"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${advanceAfterTimes.map((time) => html`<mjx-option value=${time} label=${time}></mjx-option>`)}
+            </mjx-combo-box>`,
+            // Animations (unit 7). The gallery is in-ribbon, starts on Fly In and carries Office's footer. Preview's
+            // split button, Effect Options, Add Animation and Trigger open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`. Start, Duration and Delay are fields over `ribbon-parts.ts`'s lists.
+            'powerpoint.animations.preview.preview': html`<mjx-split-button
+              label="Preview"
+              size="small"
+              data-opens="shell-powerpoint-animations-preview-preview"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.animations.animations.animation-styles': html`<mjx-gallery
+              id="ppt-animation-styles"
+              label="Animation Styles"
+              value=${startingAnimation}
+              style=${ribbonGalleryStyle}
+            >
+              ${animationGalleryItems()} ${animationGalleryFooter()}
+            </mjx-gallery>`,
+            'powerpoint.animations.animations.effect-options': html`<mjx-button
+              label="Effect Options"
+              size="small"
+              data-opens="shell-powerpoint-animations-animations-effect-options"
+            ></mjx-button>`,
+            'powerpoint.animations.custom-animation.add-animation': html`<mjx-button
+              label="Add Animation"
+              icon="star-add"
+              size="large"
+              data-opens="shell-powerpoint-animations-custom-animation-add-animation"
+            ></mjx-button>`,
+            'powerpoint.animations.custom-animation.trigger': html`<mjx-button
+              label="Trigger"
+              icon="flash"
+              size="small"
+              data-opens="shell-powerpoint-animations-custom-animation-trigger"
+            ></mjx-button>`,
+            'powerpoint.animations.timing.start': html`<mjx-dropdown
+              id="ppt-animation-start"
+              label="Start"
+              value="on-click"
+              style=${ribbonColourFieldStyle}
+            >
+              ${animationStarts.map((start) => html`<mjx-option value=${start.value} label=${start.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'powerpoint.animations.timing.duration': html`<mjx-combo-box
+              id="ppt-animation-duration"
+              label="Duration"
+              value="00.50"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${durationSeconds.map((duration) => html`<mjx-option value=${duration} label=${duration}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'powerpoint.animations.timing.delay': html`<mjx-combo-box
+              id="ppt-animation-delay"
+              label="Delay"
+              value="00.00"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${animationDelays.map((delay) => html`<mjx-option value=${delay} label=${delay}></mjx-option>`)}
+            </mjx-combo-box>`,
+            // PowerPoint's Review. Split buttons and the Language dropdown open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Show Comments and Hide Ink are split buttons whose face is a toggle, both starting unpressed.
+            'powerpoint.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-powerpoint-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.language.language': html`<mjx-button
+              label="Language"
+              icon="local-language"
+              size="large"
+              data-opens="shell-powerpoint-review-language-language"
+            ></mjx-button>`,
+            'powerpoint.review.comments.delete': html`<mjx-split-button
+              label="Delete"
+              icon="comment-dismiss"
+              size="large"
+              data-opens="shell-powerpoint-review-comments-delete"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.comments.show-comments': html`<mjx-split-button
+              toggle
+              label="Show Comments"
+              icon="comment-multiple"
+              size="large"
+              data-opens="shell-powerpoint-review-comments-show-comments"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.compare.accept': html`<mjx-split-button
+              label="Accept"
+              icon="document-checkmark"
+              size="large"
+              data-opens="shell-powerpoint-review-compare-accept"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.compare.reject': html`<mjx-split-button
+              label="Reject"
+              icon="document-dismiss"
+              size="large"
+              data-opens="shell-powerpoint-review-compare-reject"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.review.ink.hide-ink': html`<mjx-split-button
+              toggle
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-powerpoint-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // PowerPoint's View. Show's three are checkboxes, Ruler ticked because this shell's slide
+            // context menu shows it checked. Switch Windows opens its menu from
+            // `stories/ribbons/view-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.view.show.ruler': html`<mjx-checkbox id="ppt-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+            'powerpoint.view.show.gridlines': html`<mjx-checkbox id="ppt-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+            'powerpoint.view.show.guides': html`<mjx-checkbox id="ppt-view-guides" label="Guides"></mjx-checkbox>`,
+            'powerpoint.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-powerpoint-view-window-switch-windows"
+            ></mjx-button>`,
+            // PowerPoint's Slide Show. Present Online and Custom Slide Show are dropdowns and Record a split
+            // button, all opening their menus from `stories/ribbons/slide-show-menus.ts`, with `data-opens`
+            // `commandSurfaceId('shell', <this key>)`. Monitor is a field over `slideShowMonitors`, and the
+            // four checkboxes are ticked as the census declares. Hide Slide is the generic toggle.
+            'powerpoint.slide-show.start-slide-show.present-online': html`<mjx-button
+              label="Present Online"
+              icon="presenter"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-start-slide-show-present-online"
+            ></mjx-button>`,
+            'powerpoint.slide-show.start-slide-show.custom-slide-show': html`<mjx-button
+              label="Custom Slide Show"
+              icon="slide-text-multiple"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-start-slide-show-custom-slide-show"
+            ></mjx-button>`,
+            'powerpoint.slide-show.set-up.record': html`<mjx-split-button
+              label="Record"
+              icon="slide-record"
+              size="large"
+              data-opens="shell-powerpoint-slide-show-set-up-record"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.slide-show.set-up.play-narrations': html`<mjx-checkbox id="ppt-slide-show-play-narrations" label="Play Narrations" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.set-up.use-timings': html`<mjx-checkbox id="ppt-slide-show-use-timings" label="Use Timings" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.set-up.show-media-controls': html`<mjx-checkbox id="ppt-slide-show-show-media-controls" label="Show Media Controls" checked="true"></mjx-checkbox>`,
+            'powerpoint.slide-show.monitors.monitor': html`<mjx-dropdown
+              id="ppt-slide-show-monitor"
+              label="Monitor"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${slideShowMonitors.map((monitor) => html`<mjx-option value=${monitor.value} label=${monitor.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'powerpoint.slide-show.monitors.use-presenter-view': html`<mjx-checkbox id="ppt-slide-show-use-presenter-view" label="Use Presenter View" checked="true"></mjx-checkbox>`,
+            // PowerPoint's Recording. Record and Cameo are split buttons; Screenshot, Video, Audio, Clear
+            // Recording, Reset to Cameo and Export are dropdowns. All eight open their menus from
+            // `stories/ribbons/recording-menus.ts`, with `data-opens` `commandSurfaceId('shell', <this key>)`.
+            'powerpoint.recording.recording.record': html`<mjx-split-button
+              label="Record"
+              icon="slide-record"
+              size="large"
+              data-opens="shell-powerpoint-recording-recording-record"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.recording.content.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="large"
+              data-opens="shell-powerpoint-recording-content-screenshot"
+            ></mjx-button>`,
+            'powerpoint.recording.camera.cameo': html`<mjx-split-button
+              label="Cameo"
+              icon="camera"
+              size="large"
+              data-opens="shell-powerpoint-recording-camera-cameo"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.recording.auto-play-media.video': html`<mjx-button
+              label="Video"
+              icon="video"
+              size="large"
+              data-opens="shell-powerpoint-recording-auto-play-media-video"
+            ></mjx-button>`,
+            'powerpoint.recording.auto-play-media.audio': html`<mjx-button
+              label="Audio"
+              icon="speaker-2"
+              size="large"
+              data-opens="shell-powerpoint-recording-auto-play-media-audio"
+            ></mjx-button>`,
+            'powerpoint.recording.edit.clear-recording': html`<mjx-button
+              label="Clear Recording"
+              icon="delete"
+              size="large"
+              data-opens="shell-powerpoint-recording-edit-clear-recording"
+            ></mjx-button>`,
+            'powerpoint.recording.edit.reset-to-cameo': html`<mjx-button
+              label="Reset to Cameo"
+              icon="arrow-reset"
+              size="large"
+              data-opens="shell-powerpoint-recording-edit-reset-to-cameo"
+            ></mjx-button>`,
+            'powerpoint.recording.export.export': html`<mjx-button
+              label="Export"
+              icon="arrow-export"
+              size="large"
+              data-opens="shell-powerpoint-recording-export-export"
+            ></mjx-button>`,
           },
         })}
-        ${powerpointContextualSets()}
+        ${powerpointContextualSets({
+          sets: ['picture-tools'],
+          controls: {
+            // Picture Format (a contextual tab). This deck's selection is a picture, so the shell draws Picture Tools
+            // and binds the same eighteen commands `Ribbons/PowerPoint` binds, under its own ids. Every menu, the
+            // gallery's styles and the two starting measures are `stories/ribbons/picture-tools-menus.ts`'s; the
+            // gallery's pictures and Picture Border read this deck's palette. Remove Background, Compress Pictures, Alt
+            // Text, Selection Pane and Play Animation are the generic button or toggle.
+            'powerpoint.picture-format.adjust.corrections': html`<mjx-button
+              label="Corrections"
+              icon="brightness-high"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-corrections"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.colour': html`<mjx-button
+              label="Colour"
+              icon="color"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-colour"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.artistic-effects': html`<mjx-button
+              label="Artistic Effects"
+              icon="photo-filter"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-artistic-effects"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.transparency': html`<mjx-button
+              label="Transparency"
+              icon="transparency-square"
+              size="large"
+              data-opens="shell-powerpoint-picture-format-adjust-transparency"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.change-picture': html`<mjx-button
+              label="Change Picture"
+              icon="image-arrow-forward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-adjust-change-picture"
+            ></mjx-button>`,
+            'powerpoint.picture-format.adjust.reset-picture': html`<mjx-split-button
+              label="Reset Picture"
+              icon="image-arrow-counterclockwise"
+              size="small"
+              menu-label="Reset Picture"
+              data-opens="shell-powerpoint-picture-format-adjust-reset-picture"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.picture-styles.quick-styles': html`<mjx-gallery
+              id="ppt-picture-format-quick-styles"
+              label="Quick Styles"
+              style=${ribbonGalleryStyle}
+            >
+              ${pictureStyleGalleryItems(documentThemePalette)}
+            </mjx-gallery>`,
+            'powerpoint.picture-format.picture-styles.picture-border': html`<mjx-color-picker
+              id="ppt-picture-format-picture-border"
+              style=${ribbonColourFieldStyle}
+              label="Picture Border"
+              show-no-fill
+              no-fill-label="No Outline"
+              value="none"
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            >
+              ${colourPickerEntries(
+                'Picture Border',
+                outlineEntries({ moreColours: 'More Outline Colours…', eyedropper: true, weight: true, sketched: true, dashes: true }),
+              )}
+            </mjx-color-picker>`,
+            'powerpoint.picture-format.picture-styles.picture-effects': html`<mjx-button
+              label="Picture Effects"
+              icon="image-shadow"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-picture-styles-picture-effects"
+            ></mjx-button>`,
+            'powerpoint.picture-format.picture-styles.convert-to-smartart': html`<mjx-button
+              label="Convert to SmartArt"
+              icon="diagram"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-picture-styles-convert-to-smartart"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-align"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-group"
+            ></mjx-button>`,
+            'powerpoint.picture-format.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-powerpoint-picture-format-arrange-rotate"
+            ></mjx-button>`,
+            'powerpoint.picture-format.size.crop': html`<mjx-split-button
+              toggle
+              label="Crop"
+              icon="crop"
+              size="large"
+              menu-label="Crop"
+              data-opens="shell-powerpoint-picture-format-size-crop"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'powerpoint.picture-format.size.height': html`<mjx-measure-input
+              id="ppt-picture-format-height"
+              label="Height"
+              value=${powerpointPictureMeasures.height}
+              unit="cm"
+              step=${powerpointPictureMeasures.step}
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'powerpoint.picture-format.size.width': html`<mjx-measure-input
+              id="ppt-picture-format-width"
+              label="Width"
+              value=${powerpointPictureMeasures.width}
+              unit="cm"
+              step=${powerpointPictureMeasures.step}
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -493,6 +1103,15 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('powerpoint', 'shell')} ${drawMenus('powerpoint', 'shell')}
+      ${designLayoutMenus('powerpoint', 'shell')} ${referencesTransitionsFormulasMenus('powerpoint', 'shell')}
+      ${mailingsAnimationsDataMenus('powerpoint', 'shell')} ${reviewMenus('powerpoint', 'shell')}
+      ${viewMenus('powerpoint', 'shell')} ${slideShowMenus('powerpoint', 'shell')}
+      ${recordingMenus('powerpoint', 'shell')} ${pictureToolsMenus('powerpoint', 'shell')}
+      <mjx-menu id="ppt-variants-colours" label="Colours" floating>${themeColourEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-fonts" label="Fonts" floating>${themeFontEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-effects" label="Effects" floating>${themeEffectEntries()}</mjx-menu>
+      <mjx-menu id="ppt-variants-background-styles" label="Background Styles" floating>${backgroundStyleEntries()}</mjx-menu>
       <mjx-dialog id="ppt-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

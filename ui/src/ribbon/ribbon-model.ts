@@ -440,10 +440,261 @@ export const demotionRules: readonly {
       'A control that disappears at narrow width has not degraded, it has been lost. This is the ' +
       'assertion the ticket says is the one that matters.',
     checkedBy:
-      'Structural: the panel that becomes a popup is the same element holding the same slot, so ' +
-      'the commands are the same DOM nodes at every width. The gate counts them at all three.',
+      'Structural: a command is never rebuilt, only assigned to one of two slots — the ordered ' +
+      'panel, or the survivor row while the group is collapsed — so the commands are the same DOM ' +
+      'nodes at every width. tests/browser/ribbon.spec.ts counts every command, survivors ' +
+      'included, at all three and requires every one of them drawn once a collapsed group is open.',
   },
 ];
+
+// ── where a survivor draws ───────────────────────────────────────────────────
+
+/**
+ * **Where a command draws, and why it is not where it used to.**
+ *
+ * `demotionRules` decides *which* commands survive a collapse. This decides *where* every command
+ * sits, and the two were conflated for three units. `<mjx-ribbon-group>` built its row as
+ * `trigger, essential, panel`, so a command marked essential jumped to the head of its group at
+ * **every** width — Bold, Italic and Underline drew ahead of the font name and size in Word's Font
+ * group, which is the reverse of what Office shows. `d01cf93` turned the row round to `trigger,
+ * panel, essential` and was reverted within the minute, because a blanket *last* is as wrong as a
+ * blanket *first*: Word's Font puts its survivors in the middle of the group. **Where a survivor sits
+ * is a property of the group, not of the ribbon** — so the group's own declared order is the only
+ * answer, and the component's job is to keep it.
+ *
+ * The rule, stated as the gate reads it:
+ *
+ * - `full` and `reduced` present **every** command in declared order, essential or not. There is no
+ *   survivor row to put anything in.
+ * - `collapsed` presents the essential commands beside the trigger, in declared order, and every
+ *   other command in the popup, in declared order.
+ *
+ * `placeGroupCommands` below is that rule as a function, and it is the function the component
+ * executes — `tests/ribbons.test.ts` runs it over every authored group in Node and watches it
+ * refuse both blanket rules, and `tests/browser/ribbon.spec.ts` reads the real slots, the real
+ * geometry and the real Tab sequence.
+ */
+export const survivorPlacement: {
+  readonly rule: string;
+  readonly because: string;
+  readonly mechanism: string;
+  readonly checkedBy: string;
+  readonly rejected: readonly { readonly alternative: string; readonly because: string }[];
+} = {
+  rule:
+    'Every command draws in its group’s declared order. Only a collapsed group has a survivor ' +
+    'row, and it holds exactly the essential commands, still in declared order.',
+  because:
+    'An essential command is one that survives a collapse, not one Office draws first. Word’s ' +
+    'Font keeps Bold and Italic, and draws them seventh and eighth of its fifteen commands.',
+  mechanism:
+    'Manual slot assignment. The group has two slots — the ordered panel and the survivor row — ' +
+    'and assigns each command to one of them from the presentation CSS chose, read back out of ' +
+    '--mjx-group-presentation. Three things make it ask CSS again: a ResizeObserver, shared by ' +
+    'every group, on a probe whose width is 100cqi — the nearest inline-size query container, ' +
+    'which inside a ribbon is <mjx-ribbon> — so it reports when a container condition can have ' +
+    'changed or a hidden tab becomes rendered; a MutationObserver, when a child arrives, leaves or ' +
+    'changes its slot; and a change to the group’s own priority or simplified attribute. None of ' +
+    'the three measures anything, and all three go through GroupSettleBatch, which reads every ' +
+    'queued group’s presentation before it re-slots any of them — so toggling the simplified ' +
+    'ribbon costs one style recalculation rather than one per group. A command is moved between ' +
+    'slots, never rebuilt, and a group ' +
+    'whose presentation stops being a popup closes itself without moving focus, so neither the ' +
+    'dismissal listener nor the focus trap outlives the popup.',
+  checkedBy:
+    'tests/ribbons.test.ts runs placeGroupCommands over every authored group and watches it ' +
+    'refuse a survivors-first and a survivors-last rule; tests/browser/ribbon.spec.ts reads the ' +
+    'slots, the geometry and the Tab sequence in both the expanded and the collapsed presentation, ' +
+    'selects a hidden tab by clicking at a phone width and requires it to arrive collapsed and ' +
+    'slotted, and widens an open collapsed group to a desktop width and requires the popup — and ' +
+    'its trap — to be gone.',
+  rejected: [
+    {
+      alternative: 'A blanket rule: survivors first (the old row) or survivors last (d01cf93).',
+      because: 'Word’s Font draws its survivors in the middle. Either rule is wrong for some group.',
+    },
+    {
+      alternative: 'One grid holding both slots, with CSS `order` restoring the declared order.',
+      because:
+        'Focus follows the flat tree, not `order`, so the Tab sequence would disagree with the ' +
+        'picture — WCAG 2.4.3. `reading-flow` would fix that in Chromium alone, and the platform ' +
+        'embeds in WebKit.',
+    },
+    {
+      alternative: 'Splitting the slots only while the popup is open.',
+      because:
+        'A closed collapsed group must still show its survivors, which would need CSS to hide the ' +
+        'panel’s other commands conditionally on the presentation — and a width change while open ' +
+        'would leave the split in a presentation that has no popup.',
+    },
+    {
+      alternative: 'Rendering the survivors a second time beside the trigger.',
+      because: 'Two copies of a command is how one gets lost. Rule 4 of demotionRules.',
+    },
+    {
+      alternative:
+        'Settling synchronously in attributeChangedCallback, as it did until MJXOFF-342.',
+      because:
+        '<mjx-ribbon> writes simplified on every group it owns in one loop, so one toggle ran N ' +
+        'forced style reads interleaved with N re-slots, each read invalidated by the write ' +
+        'before it. The probe callback had avoided exactly that since it was written.',
+    },
+    {
+      alternative: 'Deferring the batched flush to a frame (requestAnimationFrame) instead.',
+      because:
+        'Slot assignment has to land before the paint that follows the attribute write, or the ' +
+        'simplified ribbon flashes its full-width layout. A microtask is after every attribute ' +
+        'in the loop and before that paint.',
+    },
+    {
+      alternative: 'Observing the ribbon host, or the group, instead of a probe.',
+      because:
+        'Re-slotting changes both of their block sizes inside the observer callback, which is a ' +
+        'ResizeObserver loop error. The probe’s size depends on the container’s width and on ' +
+        'nothing a group does.',
+    },
+  ],
+};
+
+/** Which slot of `<mjx-ribbon-group>` each command is in, for one presentation. */
+export interface GroupCommandPlacement<Command> {
+  /** Beside the collapse trigger. Empty unless the panel is a popup. */
+  readonly survivors: readonly Command[];
+  /** In the panel. Every command, in declared order, whenever the panel is part of the strip. */
+  readonly panel: readonly Command[];
+}
+
+/**
+ * **The survivor rule as a function** — see `survivorPlacement`.
+ *
+ * Generic over the command so the component passes elements and the Node suite passes census
+ * entries through the same code. `commands` must already be in declared order; the function
+ * preserves it within each slot and never reorders across them except by moving survivors out.
+ */
+export function placeGroupCommands<Command>(
+  presentation: GroupPresentation,
+  commands: readonly Command[],
+  isEssential: (command: Command) => boolean,
+): GroupCommandPlacement<Command> {
+  if (!groupPresentations[presentation].panelIsPopup) return { survivors: [], panel: commands };
+  return {
+    survivors: commands.filter((command) => isEssential(command)),
+    panel: commands.filter((command) => !isEssential(command)),
+  };
+}
+
+// ── settling, batched ────────────────────────────────────────────────────────
+
+/**
+ * What a batch does to one group — **injected, so this file still has no DOM in it.**
+ *
+ * `read` is the forced style read (`getComputedStyle` of `--mjx-group-presentation`), `write` is
+ * the slot assignment that follows it, and `settles` is the question the probe callback already
+ * asked before it read anything: *is this group still connected?* `defer` is how a flush is put
+ * off — `queueMicrotask` in the component, and a function the suite drives by hand in Node, for
+ * the reason `ToastQueue` gives: a queue that owned its own timer could only be tested by waiting.
+ */
+export interface GroupSettleOperations<Group> {
+  /** Whether the group still wants settling when the batch drains. */
+  readonly settles: (group: Group) => boolean;
+  /** The style read. Called at most once per group per flush, and before any write. */
+  readonly read: (group: Group) => GroupPresentation;
+  /** The slot writes for one group, for the presentation that flush read. */
+  readonly write: (group: Group, presentation: GroupPresentation) => void;
+  /** How a requested flush is deferred. */
+  readonly defer: (flush: () => void) => void;
+}
+
+/**
+ * **Every read, then every write** — the one order in which a ribbon-wide change costs one style
+ * recalculation instead of one per group.
+ *
+ * The shared `ResizeObserver` had this property from the start: its callback reads every group's
+ * presentation into a list and only then re-slots, *"so a page of forty groups costs one style
+ * read rather than forty interleaved with forty writes"*. The attribute path did not.
+ * `<mjx-ribbon>` writes or removes `simplified` on **every** group it owns in one loop, and each
+ * write ran `attributeChangedCallback` → a synchronous read → slot writes, so toggling the
+ * simplified ribbon on a thirteen-group tab forced thirteen style recalculations, each one
+ * invalidated by the re-slot before it. That is the same defect the probe callback was written to
+ * avoid, reached by another door.
+ *
+ * So both doors now lead here. A caller `request`s a group; the batch keeps each group once,
+ * defers one flush, and the flush reads every queued group before it writes any of them. **A
+ * microtask, not a frame**: slot assignment must land before the first paint that follows the
+ * attribute write, or a simplified ribbon would flash its full-width layout. The probe callback
+ * requests its groups and then flushes **synchronously**, because it already runs before paint and
+ * re-slotting inside it is what the probe exists to make safe — deferring there would move a write
+ * out of the callback for no gain.
+ *
+ * Three properties are worth stating because each is a way this could go wrong:
+ *
+ * - **A group queued twice in one tick is read once and written once.** A ribbon that re-rendered
+ *   twice before the microtask ran would otherwise pay for both.
+ * - **The queue a flush drains is not the queue a write may add to.** `write` can close a popup,
+ *   which dispatches an event, which a host may answer by setting an attribute. That request goes
+ *   into a fresh queue and is flushed after, rather than being dropped or mutating the list being
+ *   walked.
+ * - **A group that has since disconnected is neither read nor written.** `settles` is asked before
+ *   the read, which is where the probe callback asked it too.
+ */
+export class GroupSettleBatch<Group> {
+  readonly #operations: GroupSettleOperations<Group>;
+  #queued = new Set<Group>();
+  /** Whether a deferred flush is already on its way, so N requests arrange one. */
+  #deferred = false;
+
+  constructor(operations: GroupSettleOperations<Group>) {
+    this.#operations = operations;
+  }
+
+  /** How many distinct groups are waiting. For a gate; the component never asks. */
+  get queued(): number {
+    return this.#queued.size;
+  }
+
+  /** Queue a group for settling, and arrange a flush if one is not already coming. */
+  request(group: Group): void {
+    this.#queued.add(group);
+    if (this.#deferred) return;
+    this.#deferred = true;
+    this.#operations.defer(() => {
+      this.flush();
+    });
+  }
+
+  /** Settle everything queued: every read, then every write. A no-op when nothing is queued. */
+  flush(): void {
+    this.#deferred = false;
+    if (this.#queued.size === 0) return;
+    const draining = [...this.#queued];
+    // A fresh set rather than `clear()`: a write may request a group, and that request belongs to
+    // the next flush rather than to the list this one is walking.
+    this.#queued = new Set();
+
+    const readings: { readonly group: Group; readonly presentation: GroupPresentation }[] = [];
+    for (const group of draining) {
+      if (!this.#operations.settles(group)) continue;
+      readings.push({ group, presentation: this.#operations.read(group) });
+    }
+    for (const reading of readings) this.#operations.write(reading.group, reading.presentation);
+  }
+}
+
+/**
+ * The order a group presents its commands in: the survivor row, then the panel.
+ *
+ * That is the flat tree's order — the row is built `trigger, survivors, panel` — and therefore the
+ * order a keyboard walks them, which is why the gates compare against this rather than against
+ * geometry alone.
+ */
+export function presentedCommandOrder<Command>(
+  presentation: GroupPresentation,
+  commands: readonly Command[],
+  isEssential: (command: Command) => boolean,
+): readonly Command[] {
+  const placement = placeGroupCommands(presentation, commands, isEssential);
+  return [...placement.survivors, ...placement.panel];
+}
 
 // ── the tab tones ────────────────────────────────────────────────────────────
 
@@ -552,6 +803,10 @@ function presentationDeclarations(presentation: GroupPresentation, indent: strin
     densityDeclarations(spec.density, indent),
     `${indent}--mjx-group-trigger-display: ${spec.triggerVisible ? 'inline-flex' : 'none'};`,
     `${indent}--mjx-group-footer-display: ${spec.footerVisible ? 'flex' : 'none'};`,
+    // The survivor row only exists while the panel is a popup. Everywhere else it is `contents`
+    // rather than `none`: its slot is empty there, and an empty `contents` box generates no flex
+    // item and so no stray gap — but if it ever did hold a command, that command would still draw.
+    `${indent}--mjx-group-essential-display: ${popup ? 'flex' : 'contents'};`,
     `${indent}--mjx-group-panel-position: ${popup ? 'absolute' : 'static'};`,
     `${indent}--mjx-group-panel-label-display: ${popup ? 'block' : 'none'};`,
     // A collapsed group's panel is not drawn until it is asked for; an expanded one's is always
@@ -786,9 +1041,27 @@ export const ribbonGroupCss = [
   }
 
   .essential {
-    display: flex;
+    display: var(--mjx-group-essential-display, contents);
     align-items: center;
     gap: var(--mjx-density-step);
+  }
+
+  /* The presentation probe. Its inner box is exactly as wide as the query container, so a
+   * ResizeObserver on it reports precisely when a container condition can have changed — and
+   * nothing a group does to its own slots can change it, which is what keeps the observer free of
+   * loop errors. Clipped to nothing and out of flow: it is never drawn, hit or counted. */
+  .presentation-probe {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    inline-size: 0;
+    block-size: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .presentation-probe-width {
+    inline-size: 100cqi;
+    block-size: 0;
   }
 
   .panel {

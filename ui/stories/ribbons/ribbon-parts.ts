@@ -34,9 +34,11 @@
 import { html, nothing, type TemplateResult } from 'lit';
 
 import {
+  commandSurfaceId,
   ribbonGroup,
-  strongestPriority,
   type RibbonCommand,
+  type RibbonContextualSetEntry,
+  type RibbonSurfaceHost,
   type RibbonTabEntry,
 } from '../../dev/ribbons/census.ts';
 import { group, toggle } from '../shell/shell-parts.ts';
@@ -104,6 +106,121 @@ export const printerList: readonly { readonly value: string; readonly label: str
 /** What a copies field offers before somebody types their own. `allow-custom` is why it is short. */
 export const copyCounts: readonly string[] = ['1', '2', '3', '4', '5'];
 
+/**
+ * **What Excel's Scale to Fit offers**: the page counts under Width and Height, and the percentages
+ * under Scale.
+ *
+ * Here for `copyCounts`' reason, at a smaller scale: two hosts bind the same three fields. The page
+ * counts are Office's own entries, Automatic then one page to four; the percentages are a short list
+ * a combo box can extend, because Office's Scale is a spin box from 10% to 400% and the field takes any
+ * number typed into it.
+ */
+export const fitPageCounts: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'automatic', label: 'Automatic' },
+  { value: '1', label: '1 page' },
+  { value: '2', label: '2 pages' },
+  { value: '3', label: '3 pages' },
+  { value: '4', label: '4 pages' },
+];
+
+/** The Scale field's list. See `fitPageCounts`. */
+export const scalePercentages: readonly string[] = ['100%', '90%', '75%', '50%', '25%'];
+
+/**
+ * **The fields References and Transitions bind** (unit 6), for `fitPageCounts`' reason: two hosts bind
+ * each one.
+ *
+ * - `citationStyles`: a handful of Word's citation styles by Office's names. A British build starts
+ *   on APA, as Word does.
+ * - `transitionSounds`: PowerPoint's whole Sound list (unit 7 completed it).
+ * - `durationSeconds`: seconds, written as Office writes them. 00.70 is Fade's own duration, and
+ *   the hosts start the gallery on Fade. **Since unit 7, also Animations' Duration**, which starts on
+ *   Fly In's 00.50: both are Office's seconds spin boxes, so the list is written once.
+ * - `advanceAfterTimes`: minutes, seconds and hundredths, as Office writes them.
+ *
+ * Both time lists are short because each field is a combo box: Office's are spin boxes, and the field
+ * takes any time typed into it.
+ */
+export const citationStyles: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'apa', label: 'APA' },
+  { value: 'chicago', label: 'Chicago' },
+  { value: 'harvard-anglia', label: 'Harvard - Anglia' },
+  { value: 'ieee', label: 'IEEE' },
+  { value: 'iso-690', label: 'ISO 690 - Numerical Reference' },
+  { value: 'mla', label: 'MLA' },
+  { value: 'turabian', label: 'Turabian' },
+];
+
+/**
+ * The Sound field's list: **every entry Office's Sound box offers**, in Office's order — the two bracketed
+ * entries, the twenty built-in sounds, and *Other Sound…*, which opens a file picker in Office and is an
+ * ordinary entry here. See `citationStyles`.
+ */
+export const transitionSounds: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'no-sound', label: '[No Sound]' },
+  { value: 'stop-previous-sound', label: '[Stop Previous Sound]' },
+  { value: 'applause', label: 'Applause' },
+  { value: 'arrow', label: 'Arrow' },
+  { value: 'bomb', label: 'Bomb' },
+  { value: 'breeze', label: 'Breeze' },
+  { value: 'camera', label: 'Camera' },
+  { value: 'cash-register', label: 'Cash Register' },
+  { value: 'chime', label: 'Chime' },
+  { value: 'click', label: 'Click' },
+  { value: 'coin', label: 'Coin' },
+  { value: 'drum-roll', label: 'Drum Roll' },
+  { value: 'explosion', label: 'Explosion' },
+  { value: 'hammer', label: 'Hammer' },
+  { value: 'laser', label: 'Laser' },
+  { value: 'push', label: 'Push' },
+  { value: 'suction', label: 'Suction' },
+  { value: 'typewriter', label: 'Typewriter' },
+  { value: 'voltage', label: 'Voltage' },
+  { value: 'whoosh', label: 'Whoosh' },
+  { value: 'wind', label: 'Wind' },
+  { value: 'other-sound', label: 'Other Sound…' },
+];
+
+/** The Duration field's list. See `citationStyles`. */
+export const durationSeconds: readonly string[] = ['00.50', '00.70', '01.00', '01.50', '02.00'];
+
+/** The Advance Slide After field's list. See `citationStyles`. */
+export const advanceAfterTimes: readonly string[] = ['00:00.00', '00:02.00', '00:05.00', '00:10.00', '00:30.00'];
+
+/**
+ * **The fields Mailings and Animations bind** (unit 7), for `fitPageCounts`' reason: two hosts bind each.
+ *
+ * - `mergeRecordNumbers`: Mailings' *Go to Record*. Office's box takes any record number, so the list is
+ *   the first five of a short recipient list and the combo box takes the rest.
+ * - `animationStarts`: Animations' Start, Office's three entries.
+ * - `animationDelays`: Animations' Delay, seconds as Office writes them, starting on 00.00. Duration
+ *   reuses `durationSeconds`.
+ */
+export const mergeRecordNumbers: readonly string[] = ['1', '2', '3', '4', '5'];
+
+/** The Start field's list. See `mergeRecordNumbers`. */
+export const animationStarts: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'on-click', label: 'On Click' },
+  { value: 'with-previous', label: 'With Previous' },
+  { value: 'after-previous', label: 'After Previous' },
+];
+
+/** The Delay field's list. See `mergeRecordNumbers`. */
+export const animationDelays: readonly string[] = ['00.00', '00.25', '00.50', '01.00', '02.00'];
+
+/**
+ * **The field Word's Review tab binds** (unit 8), for `fitPageCounts`' reason: two hosts bind it.
+ *
+ * `displayForReviewModes` is Tracking's *Display for Review* box: **every** mode Office offers, in
+ * Office's order. A host starts it on Simple Markup, a new document's mode since Word 2013.
+ */
+export const displayForReviewModes: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'simple-markup', label: 'Simple Markup' },
+  { value: 'all-markup', label: 'All Markup' },
+  { value: 'no-markup', label: 'No Markup' },
+  { value: 'original', label: 'Original' },
+];
+
 // ── the parts ────────────────────────────────────────────────────────────────
 
 /** One tab of a ribbon. */
@@ -114,9 +231,23 @@ export function tab(id: string, label: string, ...groups: TemplateResult[]): Tem
 /**
  * One command: the host's binding for it, or the generic control the census describes.
  *
- * A toggle goes through `shell-parts.ts`'s `toggle()` rather than being built here, because that
- * function is what puts every toggle in `slot="essential"` — the single fact `essentialCommandLimit`
- * is counted against, and a second spelling of it here would be a second place for it to drift.
+ * **`essential` is read from the census and from nowhere else**, for a toggle and a button alike.
+ * Until unit 2b a toggle was essential *because* it was a toggle — `toggle()` put every one of them
+ * in `slot="essential"` — which capped a group at three state commands and made Justify, Subscript
+ * and Excel's vertical alignments impossible to draw pressed. A state is not a survivor; a survivor
+ * is declared.
+ *
+ * A toggle still goes through `shell-parts.ts`'s `toggle()` rather than being built here, so there
+ * is one spelling of a ribbon toggle; what it no longer does is decide anything on the census's
+ * behalf. **`exclusive` is carried the same way**, and `exclusiveAllowsNone` with it: the census names the
+ * set, and the toggle writes it.
+ * An override that draws a member writes the attribute itself, and `tests/ribbons.test.ts` holds it to
+ * the census.
+ *
+ * ⚠ An override is drawn exactly as the host wrote it, `slot` included, which is why
+ * `tests/ribbons.test.ts` refuses an override that claims `slot="essential"`: every override in
+ * this catalogue is richer than a button — a split button, a picker, a gallery, a field — and so
+ * fails demotion rule 1 before anyone has to ask.
  */
 export function renderCommand(
   command: RibbonCommand,
@@ -125,7 +256,13 @@ export function renderCommand(
   const override = overrides[command.id];
   if (override !== undefined) return override;
   if (command.toggle === true) {
-    return toggle(command.label, command.icon ?? '', command.pressed === true);
+    return toggle(command.label, command.icon, {
+      essential: command.essential === true,
+      pressed: command.pressed === true,
+      size: command.size ?? 'small',
+      exclusive: command.exclusive,
+      exclusiveAllowsNone: command.exclusiveAllowsNone === true,
+    });
   }
   return html`<mjx-button
     slot=${command.essential === true ? 'essential' : nothing}
@@ -159,30 +296,43 @@ export function censusGroup(
 }
 
 /**
- * A tab whose unit has not landed yet: one group carrying the tab's name, and one honest button.
+ * **The menu a bound command opens**, with the id both hosts' bindings derive from the command id.
  *
- * ⚠ **The priority is the census's, not a constant**, and that is the whole point of the
- * placeholder being built from the entry rather than from a `stubTab(id, label, …)` call. A tab
- * that will hold a `primary` group when unit *N* authors it must not collapse earlier today than
- * it will then, or the collapse ladder a reviewer is looking at is a property of the scaffold
- * rather than of the ribbon. `strongestPriority` is what reads it.
+ * The seam `openDeclaredSurface` reads: a binding carries `data-opens="<commandSurfaceId>"`, and a
+ * press (the whole button, or a split button's arrow) opens the element with that id. The id is
+ * never written by hand on this side — see `commandSurfaceId` — so the only way a binding and its
+ * menu can disagree is a binding that names the wrong command, which `tests/ribbons.test.ts` refuses.
  *
- * The button says *Not yet authored* rather than naming a plausible command, for the reason
- * `dev/word-tab-home.ts` gives about its own filler: a made-up command name is a worse lie than an
- * obvious placeholder, and a placeholder occupies exactly as much of the layout as a command does.
+ * ⚠ **The first argument is always spelt `host` at a call site**, and `tests/ribbons.test.ts` reads
+ * the literal command id that follows it. A menu built from a computed id would be a menu the gate
+ * cannot see.
  */
-export function placeholderTab(entry: RibbonTabEntry): TemplateResult {
-  return tab(
-    entry.id,
-    entry.label,
-    group(
-      entry.label,
-      strongestPriority(entry),
-      {},
-      html`<mjx-button label="Not yet authored" size="small"></mjx-button>`,
-    ),
-  );
+export function commandMenu(
+  host: RibbonSurfaceHost,
+  commandId: string,
+  label: string,
+  ...entries: TemplateResult[]
+): TemplateResult {
+  return html`<mjx-menu id=${commandSurfaceId(host, commandId)} label=${label} floating>
+    ${entries}
+  </mjx-menu>`;
 }
+
+// ── `placeholderTab` is gone, and this note is what it left behind ───────────
+//
+// **Every tab this catalogue declares is authored**: every core, view and File tab, and, since Excel's Chart Format,
+// all seventeen contextual tabs of the four common sets. So the function that drew a tab whose unit had not landed —
+// one group carrying the tab's name, holding one button that said *Not yet authored* — has no caller and is deleted
+// rather than kept warm. Two things it was built around are worth having written down, because the day the user builds
+// a fifth contextual set somebody will need them again:
+//
+// - **The priority was the census's, not a constant**, read with `dev/ribbons/census.ts`'s `strongestPriority`. A tab
+//   that would hold a `primary` group when its unit landed must not collapse earlier before then, or the collapse
+//   ladder a reviewer is looking at is a property of the scaffold rather than of the ribbon. That rule outlived the
+//   function: `tests/ribbons.test.ts` still holds every declared tab to it.
+// - **The button said *Not yet authored* rather than naming a plausible command**, for the reason `dev/word-tab-home.ts`
+//   gives about its own filler: a made-up command name is a worse lie than an obvious placeholder, and a placeholder
+//   occupies exactly as much of the layout as a command does.
 
 /** Every tab of one application, in Office's order, filtered by where Office shows them. */
 export function tabsFor(
@@ -193,4 +343,43 @@ export function tabsFor(
   return tabs
     .filter((entry) => options.includeViewTabs === true || entry.appearance === 'always')
     .map(build);
+}
+
+/**
+ * What every `<app>ContextualSets()` function takes: a host's bindings, and **which built sets to draw**.
+ *
+ * `sets` names set ids (`table-tools`). Omitted, every built set is drawn, which is what `Ribbons/*` asks for so
+ * each contextual tab has a story; a shell names the one set its document's selection would show, because Office
+ * never shows four at once.
+ */
+export interface ContextualSetOptions extends TabOptions {
+  readonly sets?: readonly string[];
+}
+
+/**
+ * **An application's contextual sets**, each as the `<mjx-contextual-tab-set>` its census entry describes, in the
+ * census's order.
+ *
+ * The band's label is the census's, never an argument, for `censusGroup`'s reason. A `sets` entry that names no
+ * built set throws, for `ribbonTab`'s: a shell asking for a set that is not there has a typo, and a silently
+ * missing band is a ribbon nobody could explain.
+ */
+export function contextualSetsFor(
+  sets: readonly RibbonContextualSetEntry[],
+  build: (entry: RibbonTabEntry) => TemplateResult,
+  options: { readonly sets?: readonly string[] } = {},
+): TemplateResult[] {
+  const wanted = options.sets;
+  if (wanted !== undefined) {
+    const unknown = wanted.filter((id) => !sets.some((set) => set.id === id));
+    if (unknown.length > 0) {
+      throw new Error(`no built contextual set is called ${unknown.map((id) => `'${id}'`).join(', ')}`);
+    }
+  }
+  return sets
+    .filter((set) => wanted === undefined || wanted.includes(set.id))
+    .map(
+      (set) =>
+        html`<mjx-contextual-tab-set label=${set.label}>${set.tabs.map(build)}</mjx-contextual-tab-set>`,
+    );
 }

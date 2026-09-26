@@ -473,6 +473,11 @@ export type SelectionKind = (typeof selectionKindNames)[number];
  *
  * Declared once and spliced into each kind, so a new selection kind cannot forget them and the
  * catalogue cannot acquire two spellings of *copy*.
+ *
+ * **Paste is offered and is not essential.** It is a split button in Office — its arrow opens the
+ * paste options — so it carries `hasPopup`, demotion rule 1 keeps it out of the visible run, and it
+ * is reached from the rail's overflow like any other command with a menu behind it. The ribbon
+ * census (`dev/ribbons/census.ts`) makes the same judgement for every Clipboard group.
  */
 export const sharedSelectionCommands: readonly MobileCommand[] = [
   {
@@ -499,8 +504,8 @@ export const sharedSelectionCommands: readonly MobileCommand[] = [
     icon: 'clipboard-paste',
     group: 'Clipboard',
     priority: 'primary',
-    essential: true,
-    hasPopup: false,
+    essential: false,
+    hasPopup: true,
   },
   {
     id: 'delete',

@@ -42,7 +42,28 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { wordContextualSets, wordTabs } from '../ribbons/word.ts';
-import { copyCounts, printerList } from '../ribbons/ribbon-parts.ts';
+import { colourPickerEntries, fillEntries, outlineEntries } from '../ribbons/colour-picker-entries.ts';
+import { designLayoutMenus, styleSetGalleryItems } from '../ribbons/design-layout-menus.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
+import { mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
+import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
+import {
+  tableLineWeights,
+  tableToolsMenus,
+  wordBorderLineStyles,
+  wordTableStyleGalleryFooter,
+  wordTableStyleGalleryItems,
+} from '../ribbons/table-tools-menus.ts';
+import { viewMenus } from '../ribbons/view-menus.ts';
+import {
+  citationStyles,
+  copyCounts,
+  displayForReviewModes,
+  mergeRecordNumbers,
+  printerList,
+} from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Word, assembled** — the ribbon, the navigation pane, the page, the review margin and the status
@@ -202,7 +223,11 @@ const textCommands: readonly MiniCommand[] = [
  *
  * `wordTabs()` leaves out the `appearance: 'view'` tabs — Outlining, Print Preview, Background
  * Removal — because Office shows them only inside the view they name, and a shell that carried
- * them in its default strip would be showing a ribbon that does not exist.
+ * them in its default strip would be showing a ribbon that does not exist. That is also why
+ * **Outlining's and Print Preview's commands are bound in `Ribbons/Word` and not here**
+ * (Background Removal binds none), and
+ * `printPreviewMenus` is not rendered here: a binding for a tab this strip never draws would be a
+ * binding to nothing, and `tests/ribbons.test.ts` refuses a shell that opens a view tab's menu.
  */
 function ribbon(): TemplateResult {
   return surface(
@@ -240,7 +265,6 @@ function ribbon(): TemplateResult {
               )}
             </mjx-combo-box>`,
             'word.home.clipboard.paste': html`<mjx-split-button
-              slot="essential"
               label="Paste"
               icon="clipboard-paste"
               size="large"
@@ -282,9 +306,640 @@ function ribbon(): TemplateResult {
             >
               ${styleGalleryItems()}
             </mjx-gallery>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'word.insert.pages.cover-page': html`<mjx-button
+              label="Cover Page"
+              size="small"
+              data-opens="shell-word-insert-pages-cover-page"
+            ></mjx-button>`,
+            'word.insert.tables.table': html`<mjx-button
+              label="Table"
+              icon="table"
+              size="large"
+              data-opens="shell-word-insert-tables-table"
+            ></mjx-button>`,
+            'word.insert.illustrations.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-word-insert-illustrations-pictures"
+            ></mjx-button>`,
+            'word.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-word-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'word.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="large"
+              data-opens="shell-word-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'word.insert.illustrations.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="small"
+              data-opens="shell-word-insert-illustrations-screenshot"
+            ></mjx-button>`,
+            'word.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="small"
+              data-opens="shell-word-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.header-footer.header': html`<mjx-button
+              label="Header"
+              icon="document-header"
+              size="small"
+              data-opens="shell-word-insert-header-footer-header"
+            ></mjx-button>`,
+            'word.insert.header-footer.footer': html`<mjx-button
+              label="Footer"
+              icon="document-footer"
+              size="small"
+              data-opens="shell-word-insert-header-footer-footer"
+            ></mjx-button>`,
+            'word.insert.header-footer.page-number': html`<mjx-button
+              label="Page Number"
+              icon="document-page-number"
+              size="small"
+              data-opens="shell-word-insert-header-footer-page-number"
+            ></mjx-button>`,
+            'word.insert.text.text-box': html`<mjx-button
+              label="Text Box"
+              icon="textbox"
+              size="large"
+              data-opens="shell-word-insert-text-text-box"
+            ></mjx-button>`,
+            'word.insert.text.quick-parts': html`<mjx-button
+              label="Quick Parts"
+              size="small"
+              data-opens="shell-word-insert-text-quick-parts"
+            ></mjx-button>`,
+            'word.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="small"
+              data-opens="shell-word-insert-text-wordart"
+            ></mjx-button>`,
+            'word.insert.text.drop-cap': html`<mjx-button
+              label="Drop Cap"
+              size="small"
+              data-opens="shell-word-insert-text-drop-cap"
+            ></mjx-button>`,
+            'word.insert.text.signature-line': html`<mjx-split-button
+              label="Signature Line"
+              icon="signature"
+              size="small"
+              data-opens="shell-word-insert-text-signature-line"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.text.object': html`<mjx-split-button
+              label="Object"
+              size="small"
+              data-opens="shell-word-insert-text-object"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-word-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.insert.symbols.symbol': html`<mjx-button
+              label="Symbol"
+              size="small"
+              data-opens="shell-word-insert-symbols-symbol"
+            ></mjx-button>`,
+            // Draw (unit 4). Five dropdowns and a split Eraser, each opening its menu from
+            // `stories/ribbons/draw-menus.ts`. `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'word.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-word-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'word.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-word-draw-pens-pens"
+            ></mjx-button>`,
+            'word.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-word-draw-pens-colour"
+            ></mjx-button>`,
+            'word.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-word-draw-pens-thickness"
+            ></mjx-button>`,
+            'word.draw.write.eraser': html`<mjx-split-button
+              toggle
+              exclusive="word.draw.write.tools"
+              label="Eraser"
+              icon="eraser"
+              size="large"
+              data-opens="shell-word-draw-write-eraser"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-word-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
+            // Design and Layout (unit 5). Dropdowns and split buttons open their menus from
+            // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // The Style Set is an in-ribbon gallery, Page Colour a colour picker, and Indent and Spacing are measures:
+            // `value` is always points, so an 8 pt Spacing After is 8 and a 0 cm indent is 0.
+            'word.design.style-set.themes': html`<mjx-button
+              label="Themes"
+              size="small"
+              data-opens="shell-word-design-style-set-themes"
+            ></mjx-button>`,
+            'word.design.style-set.style-set': html`<mjx-gallery
+              id="word-style-set"
+              label="Style Set"
+              value="this-document"
+              style=${ribbonGalleryStyle}
+            >
+              ${styleSetGalleryItems()}
+            </mjx-gallery>`,
+            'word.design.style-set.colours': html`<mjx-button
+              label="Colours"
+              icon="color"
+              size="large"
+              data-opens="shell-word-design-style-set-colours"
+            ></mjx-button>`,
+            'word.design.style-set.fonts': html`<mjx-button
+              label="Fonts"
+              icon="text-font"
+              size="large"
+              data-opens="shell-word-design-style-set-fonts"
+            ></mjx-button>`,
+            'word.design.style-set.paragraph-spacing': html`<mjx-button
+              label="Paragraph Spacing"
+              icon="text-line-spacing"
+              size="small"
+              data-opens="shell-word-design-style-set-paragraph-spacing"
+            ></mjx-button>`,
+            'word.design.style-set.effects': html`<mjx-button
+              label="Effects"
+              icon="square-shadow"
+              size="small"
+              data-opens="shell-word-design-style-set-effects"
+            ></mjx-button>`,
+            'word.design.page-background.watermark': html`<mjx-button
+              label="Watermark"
+              size="small"
+              data-opens="shell-word-design-page-background-watermark"
+            ></mjx-button>`,
+            'word.design.page-background.page-colour': html`<mjx-color-picker
+              id="word-page-colour"
+              style=${ribbonColourFieldStyle}
+              label="Page Colour"
+              show-no-fill
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            ></mjx-color-picker>`,
+            'word.layout.page-setup.margins': html`<mjx-button
+              label="Margins"
+              icon="document-margins"
+              size="large"
+              data-opens="shell-word-layout-page-setup-margins"
+            ></mjx-button>`,
+            'word.layout.page-setup.orientation': html`<mjx-button
+              label="Orientation"
+              icon="orientation"
+              size="large"
+              data-opens="shell-word-layout-page-setup-orientation"
+            ></mjx-button>`,
+            'word.layout.page-setup.size': html`<mjx-button
+              label="Size"
+              size="small"
+              data-opens="shell-word-layout-page-setup-size"
+            ></mjx-button>`,
+            'word.layout.page-setup.columns': html`<mjx-button
+              label="Columns"
+              icon="text-column-two"
+              size="large"
+              data-opens="shell-word-layout-page-setup-columns"
+            ></mjx-button>`,
+            'word.layout.page-setup.breaks': html`<mjx-button
+              label="Breaks"
+              icon="document-page-break"
+              size="small"
+              data-opens="shell-word-layout-page-setup-breaks"
+            ></mjx-button>`,
+            'word.layout.page-setup.line-numbers': html`<mjx-button
+              label="Line Numbers"
+              size="small"
+              data-opens="shell-word-layout-page-setup-line-numbers"
+            ></mjx-button>`,
+            'word.layout.page-setup.hyphenation': html`<mjx-button
+              label="Hyphenation"
+              size="small"
+              data-opens="shell-word-layout-page-setup-hyphenation"
+            ></mjx-button>`,
+            'word.layout.paragraph.indent-left': html`<mjx-measure-input
+              id="word-indent-left"
+              label="Indent Left"
+              value="0"
+              unit="cm"
+              step="0.25"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.indent-right': html`<mjx-measure-input
+              id="word-indent-right"
+              label="Indent Right"
+              value="0"
+              unit="cm"
+              step="0.25"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.spacing-before': html`<mjx-measure-input
+              id="word-spacing-before"
+              label="Spacing Before"
+              value="0"
+              unit="pt"
+              step="6"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.paragraph.spacing-after': html`<mjx-measure-input
+              id="word-spacing-after"
+              label="Spacing After"
+              value="8"
+              unit="pt"
+              step="6"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.layout.arrange.position': html`<mjx-button
+              label="Position"
+              size="small"
+              data-opens="shell-word-layout-arrange-position"
+            ></mjx-button>`,
+            'word.layout.arrange.wrap-text': html`<mjx-button
+              label="Wrap Text"
+              icon="text-position-square"
+              size="large"
+              data-opens="shell-word-layout-arrange-wrap-text"
+            ></mjx-button>`,
+            'word.layout.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="small"
+              data-opens="shell-word-layout-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.layout.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="small"
+              data-opens="shell-word-layout-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.layout.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-word-layout-arrange-align"
+            ></mjx-button>`,
+            'word.layout.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-word-layout-arrange-group"
+            ></mjx-button>`,
+            'word.layout.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-word-layout-arrange-rotate"
+            ></mjx-button>`,
+            // References (unit 6). Dropdowns and Next Footnote's split button open their menus from
+            // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Style is a dropdown field over `ribbon-parts.ts`'s list. Insert Footnote is the generic button: Office draws no arrow.
+            'word.references.table-of-contents.table-of-contents': html`<mjx-button
+              label="Table of Contents"
+              icon="document-bullet-list"
+              size="small"
+              data-opens="shell-word-references-table-of-contents-table-of-contents"
+            ></mjx-button>`,
+            'word.references.table-of-contents.add-text': html`<mjx-button
+              label="Add Text"
+              size="small"
+              data-opens="shell-word-references-table-of-contents-add-text"
+            ></mjx-button>`,
+            'word.references.footnotes.next-footnote': html`<mjx-split-button
+              label="Next Footnote"
+              size="small"
+              data-opens="shell-word-references-footnotes-next-footnote"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.references.citations-bibliography.insert-citation': html`<mjx-button
+              label="Insert Citation"
+              icon="text-quote"
+              size="large"
+              data-opens="shell-word-references-citations-bibliography-insert-citation"
+            ></mjx-button>`,
+            'word.references.citations-bibliography.style': html`<mjx-dropdown
+              id="word-citation-style"
+              label="Style"
+              value="apa"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${citationStyles.map(
+                (style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.references.citations-bibliography.bibliography': html`<mjx-button
+              label="Bibliography"
+              size="small"
+              data-opens="shell-word-references-citations-bibliography-bibliography"
+            ></mjx-button>`,
+            // Mailings (unit 7). Dropdowns and Insert Merge Field's split button open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Go to Record is a combo box over `ribbon-parts.ts`'s list: a record number is not a measure.
+            'word.mailings.start-mail-merge.start-mail-merge': html`<mjx-button
+              label="Start Mail Merge"
+              icon="mail-multiple"
+              size="small"
+              data-opens="shell-word-mailings-start-mail-merge-start-mail-merge"
+            ></mjx-button>`,
+            'word.mailings.start-mail-merge.select-recipients': html`<mjx-button
+              label="Select Recipients"
+              icon="people-list"
+              size="small"
+              data-opens="shell-word-mailings-start-mail-merge-select-recipients"
+            ></mjx-button>`,
+            'word.mailings.write-insert-fields.insert-merge-field': html`<mjx-split-button
+              label="Insert Merge Field"
+              size="small"
+              data-opens="shell-word-mailings-write-insert-fields-insert-merge-field"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.mailings.write-insert-fields.rules': html`<mjx-button
+              label="Rules"
+              size="small"
+              data-opens="shell-word-mailings-write-insert-fields-rules"
+            ></mjx-button>`,
+            'word.mailings.preview-results.go-to-record': html`<mjx-combo-box
+              id="word-go-to-record"
+              label="Go to Record"
+              value="1"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${mergeRecordNumbers.map((record) => html`<mjx-option value=${record} label=${record}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'word.mailings.finish.finish-merge': html`<mjx-button
+              label="Finish & Merge"
+              size="small"
+              data-opens="shell-word-mailings-finish-finish-merge"
+            ></mjx-button>`,
+            // Review (unit 8, Word alone). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Display for Review is a dropdown field over `ribbon-parts.ts`'s list, starting on Simple Markup.
+            'word.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-word-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.language.translate': html`<mjx-button
+              label="Translate"
+              icon="translate"
+              size="large"
+              data-opens="shell-word-review-language-translate"
+            ></mjx-button>`,
+            'word.review.language.language': html`<mjx-button
+              label="Language"
+              icon="local-language"
+              size="large"
+              data-opens="shell-word-review-language-language"
+            ></mjx-button>`,
+            'word.review.comments.delete': html`<mjx-split-button
+              label="Delete"
+              icon="comment-dismiss"
+              size="large"
+              data-opens="shell-word-review-comments-delete"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.comments.show-comments': html`<mjx-split-button
+              toggle
+              pressed="true"
+              label="Show Comments"
+              icon="comment-multiple"
+              size="small"
+              data-opens="shell-word-review-comments-show-comments"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.tracking.track-changes': html`<mjx-split-button
+              toggle
+              label="Track Changes"
+              icon="document-edit"
+              size="large"
+              data-opens="shell-word-review-tracking-track-changes"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.tracking.display-for-review': html`<mjx-dropdown
+              id="word-display-for-review"
+              label="Display for Review"
+              value="simple-markup"
+              style=${ribbonFieldStyle}
+            >
+              ${displayForReviewModes.map((mode) => html`<mjx-option value=${mode.value} label=${mode.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'word.review.tracking.show-markup': html`<mjx-button
+              label="Show Markup"
+              size="small"
+              data-opens="shell-word-review-tracking-show-markup"
+            ></mjx-button>`,
+            'word.review.tracking.reviewing-pane': html`<mjx-split-button
+              label="Reviewing Pane"
+              icon="panel-left-text"
+              size="small"
+              data-opens="shell-word-review-tracking-reviewing-pane"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.changes.accept': html`<mjx-split-button
+              label="Accept"
+              icon="document-checkmark"
+              size="large"
+              data-opens="shell-word-review-changes-accept"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.changes.reject': html`<mjx-split-button
+              label="Reject"
+              icon="document-dismiss"
+              size="small"
+              data-opens="shell-word-review-changes-reject"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.compare.compare': html`<mjx-button
+              label="Compare"
+              size="small"
+              data-opens="shell-word-review-compare-compare"
+            ></mjx-button>`,
+            'word.review.protect.block-authors': html`<mjx-split-button
+              label="Block Authors"
+              icon="person-lock"
+              size="large"
+              data-opens="shell-word-review-protect-block-authors"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'word.review.ink.hide-ink': html`<mjx-split-button
+              toggle
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-word-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // View (Word alone). Show's three are checkboxes, Navigation Pane ticked because this
+            // shell draws the pane open. Switch Windows opens its menu from
+            // `stories/ribbons/view-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'word.view.show.ruler': html`<mjx-checkbox id="word-view-ruler" label="Ruler"></mjx-checkbox>`,
+            'word.view.show.gridlines': html`<mjx-checkbox id="word-view-gridlines" label="Gridlines"></mjx-checkbox>`,
+            'word.view.show.navigation-pane': html`<mjx-checkbox id="word-view-navigation-pane" label="Navigation Pane" checked="true"></mjx-checkbox>`,
+            'word.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-word-view-window-switch-windows"
+            ></mjx-button>`,
           },
         })}
-        ${wordContextualSets()}
+        ${wordContextualSets({
+          sets: ['table-tools'],
+          controls: {
+            // Table Design (a contextual tab). This document's selection is in a table, so the shell draws Table
+            // Tools and binds the same thirteen commands `Ribbons/Word` binds, under its own ids. The gallery, the
+            // two fields and both menus are `stories/ribbons/table-tools-menus.ts`'s; the pickers and the gallery's
+            // pictures read this document's palette. Border Painter is the generic toggle.
+            'word.table-design.table-style-options.header-row': html`<mjx-checkbox id="word-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.total-row': html`<mjx-checkbox id="word-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+            'word.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="word-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.first-column': html`<mjx-checkbox id="word-table-design-first-column" label="First Column" checked="true"></mjx-checkbox>`,
+            'word.table-design.table-style-options.last-column': html`<mjx-checkbox id="word-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+            'word.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="word-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+            'word.table-design.table-styles.gallery': html`<mjx-gallery
+              id="word-table-styles"
+              label="Table Styles"
+              value="table-grid"
+              style=${ribbonGalleryStyle}
+            >
+              ${wordTableStyleGalleryItems(documentThemePalette)} ${wordTableStyleGalleryFooter()}
+            </mjx-gallery>`,
+            'word.table-design.table-styles.shading': html`<mjx-color-picker
+              id="word-table-design-shading"
+              style=${ribbonColourFieldStyle}
+              label="Shading"
+              show-no-fill
+              no-fill-label="No Colour"
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            >
+              ${colourPickerEntries('Shading', fillEntries({ moreColours: 'More Colours…' }))}
+            </mjx-color-picker>`,
+            'word.table-design.borders.border-styles': html`<mjx-button
+              label="Border Styles"
+              icon="line-style"
+              size="large"
+              data-opens="shell-word-table-design-borders-border-styles"
+            ></mjx-button>`,
+            'word.table-design.borders.line-style': html`<mjx-dropdown
+              id="word-table-design-line-style"
+              label="Line Style"
+              value="single"
+              style=${ribbonFieldStyle}
+            >
+              ${wordBorderLineStyles.map(
+                (style) => html`<mjx-option value=${style.value} label=${style.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.table-design.borders.line-weight': html`<mjx-dropdown
+              id="word-table-design-line-weight"
+              label="Line Weight"
+              value="0.5"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${tableLineWeights.map(
+                (weight) => html`<mjx-option value=${weight.value} label=${weight.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'word.table-design.borders.pen-colour': html`<mjx-color-picker
+              id="word-table-design-pen-colour"
+              style=${ribbonColourFieldStyle}
+              label="Pen Colour"
+              show-automatic
+              .themePalette=${documentThemePalette}
+              .standardColors=${standardColors}
+              .recentColors=${recentColors}
+            >
+              ${colourPickerEntries('Pen Colour', outlineEntries({ moreColours: 'More Colours…' }))}
+            </mjx-color-picker>`,
+            'word.table-design.borders.borders': html`<mjx-split-button
+              label="Borders"
+              icon="border-all"
+              size="large"
+              menu-label="Borders"
+              data-opens="shell-word-table-design-borders-borders"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // Table Layout (a contextual tab), in the same set. The same five commands `Ribbons/Word` binds, under
+            // the shell's own ids: Select, Delete and AutoFit open `stories/ribbons/table-tools-menus.ts`'s menus,
+            // Height and Width are measures. Both exclusive sets are the generic toggles.
+            'word.table-layout.table.select': html`<mjx-button
+              label="Select"
+              icon="table-cursor"
+              size="small"
+              data-opens="shell-word-table-layout-table-select"
+            ></mjx-button>`,
+            'word.table-layout.rows-and-columns.delete': html`<mjx-button
+              label="Delete"
+              icon="table-dismiss"
+              size="large"
+              data-opens="shell-word-table-layout-rows-and-columns-delete"
+            ></mjx-button>`,
+            'word.table-layout.cell-size.autofit': html`<mjx-button
+              label="AutoFit"
+              icon="arrow-autofit-content"
+              size="large"
+              data-opens="shell-word-table-layout-cell-size-autofit"
+            ></mjx-button>`,
+            'word.table-layout.cell-size.height': html`<mjx-measure-input
+              id="word-table-layout-height"
+              label="Height"
+              value="0.5"
+              unit="cm"
+              step="0.1"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+            'word.table-layout.cell-size.width': html`<mjx-measure-input
+              id="word-table-layout-width"
+              label="Width"
+              value="3.18"
+              unit="cm"
+              step="0.1"
+              min="0"
+              style=${ribbonNarrowFieldStyle}
+            ></mjx-measure-input>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -431,6 +1086,10 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
         <mjx-menu-item label="Set Default Paste"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('word', 'shell')} ${drawMenus('word', 'shell')}
+      ${designLayoutMenus('word', 'shell')} ${referencesTransitionsFormulasMenus('word', 'shell')}
+      ${mailingsAnimationsDataMenus('word', 'shell')} ${reviewMenus('word', 'shell')}
+      ${viewMenus('word', 'shell')} ${tableToolsMenus('word', 'shell')}
       <mjx-dialog id="word-paragraph" label="Paragraph" modal>
         ${paneStack(
           field(

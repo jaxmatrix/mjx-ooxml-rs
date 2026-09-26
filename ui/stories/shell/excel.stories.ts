@@ -40,6 +40,20 @@ import {
   zoom,
 } from './shell-parts.ts';
 import { excelContextualSets, excelTabs } from '../ribbons/excel.ts';
+import { designLayoutMenus } from '../ribbons/design-layout-menus.ts';
+import { drawMenus } from '../ribbons/draw-menus.ts';
+import { insertMenus } from '../ribbons/insert-menus.ts';
+import { dataTypeGalleryItems, mailingsAnimationsDataMenus } from '../ribbons/mailings-animations-data-menus.ts';
+import { referencesTransitionsFormulasMenus } from '../ribbons/references-transitions-formulas-menus.ts';
+import { reviewMenus } from '../ribbons/review-menus.ts';
+import {
+  excelTableName,
+  excelTableStyleGalleryFooter,
+  excelTableStyleGalleryItems,
+  tableToolsMenus,
+} from '../ribbons/table-tools-menus.ts';
+import { excelSheetViews, viewMenus } from '../ribbons/view-menus.ts';
+import { fitPageCounts, scalePercentages } from '../ribbons/ribbon-parts.ts';
 
 /**
  * **Excel, assembled** — the ribbon, the name box and formula bar, the grid, a task pane, the sheet
@@ -126,7 +140,9 @@ const cellCommands: readonly MiniCommand[] = [
  * contents. They are bound by the stable command ids `dev/ribbons/census.ts` declares.
  *
  * `excelTabs()` leaves out Print Preview and Background Removal, which Office shows only inside the
- * view they name.
+ * view they name. That is also why **Print Preview's Show Margins checkbox is bound in `Ribbons/Excel` and not
+ * here**, and `printPreviewMenus` is not rendered here: a binding for a tab this strip never draws would be a
+ * binding to nothing.
  */
 function ribbon(): TemplateResult {
   return surface(
@@ -137,7 +153,6 @@ function ribbon(): TemplateResult {
         ${excelTabs({
           controls: {
             'excel.home.clipboard.paste': html`<mjx-split-button
-              slot="essential"
               label="Paste"
               icon="clipboard-paste"
               size="large"
@@ -197,9 +212,513 @@ function ribbon(): TemplateResult {
             >
               ${largeGalleryItems().slice(0, 18)}
             </mjx-gallery>`,
+            // Insert (unit 3). Office draws each of these as a dropdown or a split button, so each opens
+            // its menu from `stories/ribbons/insert-menus.ts`: a dropdown is one `<mjx-button>` whose press
+            // opens the menu, a split button opens it from its arrow. `data-opens` is
+            // `commandSurfaceId('shell', <this key>)`, and `tests/ribbons.test.ts` requires exactly that.
+            'excel.insert.tables.pivottable': html`<mjx-split-button
+              label="PivotTable"
+              size="small"
+              data-opens="shell-excel-insert-tables-pivottable"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.illustrations.pictures': html`<mjx-button
+              label="Pictures"
+              icon="image"
+              size="large"
+              data-opens="shell-excel-insert-illustrations-pictures"
+            ></mjx-button>`,
+            'excel.insert.illustrations.shapes': html`<mjx-button
+              label="Shapes"
+              icon="shapes"
+              size="large"
+              data-opens="shell-excel-insert-illustrations-shapes"
+            ></mjx-button>`,
+            'excel.insert.illustrations.3d-models': html`<mjx-button
+              label="3D Models"
+              icon="cube"
+              size="small"
+              data-opens="shell-excel-insert-illustrations-3d-models"
+            ></mjx-button>`,
+            'excel.insert.illustrations.screenshot': html`<mjx-button
+              label="Screenshot"
+              icon="screenshot"
+              size="small"
+              data-opens="shell-excel-insert-illustrations-screenshot"
+            ></mjx-button>`,
+            'excel.insert.charts.column-bar': html`<mjx-button
+              label="Insert Column or Bar Chart"
+              icon="data-bar-vertical"
+              size="icon"
+              data-opens="shell-excel-insert-charts-column-bar"
+            ></mjx-button>`,
+            'excel.insert.charts.hierarchy': html`<mjx-button
+              label="Insert Hierarchy Chart"
+              icon="data-treemap"
+              size="icon"
+              data-opens="shell-excel-insert-charts-hierarchy"
+            ></mjx-button>`,
+            'excel.insert.charts.waterfall': html`<mjx-button
+              label="Insert Waterfall, Funnel, Stock, Surface or Radar Chart"
+              icon="data-waterfall"
+              size="icon"
+              data-opens="shell-excel-insert-charts-waterfall"
+            ></mjx-button>`,
+            'excel.insert.charts.line-area': html`<mjx-button
+              label="Insert Line or Area Chart"
+              icon="data-line"
+              size="icon"
+              data-opens="shell-excel-insert-charts-line-area"
+            ></mjx-button>`,
+            'excel.insert.charts.statistic': html`<mjx-button
+              label="Insert Statistic Chart"
+              icon="data-histogram"
+              size="icon"
+              data-opens="shell-excel-insert-charts-statistic"
+            ></mjx-button>`,
+            'excel.insert.charts.combo': html`<mjx-button
+              label="Insert Combo Chart"
+              size="small"
+              data-opens="shell-excel-insert-charts-combo"
+            ></mjx-button>`,
+            'excel.insert.charts.pie-doughnut': html`<mjx-button
+              label="Insert Pie or Doughnut Chart"
+              icon="data-pie"
+              size="icon"
+              data-opens="shell-excel-insert-charts-pie-doughnut"
+            ></mjx-button>`,
+            'excel.insert.charts.scatter-bubble': html`<mjx-button
+              label="Insert Scatter (X, Y) or Bubble Chart"
+              icon="data-scatter"
+              size="icon"
+              data-opens="shell-excel-insert-charts-scatter-bubble"
+            ></mjx-button>`,
+            'excel.insert.charts.maps': html`<mjx-button
+              label="Maps"
+              icon="map"
+              size="large"
+              data-opens="shell-excel-insert-charts-maps"
+            ></mjx-button>`,
+            'excel.insert.charts.pivotchart': html`<mjx-split-button
+              label="PivotChart"
+              size="small"
+              data-opens="shell-excel-insert-charts-pivotchart"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.links.link': html`<mjx-split-button
+              label="Link"
+              icon="link"
+              size="large"
+              data-opens="shell-excel-insert-links-link"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.text.wordart': html`<mjx-button
+              label="WordArt"
+              icon="text-effects"
+              size="large"
+              data-opens="shell-excel-insert-text-wordart"
+            ></mjx-button>`,
+            'excel.insert.text.signature-line': html`<mjx-split-button
+              label="Signature Line"
+              icon="signature"
+              size="small"
+              data-opens="shell-excel-insert-text-signature-line"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.insert.symbols.equation': html`<mjx-split-button
+              label="Equation"
+              icon="math-formula"
+              size="large"
+              data-opens="shell-excel-insert-symbols-equation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // Draw (unit 4). Five dropdowns, each opening its menu from `stories/ribbons/draw-menus.ts`;
+            // Excel's Eraser is the plain toggle its census declares, so nothing is bound over it.
+            'excel.draw.drawing-tools.add-pen': html`<mjx-button
+              label="Add Pen"
+              size="small"
+              data-opens="shell-excel-draw-drawing-tools-add-pen"
+            ></mjx-button>`,
+            'excel.draw.pens.pens': html`<mjx-button
+              label="Pens"
+              icon="inking-tool"
+              size="large"
+              data-opens="shell-excel-draw-pens-pens"
+            ></mjx-button>`,
+            'excel.draw.pens.colour': html`<mjx-button
+              label="Colour"
+              icon="color-line"
+              size="small"
+              data-opens="shell-excel-draw-pens-colour"
+            ></mjx-button>`,
+            'excel.draw.pens.thickness': html`<mjx-button
+              label="Thickness"
+              icon="line-thickness"
+              size="small"
+              data-opens="shell-excel-draw-pens-thickness"
+            ></mjx-button>`,
+            'excel.draw.input-mode.touch-mouse-mode': html`<mjx-button
+              label="Touch/Mouse Mode"
+              size="small"
+              data-opens="shell-excel-draw-input-mode-touch-mouse-mode"
+            ></mjx-button>`,
+            // Page Layout (unit 5). Dropdowns and split buttons open their menus from
+            // `stories/ribbons/design-layout-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Scale to Fit is three fields over `ribbon-parts.ts`'s lists, and Sheet Options four checkboxes.
+            'excel.page-layout.themes.themes': html`<mjx-button
+              label="Themes"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-themes"
+            ></mjx-button>`,
+            'excel.page-layout.themes.colours': html`<mjx-button
+              label="Colours"
+              icon="color"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-colours"
+            ></mjx-button>`,
+            'excel.page-layout.themes.fonts': html`<mjx-button
+              label="Fonts"
+              icon="text-font"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-fonts"
+            ></mjx-button>`,
+            'excel.page-layout.themes.effects': html`<mjx-button
+              label="Effects"
+              icon="square-shadow"
+              size="small"
+              data-opens="shell-excel-page-layout-themes-effects"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.margins': html`<mjx-button
+              label="Margins"
+              icon="document-margins"
+              size="large"
+              data-opens="shell-excel-page-layout-page-setup-margins"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.orientation': html`<mjx-button
+              label="Orientation"
+              icon="orientation"
+              size="large"
+              data-opens="shell-excel-page-layout-page-setup-orientation"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.size': html`<mjx-button
+              label="Size"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-size"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.print-area': html`<mjx-button
+              label="Print Area"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-print-area"
+            ></mjx-button>`,
+            'excel.page-layout.page-setup.breaks': html`<mjx-button
+              label="Breaks"
+              icon="document-page-break"
+              size="small"
+              data-opens="shell-excel-page-layout-page-setup-breaks"
+            ></mjx-button>`,
+            'excel.page-layout.scale-to-fit.width': html`<mjx-dropdown
+              id="xl-fit-width"
+              label="Width"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${fitPageCounts.map(
+                (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'excel.page-layout.scale-to-fit.height': html`<mjx-dropdown
+              id="xl-fit-height"
+              label="Height"
+              value="automatic"
+              style=${ribbonColourFieldStyle}
+            >
+              ${fitPageCounts.map(
+                (count) => html`<mjx-option value=${count.value} label=${count.label}></mjx-option>`,
+              )}
+            </mjx-dropdown>`,
+            'excel.page-layout.scale-to-fit.scale': html`<mjx-combo-box
+              id="xl-fit-scale"
+              label="Scale"
+              value="100%"
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${scalePercentages.map((scale) => html`<mjx-option value=${scale} label=${scale}></mjx-option>`)}
+            </mjx-combo-box>`,
+            'excel.page-layout.sheet-options.view-gridlines': html`<mjx-checkbox id="xl-view-gridlines" label="View Gridlines" checked="true"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.print-gridlines': html`<mjx-checkbox id="xl-print-gridlines" label="Print Gridlines"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.view-headings': html`<mjx-checkbox id="xl-view-headings" label="View Headings" checked="true"></mjx-checkbox>`,
+            'excel.page-layout.sheet-options.print-headings': html`<mjx-checkbox id="xl-print-headings" label="Print Headings"></mjx-checkbox>`,
+            'excel.page-layout.arrange.bring-forward': html`<mjx-split-button
+              label="Bring Forward"
+              icon="position-forward"
+              size="large"
+              data-opens="shell-excel-page-layout-arrange-bring-forward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.page-layout.arrange.send-backward': html`<mjx-split-button
+              label="Send Backward"
+              icon="position-backward"
+              size="large"
+              data-opens="shell-excel-page-layout-arrange-send-backward"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.page-layout.arrange.align': html`<mjx-button
+              label="Align"
+              icon="align-left"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-align"
+            ></mjx-button>`,
+            'excel.page-layout.arrange.group': html`<mjx-button
+              label="Group"
+              icon="group"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-group"
+            ></mjx-button>`,
+            'excel.page-layout.arrange.rotate': html`<mjx-button
+              label="Rotate"
+              icon="rotate-right"
+              size="small"
+              data-opens="shell-excel-page-layout-arrange-rotate"
+            ></mjx-button>`,
+            // Formulas (unit 6). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/references-transitions-formulas-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            'excel.formulas.function-library.autosum': html`<mjx-split-button
+              label="AutoSum"
+              icon="autosum"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-autosum"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.function-library.recently-used': html`<mjx-button
+              label="Recently Used"
+              icon="book-star"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-recently-used"
+            ></mjx-button>`,
+            'excel.formulas.function-library.financial': html`<mjx-button
+              label="Financial"
+              icon="book-coins"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-financial"
+            ></mjx-button>`,
+            'excel.formulas.function-library.logical': html`<mjx-button
+              label="Logical"
+              icon="book-question-mark"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-logical"
+            ></mjx-button>`,
+            'excel.formulas.function-library.text': html`<mjx-button
+              label="Text"
+              icon="book-letter"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-text"
+            ></mjx-button>`,
+            'excel.formulas.function-library.date-time': html`<mjx-button
+              label="Date & Time"
+              icon="book-clock"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-date-time"
+            ></mjx-button>`,
+            'excel.formulas.function-library.lookup-reference': html`<mjx-button
+              label="Lookup & Reference"
+              icon="book-search"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-lookup-reference"
+            ></mjx-button>`,
+            'excel.formulas.function-library.math-trig': html`<mjx-button
+              label="Math & Trig"
+              icon="book-theta"
+              size="small"
+              data-opens="shell-excel-formulas-function-library-math-trig"
+            ></mjx-button>`,
+            'excel.formulas.function-library.more-functions': html`<mjx-button
+              label="More Functions"
+              icon="book"
+              size="large"
+              data-opens="shell-excel-formulas-function-library-more-functions"
+            ></mjx-button>`,
+            'excel.formulas.named-cells.define-name': html`<mjx-split-button
+              label="Define Name"
+              icon="tag-add"
+              size="small"
+              data-opens="shell-excel-formulas-named-cells-define-name"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.named-cells.use-in-formula': html`<mjx-button
+              label="Use in Formula"
+              size="small"
+              data-opens="shell-excel-formulas-named-cells-use-in-formula"
+            ></mjx-button>`,
+            'excel.formulas.formula-auditing.remove-arrows': html`<mjx-split-button
+              label="Remove Arrows"
+              size="small"
+              data-opens="shell-excel-formulas-formula-auditing-remove-arrows"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.formula-auditing.error-checking': html`<mjx-split-button
+              label="Error Checking"
+              icon="checkmark-circle-warning"
+              size="small"
+              data-opens="shell-excel-formulas-formula-auditing-error-checking"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.formulas.calculation.calculation-options': html`<mjx-button
+              label="Calculation Options"
+              icon="calculator"
+              size="small"
+              data-opens="shell-excel-formulas-calculation-calculation-options"
+            ></mjx-button>`,
+            // Data (unit 7). Split buttons and dropdowns open their menus from
+            // `stories/ribbons/mailings-animations-data-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Data Types is an in-ribbon gallery with nothing selected, because a new cell has no data type.
+            'excel.data.get-external-data.from-other-sources': html`<mjx-button
+              label="From Other Sources"
+              icon="database"
+              size="small"
+              data-opens="shell-excel-data-get-external-data-from-other-sources"
+            ></mjx-button>`,
+            'excel.data.queries-connections.refresh-all': html`<mjx-split-button
+              label="Refresh All"
+              icon="arrow-clockwise"
+              size="large"
+              data-opens="shell-excel-data-queries-connections-refresh-all"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.data-types.data-types': html`<mjx-gallery id="xl-data-types" label="Data Types" style=${ribbonGalleryStyle}>
+              ${dataTypeGalleryItems()}
+            </mjx-gallery>`,
+            'excel.data.data-tools.data-validation': html`<mjx-split-button
+              label="Data Validation"
+              icon="table-simple-checkmark"
+              size="small"
+              data-opens="shell-excel-data-data-tools-data-validation"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.forecast.what-if-analysis': html`<mjx-button
+              label="What-If Analysis"
+              size="small"
+              data-opens="shell-excel-data-forecast-what-if-analysis"
+            ></mjx-button>`,
+            'excel.data.outline.group': html`<mjx-split-button
+              label="Group"
+              icon="group-list"
+              size="large"
+              data-opens="shell-excel-data-outline-group"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.data.outline.ungroup': html`<mjx-split-button
+              label="Ungroup"
+              size="small"
+              data-opens="shell-excel-data-outline-ungroup"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // Excel's Review. The split buttons and the two dropdowns open their menus from
+            // `stories/ribbons/review-menus.ts`, and `data-opens` is `commandSurfaceId('shell', <this key>)`.
+            // Hide Ink is a split button whose face is a toggle, starting unpressed.
+            'excel.review.accessibility.check-accessibility': html`<mjx-split-button
+              label="Check Accessibility"
+              icon="accessibility-checkmark"
+              size="small"
+              data-opens="shell-excel-review-accessibility-check-accessibility"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.review.notes.notes': html`<mjx-button
+              label="Notes"
+              icon="note"
+              size="large"
+              data-opens="shell-excel-review-notes-notes"
+            ></mjx-button>`,
+            'excel.review.changes.track-changes': html`<mjx-button
+              label="Track Changes"
+              icon="document-edit"
+              size="small"
+              data-opens="shell-excel-review-changes-track-changes"
+            ></mjx-button>`,
+            'excel.review.ink.hide-ink': html`<mjx-split-button
+              toggle
+              label="Hide Ink"
+              size="small"
+              data-opens="shell-excel-review-ink-hide-ink"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            // Excel's View. The Sheet View dropdown is a field over `excelSheetViews`, Show's four are checkboxes,
+            // all ticked as the census declares, and Freeze Panes and Switch Windows open their menus from
+            // `stories/ribbons/view-menus.ts`, with `data-opens` `commandSurfaceId('shell', <this key>)`. The Workbook
+            // Views exclusive set is the generic toggles.
+            'excel.view.sheet-view.sheet-view': html`<mjx-dropdown
+              id="xl-view-sheet-view"
+              label="Sheet View"
+              value="default"
+              style=${ribbonNarrowFieldStyle}
+            >
+              ${excelSheetViews.map((view) => html`<mjx-option value=${view.value} label=${view.label}></mjx-option>`)}
+            </mjx-dropdown>`,
+            'excel.view.show.ruler': html`<mjx-checkbox id="xl-view-ruler" label="Ruler" checked="true"></mjx-checkbox>`,
+            'excel.view.show.gridlines': html`<mjx-checkbox id="xl-view-show-gridlines" label="Gridlines" checked="true"></mjx-checkbox>`,
+            'excel.view.show.formula-bar': html`<mjx-checkbox id="xl-view-formula-bar" label="Formula Bar" checked="true"></mjx-checkbox>`,
+            'excel.view.show.headings': html`<mjx-checkbox id="xl-view-show-headings" label="Headings" checked="true"></mjx-checkbox>`,
+            'excel.view.window.freeze-panes': html`<mjx-button
+              label="Freeze Panes"
+              icon="table-freeze-column-and-row"
+              size="large"
+              data-opens="shell-excel-view-window-freeze-panes"
+            ></mjx-button>`,
+            'excel.view.window.switch-windows': html`<mjx-button
+              label="Switch Windows"
+              icon="window-multiple"
+              size="large"
+              data-opens="shell-excel-view-window-switch-windows"
+            ></mjx-button>`,
           },
         })}
-        ${excelContextualSets()}
+        ${excelContextualSets({
+          sets: ['table-tools'],
+          controls: {
+            // Table Design (a contextual tab). This workbook's selection is in a table, so the shell draws Table Tools
+            // and binds the same eleven commands `Ribbons/Excel` binds, under its own ids. The field's name, the
+            // gallery and both menus are `stories/ribbons/table-tools-menus.ts`'s; the gallery's pictures read this
+            // workbook's palette. The other eight commands are the generic button.
+            'excel.table-design.properties.table-name': html`<mjx-combo-box
+              id="xl-table-design-table-name"
+              label="Table Name"
+              value=${excelTableName}
+              allow-custom
+              style=${ribbonNarrowFieldStyle}
+            >
+              <mjx-option value=${excelTableName} label=${excelTableName}></mjx-option>
+            </mjx-combo-box>`,
+            'excel.table-design.external-table-data.export': html`<mjx-button
+              label="Export"
+              icon="arrow-export"
+              size="large"
+              data-opens="shell-excel-table-design-external-table-data-export"
+            ></mjx-button>`,
+            'excel.table-design.external-table-data.refresh': html`<mjx-split-button
+              label="Refresh"
+              icon="arrow-clockwise"
+              size="large"
+              menu-label="Refresh"
+              data-opens="shell-excel-table-design-external-table-data-refresh"
+              @mjx-menu-request=${openDeclaredSurface}
+            ></mjx-split-button>`,
+            'excel.table-design.table-style-options.header-row': html`<mjx-checkbox id="xl-table-design-header-row" label="Header Row" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.total-row': html`<mjx-checkbox id="xl-table-design-total-row" label="Total Row"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.banded-rows': html`<mjx-checkbox id="xl-table-design-banded-rows" label="Banded Rows" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.first-column': html`<mjx-checkbox id="xl-table-design-first-column" label="First Column"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.last-column': html`<mjx-checkbox id="xl-table-design-last-column" label="Last Column"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.banded-columns': html`<mjx-checkbox id="xl-table-design-banded-columns" label="Banded Columns"></mjx-checkbox>`,
+            'excel.table-design.table-style-options.filter-button': html`<mjx-checkbox id="xl-table-design-filter-button" label="Filter Button" checked="true"></mjx-checkbox>`,
+            'excel.table-design.table-styles.gallery': html`<mjx-gallery
+              id="xl-table-styles"
+              label="Table Styles"
+              value="TableStyleMedium2"
+              style=${ribbonGalleryStyle}
+            >
+              ${excelTableStyleGalleryItems(documentThemePalette)} ${excelTableStyleGalleryFooter()}
+            </mjx-gallery>`,
+          },
+        })}
       </mjx-ribbon>
     `,
   );
@@ -406,6 +925,10 @@ function wideShell(size: 'desktop' | 'tablet'): TemplateResult {
         <mjx-menu-separator></mjx-menu-separator>
         <mjx-menu-item label="Paste Special…" shortcut="Ctrl+Alt+V"></mjx-menu-item>
       </mjx-menu>
+      ${insertMenus('excel', 'shell')} ${drawMenus('excel', 'shell')}
+      ${designLayoutMenus('excel', 'shell')} ${referencesTransitionsFormulasMenus('excel', 'shell')}
+      ${mailingsAnimationsDataMenus('excel', 'shell')} ${reviewMenus('excel', 'shell')}
+      ${viewMenus('excel', 'shell')} ${tableToolsMenus('excel', 'shell')}
       <mjx-dialog id="xl-format-cells" label="Format Cells" modal>
         ${paneStack(
           // A measure input is for a *measure*, so the field here is an indent rather than a count

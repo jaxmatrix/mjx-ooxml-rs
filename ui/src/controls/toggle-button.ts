@@ -28,6 +28,14 @@
  * losing its formatting. That is what Word appears to do and it is *not* checked against Office;
  * see `nextPressed` in `control-states.ts`.
  *
+ * ## One of a set
+ *
+ * `exclusive="<set>"` makes this toggle one of a set of which exactly one holds — Word's document
+ * views, the Draw tab's ink tools. Pressing it releases the other members in its ribbon tab, and
+ * pressing it while it holds keeps it. With `exclusive-allows-none` as well, pressing it while it holds
+ * releases it, so the set holds at most one — the Background Removal tab's two marking pencils. It stays a toggle button to assistive technology. The mechanism,
+ * and the designs it was chosen over, are in `exclusive-set.ts`.
+ *
  * ## The icon changes drawing, not colour
  *
  * Fluent draws a `filled` variant for exactly this — MJXOFF-181's manifest says so on every toggle
@@ -40,8 +48,12 @@
 import { defineIcon, lookupGlyph } from '../icons/icon.ts';
 import type { IconSize, IconVariant } from '../icons/manifest.ts';
 import { MjxButton, buttonAttributes } from './button.ts';
-import { controlEvents, emitControlEvent } from './control-element.ts';
-import { isPressedValue, nextPressed, type PressedValue } from './control-states.ts';
+import {
+  pressedFromAttribute,
+  pressedIconVariant,
+  type PressedValue,
+} from './control-states.ts';
+import { activateToggle, exclusiveAttribute, exclusiveSetFromAttribute } from './exclusive-set.ts';
 
 export class MjxToggleButton extends MjxButton {
   static override readonly observedAttributes: readonly string[] = [
@@ -51,14 +63,22 @@ export class MjxToggleButton extends MjxButton {
 
   /** `false`, `true` or `mixed`. Absent means `false`. */
   get pressed(): PressedValue {
-    const declared = this.getAttribute('pressed');
-    // A bare `pressed` attribute is the HTML idiom for true, and a consumer who writes it means it.
-    if (declared === '') return 'true';
-    return isPressedValue(declared) ? (declared as PressedValue) : 'false';
+    // One reading, shared with `<mjx-split-button toggle>`: a bare attribute is true.
+    return pressedFromAttribute(this.getAttribute('pressed'));
   }
 
   set pressed(value: PressedValue) {
     this.setAttribute('pressed', value);
+  }
+
+  /** The exclusive set this toggle belongs to, or `undefined`. See `exclusive-set.ts`. */
+  get exclusive(): string | undefined {
+    return exclusiveSetFromAttribute(this.getAttribute(exclusiveAttribute));
+  }
+
+  set exclusive(value: string | undefined) {
+    if (value === undefined) this.removeAttribute(exclusiveAttribute);
+    else this.setAttribute(exclusiveAttribute, value);
   }
 
   /**
@@ -66,12 +86,11 @@ export class MjxToggleButton extends MjxButton {
    *
    * The attribute is written first so `aria-pressed` and the paint have already moved by the time
    * a listener runs — a listener that read `event.target.pressed` and got the *old* value would be
-   * a footgun with no upside.
+   * a footgun with no upside. Inside an `exclusive` set, the other members are released first and
+   * the pressed member stays pressed; `activateToggle` is where both are written.
    */
   protected override activated(_event: MouseEvent): void {
-    const next = nextPressed(this.pressed);
-    this.setAttribute('pressed', next);
-    emitControlEvent(this, controlEvents.change, { pressed: next });
+    activateToggle(this, this.pressed);
   }
 
   protected override rendered(button: HTMLButtonElement): void {
@@ -86,8 +105,7 @@ export class MjxToggleButton extends MjxButton {
   }
 
   protected override iconVariant(name: string, size: IconSize): IconVariant {
-    if (this.pressed !== 'true') return 'regular';
-    return lookupGlyph(name, size, 'filled') === undefined ? 'regular' : 'filled';
+    return pressedIconVariant(this.pressed, lookupGlyph(name, size, 'filled') !== undefined);
   }
 }
 

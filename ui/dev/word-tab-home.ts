@@ -24,7 +24,13 @@
  * ## The commands
  *
  * `named` are the real Word commands, in the order Word shows them, as far as the icon subset can
- * draw them. The remainder of each group's count is filled with numbered placeholders, because
+ * draw them. **Font's and Paragraph's survivors are declared in the middle of their groups**, as
+ * Word draws them, rather than first: until unit 2b they were listed first, which happened to be
+ * where the old survivor row drew them, so this specimen could not have shown the defect. It is now
+ * a fixture on which a survivors-first and a survivors-last rule both put a command out of order,
+ * and `tests/ribbon.test.ts` asserts that it stays one. **Which** commands survive follows
+ * `dev/ribbons/census.ts`'s rule-1 judgement, so Underline and Find — split buttons in Word — do not:
+ * Font keeps Bold and Italic, Paragraph its three alignments, and nothing else anywhere. The remainder of each group's count is filled with numbered placeholders, because
  * **deciding which real command goes in which group is loop 2** and a made-up command name would be
  * a worse lie than an obvious placeholder. What the story is for is the *layout* at 152 controls,
  * and a placeholder occupies exactly as much of it as a command does.
@@ -104,12 +110,13 @@ export const wordTabHomeGroups: readonly SpecimenGroup[] = [
     priority: 'primary',
     dialogLauncher: true,
     named: [
-      { label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, essential: true },
-      { label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
-      { label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true, essential: true },
-      { label: 'Clear All Formatting', icon: 'dismiss' },
       { label: 'Grow Font', icon: 'add' },
       { label: 'Change Case', icon: 'text-align-left' },
+      { label: 'Clear All Formatting', icon: 'dismiss' },
+      { label: 'Bold', icon: 'text-bold', size: 'icon', toggle: true, essential: true },
+      { label: 'Italic', icon: 'text-italic', size: 'icon', toggle: true, essential: true },
+      // Not a survivor: Word's Underline is a split button in Office. See dev/ribbons/census.ts.
+      { label: 'Underline', icon: 'text-underline', size: 'icon', toggle: true },
       { label: 'Text Highlight Colour', icon: 'comment' },
     ],
   },
@@ -121,11 +128,11 @@ export const wordTabHomeGroups: readonly SpecimenGroup[] = [
     priority: 'primary',
     dialogLauncher: true,
     named: [
+      { label: 'Bullets', icon: 'add' },
+      { label: 'Sort', icon: 'chevron-down' },
       { label: 'Align Left', icon: 'text-align-left', size: 'icon', toggle: true, essential: true },
       { label: 'Centre', icon: 'text-align-center', size: 'icon', toggle: true, essential: true },
       { label: 'Align Right', icon: 'text-align-right', size: 'icon', toggle: true, essential: true },
-      { label: 'Bullets', icon: 'add' },
-      { label: 'Sort', icon: 'chevron-down' },
       { label: 'Borders', icon: 'table' },
     ],
   },
@@ -152,7 +159,8 @@ export const wordTabHomeGroups: readonly SpecimenGroup[] = [
     priority: 'standard',
     dialogLauncher: false,
     named: [
-      { label: 'Find', icon: 'search', size: 'icon', essential: true },
+      // Not a survivor: Word's Find is a split button in Office (Find, Advanced Find, Go To).
+      { label: 'Find', icon: 'search', size: 'icon' },
       { label: 'Replace', icon: 'checkmark' },
       { label: 'Select', icon: 'chevron-right' },
     ],

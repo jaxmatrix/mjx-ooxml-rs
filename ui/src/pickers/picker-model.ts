@@ -969,6 +969,98 @@ export function nextSwatchIndex(
   }
 }
 
+// ── the entries beneath the palette ──────────────────────────────────────────
+
+/**
+ * The slot a `<mjx-color-picker>` draws its **entries** in: the commands Office lists under a
+ * colour grid (*More Colours…*, *Eyedropper*, *Gradient ▸*, *Weight ▸*).
+ *
+ * An author writes one `<mjx-menu slot="entries">` inside the picker, and the picker draws it
+ * beneath the palette. See `<mjx-color-picker>`'s module note for why it is a real menu.
+ */
+export const colorPickerEntriesSlot = 'entries';
+
+/**
+ * Whether a grid movement leaves the palette for the entries beneath it.
+ *
+ * **Only `ArrowDown`, and only from the palette's last drawn row.** That is where a person's eye
+ * goes next: the entries are drawn under the grid, so the key that moves down a row moves onto them
+ * once there is no row left. The *last drawn row* is counted in the section's own columns, so a
+ * ragged tail is one row: from the first cell of a two-row section whose second row holds one cell,
+ * `ArrowDown` still lands on that cell rather than skipping it for the entries.
+ *
+ * A palette with no swatches at all moves straight into the entries, because there is nowhere else
+ * for the key to go. Every other movement stays inside the grid, which never wraps.
+ */
+export function paletteMovesIntoEntries(
+  action: SwatchAction,
+  index: number,
+  sections: readonly SwatchSection[],
+): boolean {
+  if (action !== 'rowNext') return false;
+  const last = sections.at(-1);
+  if (last === undefined) return true;
+  if (index < last.start || index >= last.end) return false;
+  const local = index - last.start;
+  const count = last.end - last.start;
+  return Math.floor(local / last.columns) === Math.floor((count - 1) / last.columns);
+}
+
+/**
+ * Whether a key pressed on an entry returns to the palette: **`ArrowUp` on the first entry**, the
+ * mirror of `paletteMovesIntoEntries`.
+ *
+ * Without this the menu's own key map would wrap `ArrowUp` round to its last entry, and a keyboard
+ * user who arrowed into the entries would have no way back to the swatches short of closing the
+ * picker.
+ */
+export function entriesReturnToPalette(key: string, entryIndex: number): boolean {
+  return key === 'ArrowUp' && entryIndex === 0;
+}
+
+/**
+ * The swatch the cursor lands on when it comes back from the entries.
+ *
+ * The swatch it left from, when there is one and it still exists, so down-then-up is a round trip.
+ * Otherwise (a person reached the entries with the pointer) the first cell of the palette's last
+ * drawn row, which is the row directly above the entries. `-1` for a palette with no swatches.
+ */
+export function paletteReturnIndex(sections: readonly SwatchSection[], leftFrom: number | undefined): number {
+  const last = sections.at(-1);
+  if (last === undefined) return -1;
+  if (leftFrom !== undefined && leftFrom >= 0 && leftFrom < last.end) return leftFrom;
+  const count = last.end - last.start;
+  return last.start + Math.floor((count - 1) / last.columns) * last.columns;
+}
+
+/**
+ * The states the entries beneath the palette add to a colour picker's states matrix.
+ *
+ * Each entry is an `<mjx-menu-item>` and is painted by the menu's own state table, so no paint is
+ * decided here. What is decided here is **where the keyboard is**, which is the part a picture of a
+ * menu cannot show.
+ */
+export const colorPickerEntryStates: readonly { readonly name: string; readonly description: string }[] = [
+  {
+    name: 'entries',
+    description:
+      'Commands beneath the palette (More Colours…, Eyedropper, Gradient ▸). An inline menu, drawn flush on ' +
+      'the popup, with no card of its own. Absent when the host slots none.',
+  },
+  {
+    name: 'entries-keyboard',
+    description:
+      'The keyboard is on an entry. Focus has left the field for the row, and the grid shows no cursor. ' +
+      'Arrow Up from the first entry returns to the swatch the keyboard left.',
+  },
+  {
+    name: 'entries-submenu',
+    description:
+      'An entry with ▸ has opened its submenu (Weight, Dashes, Gradient). Checkable rows show their mark. ' +
+      'Choosing any entry closes the picker and returns focus to the field.',
+  },
+];
+
 // ── the font picker ──────────────────────────────────────────────────────────
 
 /** What this machine can actually do with a family the document asks for. */
@@ -1205,6 +1297,27 @@ export const colorPickerCss = `
   }
 
   .palette[data-open='false'] { display: none; }
+
+  /* The swatches, as the listbox. A column of headings and grids, laid out as the palette used to
+   * lay them out itself before the entries shared the popup with them. */
+  .swatches {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(${densityProperties.step});
+  }
+
+  /* The entries beneath the palette: one slotted <mjx-menu embedded>, under a hairline. The
+   * [hidden] rule is restated because display: block above is an author rule, and any author rule
+   * beats the user agent's own hidden rule (MJXOFF-274). */
+  .entries {
+    flex: 0 0 auto;
+    display: block;
+    padding-block-start: var(${densityProperties.step});
+    border-block-start: 1px solid ${themeVariable('borderSubtle')};
+  }
+
+  .entries[hidden] { display: none; }
 
   .section-heading {
     flex: 0 0 auto;

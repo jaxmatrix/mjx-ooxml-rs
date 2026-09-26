@@ -12,6 +12,10 @@
  * </mjx-menu>
  * ```
  *
+ * An **inline** menu (no `floating`, not a submenu) may carry `embedded`, which draws its rows flush
+ * on the surface it sits in rather than as a card of its own. `<mjx-color-picker>` sets it on the
+ * menu slotted beneath its palette, which is already a card.
+ *
  * ## A menu that renders is not a menu that behaves
  *
  * MJXOFF-184 is explicit that everything worth having here is **temporal or positional**, and that

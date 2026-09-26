@@ -365,7 +365,23 @@ export const componentStateMatrix = {
     'mixed',
     'mixedHover',
   ],
-  splitButton: ['rest', 'hover', 'active', 'focus', 'disabled', 'unavailable'],
+  /*
+   * The four held states since the split button grew a toggle mode. They are painted on the
+   * primary region alone — the arrow is a menu button and never holds a state — and the same
+   * table paints them, so a pressed split and a pressed toggle cannot drift apart.
+   */
+  splitButton: [
+    'rest',
+    'hover',
+    'active',
+    'focus',
+    'disabled',
+    'unavailable',
+    'on',
+    'onHover',
+    'mixed',
+    'mixedHover',
+  ],
   dialogLauncher: ['rest', 'hover', 'active', 'focus', 'disabled', 'unavailable'],
 } as const satisfies Readonly<Record<string, readonly ControlState[]>>;
 
@@ -513,6 +529,49 @@ export function nextPressed(current: PressedValue): PressedValue {
   return current === 'true' ? 'false' : 'true';
 }
 
+/**
+ * What a `pressed` attribute says, read the one way both toggle-shaped controls read it.
+ *
+ * Absent is `false`. A bare `pressed` is the HTML idiom for true, and a consumer who writes it means
+ * it. Anything that is not one of the three positions is `false` rather than an error, because an
+ * attribute is untrusted text and a toggle that threw on a typo would take its whole ribbon with it.
+ */
+export function pressedFromAttribute(declared: string | null): PressedValue {
+  if (declared === '') return 'true';
+  return isPressedValue(declared) ? declared : 'false';
+}
+
+/**
+ * The position a split button's **primary** region holds, or `undefined` when it holds none.
+ *
+ * `undefined` is the whole opt-in: a split button without `toggle` is the action-and-menu control it
+ * always was, and it must not announce `aria-pressed="false"` — that would make every Paste and Undo
+ * in a ribbon sound like a switch that is off. So a `pressed` attribute on a split button that has
+ * not opted in is ignored rather than half-honoured.
+ */
+export function splitButtonPressed(
+  toggle: boolean,
+  declared: string | null,
+): PressedValue | undefined {
+  return toggle ? pressedFromAttribute(declared) : undefined;
+}
+
+/**
+ * Which drawing a toggle-shaped control asks `<mjx-icon>` for.
+ *
+ * Fluent draws `filled` for a selected state, so a pressed control asks for it — **if the subset
+ * carries it**, and the regular drawing otherwise, because `<mjx-icon>` draws nothing for a glyph it
+ * does not have and a blank ribbon button is a bug nobody notices. `mixed` stays regular: a
+ * selection that disagrees with itself is not selected. Both `<mjx-toggle-button>` and a toggling
+ * `<mjx-split-button>` call this, so the two cannot disagree about when an icon fills.
+ */
+export function pressedIconVariant(
+  pressed: PressedValue | undefined,
+  hasFilledDrawing: boolean,
+): 'regular' | 'filled' {
+  return pressed === 'true' && hasFilledDrawing ? 'filled' : 'regular';
+}
+
 // ── events ───────────────────────────────────────────────────────────────────
 
 /**
@@ -523,9 +582,16 @@ export function nextPressed(current: PressedValue): PressedValue {
  * are `composed`, so a host listens on its own root rather than on each control's shadow tree.
  */
 export const controlEvents = {
-  /** A button, a dialog launcher, or a split button's primary region was activated. */
+  /**
+   * A button, a dialog launcher, or a split button's primary region was activated. A split button in
+   * toggle mode emits `change` from its primary instead, exactly as a toggle button does.
+   */
   activate: 'mjx-activate',
-  /** A toggle moved. `detail.pressed` is the new position. */
+  /**
+   * A toggle moved. `detail.pressed` is the new position. Emitted by `<mjx-toggle-button>` and by a
+   * `<mjx-split-button toggle>`'s primary region, with the same detail and the same ordering: the
+   * attribute has already moved when a listener runs.
+   */
   change: 'mjx-change',
   /**
    * A split button's menu was asked for — by its arrow region, or by Arrow Down on its primary.

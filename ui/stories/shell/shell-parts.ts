@@ -23,7 +23,9 @@
  * Not a story file: `stories/**` is globbed for `*.stories.ts`, so this is never indexed.
  */
 
-import { html, type TemplateResult } from 'lit';
+import { html, nothing, type TemplateResult } from 'lit';
+
+import type { ControlSize } from '../../src/controls/control-states.ts';
 
 import { typeRoleClass } from '../../src/foundations/typography.ts';
 import type { MjxDialog } from '../../src/surfaces/dialog.ts';
@@ -188,29 +190,6 @@ export function group(
 }
 
 /**
- * A tab whose only content is one group holding one large button.
- *
- * ⚠ **This is no longer how a core tab is stubbed, and it must not become one again.** The ribbon
- * programme's unit 0 replaced every core-tab stub with `stories/ribbons/ribbon-parts.ts`'s
- * `placeholderTab`, which builds its group from `dev/ribbons/census.ts` and therefore carries the
- * **priority the census declares** rather than the `standard` hard-coded below — so a tab that will
- * hold a `primary` group when its unit lands does not collapse earlier today than it will then.
- *
- * What still uses this is the **contextual tab sets**, which are `TabSet*` rows in the census rather
- * than core tabs and are the ribbon programme's unit 11. Until that lands there is no census entry
- * to build them from, and inventing one would be doing unit 11's work badly.
- */
-export function stubTab(id: string, label: string, command: string, icon: string): TemplateResult {
-  return html`
-    <mjx-ribbon-tab tab-id=${id} label=${label}>
-      <mjx-ribbon-group label=${label} priority="standard">
-        <mjx-button label=${command} icon=${icon} size="large"></mjx-button>
-      </mjx-ribbon-group>
-    </mjx-ribbon-tab>
-  `;
-}
-
-/**
  * **How wide a field is when it is in a ribbon**, and this is a shell decision rather than a
  * component one.
  *
@@ -256,14 +235,45 @@ export const ribbonColourFieldStyle = 'inline-size:9rem;flex:0 0 auto';
  */
 export const ribbonGalleryStyle = 'overflow:hidden';
 
-/** A toggle that starts on, so the ribbon shows a pressed state without a pointer. */
-export function toggle(label: string, icon: string, pressed = false): TemplateResult {
+/** What a ribbon toggle is asked to be. */
+export interface ToggleOptions {
+  /**
+   * **Whether it survives its group's collapse — required, so every caller says.**
+   *
+   * This function used to emit `slot="essential"` unconditionally, which made *is a state* and
+   * *survives a collapse* one fact, capped every group at `essentialCommandLimit` state commands,
+   * and left Justify, Subscript and Excel's vertical alignments unable to draw pressed. There is no
+   * default because the old default was the defect: a toggle that claimed the survivor row by
+   * omission is exactly how a fourth one got refused.
+   */
+  readonly essential: boolean;
+  /** Starts on, so the ribbon shows a pressed state without a pointer. */
+  readonly pressed?: boolean;
+  /** Defaults to `icon`, the size nearly every ribbon toggle is. A toggle with no icon must not use it. */
+  readonly size?: ControlSize;
+  /** The exclusive set it belongs to, written as `exclusive`. See `src/controls/exclusive-set.ts`. */
+  readonly exclusive?: string | undefined;
+  /**
+   * The set may hold none, written as the boolean `exclusive-allows-none`: pressing the member that holds
+   * releases it. Meaningless without `exclusive`. See `src/controls/exclusive-set.ts`.
+   */
+  readonly exclusiveAllowsNone?: boolean;
+}
+
+/** A ribbon toggle. */
+export function toggle(
+  label: string,
+  icon: string | undefined,
+  options: ToggleOptions,
+): TemplateResult {
   return html`<mjx-toggle-button
-    slot="essential"
+    slot=${options.essential ? 'essential' : nothing}
     label=${label}
-    icon=${icon}
-    size="icon"
-    ?pressed=${pressed}
+    icon=${icon ?? nothing}
+    size=${options.size ?? 'icon'}
+    exclusive=${options.exclusive ?? nothing}
+    ?exclusive-allows-none=${options.exclusiveAllowsNone === true}
+    ?pressed=${options.pressed === true}
   ></mjx-toggle-button>`;
 }
 

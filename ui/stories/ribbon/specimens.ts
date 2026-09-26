@@ -11,6 +11,7 @@ import { html, type TemplateResult } from 'lit';
 import { typeRoleClass } from '../../src/foundations/typography.ts';
 import {
   demotionRules,
+  survivorPlacement,
   groupPriorities,
   groupPriorityNames,
   type GroupPriority,
@@ -210,6 +211,45 @@ export function ladderTable(): TemplateResult {
               <td style=${cellStyle}>${groupPriorities[priority].reduceAtOrBelow}</td>
               <td style=${cellStyle}>${groupPriorities[priority].collapseAtOrBelow}</td>
               <td style=${cellStyle}>${groupPriorities[priority].use}</td>
+            </tr>
+          `,
+        )}
+      </tbody>
+    </table>
+  `;
+}
+
+/**
+ * Where a survivor draws, drawn from `survivorPlacement` so the story cannot disagree with the model.
+ *
+ * The demotion table says *which* commands survive; this says *where every command sits*, and names
+ * the four designs that were weighed and refused — because a reviewer who meets two slots and a
+ * ResizeObserver should be able to see why it is not one slot and CSS `order`.
+ */
+export function survivorPlacementTable(): TemplateResult {
+  return html`
+    <table class=${typeRoleClass('body')} style=${tableStyle}>
+      <caption class=${typeRoleClass('dense')} style="text-align:start;padding-block-end:var(--mjx-density-step)">
+        Where a survivor draws. ${survivorPlacement.rule}
+      </caption>
+      <tbody>
+        <tr>
+          <th scope="row" style=${cellStyle}>Because</th>
+          <td style=${cellStyle}>${survivorPlacement.because}</td>
+        </tr>
+        <tr>
+          <th scope="row" style=${cellStyle}>Mechanism</th>
+          <td style=${cellStyle}>${survivorPlacement.mechanism}</td>
+        </tr>
+        <tr>
+          <th scope="row" style=${cellStyle}>Checked by</th>
+          <td style=${cellStyle}>${survivorPlacement.checkedBy}</td>
+        </tr>
+        ${survivorPlacement.rejected.map(
+          (entry) => html`
+            <tr>
+              <th scope="row" style=${cellStyle}>Rejected: ${entry.alternative}</th>
+              <td style=${cellStyle}>${entry.because}</td>
             </tr>
           `,
         )}

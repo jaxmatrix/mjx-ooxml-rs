@@ -48,6 +48,60 @@
  * both jobs would have had to be a fixed colour and would have been invisible on the swatch of
  * that colour — a defect whose visibility depends entirely on which colours happen to be in the
  * palette on the day somebody looks.
+ *
+ * ## The entries beneath the palette
+ *
+ * Office's colour grids carry **commands** below the swatches: *More Colours…* and *Eyedropper* on
+ * nearly all of them, *Picture…*, *Gradient ▸* and *Texture ▸* under a fill, *Weight ▸*, *Sketched
+ * ▸*, *Dashes ▸* and *Arrows ▸* under an outline. A host writes them as one real menu, slotted:
+ *
+ * ```html
+ * <mjx-color-picker label="Shape Outline" show-no-fill no-fill-label="No Outline">
+ *   <mjx-menu slot="entries" label="Shape Outline">
+ *     <mjx-menu-item label="More Outline Colours…"></mjx-menu-item>
+ *     <mjx-menu-item label="Weight">
+ *       <mjx-menu slot="submenu" label="Weight">
+ *         <mjx-menu-item kind="radio" label="1 pt" value="1" checked></mjx-menu-item>
+ *       </mjx-menu>
+ *     </mjx-menu-item>
+ *   </mjx-menu>
+ * </mjx-color-picker>
+ * ```
+ *
+ * The menu is drawn beneath the palette, in the same popup, flush on it (the picker sets
+ * `embedded` on it). Choosing any entry fires the menu's own `mjx-menu-activate`, which a host
+ * listens for as it would on any menu, and closes the picker with focus back on the field.
+ *
+ * **The keyboard crosses between the two.** The swatches are a listbox with focus on the field and
+ * `aria-activedescendant` naming the swatch; the entries are a menu with a roving tab stop and real
+ * focus on the row. Two focus models in one popup, joined at exactly one seam, both halves of which
+ * are pure functions in `picker-model.ts` and tested in Node:
+ *
+ * - `ArrowDown` on the palette's last drawn row moves focus onto the first entry, and the grid
+ *   drops its cursor (`paletteMovesIntoEntries`);
+ * - `ArrowUp` on the first entry moves focus back to the field, with the cursor on the swatch it
+ *   left from (`entriesReturnToPalette`, `paletteReturnIndex`);
+ * - `Escape` on an entry closes the picker, `Tab` leaves it, and inside a submenu both are the
+ *   submenu's own. Pointing at a swatch while focus is on an entry brings focus back to the field,
+ *   so the arrow keys always act on what the pointer last touched.
+ *
+ * Still one tab stop: a closed popup is not drawn, so no entry is reachable until it opens.
+ *
+ * ### Rejected, and why
+ *
+ * 1. **Loose `<mjx-menu-item slot="entries">` children, wrapped in a menu inside the shadow root.**
+ *    A menu finds its rows by walking its own light-DOM children, and a slot is not one; a shadow
+ *    menu over slotted rows would need its own item walk, key map, submenu handling and activation,
+ *    which is a second menu. Wrapping them in a real `<mjx-menu>` costs the author one element.
+ * 2. **Entries as swatch descriptors.** A command is not a colour: it has no value to commit, and a
+ *    grid cell cannot hold a submenu, a check mark or an unavailable reason the way a menu row does.
+ * 3. **A "More…" button that opens a separate floating menu.** Office draws the entries in the
+ *    popup itself, under the grid, and a second popup is a second dismissal to get wrong.
+ * 4. **Keeping `role="listbox"` on the popup and putting the menu inside it.** A menu is not an
+ *    allowed child of a listbox. The popup now has no role; the listbox is the swatches inside it,
+ *    and `aria-controls` names that (`PopupSurface.controlledElement`).
+ * 5. **A data property of entry descriptors that the picker renders itself.** It would duplicate the
+ *    menu's authoring API (kinds, sections, separators, submenus) in a second, weaker shape.
  */
 
 import { installControlStyles } from '../controls/control-element.ts';
@@ -56,6 +110,10 @@ import type { ThemeMember } from '../tokens/resolver.ts';
 import { MjxComboBox } from '../inputs/combo-box.ts';
 import { defineListFieldDependencies } from '../inputs/list-field.ts';
 import { defineIcon } from '../icons/icon.ts';
+import { defineMenus } from '../menus/index.ts';
+import type { MjxMenu } from '../menus/menu.ts';
+import type { MjxMenuItem } from '../menus/menu-item.ts';
+import { menuEvents, menuTags } from '../menus/menu-model.ts';
 import {
   displayTextFor,
   type ListCloseReason,
@@ -68,11 +126,15 @@ import {
   chooseSwatchHairlineAmong,
   chooseSwatchIndicatorAmong,
   colorPickerCss,
+  colorPickerEntriesSlot,
   describeColorChoice,
+  entriesReturnToPalette,
   formatColorChoice,
   galleryThemeSlots,
   nextSwatchIndex,
   noColorChosen,
+  paletteMovesIntoEntries,
+  paletteReturnIndex,
   parseColorChoice,
   resolveThemeColor,
   swatchCellBackground,
@@ -106,6 +168,7 @@ export class MjxColorPicker extends MjxComboBox {
     'automatic',
     'show-automatic',
     'show-no-fill',
+    'no-fill-label',
   ];
 
   #themePalette: ThemeColorPalette = {};
@@ -117,6 +180,11 @@ export class MjxColorPicker extends MjxComboBox {
   #resolver: TokenResolver | undefined;
   /** Whether the cursor is where a person's arrow keys put it. See `handleAction`. */
   #cursorMovedByKeyboard = false;
+  /** The region beneath the swatches the entries are slotted into. Built once. */
+  #entriesRegion: HTMLElement | undefined;
+  #entriesSlot: HTMLSlotElement | undefined;
+  /** The swatch the keyboard left the palette from, so `ArrowUp` off the first entry returns there. */
+  #entriesLeftFrom: number | undefined;
 
   // ── what the host supplies, because it belongs to the document ─────────────
 
@@ -174,6 +242,18 @@ export class MjxColorPicker extends MjxComboBox {
   }
 
   /**
+   * What the *No fill* chip is called: `no-fill-label`, or *No fill* when a host sets none.
+   *
+   * Office names the one value three ways (*No Fill* under a fill, *No Outline* under an outline,
+   * *No Colour* under Word's Shading), and the name is also what the field shows and what a person
+   * may type. The value stays `none` whatever it is called.
+   */
+  get noFillLabel(): string {
+    const declared = (this.getAttribute('no-fill-label') ?? '').trim();
+    return declared === '' ? describeColorChoice({ kind: 'none' }) : declared;
+  }
+
+  /**
    * ⚠ **Always true, and it is not an attribute.**
    *
    * A colour picker whose value had to be on its own grid could not return `#123457`, and
@@ -206,6 +286,26 @@ export class MjxColorPicker extends MjxComboBox {
     return this.#palette;
   }
 
+  /**
+   * The menu slotted beneath the palette, or `undefined` when the host slotted none.
+   *
+   * The first `<mjx-menu slot="entries">` child. Matched by tag name rather than `instanceof`, for
+   * the reason `<mjx-menu>`'s own `items` gives: a child may not have upgraded yet.
+   */
+  get entriesMenu(): MjxMenu | undefined {
+    for (const child of this.children) {
+      if (child.localName === menuTags.menu && child.getAttribute('slot') === colorPickerEntriesSlot) {
+        return child as MjxMenu;
+      }
+    }
+    return undefined;
+  }
+
+  /** The region the entries are drawn in, so a gate can measure where it is. */
+  get entriesRegion(): HTMLElement | undefined {
+    return this.#entriesRegion;
+  }
+
   // ── lifecycle ──────────────────────────────────────────────────────────────
 
   override connectedCallback(): void {
@@ -215,6 +315,7 @@ export class MjxColorPicker extends MjxComboBox {
     // state once: a component wears the foundations, then the archetype, then its own.
     if (root !== null) installControlStyles(root, colorPickerSheet);
     if (this.#resolver === undefined) this.#resolver = new TokenResolver(this);
+    if (this.#entriesRegion === undefined) this.#buildEntries();
     this.render();
   }
 
@@ -285,12 +386,27 @@ export class MjxColorPicker extends MjxComboBox {
   protected override closed(reason: ListCloseReason): void {
     super.closed(reason);
     this.#cursorMovedByKeyboard = false;
+    this.#entriesLeftFrom = undefined;
+    this.#closeEntrySubmenus();
   }
 
   protected override createSurface(idPrefix: string): PopupSurface {
     const palette = new SwatchSurface(this, idPrefix);
     this.#palette = palette;
     return palette;
+  }
+
+  /**
+   * A swatch the pointer moved onto, or the keyboard did.
+   *
+   * ⚠ **When focus is on an entry, the pointer brings it back to the field.** A menu row takes
+   * real focus when the pointer passes over it, so a person who brushed the entries and then
+   * pointed at a swatch would otherwise have arrow keys still driving the menu while the grid
+   * showed a cursor: two things looking active and the keyboard on the one not under the pointer.
+   */
+  override movedActive(index: number): void {
+    if (index >= 0 && this.#focusIsOnAnEntry()) this.entryElement?.focus({ preventScroll: true });
+    super.movedActive(index);
   }
 
   /**
@@ -377,6 +493,9 @@ export class MjxColorPicker extends MjxComboBox {
    * * the person must not be **typing**, so `Left`, `Right`, `Home` and `End` stay the caret's
    *   while there is a half-written value in the field. `ArrowDown` and `ArrowUp` are taken in
    *   either case, because a one-line text box has no use for them.
+   *
+   * A third, for the entries: `ArrowDown` off the palette's last row moves onto them. See the
+   * module note.
    */
   protected override interceptKey(event: KeyboardEvent): 'handled' | 'passed' {
     if (!this.open) return 'passed';
@@ -397,7 +516,15 @@ export class MjxColorPicker extends MjxComboBox {
       case 'last':
       case 'sectionNext':
       case 'sectionPrevious': {
-        if (surface.options.length === 0) return 'handled';
+        if (surface.options.length === 0) {
+          if (action === 'rowNext') this.#enterEntries(-1);
+          return 'handled';
+        }
+        // Only from a cursor a person can see: with none (a person is typing) Arrow Down puts the
+        // cursor on the grid first, as it always has.
+        if (surface.activeIndex >= 0 && paletteMovesIntoEntries(action, surface.activeIndex, surface.sections)) {
+          if (this.#enterEntries(surface.activeIndex)) return 'handled';
+        }
         const from = surface.activeIndex < 0 ? 0 : surface.activeIndex;
         const next = nextSwatchIndex(action, from, surface.sections);
         this.#cursorMovedByKeyboard = true;
@@ -412,6 +539,174 @@ export class MjxColorPicker extends MjxComboBox {
     }
   }
 
+  // ── the entries ────────────────────────────────────────────────────────────
+
+  /**
+   * The region under the swatches, and the four listeners that join the menu to the picker.
+   *
+   * The listeners are on the host rather than on the menu, so a menu that is swapped for another
+   * needs no rewiring: each one asks `entriesMenu` at the moment it runs.
+   */
+  #buildEntries(): void {
+    const surface = this.#palette;
+    if (surface === undefined) return;
+    const region = document.createElement('div');
+    region.className = 'entries';
+    region.setAttribute('part', 'entries');
+    region.hidden = true;
+    const slot = document.createElement('slot');
+    slot.name = colorPickerEntriesSlot;
+    slot.addEventListener('slotchange', this.#onEntriesChange);
+    region.append(slot);
+    surface.element.append(region);
+    this.#entriesRegion = region;
+    this.#entriesSlot = slot;
+
+    // Capture, so the picker sees Arrow Up on the first entry before the menu wraps it round to
+    // the last.
+    this.addEventListener('keydown', this.#onEntriesKeyDown, true);
+    this.addEventListener('focusin', this.#onEntriesFocusIn);
+    this.addEventListener('focusout', this.#onEntriesFocusOut);
+    this.addEventListener(menuEvents.activate, this.#onEntryActivated);
+    this.addEventListener(menuEvents.submenuToggle, this.#onEntrySubmenuToggle);
+    this.#onEntriesChange();
+  }
+
+  #onEntriesChange = (): void => {
+    const region = this.#entriesRegion;
+    const slot = this.#entriesSlot;
+    if (region === undefined || slot === undefined) return;
+    region.hidden = slot.assignedElements().length === 0;
+    const menu = this.entriesMenu;
+    if (menu !== undefined && !menu.hasAttribute('embedded')) menu.setAttribute('embedded', '');
+    // The popup changed size under an open placement.
+    const field = this.fieldElement;
+    if (this.open && field !== undefined) this.#palette?.place(field, this.direction);
+  };
+
+  /** Move the keyboard from the palette onto the first entry. `false` when there is none to move to. */
+  #enterEntries(leftFrom: number): boolean {
+    const surface = this.#palette;
+    const menu = this.entriesMenu;
+    if (surface === undefined || menu === undefined || menu.items.length === 0) return false;
+    this.#entriesLeftFrom = leftFrom >= 0 ? leftFrom : undefined;
+    this.#cursorMovedByKeyboard = false;
+    surface.setActive(-1);
+    this.movedActive(-1);
+    menu.focusItem(0);
+    return true;
+  }
+
+  /** Move the keyboard from the entries back onto the swatch it left, or the row above the entries. */
+  #returnToPalette(): void {
+    const surface = this.#palette;
+    if (surface === undefined) return;
+    const index = paletteReturnIndex(surface.sections, this.#entriesLeftFrom);
+    this.#entriesLeftFrom = undefined;
+    this.entryElement?.focus({ preventScroll: true });
+    this.#cursorMovedByKeyboard = index >= 0;
+    surface.setActive(index);
+    this.movedActive(index);
+  }
+
+  /** The index of an event target among the entries menu's own rows, or `-1`. A submenu's row is not one. */
+  #entryIndexOf(target: EventTarget | null): number {
+    const menu = this.entriesMenu;
+    if (menu === undefined || !(target instanceof HTMLElement) || target.localName !== menuTags.item) return -1;
+    return menu.items.indexOf(target as MjxMenuItem);
+  }
+
+  #focusIsOnAnEntry(): boolean {
+    const menu = this.entriesMenu;
+    const active = deepActiveElement(this.ownerDocument);
+    return menu !== undefined && active !== null && menu.contains(active);
+  }
+
+  #onEntriesKeyDown = (event: KeyboardEvent): void => {
+    if (!this.open || event.ctrlKey || event.metaKey || event.altKey) return;
+    const index = this.#entryIndexOf(event.target);
+    // A submenu's row, or the field: their own key maps decide.
+    if (index < 0) return;
+    if (entriesReturnToPalette(event.key, index)) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.#returnToPalette();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeList('escape');
+      return;
+    }
+    // Tab leaves, as it does from the field. No preventDefault: the browser's own sequential
+    // navigation continues, and the popup is already hidden so it does not stop on another entry.
+    if (event.key === 'Tab') this.closeList('tab', { restoreFocus: false });
+  };
+
+  /**
+   * An entry took focus, by the keyboard or because the pointer passed over it (a menu row takes
+   * focus on hover). The grid drops its cursor, so only one thing looks active, and the focused
+   * entry is kept inside the popup's scrollport when the palette is capped and scrolls.
+   */
+  #onEntriesFocusIn = (event: FocusEvent): void => {
+    if (this.#entryIndexOf(event.target) < 0) return;
+    const surface = this.#palette;
+    if (surface !== undefined && surface.activeIndex >= 0) {
+      this.#cursorMovedByKeyboard = false;
+      surface.setActive(-1);
+      this.movedActive(-1);
+    }
+    const palette = surface?.element;
+    if (palette === undefined || palette.scrollHeight <= palette.clientHeight) return;
+    const row = (event.target as HTMLElement).getBoundingClientRect();
+    const box = palette.getBoundingClientRect();
+    if (row.top < box.top) palette.scrollTop -= box.top - row.top;
+    else if (row.bottom > box.bottom) palette.scrollTop += row.bottom - box.bottom;
+  };
+
+  /**
+   * The disclosure half of the focus model, for focus that is on an entry.
+   *
+   * The field's own `focusout` watches the field. Focus on an entry is outside it, so leaving the
+   * picker from an entry would otherwise leave the popup open. Deferred a microtask and re-read
+   * through every shadow root, for the reason `MjxListField` gives: a row rebuilding under focus
+   * reports `null` for a moment on its way back.
+   */
+  #onEntriesFocusOut = (): void => {
+    if (!this.open) return;
+    queueMicrotask(() => {
+      if (!this.open) return;
+      const active = deepActiveElement(this.ownerDocument);
+      if (active === null) return;
+      if (this.contains(active) || this.shadowRoot?.contains(active) === true) return;
+      this.closeList('blur', { restoreFocus: false });
+    });
+  };
+
+  /** An entry was chosen: close the picker, with focus back on the field. The event still reaches the host. */
+  #onEntryActivated = (event: Event): void => {
+    const menu = this.entriesMenu;
+    if (menu === undefined || !event.composedPath().includes(menu)) return;
+    this.closeList('commit');
+  };
+
+  /** A submenu opened on a hover timer after the picker closed: close it, rather than strand it in the top layer. */
+  #onEntrySubmenuToggle = (): void => {
+    if (!this.open) this.#closeEntrySubmenus();
+  };
+
+  /** Close every submenu the entries have open, deepest first through each submenu's own close. */
+  #closeEntrySubmenus(): void {
+    const menu = this.entriesMenu;
+    if (menu === undefined) return;
+    for (const item of menu.items) {
+      const submenu = item.submenu;
+      if (!item.submenuOpen || submenu === undefined || submenu.localName !== menuTags.menu) continue;
+      (submenu as MjxMenu).close('outside', { restoreFocus: false });
+    }
+  }
+
   // ── the swatches ───────────────────────────────────────────────────────────
 
   #buildSwatches(): SwatchDescriptor[] {
@@ -423,9 +718,8 @@ export class MjxColorPicker extends MjxComboBox {
       );
     }
     if (this.showsNoFill) {
-      swatches.push(
-        this.#swatchFor({ kind: 'none' }, colorSectionNames.reset, describeColorChoice({ kind: 'none' })),
-      );
+      const label = this.noFillLabel;
+      swatches.push(this.#swatchFor({ kind: 'none' }, colorSectionNames.reset, label, label));
     }
 
     // The theme block: variant-major, so each **column** is one slot and each row is one step of
@@ -466,11 +760,11 @@ export class MjxColorPicker extends MjxComboBox {
     return swatches;
   }
 
-  #swatchFor(choice: ColorChoice, category: string, chipLabel?: string): SwatchDescriptor {
+  #swatchFor(choice: ColorChoice, category: string, chipLabel?: string, label?: string): SwatchDescriptor {
     const paint = this.#paintOf(choice);
     return {
       value: formatColorChoice(choice),
-      label: describeColorChoice(choice),
+      label: label ?? describeColorChoice(choice),
       category,
       paint,
       indicator: this.#indicatorFor(paint),
@@ -530,10 +824,19 @@ export class MjxColorPicker extends MjxComboBox {
   }
 }
 
-/** Register the element. Idempotent. */
+/** The focused element, followed through every shadow root it is hiding in. */
+function deepActiveElement(document_: Document): Element | null {
+  let element: Element | null = document_.activeElement;
+  while (element?.shadowRoot?.activeElement != null) element = element.shadowRoot.activeElement;
+  if (element === document_.body || element === document_.documentElement) return null;
+  return element;
+}
+
+/** Register the element, and the menu elements its entries are written in. Idempotent. */
 export function defineColorPicker(): void {
   defineIcon();
   defineListFieldDependencies();
+  defineMenus();
   if (customElements.get('mjx-color-picker') === undefined) {
     customElements.define('mjx-color-picker', MjxColorPicker);
   }

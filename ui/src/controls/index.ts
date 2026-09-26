@@ -20,6 +20,16 @@ export { MjxButton, buttonAttributes, buttonCss, defineButton } from './button.t
 export { MjxToggleButton, defineToggleButton } from './toggle-button.ts';
 export { MjxSplitButton, defineSplitButton, splitButtonCss, splitButtonSheet } from './split-button.ts';
 export {
+  activateToggle,
+  exclusiveAllowsNone,
+  exclusiveAllowsNoneAttribute,
+  exclusiveAttribute,
+  exclusiveScopeOf,
+  exclusiveScopeSelector,
+  exclusiveSetFromAttribute,
+  planToggleActivation,
+} from './exclusive-set.ts';
+export {
   MjxDialogLauncher,
   defineDialogLauncher,
   dialogLauncherIcon,

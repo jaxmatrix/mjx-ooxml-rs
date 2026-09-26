@@ -4,6 +4,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyConventions } from '../../src/story/conventions.ts';
 import {
   demotionTable,
+  survivorPlacementTable,
   ladderTable,
   note,
   ribbonKeyboard,
@@ -78,8 +79,15 @@ const otherTabs = wordCoreTabs
  * Font and Paragraph are full; at 834 everything but the two primaries has collapsed to a button;
  * at 390 the tab strip itself is a picker and every group is a button with its essential commands
  * beside it. **No command is ever removed** — open any collapsed group and its whole contents are
- * there, because the popup is the same element and the same slot the strip was showing.
+ * there, because the popup is the same element the strip was showing and the commands are the same
+ * nodes — moved from the panel's slot to the survivor row's, never rebuilt.
  */
+/** How many commands the specimen marks essential, counted rather than typed. */
+const specimenSurvivorCount = wordTabHomeGroups.reduce(
+  (total, group) => total + group.named.filter((command) => command.essential === true).length,
+  0,
+);
+
 export const TheWorstCase: Story = {
   name: 'The Worst Case',
   render: () => html`
@@ -102,9 +110,10 @@ export const TheWorstCaseOnAPhone: Story = {
   name: 'The Worst Case On A Phone',
   render: () => html`
     ${note(
-      'The container is pinned to 390px. Thirteen buttons and seven essential commands, and every ' +
-        'one of the 152 is still reachable. Open Font: Bold, Italic and Underline never left, and ' +
-        'the other forty are behind the button.',
+      `The container is pinned to 390px. ${String(wordTabHomeGroups.length)} buttons and ` +
+        `${String(specimenSurvivorCount)} essential commands, and every one of the ` +
+        `${String(wordTabHomeControlCount)} is still reachable. Open Font: Bold and Italic never ` +
+        'left, and the rest are behind the button.',
     )}
     <mjx-resizable-container width="390">
       <mjx-ribbon label="Word" selected="home">
@@ -129,10 +138,12 @@ export const TheDemotionRules: Story = {
         'last: nothing is ever removed. A collapsed group holds every command it held when it ' +
         'was full, in the same DOM nodes, so reachability is structural rather than remembered.',
     )}
-    ${demotionTable()} ${ladderTable()}
+    ${demotionTable()} ${survivorPlacementTable()} ${ladderTable()}
     ${note(
-      'In this specimen: Font keeps Bold, Italic and Underline; Paragraph keeps the three ' +
-        'alignments; Editing keeps Find. Clipboard keeps none, deliberately — its four verbs are ' +
+      'In this specimen: Font keeps Bold and Italic, declared after Grow Font, Change Case and ' +
+        'Clear All Formatting and drawn there until the group collapses; Paragraph keeps the three ' +
+        'alignments, declared after Bullets and Sort. Underline and Find keep nothing, because both ' +
+        'are split buttons in Word. Clipboard keeps none, deliberately — its four verbs are ' +
         'on the keyboard anyway, which is also why it is declared secondary and gives way early.',
     )}
     <mjx-resizable-container width="390">
