@@ -9,7 +9,7 @@
 //! contains no unresolved outline and this provider is never called.
 //!
 //! That is exactly why it **refuses** rather than standing in. `mjx-scene`'s own
-//! [`PlaceholderGeometry`](mjx_scene::PlaceholderGeometry) answers every handle with a framed
+//! [`PlaceholderGeometry`] answers every handle with a framed
 //! crossed rectangle, which is right for a deck of shapes that must render; here it would turn *a
 //! handle nobody issued* — which can only be a defect in the box model or a resolver paired with
 //! the wrong page — into a visible box that a reader would report as a rendering bug rather than as
