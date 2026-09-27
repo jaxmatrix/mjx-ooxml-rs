@@ -1177,13 +1177,10 @@ fn edit_document(bytes: &[u8]) -> Result<Option<EditedDocument>, String> {
         };
         for slot in 0..slots {
             if let Ok(text) = document.run_text(paragraph, slot) {
-                // `Run::set_text` maintains `xml:space="preserve"`: it adds the attribute when the
-                // new text begins or ends in whitespace and removes it when it does not. That is
-                // correct, and it is not what this check measures — a run whose text is bounded by
-                // whitespace would move the attribute as well as the text and the region would no
-                // longer be the marker alone. `mjx-dml`'s `Text::set_text` touches no attribute, so
-                // the deck above needs no such rule.
-                if !text.is_empty() && text.trim() == text {
+                // `Run::set_text` adds `xml:space="preserve"` only when the new text begins or ends
+                // in whitespace, and never removes one the document carries (MJXOFF-349), so the
+                // marker — which has no edge whitespace — moves no attribute on any run.
+                if !text.is_empty() {
                     found = Some((paragraph, slot, text));
                     break 'search;
                 }
