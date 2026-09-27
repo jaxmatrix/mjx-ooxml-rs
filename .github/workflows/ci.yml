@@ -18,7 +18,11 @@ jobs:
     name: fmt · clippy · test
     runs-on: ubuntu-latest
     steps:
+      # Full history: `xtask/tests/completion_claims.rs` reads every commit since the merge-base
+      # with `main`, and refuses a shallow clone rather than reading half of them (MJXOFF-349).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -130,7 +134,10 @@ jobs:
     name: test (--all-features)
     runs-on: ubuntu-latest
     steps:
+      # Full history, for the reason `lint-test` gives: `completion_claims` refuses a shallow clone.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
