@@ -53,34 +53,66 @@ const PERMITTED_DEPENDENCIES: &[&str] = &[
     "thiserror",
 ];
 
-/// The crates this one must never name in **either** dependency section.
+/// The crates this one must never name in **either** dependency section: every workspace member
+/// that is not a permitted dependency, derived from the root manifest rather than listed.
 ///
-/// The three format crates are here rather than permitted below, which is the difference between
-/// this gate and `mjx-scene-xlsx`'s: that crate legitimately opens a workbook in a test, and this
-/// one must not open anything. A suite that reached a chart part through `mjx_pptx::Presentation`
-/// would be exercising one host's route into the engine, in the crate whose value is that all three
-/// take the same one.
-const FORBIDDEN: &[&str] = &[
-    "mjx-pptx",
-    "mjx-docx",
-    "mjx-xlsx",
-    "mjx-opc",
-    "mjx-sml",
-    "mjx-layout-pptx",
-    "mjx-layout-docx",
-    "mjx-layout-xlsx",
-    "mjx-scene",
-    "mjx-scene-pptx",
-    "mjx-scene-xlsx",
-    "mjx-geometry",
-    "mjx-session",
-    "mjx-view",
-    "mjx-ooxml",
-    "mjx-paint",
-    "mjx-render-oracle",
-    "mjx-reference-pack",
-    "mjx-canvas-harness",
-];
+/// The three format crates are among them rather than permitted in `[dev-dependencies]`, which is
+/// the difference between this gate and `mjx-scene-xlsx`'s: that crate legitimately opens a
+/// workbook in a test, and this one must not open anything. A suite that reached a chart part
+/// through `mjx_pptx::Presentation` would be exercising one host's route into the engine, in the
+/// crate whose value is that all three take the same one. Until MJXOFF-349 this was a literal list
+/// of nineteen crates, which `xtask/tests/derived_rosters.rs` refuses: a crate joining the
+/// workspace would have joined no list, and the refusal would have gone quiet for it.
+fn forbidden() -> Vec<String> {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = crate_root.join("../..");
+    let root_manifest = read(&workspace.join("Cargo.toml"));
+    let mut members = Vec::new();
+    let mut inside = false;
+    for line in root_manifest.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("members") {
+            inside = true;
+            continue;
+        }
+        if !inside {
+            continue;
+        }
+        if trimmed.starts_with(']') {
+            break;
+        }
+        if let Some(path) = trimmed
+            .strip_prefix('"')
+            .and_then(|rest| rest.split('"').next())
+        {
+            members.push(package_name(&read(
+                &workspace.join(path).join("Cargo.toml"),
+            )));
+        }
+    }
+    assert!(
+        members.len() >= 30,
+        "only {} workspace member(s) were read out of the root manifest; the parser has stopped \
+         matching, and an empty refusal list would pass exactly as a holding seam does",
+        members.len()
+    );
+    let own = package_name(&manifest());
+    members
+        .into_iter()
+        .filter(|name| *name != own && !PERMITTED_DEPENDENCIES.contains(&name.as_str()))
+        .collect()
+}
+
+/// The `name` a manifest's `[package]` section declares.
+fn package_name(manifest: &str) -> String {
+    section_lines(manifest, "[package]")
+        .into_iter()
+        .find_map(|line| {
+            let (key, value) = line.split_once('=')?;
+            (key.trim() == "name").then(|| value.trim().trim_matches('"').to_owned())
+        })
+        .unwrap_or_else(|| panic!("a manifest with no `[package]` name:\n{manifest}"))
+}
 
 /// The identifiers the source must never name, whatever the manifest says.
 const FORBIDDEN_IDENTIFIERS: &[&str] = &[
@@ -172,7 +204,14 @@ fn the_dependency_list_is_exactly_what_it_should_be() {
 #[test]
 fn the_engine_names_no_format_crate_in_either_section() {
     let manifest = manifest();
-    for forbidden in FORBIDDEN {
+    let forbidden_crates = forbidden();
+    for format_crate in ["mjx-pptx", "mjx-docx", "mjx-xlsx"] {
+        assert!(
+            forbidden_crates.iter().any(|name| name == format_crate),
+            "the derived refusal list does not name `{format_crate}`; the derivation is broken"
+        );
+    }
+    for forbidden in &forbidden_crates {
         for section in ["[dependencies]", "[dev-dependencies]"] {
             let named = section_lines(&manifest, section)
                 .into_iter()
