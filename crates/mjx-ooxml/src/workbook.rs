@@ -96,8 +96,15 @@
 //!   [`crate::Deck::presentation_mut`]'s own documentation gives.
 //! - **`blank_with_properties`** — it takes an `mjx_opc::doc_props::CoreProperties` and an
 //!   `ExtendedProperties`, so an authored workbook can carry a title, a creator and a created time.
-//!   Nothing here sets them, and neither binding can — the one entry on this list that is a **gap
-//!   rather than a decision**, and [`crate::Deck`] and [`crate::Document`] have exactly the same one.
+//!   Nothing here sets them, and neither binding can — a **gap rather than a decision**, and
+//!   [`crate::Deck`] and [`crate::Document`] have exactly the same one.
+//! - **`read_workbook_markup`** takes a closure over the interner, like the markup doors above.
+//!   **`print_titles`** is superseded by [`Workbook::defined_names`], which carries the
+//!   `_xlnm.Print_Titles` name with its sheet scope.
+//! - **Gaps rather than decisions**, added for the renderer and not yet projected: `theme_colors`
+//!   and `theme_accent_colors` (the theme's scheme, which no call here reads) and `dirty_parts` /
+//!   `settle_dirty_parts` (the batched-commit pair `mjx-session` drives). Each is reachable through
+//!   [`Workbook::workbook_mut`] (MJXOFF-349).
 //!
 //! **Six calls are renames rather than omissions**, and are here under a name that says which
 //! subject they belong to: `add_comment`, `comment_at`, `set_comment_text` and `remove_comment` are

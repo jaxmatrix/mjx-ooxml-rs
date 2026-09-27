@@ -86,9 +86,16 @@
 //!   unbindable argument or return already made concrete.
 //! - **`blank_with_properties`** takes an `mjx_opc::doc_props::CoreProperties` and an
 //!   `ExtendedProperties`, so an authored document can carry a title, a creator and a created time.
-//!   Nothing here sets them, and neither binding can — the one entry on this list that is a **gap
-//!   rather than a decision**, and [`crate::Deck`] and [`crate::Workbook`] have exactly the same one.
+//!   Nothing here sets them, and neither binding can — a **gap rather than a decision**, and
+//!   [`crate::Deck`] and [`crate::Workbook`] have exactly the same one.
 //! - **`from_package`** takes the sealed `mjx_opc::Package`, as on the other two surfaces.
+//! - **`edit_paragraph_properties`** takes a closure over the interner, like the other closure doors
+//!   above. **`formatting`** — the read-once formatting a layout engine consumes — is superseded by
+//!   [`Document::effective_paragraph_properties`], which answers the same question per paragraph.
+//! - **Gaps rather than decisions**, added for the renderer and not yet projected:
+//!   `theme_accent_colors` (the theme's six accents, which no call here reads) and `dirty_parts` /
+//!   `settle_dirty_parts` (the batched-commit pair `mjx-session` drives). Each is reachable through
+//!   [`Document::document_mut`] (MJXOFF-349).
 //!
 //! # Addressing
 //!
