@@ -121,6 +121,11 @@
 //!   hit test can ever land on. MJXOFF-244 reported it rather than adding it quietly; where it
 //!   belongs (a chrome layer above the box model, or a fragment kind that says *this is furniture*)
 //!   is a decision for the child that draws a sheet on a screen.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, of which this box model is Excel's stage.
 
 #![forbid(unsafe_code)]
 

@@ -177,8 +177,8 @@ ranked crate rather than below them, because each names a set of edges no ranked
 declare. `mjx-render-oracle` is the fidelity oracle (the three assertion tiers, the perceptual
 metric, the baselines and their approval events); `mjx-reference-pack` authors the artefacts one
 Windows sitting needs and is the top of the workspace, reachable by nothing; `mjx-canvas-harness` is
-the manual audit surface for the sixty-one in-canvas UI elements, and is the oracle's second
-consumer. Having no rank means the layering test's downward rule holds nothing about what they
+the manual audit surface for every in-canvas UI element
+`docs/client-platform/CANVAS_UI_INVENTORY.md` lists, and is the oracle's second consumer. Having no rank means the layering test's downward rule holds nothing about what they
 depend on, so each of the last two carries its own seam gate —
 `crates/mjx-render-oracle/tests/the_seam_holds.rs` and
 `crates/mjx-canvas-harness/tests/the_seam_holds.rs` — asserting its dependency set exactly — see `CLAUDE.md` before adding one.
@@ -335,9 +335,11 @@ this engine agreeing with itself.
 
 ### Examples
 
-Forty-seven runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
-measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
-it**, because an example that only produced a file would prove nothing. CI runs every one on every
+The workspace builds forty-nine runnable programs. Every one but three **reopens what it wrote and
+asserts something about it**, because an example that only produced a file would prove nothing. The
+three are `mjx-xml`'s `mjx248_measure` — the serialization measurement `docs/BENCHMARKS.md`
+reproduces — and `mjx-geometry`'s two preset galleries, which draw every preset for a person to look
+at and say in their own documentation that a picture is not verification. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
 disagree.
 
@@ -401,6 +403,10 @@ cargo run -p mjx-ooxml --example guide_the_round_trip_contract
 
 # The serialization measurement docs/BENCHMARKS.md reproduces
 cargo run -p mjx-xml --example mjx248_measure
+
+# Every preset shape on one sheet, for a person to look at — not verification
+cargo run -p mjx-geometry --example plate_gallery -- /tmp/presets.svg
+cargo run -p mjx-geometry --example painted_gallery -- /tmp/painted
 ```
 
 ## Contributing

@@ -86,6 +86,12 @@
 //! | [`specimen`] | The pages the oracle asserts over, and the two perturbations |
 //! | [`tiers`] | The three layered assertions, and which stage a difference belongs to |
 //! | [`tools`] | `pdftoppm`, `pdftotext`, `pdfinfo`, `soffice` — and the loud named skip |
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/validation/08-the-fidelity-oracle.md` is the page to read
+//! beside it: what the oracle proves, what it refuses to claim, and the approval only a person
+//! gives.
 
 pub mod authority;
 pub mod baseline;

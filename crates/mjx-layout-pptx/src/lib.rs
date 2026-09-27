@@ -87,6 +87,11 @@
 //! carries a [`GeometryRef`](mjx_layout::GeometryRef) and the provider that turns it into an outline
 //! lives above this crate; `mjx-geometry` is not a dependency and
 //! `tests/the_seam_holds.rs` refuses the edge by name.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, of which this box model is PowerPoint's stage.
 
 #![forbid(unsafe_code)]
 

@@ -72,6 +72,11 @@
 //! is a human sitting against real Microsoft Office on Windows
 //! (`docs/validation/07-the-reference-pack.md`); LibreOffice is a change detector and not a
 //! reference, and the user has said its export of shades and gradients is not to be trusted at all.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, which says why a box model's resolver is a crate of its own.
 
 #![forbid(unsafe_code)]
 

@@ -84,6 +84,11 @@
 //! table now carries as *data* rather than as prose. `xtask`'s generator **calls** it rather than
 //! keeping a copy; two statements of one rule is the divergence this whole pipeline exists to
 //! prevent.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/client-platform/DESIGN_TOKENS.md` is the page to read beside
+//! it: the token system this crate is generated from, and the contrast rule it enforces.
 
 mod generated;
 

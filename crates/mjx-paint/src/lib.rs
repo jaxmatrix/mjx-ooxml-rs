@@ -96,6 +96,11 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, whose painters and platform boundary this crate implements.
 
 // The fourth crate in the workspace to open this door, and the third justification of the same
 // shape. There is **one** hand-written `unsafe` block below — `create_surface_unsafe`, in

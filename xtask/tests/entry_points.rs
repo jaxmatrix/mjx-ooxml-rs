@@ -941,6 +941,17 @@ const NOT_A_COUNT: &[(&str, &str, &str)] = &[
         "## Historical hand-offs — July 2026",
         "a year",
     ),
+    (
+        "README.md",
+        "It downloads 42 MB for Part 1 alone",
+        "the size of an external archive the fetch script downloads, not a tally of anything this \
+         repository holds",
+    ),
+    (
+        "PLAN.md",
+        "since twenty keystrokes into one run must cost one serialization rather than twenty",
+        "an illustrative burst of typing in an example, not a tally",
+    ),
 ];
 
 /// The English words for five and above that this repository's prose uses, longest first so
@@ -1447,6 +1458,91 @@ const CRATES_WITHOUT_A_GUIDE: &[(&str, &str, &str)] = &[
         "xtask",
         "docs/api/README.md",
         "a host-only developer binary nothing may depend on",
+    ),
+    (
+        "crates/mjx-tokens",
+        "docs/client-platform/DESIGN_TOKENS.md",
+        "generated design-token data; the token system is specified once, on the client platform's design-token page",
+    ),
+    (
+        "crates/mjx-text",
+        "docs/UI_PLATFORM_PLAN.md",
+        "the font engine of the client platform, whose three resolution tiers the plan specifies",
+    ),
+    (
+        "crates/mjx-layout",
+        "docs/UI_PLATFORM_PLAN.md",
+        "the box-model contract, specified by the client platform's plan",
+    ),
+    (
+        "crates/mjx-scene",
+        "docs/UI_PLATFORM_PLAN.md",
+        "the display list, specified by the client platform's plan",
+    ),
+    (
+        "crates/mjx-geometry",
+        "docs/DRAWINGML_PRESET_SHAPES.md",
+        "generated preset tables; the catalogue and its formulas are described on the preset-shapes page",
+    ),
+    (
+        "crates/mjx-session",
+        "docs/client-platform/SESSION_AND_PERSISTENCE.md",
+        "the resident document, specified by the client platform's session page",
+    ),
+    (
+        "crates/mjx-layout-chart",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-layout-pptx",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-layout-xlsx",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-layout-docx",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-scene-pptx",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-scene-xlsx",
+        "docs/UI_PLATFORM_PLAN.md",
+        "a renderer stage with no caller-facing surface beyond the plan's pipeline",
+    ),
+    (
+        "crates/mjx-view",
+        "docs/UI_PLATFORM_PLAN.md",
+        "the viewport, specified by the client platform's plan",
+    ),
+    (
+        "crates/mjx-paint",
+        "docs/UI_PLATFORM_PLAN.md",
+        "the painters and the platform boundary, specified by the client platform's plan",
+    ),
+    (
+        "crates/mjx-render-oracle",
+        "docs/validation/08-the-fidelity-oracle.md",
+        "test infrastructure outside the ranked graph, addressed to the person who approves baselines",
+    ),
+    (
+        "crates/mjx-reference-pack",
+        "docs/validation/07-the-reference-pack.md",
+        "test infrastructure outside the ranked graph, addressed to the person at the Office sitting",
+    ),
+    (
+        "crates/mjx-canvas-harness",
+        "docs/client-platform/CANVAS_UI_INVENTORY.md",
+        "a manual audit surface outside the ranked graph, specified by the in-canvas inventory",
     ),
 ];
 

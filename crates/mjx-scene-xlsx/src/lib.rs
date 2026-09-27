@@ -117,6 +117,11 @@
 //! `tests/a_red_negative_reaches_the_paint_table.rs` holds both halves: the negative cell resolves to
 //! row two of the palette, and a workbook that *replaces* `indexedColors` moves what `[Red]` paints —
 //! which is what says the row, and not a literal red, is what travelled.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, which says why a box model's resolver is a crate of its own.
 
 #![forbid(unsafe_code)]
 

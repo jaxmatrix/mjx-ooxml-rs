@@ -155,6 +155,11 @@
 //! Confirmation is a human sitting against real Microsoft Word on Windows
 //! (`docs/validation/07-the-reference-pack.md`). LibreOffice is a change detector and not a
 //! reference.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, of which this box model is Word's stage.
 
 #![forbid(unsafe_code)]
 

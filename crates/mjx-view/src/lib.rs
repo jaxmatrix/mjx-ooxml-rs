@@ -120,6 +120,11 @@
 //! let round_trip = scroll.offset_of_anchor(viewport.anchor);
 //! assert_eq!(scroll.anchor_at(round_trip), viewport.anchor);
 //! ```
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, whose viewport section this crate implements.
 
 pub mod budget;
 pub mod scene;

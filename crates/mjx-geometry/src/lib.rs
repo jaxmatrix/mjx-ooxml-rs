@@ -106,6 +106,11 @@
 //! they must agree. Each seed row's [`Derivation`] says how independent its route really was,
 //! because a comparison whose two sides share a source proves nothing — and four of the six took a
 //! constant or an idiom from tables this workspace had already generated from that same XML.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/DRAWINGML_PRESET_SHAPES.md` is the page to read beside it: the
+//! preset catalogue, its guide formulas and the two presets left out.
 
 pub mod arc;
 pub mod error;

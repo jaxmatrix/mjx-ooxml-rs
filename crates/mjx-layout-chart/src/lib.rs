@@ -88,6 +88,11 @@
 //!   [`diagram`], which also reports what `mjx-dml`'s `diagram/` module already covers.
 //! * **Pivot charts are not absorbed here.** `c:pivotFmts` and `c:pivotSource` are read by nothing in
 //!   this crate and a pivot chart lays out as the plain chart its cache describes.
+//!
+//! # Where to read more
+//!
+//! This crate hosts no guide. `docs/UI_PLATFORM_PLAN.md` is the page to read beside it: the client
+//! platform's plan, which places the chart engine between the three box models.
 
 pub mod diagram;
 pub mod emit;
