@@ -13,6 +13,14 @@
 //!   `guide-examples --check` writes nothing and reports whether the committed blocks are current.
 //! - `docs-site` — write the Docusaurus content tree the user guide's site renders from
 //!   (MJXOFF-281). The output is git-ignored; `xtask/tests/docs_site.rs` is the gate.
+//! - `tokens` — regenerate the three design-token artefacts from
+//!   `docs/client-platform/data/tokens.json` (MJXOFF-156); `tokens --check` refuses instead of
+//!   writing, which is how the committed artefacts are held to the source.
+//! - `ledger` — regenerate `docs/client-platform/PARITY_LEDGER.md` from the workspace's own test
+//!   suites (MJXOFF-179); `ledger --check` refuses instead of writing, which is how the committed
+//!   artefact is held to the tree. It runs no renderer and judges nothing itself: a row's state is
+//!   derived from what the suites covering it actually contain, and anything nothing tests is
+//!   `not-started`.
 //! - `fuzz` — run the campaign against the untrusted-input entry points (MJXOFF-146).
 //! - `corpus` — (re)build the large-file benchmarking corpus; `corpus --mem <format>` runs its
 //!   peak-RSS checkpoints (MJXOFF-147).
@@ -33,6 +41,7 @@
 
 mod corpus;
 mod fuzz;
+mod ledger;
 
 use anyhow::{bail, Result};
 
@@ -59,18 +68,22 @@ fn main() -> Result<()> {
             None => docs_site::run(),
             Some(other) => bail!("unknown docs-site argument {other:?}. It takes none."),
         },
+        Some("tokens") => codegen::tokens::run(&arguments[1..]),
+        Some("ledger") => ledger::run(&arguments[1..]),
         Some("fuzz") => fuzz::run(&arguments[1..]),
         Some("corpus") => corpus::run(&arguments[1..]),
         Some("validation-artefacts") => validation::run(&arguments[1..]),
         Some(other) => bail!(
-            "unknown command {other:?}. Available: codegen, guide-examples, docs-site, fuzz, \
-             corpus, validation-artefacts"
+            "unknown command {other:?}. Available: codegen, tokens, ledger, \
+             guide-examples, docs-site, fuzz, corpus, validation-artefacts"
         ),
         None => {
             println!(
                 "xtask — developer automation\n\nCommands:\n  \
                  codegen   regenerate mjx-ooxml-types from References/\n            \
                  --check  write nothing; report whether the committed output is current\n  \
+                 tokens    regenerate the design-token artefacts (--check to verify, not write)\n  \
+                 ledger    regenerate the parity ledger from the suites (--check to verify)\n  \
                  guide-examples\n            \
                  copy each guide example's region into the blocks the guide commits\n            \
                  --check  write nothing; report whether the committed blocks are current\n  \

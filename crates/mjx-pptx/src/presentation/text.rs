@@ -422,25 +422,29 @@ impl Presentation {
     ///
     /// # Why the third condition exists (MJXOFF-233)
     ///
-    /// **Resolution is lossy, so the effective comparison alone calls runs equal that are not.** The
-    /// fill it compares has been through `mjx_dml::resolve_fill`, which bakes a colour to `RRGGBB`
-    /// and, as its own doc comment states, does not represent a resolved `a:alpha`; and resolution
-    /// replaces a theme link — an `a:schemeClr`, or a `+mj-lt` / `+mn-lt` typeface the theme's font
-    /// scheme names — with the literal it currently resolves to. On the effective comparison alone,
-    /// two runs differing only by transparency merged and one run's `a:alpha` was deleted, and a run
-    /// carrying `a:schemeClr` merged with one carrying the literal colour that scheme resolves to —
-    /// leaving, whenever the literal run came first, a hard-coded colour where a theme link had been.
-    /// The unmodeled-state test does not catch either, because `a:solidFill` and `a:latin` are
-    /// modelled.
+    /// **Resolution is lossy, so the effective comparison alone calls runs equal that are not.**
+    /// Resolution replaces a theme link — an `a:schemeClr`, or a `+mj-lt` / `+mn-lt` typeface the
+    /// theme's font scheme names — with the literal it currently resolves to. On the effective
+    /// comparison alone a run carrying `a:schemeClr` merged with one carrying the literal colour
+    /// that scheme resolves to, leaving, whenever the literal run came first, a hard-coded colour
+    /// where a theme link had been. The unmodeled-state test does not catch it, because
+    /// `a:solidFill` and `a:latin` are modelled.
+    ///
+    /// MJXOFF-233 found a **second** case here and MJXOFF-243 closed it at the source: `resolve_fill`
+    /// used to bake a colour to an `RRGGBB` triplet and drop its `a:alpha`, so two runs differing
+    /// only by transparency compared equal and one run's `a:alpha` was deleted by the merge. A
+    /// resolved colour now carries its opacity, so that pair no longer compares equal here whether
+    /// or not this condition exists — and the condition stays for the theme-link half, which is
+    /// its own.
     ///
     /// **What the third condition costs.** It narrows the promise above by exactly one case: a run
     /// that states a colour or a typeface *explicitly* no longer merges with a neighbour that
     /// inherits the same one. The method's own purpose is untouched — the runs
     /// [`set_text_range_properties`](Self::set_text_range_properties) splits all carry identical
     /// explicit properties — and every other property still compares as meaning rather than as
-    /// markup. A merge that is refused leaves the file as its author wrote it, which is why this was
-    /// preferred over teaching `resolve_fill` to carry the alpha: that would change what every
-    /// `effective_*` reader answers, and would not address the theme-link half at all.
+    /// markup. A merge that is refused leaves the file as its author wrote it, which is why this
+    /// was preferred over reaching for the alpha alone: an alpha-aware comparison would not have
+    /// addressed the theme-link half at all.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
@@ -1467,8 +1471,10 @@ fn nth_field(
 ///
 /// Run coalescing compares these with
 /// [`resolution_sensitive_eq`](CharacterPropertiesSpec::resolution_sensitive_eq) so a merge cannot
-/// drop what resolution hides: a colour's `a:alpha`, or the difference between a theme link and the
-/// literal it currently resolves to. See `coalesce_paragraph_runs` for why (MJXOFF-233).
+/// drop what resolution hides: the difference between a theme link and the literal it currently
+/// resolves to. See `coalesce_paragraph_runs` for why (MJXOFF-233). A colour's `a:alpha` was the
+/// second such difference until MJXOFF-243 carried it through resolution, and it is now caught by
+/// the effective comparison as well as by this one.
 fn own_properties_spec(
     properties: Option<&CharacterProperties>,
     interner: &Interner,

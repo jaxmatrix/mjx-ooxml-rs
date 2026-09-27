@@ -118,6 +118,9 @@ pub const INKML_NS: &str = "http://www.w3.org/2003/InkML";
 /// `ax:` — the Microsoft ActiveX control markup an `activeX*.xml` part carries.
 pub const ACTIVEX_NS: &str = "http://schemas.microsoft.com/office/2006/activeX";
 
+/// A SmartArt diagram's **cached drawing** — `dsp:drawing`, Office's own rendering of the layout.
+pub const DIAGRAM_DRAWING_NS: &str = "http://schemas.microsoft.com/office/drawing/2008/diagram";
+
 /// The namespace of Excel 2010's SpreadsheetML extensions, in which a **form control's properties
 /// part** (`xl/ctrlPropsN.xml`) is rooted.
 ///
@@ -406,6 +409,16 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
         reason: "a Microsoft vocabulary describing a COM control's persisted state. \
                  `add_activex_control` writes the caller's class id and state through; the payload \
                  is opaque to this project",
+    },
+    PreservedForeignMarkup {
+        namespace: DIAGRAM_DRAWING_NS,
+        label: "a SmartArt diagram's cached drawing",
+        reason: "`ppt/diagrams/drawingN.xml` is rooted in `dsp:drawing` — Microsoft's 2008 diagram \
+                 extension namespace, which ECMA-376 does not define and the Transitional schema \
+                 set ships nothing for. It is a *cache* of a layout this project does not run: \
+                 `add_diagram` deliberately writes the four `dgm:` parts and no drawing, and \
+                 PowerPoint regenerates it. A deck that arrives with one must carry it through \
+                 untouched, which is what MJXOFF-300's corporate fixture holds it to",
     },
     PreservedForeignMarkup {
         namespace: EXCEL_2010_EXTENSIONS_NS,

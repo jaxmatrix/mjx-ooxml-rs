@@ -2005,7 +2005,7 @@ class Deck:
     def shape_fill(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> FillSpec | None:
         """The explicit fill of shape `shape_idx` on `surface`, as an interner-free `FillSpec`, or
         `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the
-        placeholder / style / theme — resolving that is a separate, future task). Reading does not
+        placeholder / style / theme — resolving that is a separate, future task, MJXOFF-354). Reading does not
         dirty the part.
         """
         ...
@@ -4913,6 +4913,10 @@ class ColorSpec:
     """This colour without its transforms — itself, when it has none."""
     transforms: list[ColorTransform]
     """The colour's transforms, in the order they are written and applied."""
+    alpha: float | None
+    """The opacity the colour states, as a proportion of one — `None` when it states none, which
+    is not the same as a colour stated at full opacity.
+    """
     def with_transform(self, transform: ColorTransform) -> "ColorSpec":
         """This colour with one more transform **appended**. Order is part of the markup, so this
         appends rather than merges: the same transforms in another order are another colour.

@@ -1,0 +1,50 @@
+[package]
+name = "mjx-render-oracle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only: the fidelity oracle — layered assertions, perceptual diffing and the document plate gallery."
+# Never published, and no shipped crate depends on it. It sits above every ranked crate — it names
+# the box model, the display list, the geometry provider and the painter at once — and the only
+# workspace member allowed to reach it is `mjx-reference-pack`, which is above it for the same
+# reason and adds the format tier on top. `xtask/tests/layering.rs` enforces both halves.
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 1.6. `FragmentTree` and `FragmentTreeBuilder` — tier one is a snapshot of one of these, and
+# a specimen is one built by hand rather than laid out, so a baseline is not also a test of a box
+# model that does not exist yet.
+mjx-layout.workspace = true
+# Rank 1.7. `DisplayList`, `build_scene`, `ResourceResolver` — tier two, and the bridge from tier
+# one to it. A specimen crosses the seam exactly once, here, which is what makes the two tiers
+# capable of disagreeing.
+mjx-scene.workspace = true
+# Rank 1.5. `ReferenceAuthority`, the **existing** three-valued authority flag, and the glyph
+# rasteriser and atlas `build_scene` takes.
+mjx-text.workspace = true
+# Rank 5.5. The four painters, `DrawReport::placeholders`, `Pixels` and the offscreen surface. Tier
+# three goes through `SoftwarePainter`, which needs no GPU and cannot fail to exist.
+mjx-paint.workspace = true
+# Rank 2.5. `PresetGeometryProvider` and `ShapeOutline` — the one specimen that draws a document's
+# own preset shape, so that `placeholders == 0` is asserted about the real provider rather than
+# about a page that happens to contain no shapes.
+mjx-geometry.workspace = true
+# Rank 2.0. `PresetGeometry` and `GeometryGuideList`, which is how a preset outline is asked for.
+mjx-dml.workspace = true
+# Rank 0.0. `Interner`, which a `a:prstGeom` is built through.
+mjx-ooxml-core.workspace = true
+# Rank 1.0. `PresetShapeType` — the document's own name for a shape.
+mjx-ooxml-types.workspace = true
+# Outside the graph, and dependency-free so that anything may reach it. The gallery's document rows
+# are derived from the committed corpus rather than from a list written here.
+mjx-fixtures.workspace = true
+
+[[bin]]
+name = "mjx-render-oracle"
+path = "src/main.rs"

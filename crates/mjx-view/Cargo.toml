@@ -1,0 +1,64 @@
+[package]
+name = "mjx-view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Viewport windowing, byte-budgeted per-stage caches and frame scheduling: what makes a four-hundred-page document behave."
+
+[lints]
+workspace = true
+
+[features]
+# **Empty by default, and deliberately.** Nothing in this crate names a format crate, so the useful
+# build is the one without them: `cargo test -p mjx-view` resolves `mjx-session` with its default
+# features off, which means `mjx-pptx`, `mjx-docx` and `mjx-xlsx` are genuinely absent and a line
+# that reached one would not compile. That is a stronger gate than a source scan, and it is the
+# default rather than an extra CI step.
+#
+# The feature exists so that a consumer wanting a session over a real `.pptx` — `mjx-ooxml`'s future
+# `render` feature is the intended one — can turn both on in a single line, instead of having to know
+# that a viewport's document happens to arrive through `mjx-session`.
+default = []
+ooxml = ["mjx-session/ooxml"]
+
+[dependencies]
+# Rank 0.0. `Emu` — the unit a scroll offset, a page height and a document extent are in — and
+# `ByteBudgetCache`, the workspace's one byte-budgeted least-recently-used cache. Both are named
+# directly rather than reached through `mjx-layout`, which re-exports neither.
+mjx-ooxml-core.workspace = true
+# Rank 1.6 (MJXOFF-160). The box model contract: `BoxModel`, `PageFragments`, `Checkpoint`,
+# `Constraints`, `Extent` and the `ChangeSet`/`DirtyPages` invalidation vocabulary. This crate is
+# generic over `BoxModel` and never names an implementation of one, which is what lets it window a
+# `.pptx`, a `.docx` and an HTML paste with one body of code.
+mjx-layout.workspace = true
+# Rank 1.7 (MJXOFF-161). `DisplayList` — what a page becomes once it is laid out — and
+# `diff_frames`, so a repaint uploads what changed rather than the page.
+mjx-scene.workspace = true
+# Rank 3.5 (MJXOFF-167). `Invalidation`, and only that: the session says what an edit dirtied, and
+# this crate consumes that stream rather than diffing documents. `default-features = false` because
+# nothing here needs a residency, and because it is what makes the format crates absent from this
+# crate's own build.
+#
+# **Spelled with a path rather than `workspace = true`, and deliberately.** Cargo ignores a member's
+# `default-features = false` unless the `[workspace.dependencies]` entry carries it too, so the
+# alternative was to turn the default features off *for the whole workspace* — which would silently
+# hand the next crate that writes `mjx-session.workspace = true` a session that cannot hold a
+# `.pptx`, and would do it without a diagnostic. One local line is the smaller surprise.
+mjx-session = { path = "../mjx-session", default-features = false }
+thiserror.workspace = true
+
+[dev-dependencies]
+# Every ceiling in this crate is asserted with the counting allocator rather than claimed.
+mjx-allocation-counter.workspace = true
+
+# The resident-memory gate is a binary of its own with **no test harness**, and both halves of that
+# are load bearing — `mjx-sml`'s gate learned it first and `mjx-session`'s learned it again. A
+# `#[global_allocator]` is process-wide, so a figure measured in a binary that also runs other cases
+# measures the other cases; and `cargo test` runs a harness's cases on several threads at once, so
+# even one binary's own cases interleave. One target, one `main`, one thread.
+[[test]]
+name = "resident_memory"
+harness = false

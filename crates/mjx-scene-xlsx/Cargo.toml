@@ -1,0 +1,52 @@
+[package]
+name = "mjx-scene-xlsx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Excel's companion to the box model: the resource resolver that turns a worksheet's fragment tree into a mjx-scene display list."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 3.6. The box model whose handles this crate resolves — `PageCatalogue`, `Decoration`,
+# `CellFill`, `CellBorders`, `CellReport`. **The whole reason this crate exists**: those handles mean
+# something only to the layer that issued them, and the layer that issued them may not name
+# `mjx-scene` (`crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses the edge, because a box model
+# that built a display list would have merged two stages).
+mjx-layout-xlsx.workspace = true
+# Rank 2.1. `mjx_sml::Color`, `IndexedColorPalette`, `resolve_color` — SpreadsheetML's own colour,
+# which is **not** DrawingML's: one element with five attributes rather than a choice of six
+# elements, addressing the theme by *position* and carrying a `@tint`. The resolution algorithm is
+# ECMA-376 §18.8.19's and it already lives there; this crate calls it and adds none of its own.
+mjx-sml.workspace = true
+# Rank 2.0. `SchemeColors` and `ResolvedColor` — the interner-free bridge a workbook's `@theme`
+# position resolves through, and the four channels it resolves to. **`ResolvedColor` carries an
+# alpha**, which is the difference between this path and the one MJXOFF-243 describes.
+mjx-dml.workspace = true
+# Rank 1.7. `ResourceResolver`, `GeometryProvider`, `Decoration`, `FillStyle`, `StrokeStyle` — the
+# output side. This crate is the join between two vocabularies and holds no third one.
+mjx-scene.workspace = true
+# Rank 1.6. `DecorationRef`, `ImageRef`, `SourceRef` — the handle types the two sides agree on.
+mjx-layout.workspace = true
+# Rank 1.0. `PatternType`, `GradientType`, `BorderStyle` — SpreadsheetML's own names for a hatch, a
+# ramp and a border weight, which is what each translation here is a table over.
+mjx-ooxml-types.workspace = true
+# Rank 0.0. `Interner` — the table a `styles.xml` element's attribute names are resolved through,
+# which every `mjx-sml` accessor takes and none of them owns.
+mjx-ooxml-core.workspace = true
+
+[dev-dependencies]
+# Rank 3.0. The workbooks the suites read: a resolver is only proved by resolving a real document's
+# own fills, and this is what opens one. **Permitted here and nowhere else** — see
+# `tests/the_seam_holds.rs`.
+mjx-xlsx.workspace = true
+# The committed corpus, so the suites derive their fixtures from one place rather than from a
+# `const FIXTURES` list.
+mjx-fixtures.workspace = true
+# Rank 1.5. `FontResolver` — the box model takes one, and a suite that lays a sheet out has to hand
+# it one.
+mjx-text.workspace = true

@@ -134,13 +134,16 @@ worth naming rather than leaving to be discovered:
   Removing a tab means removing a part, its relationship, its `sheets` entry and every defined name
   scoped to it, which is a decision rather than a convenience method.
 
-## One gap that is a gap
+## The gaps that are gaps
 
 `mjx_pptx::Presentation`, `mjx_docx::Document` and `mjx_xlsx::Workbook` each carry a
 `blank_with_properties` taking an `mjx_opc::doc_props::CoreProperties` and an `ExtendedProperties`,
 so a file authored from nothing can name a title, a creator and a created time. **Nothing on this
-facade projects it**, so no caller in any of the three languages can set them. It is the **only**
-method `xtask/tests/facade_curation.rs`'s ledger classifies as a gap rather than a decision, and it
-is on all three of that file's ledgers — the same gap, three times. `blank` writes both `docProps` parts with this library's own
+facade projects it**, so no caller in any of the three languages can set them. Until the renderer
+programme it was the only method `xtask/tests/facade_curation.rs`'s ledger classified as a gap
+rather than a decision; that programme added more to the three models for its own use — a text
+body's geometry and a shape's `prst` token on `Presentation`, the theme's accents on all three, and
+the `dirty_parts` / `settle_dirty_parts` pair `mjx-session` drives — and none of them is projected
+yet. Each facade module's own documentation names them (MJXOFF-349). `blank` writes both `docProps` parts with this library's own
 defaults, and a file opened from disk keeps the ones it came with, untouched — which is the standing
 rule that a default is supplied only in the absence of the user's own, never in place of it.

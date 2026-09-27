@@ -317,3 +317,86 @@ impl AttributeCodec for HexColorRgb {
         Cow::Borrowed(value)
     }
 }
+
+/// `ST_UniversalMeasure` and the two twips unions built on it — a wire string turned into a number.
+///
+/// `ST_TwipsMeasure` is `xsd:union(ST_UnsignedDecimalNumber, ST_PositiveUniversalMeasure)` and
+/// `ST_SignedTwipsMeasure` is `xsd:union(xsd:integer, ST_UniversalMeasure)`, so **`w:defaultTabStop`
+/// may legally read `"0.5in"` and not only `"720"`.** The generated wrappers keep the wire string
+/// exactly, because that is what fidelity requires; a consumer that needs the length needs this.
+///
+/// It lives here rather than in a consumer because there is more than one consumer — `mjx-docx`'s
+/// residency reads `w:defaultTabStop` and `w:hyphenationZone`, and the box model above it reads
+/// `w:ind`, `w:spacing` and `w:tabs` — and two parsers for one grammar is one parser too many.
+pub mod universal_measure {
+    /// Twips per inch. `w:` measures are twentieths of a point and there are 72 points to the inch.
+    const TWIPS_PER_INCH: f64 = 1440.0;
+
+    /// The suffixes ECMA-376 Part 1 §22.9.2.15 allows, and what one of each is worth in twips.
+    ///
+    /// `pi` is the specification's own spelling of a pica beside `pc`; both are twelve points.
+    const UNITS: &[(&str, f64)] = &[
+        ("mm", TWIPS_PER_INCH / 25.4),
+        ("cm", TWIPS_PER_INCH / 2.54),
+        ("in", TWIPS_PER_INCH),
+        ("pt", TWIPS_PER_INCH / 72.0),
+        ("pc", TWIPS_PER_INCH / 6.0),
+        ("pi", TWIPS_PER_INCH / 6.0),
+    ];
+
+    /// `wire` as a whole number of twips, or `None` when it is neither an integer nor a universal
+    /// measure.
+    ///
+    /// A fractional result is rounded to the nearest twip — a twip is 1/1440 inch, so the rounding
+    /// is invisible and the alternative (a floating-point length flowing into every position on the
+    /// page) is not.
+    #[must_use]
+    pub fn twips_from_wire(wire: &str) -> Option<i64> {
+        let trimmed = wire.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Ok(number) = trimmed.parse::<i64>() {
+            return Some(number);
+        }
+        for (suffix, per_unit) in UNITS {
+            let Some(head) = trimmed.strip_suffix(suffix) else {
+                continue;
+            };
+            let Ok(value) = head.trim().parse::<f64>() else {
+                return None;
+            };
+            if !value.is_finite() {
+                return None;
+            }
+            let twips = (value * per_unit).round();
+            // A measure past the range of an `i64` is a defect in the file, not a length; refusing
+            // it is what stops a saturating cast from turning nonsense into a plausible page.
+            if twips.abs() > 9.0e18 {
+                return None;
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            return Some(twips as i64);
+        }
+        None
+    }
+}
+
+/// `ST_HpsMeasure` / `ST_SignedHpsMeasure` — half-points, the unit `w:sz`, `w:szCs`, `w:kern` and
+/// `w:position` are written in.
+///
+/// The same union shape as [`universal_measure`]: a bare number is already in half-points, and a
+/// universal measure (`"12pt"`) is not. Two half-points make a point and twenty twips make a point,
+/// so the conversion is exact.
+pub mod half_point_measure {
+    /// `wire` as a whole number of half-points, or `None` when it is neither a number nor a
+    /// universal measure.
+    #[must_use]
+    pub fn half_points_from_wire(wire: &str) -> Option<i64> {
+        let trimmed = wire.trim();
+        if let Ok(number) = trimmed.parse::<i64>() {
+            return Some(number);
+        }
+        super::universal_measure::twips_from_wire(trimmed).map(|twips| twips / 10)
+    }
+}

@@ -62,6 +62,2601 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.174] - 2026-09-11
+
+**The client platform, merged into the release line (Phase R and Phase U).** Everything below this
+heading was built on the `ui` branch while `main` ran from 0.0.131 to 0.0.173, and the two numbered
+their releases independently: the branch's own 0.0.122–0.0.156 describe different work from the
+0.0.131–0.0.156 above, which are the numbers that were actually published. Rather than leave one
+number meaning two things, the branch's history is kept here as the record of how this release was
+built, under its original numbering, clearly subordinate to it.
+
+What it adds: the whole rendering engine below the platform boundary — `mjx-tokens`, `mjx-text`,
+`mjx-layout`, `mjx-scene`, `mjx-geometry`, the three box models, the two scene companions, the chart
+engine, `mjx-session`, `mjx-view` and `mjx-paint`'s four painters — plus the fidelity oracle, the
+canvas harness, the reference pack, and the `ui/` component catalogue the chrome is designed in.
+
+### 0.0.156 on the branch — 2026-09-10
+
+**The design tokens, re-seeded from the product and made two-tier (MJXOFF-271).** The palette came
+from the marketing site; the application this editor is embedded in —
+`allr-agent/apps/hermes-universal` — has the same brand expressed quite differently, as ~14 skin
+seeds and ~11 mix percentages from which every surface, text colour and stroke is *derived* by
+`color-mix()`. Copying its resolved hexes would have thrown that away, so the source grew a second
+tier instead.
+
+### Added
+
+- **A derived tier in `docs/client-platform/data/tokens.json`.** A colour may now be written as
+  `{ "mix": [ … ] }` — a `color-mix(in srgb, …)` of the seeds and knobs above it, nesting allowed —
+  and the generator evaluates it. The seeds' and knobs' custom properties are hermes-universal's own
+  names (`--theme-foreground`, `--theme-primary`, `--theme-midground`, `--theme-background-seed`,
+  `--theme-mix-chrome`, …), which is what makes dropping this platform into that application
+  re-theme it with no code.
+- **A fourth generated artefact, `ui/tokens/derivations.css`.** Every other artefact carries the
+  *resolved* colour, because a canvas cannot paint an expression and a contrast gate cannot measure
+  one; this one restates the derived tier as literal `color-mix()` in terms of the scheme-relative
+  aliases, so a host that overrides one seed re-themes everything mixed from it through the cascade.
+  The renderer does the same through the new `mjx_tokens::Tokens::rederive`, which is the fourth
+  step of the resolution order and reports itself as `TokenSource::Derivation`.
+- **`mjx_tokens::color_mix`** — the only implementation of `color-mix(in srgb, …)` this project
+  owns. `ui/tokens/tokens.ts` carries values and no algorithm, so the TypeScript half has none of
+  its own to disagree with; the other evaluator is the browser's.
+- **`ui/tokens/chromium-agreement.mjs`**, which asserts those two agree for every derived token in
+  both schemes against Chromium's own `getComputedStyle`, and proves it can fail: a deliberately
+  wrong expectation must be reported, and an overridden seed must move the derived colours in the
+  browser.
+- **Two new source rules, both hard errors.** A member must be derived *the same way* in every
+  colour scheme — one `color-mix()` declaration serves both, so the schemes may differ in values and
+  not in shape, which is the architecture's *"dark mode is the same seeds with different knobs"* as
+  a check. And a derivation may only read tokens declared before it, because `rederive` is a single
+  forward pass.
+- `mjx_tokens::Percentage` and the `percentage` token type, for the mix knobs.
+
+### Fixed
+
+- **The generator quantised to eight bits at every token boundary where a browser evaluates a whole
+  expression in floating point**, which put five tokens — `--theme-border` and
+  `--document-page-border` among them — one step away from the chrome around them. The arithmetic
+  now runs in `mjx_tokens::ExactColor` and rounds once. It was found by the Chromium gate on its
+  first run, which is the only thing that could have found it.
+
+### Changed
+
+- **`--color-paper` is `#fbf8f2`**, hermes's own value, rather than the `#fdfcf9` measured from the
+  marketing site. `color.body`, `color.paper-neutral`, `color.card-neutral`, `color.green-lifted`,
+  `color.clay` and `color.warm` joined the palette; every semantic surface, text colour and stroke
+  in both schemes is now derived from them and has moved. `DESIGN_TOKENS.md` §2.1 and §2.3 carry the
+  new tables.
+- **Primary text is the ink itself and is not softened to 94% as hermes softens it.** Measured, not
+  preferred: a token tagged for text must be opaque, and an opaque approximation of `rgba(ink, 94%)`
+  is only exact on the one surface it was composited over. Softening it also dropped the colour
+  picker's worst-case swatch indicator to 2.99 : 1 over its 4,352-colour sweep, under WCAG 1.4.11's
+  floor. `text-secondary` keeps hermes's 74%, where the softening is a hierarchy step rather than a
+  texture.
+- `document.*.page-border` now aliases `theme.*.border` by name rather than by value, so the one
+  place chrome meets canvas cannot drift.
+- **`theme.dark.accent` is the brand green rather than a lifted `#4fc98a`, and the dark scheme's
+  tertiary fill knob is 5% where the light scheme's is 8%.** Both are measurements. In the light
+  scheme the accent-coloured label is *darker* than the accent fill, so a tint of that fill carries
+  it for free; `#4fc98a` inverted that ordering in the dark scheme and no tint of it could carry an
+  accent-coloured label. The harness's own preset button measured 3.90 : 1 — and the palette this
+  replaces had the same defect at **4.11 : 1**, unseen because the catalogue's accessibility sweep
+  runs the light story. It is now 4.84 : 1 light and 4.53 : 1 dark.
+- **`accent-surface`, `accent-border` and `secondary-surface` tint the *surface* rather than the
+  chrome background**, which is what they are drawn on, and use the tertiary rather than the primary
+  fill knob. At the primary knob the accent surface reached only 4.23 : 1 against the accent-coloured
+  label — a failure on every story in the catalogue, because the pairing is a shared-harness button.
+
+### 0.0.155 on the branch — 2026-09-10
+
+**The parity ledger, generated from the suites and never asserted by hand (MJXOFF-179, R24).**
+Twenty-three children built the renderer and every one of them declared what it could not prove. This
+release stops those declarations being scattered across commit messages and makes them one artefact
+that cannot drift, because nothing in it is written down.
+
+### Added
+
+- **`cargo run -p xtask -- ledger`**, and its committed output
+  [`docs/client-platform/PARITY_LEDGER.md`](docs/client-platform/PARITY_LEDGER.md) — 146 rows over
+  the five states of `OFFICE_FEATURE_INVENTORY.md` §7: `implemented`, `partial`,
+  `preserved-not-rendered`, `not-started` and `out-of-scope`. `ledger --check` refuses if the
+  committed document is not what the tree produces, exactly as `tokens --check` does, and
+  `xtask/tests/ledger.rs` runs it.
+- **A row declares evidence and has no state field.** `xtask/src/ledger/rows.rs` names the suites
+  that cover a capability; `assess.rs` derives what follows as a pure function of that and of what
+  the suites contain. There is nowhere in the table to write `implemented`, which is the only
+  reliable defence against a generator that quietly defaults to it — and `not-started` is the
+  default, proved against a synthetic evidence index rather than described.
+- **A liveness check that can actually fail.** A row naming a suite that no longer exists is an
+  error at the lookup, by name. `UNCOVERED_SCHEMAS` generates a stale fact into `COVERAGE.md` with
+  no such check, and this is the defect the ticket asked not to be repeated.
+- **`MJX-LEDGER-LIMITATION:`**, a marker written in the module documentation of the suite that
+  *asserts* a known-wrong behaviour. Five suites carry one — the opacity destroyed at the `mjx-dml`
+  boundary, the cell border drawn solid, chart text measured rather than shaped, the scaled stretchy
+  delimiter and the unevaluated conditional-formatting rule — and each demotes its row to `partial`
+  with the reason quoted. The check runs both ways: a declared limitation **no row cites** fails the
+  build, so a defect cannot be proved in the code and absent from the document a reader treats as
+  authority.
+
+### Changed
+
+- `PLAN.md`, `README.md`, `docs/UI_PLATFORM_PLAN.md` and `OFFICE_FEATURE_INVENTORY.md` §7 point at
+  the ledger. §7 said *"how this becomes the ledger"*; it now says which file it became.
+
+### The part that matters most, and it is not a number
+
+The ledger says, before its first count, that **it is a ledger of what was *checked* and not of what
+is *true***. Nothing in this workspace has ever been compared against Microsoft Office: the oracle's
+five baselines are all stamped `approver = generator`, the parity count is zero **by construction**,
+and the document derives that sentence from the `APPROVAL` files rather than repeating it. Every row
+carries the `SpecCode` / `DocumentedBehaviour` / `EngineDerived` split of the expectations under it,
+because `EngineDerived` means a change detector and a change detector is this engine agreeing with
+itself. Across the whole workspace that split is 73 / 52 / 124.
+
+The gaps are rows rather than omissions, which is the other half of the same discipline: Word reaches
+no pixels at all (`crates/mjx-scene-docx` does not exist, and the document checks), animation and
+timing, sparklines, gridlines, WordArt, picture cropping, IME and the accessibility tree are all
+present and all say `not-started`.
+
+**No fraction in the document is taken against the row count**, and the document says why: the rows
+are a hand-drawn partition of the inventory written in the same file that names their evidence, so a
+coarser partition would raise the implemented share without a line of code changing. The two figures
+that *are* independent — 11,869 in-scope controls and 3,404 declared elements — are summed by the
+generator from the two committed censuses and are reported as scale, never as a denominator.
+
+### 0.0.154 on the branch — 2026-09-10
+
+**Charts and diagrams, built once for all three formats (MJXOFF-178, R23).** A chart in a `.pptx`, a
+chart in a `.docx` and a chart on an `.xlsx` sheet are the same chart, so from this release they are
+laid out by one engine reached three ways.
+
+### Added
+
+- **`mjx-layout-chart` at rank 3.55** — a new workspace member, one step *below* the three box
+  models. That number is the whole design: the three box models share 3.6 so that an edge between any
+  two of them is *sideways* and refused, which means a chart engine placed beside them would be
+  reachable from none of them. At 3.55 all three reach it and it reaches none of them, so "built
+  once" is a property of the dependency graph rather than a promise in prose.
+- **Axis scaling and tick selection** — Heckbert's nice-number algorithm (*Nice Numbers for Graph
+  Labels*, Graphics Gems I, 1990) with one stated deviation, plus logarithmic axes, proportional axes
+  for hundred-percent-stacked plots, and the stated `c:min`/`c:max`/`c:majorUnit` used exactly.
+- **Geometry for fourteen of the sixteen plot elements** — bar and column (clustered, stacked,
+  hundred-percent), line, area, pie, doughnut, pie-of-pie, scatter, bubble, radar and stock, plus the
+  four three-dimensional forms laid out flat. The two surface plots lay out their furniture and plot
+  no data, deliberately.
+- **Plot-area negotiation** as a two-pass fixed point, data labels across all three label tiers,
+  legends, major and minor gridlines, tick marks, axis titles, six kinds of trendline and five kinds
+  of error bar.
+- **SmartArt layout evaluation** for three of `ST_AlgorithmType`'s ten algorithms — `lin`,
+  `hierRoot`/`hierChild` and `cycle` — over the data model's `parOf` graph. The other seven are
+  refused by name rather than approximated.
+- `Presentation::theme_accent_colors`, `Document::theme_accent_colors` and
+  `Workbook::theme_accent_colors`, all three over the new `mjx_dml::SchemeColors::accents`: the six
+  accents a chart hands to series that state no fill of their own. **The document's own palette**,
+  never one invented by the renderer.
+- `mjx_chart::Axis` grows `major_unit`, `minor_unit`, `tick_label_skip`, `tick_mark_skip`,
+  `crosses_at`, `crosses` and `crosses_between_categories`.
+- `mjx_docx::DrawingFormatting` grows `id` and `frames_a_chart`, so a box model that has laid a
+  drawing out can ask the format crate what is inside it without re-parsing `word/document.xml`.
+
+### Notes
+
+- The seam between a host and the engine is **bytes**: `chart_part_bytes` was already public on all
+  three format surfaces, so the parse is shared too and `mjx-layout-chart` opens no package. Its own
+  gate refuses all three format crates in **both** dependency sections.
+- `xtask/tests/one_engine_three_formats.rs` is the gate that proves the premise: the same chart,
+  authored independently by three format crates and laid out by three box models, produces the same
+  fragments.
+- Stated limitations, each at its own site as well as in the crate documentation: `c:numFmt` is not
+  applied (the number-format evaluator lives in `mjx-layout-xlsx` at 3.6 and the edge would be
+  upward), `c:plotArea > c:layout` is not read, chart text is measured rather than shaped, `c:view3D`
+  is not read, and `c:ofPieChart`'s secondary plot is absent.
+
+### 0.0.153 on the branch — 2026-09-09
+
+**Fields, numbering, revision marks and OMML mathematical layout — and the two defects the last two
+children declared rather than fixed (MJXOFF-177, R22). Word is complete for view.**
+
+The four things left in Word are each a small engine rather than a layout rule, and two of them are
+circular with pagination. What ties them together is that **every one of them puts something on a
+line that the file does not contain**: a list's number, a field's value, a footnote's reference mark,
+an equation's box — and a tracked deletion is the same problem inverted, text the file *does* contain
+that a display mode may not show. Each changes the width of a line, so each changes where the page
+breaks, so each changes which page every later paragraph lands on. None of them is decoration.
+
+### Added
+
+- **`mjx-docx`'s residency reads the four things it used to skip.** `ParagraphFormatting::fields`
+  carries every field's instruction, the bytes of its cached result, and its nesting;
+  `::revisions` carries the four tracked-change containers as spans; `::equations` carries every
+  `m:oMath` resolved to plain values by a new `document/equations.rs`; and
+  `DocumentFormatting::numbering_definitions` resolves every `w:num` a paragraph reaches into all
+  nine of its levels — needed because `w:lvlText` may hold `%1` through `%9` and composing a
+  third-level marker needs the first two levels' own formats.
+- **`w:ins` used to contribute nothing, so a document with tracked insertions was read with the
+  inserted text missing** — as though every change had been rejected, with no error anywhere. The
+  four containers are now descended into, `w:delText` contributes its characters, and
+  `ParagraphFormatting::text` is therefore the *all-markup* view with each of Word's four display
+  modes a subset of it. `addressable = false` keeps `revisions.rs`'s crate-wide rule that a run
+  inside one consumes no run-index slot, so no existing `RunPath` moved.
+- **`mjx_layout::TextRun::advance` — a change to the box-model contract all three formats share.**
+  A fixed width that replaces the shaper's answer, so an atomic inline box can be measured. It is
+  what closes both inherited defects: an inline object is one `U+FFFC OBJECT REPLACEMENT CHARACTER`
+  (UAX #14 class `CB`, the class that exists for exactly this) in a run of its own, all-or-nothing
+  because an object has no interior. `mjx-layout-pptx` and `mjx-layout-xlsx` pass `None` and are
+  otherwise untouched.
+- **Five modules in `mjx-layout-docx`, twenty-six in all, and `generated` is the one that makes the
+  other four share a line.** A `Composition` is the string a paragraph is *actually* laid out from —
+  the document's text with the marker, the field values, the note marks and the objects spliced in,
+  hidden revisions dropped, and a **map back to the document's own offsets** so that every
+  `SourceRef` still names the file rather than a string no part of the `.docx` holds.
+- **Fields, with the fixed point's termination argument written out.** `PAGE`, `NUMPAGES`,
+  `SECTIONPAGES`, `PAGEREF`, `REF`, `SEQ`, `QUOTE` and the date family are computed; everything else
+  renders its cache and is reported with a reason. A `TOC` is in the second list on purpose: its
+  nested `PAGEREF`s *are* recomputed and its entry list is not, which is the split Word's own markup
+  makes.
+- **List numbering composed from `w:lvlText`**, with each placeholder in its referenced level's own
+  format, `w:isLgl` forcing Arabic, `w:startOverride` outranking `w:start`, `w:lvlRestart="0"`
+  meaning *never*, and a `w:suff="tab"` emitted as a real tab so the hanging-indent interaction falls
+  out of the existing tab machinery.
+- **Revision display modes that change pagination**, not colour. `RevisionView` decides which spans
+  are measured, and `mjx-layout-docx` reports the change bar rather than drawing it — this crate
+  resolves no paint.
+- **An OMML typesetter**: all twenty members of `EG_OMathMathElements`, with a fraction bar on the
+  axis, delimiters that grow to what they enclose, two independent script scale-downs, matrices,
+  equation arrays and a depth bound against a malformed file.
+
+### Fixed
+
+- **A footnote's reference mark is measured.** MJXOFF-175 declared it; a line carrying one was
+  measured a superscript numeral too narrow.
+- **An inline drawing's advance is measured, and so is its height.** MJXOFF-176 declared the first.
+  The second was not declared at all: `float::inline_height` was written to raise the line and is
+  called by nothing — a grep of the crate finds it only in its own definition and in the `pub use`.
+  So an inline picture changed neither the width of its line nor its height.
+
+### Changed
+
+- `mjx_layout_docx::flow::lay_out_composed` is what the crate calls; `lay_out` is the same thing over
+  a paragraph with nothing generated, so every suite written before this child still compiles.
+- The two committed fragment baselines that hold numbered paragraphs moved, because their markers are
+  now drawn. Both were regenerated and both are still stamped `approver = generator`.
+
+### ⚠ The two-assembly bound survives, and the argument is written down
+
+A `PAGE` field's value depends on where the page break fell; its width decides where the line breaks.
+That is a second cycle in a crate that already holds one, and it is cut so that MJXOFF-175's proof is
+**untouched**: a `FieldEnvironment` is constant for a whole layout run, so a field's text is the same
+string in assembly one and assembly two and the monotonicity fact the note proof rests on is
+unchanged. In particular a body `PAGE` field reads *the page its block started on in the previous
+pass* rather than *the page being assembled* — the obvious implementation, and wrong twice over,
+because it would make a field's text depend on the assembly and would make a paragraph that splits
+across a page boundary lay out differently on the two pages.
+
+The circularity lives in an **outer** loop that paginates the whole document, observes, and
+paginates again. It terminates by a **bound** and not by a proof of convergence, because a document
+can be built whose `NUMPAGES` is 9 when it is ten pages long and 10 when it is nine — Word has the
+same problem and the same answer. Four passes, then `Convergence::Exhausted` and the caller chooses
+the cached results. A deliberately non-converging fixture exercises the fallback, because a fallback
+that is never exercised is a fallback that does not work.
+
+### Provenance, and a change of standard
+
+**54 SpecCode / 37 DocumentedBehaviour / 90 EngineDerived** over 181 rows; this child's own
+contribution is **14 / 14 / 27** over 55. That `DocumentedBehaviour` quarter is the strongest since
+MJXOFF-174 and the reason is nameable: MJXOFF-176 recorded that there is no external standard for
+text wrapping at all, and mathematics is the opposite case — the OpenType `MATH` table states the
+script scale-downs, MathML Core the axis-height fallback, *The TeXbook* the fraction gaps, and
+Unicode's `LineBreak.txt` what class an object replacement character has.
+
+**This child cites the XSDs and never a section number**, where every child before it cited the prose
+freely. `References/` holds the schemas as text and the specification as a five thousand page PDF;
+the schemas were read and the prose was not, so a `§` here would have been a citation from memory.
+Every value that lives only in the prose — `w:start`'s default of one, `w:suff`'s default of a tab,
+`m:grow`'s default of true, the delimiter characters — is an `EngineDerived` row with the reading
+written out. That lowers the `SpecCode` count and raises the `EngineDerived` one relative to R20 and
+R21, and the difference is in what was **checked** rather than in what is known.
+
+### 0.0.152 on the branch — 2026-09-09
+
+**Tables that split across pages, floating objects, and the text that flows around them
+(MJXOFF-176, R21).**
+
+The two features the plan names as consistently under-estimated, in one child because they interact:
+a float anchored in a table cell wraps against the cell, and a table that splits across a page has to
+re-run every wrap on the continuation. Both are also the easiest features in a Word renderer to ship
+*unimplemented* — a table that fits on one page is laid out identically by an engine that cannot
+split a table at all, and a float with `wp:wrapNone` changes no line — so every gate here is written
+against the value that would be identical either way.
+
+### Added
+
+- **`mjx-docx` reads the body as a block tree.** `DocumentFormatting::blocks` interleaves paragraphs
+  and tables in document order, which a paragraph list structurally cannot: a document whose tables
+  were dropped paginates differently from the one its author wrote. Tables, rows and cells are
+  resolved to plain numbers (`TableFormatting`, `RowFormatting`, `CellFormatting`), a cell's content
+  is a block tree of its own — which is the whole of *nested tables to arbitrary depth* — and
+  `ParagraphFormatting::drawings` resolves every `w:drawing`'s extent, anchoring, wrap mode and wrap
+  polygon **without a `mjx-dml` type in the surface**, because the box model above deliberately does
+  not depend on DrawingML.
+- **Every paragraph in the document still resolves through one ladder, in one pass.** A cell's
+  paragraphs are appended to the same flat list the body's live in, so `blocks()` indexes it and
+  nothing is copied; the first `top_level_paragraph_count()` entries keep the order `w:sectPr` spans
+  are numbered against, which a cell paragraph interleaved into them would have moved.
+- **The table style's own tier now reaches a cell**, folded across the six conditional regions
+  `table_regions::applicable_regions` already resolved. Its **run** properties change text
+  *measurement*, so a bold heading row breaks its lines where Word breaks them rather than where an
+  unstyled one would.
+- **Four modules in `mjx-layout-docx`, and the split between them is the design.** `wrap` is geometry
+  with no document in it — polygons, bands, the largest-side rule; `float` turns a `wp:anchor` into a
+  rectangle in a column; `table` is the grid, the two layout algorithms and the slices a page break
+  falls between; `block` is the one abstraction that lets a paragraph and a table go through the same
+  paginator, which is why `w:keepNext` still works *across* a table.
+- **Auto-fit is a constraint solve over content widths**, not a heuristic: every cell is measured at
+  an unbounded measure and at one EMU, and the columns take the unique assignment that puts each the
+  same fraction of the way from its minimum to its maximum. Fixed layout reads `w:tblGrid` and stops.
+  `tests/a_table_grid_is_solved.rs` asserts the two produce **different numbers for the same
+  content**, which an engine that returned the declared grid for both would fail.
+- **`w:cantSplit` is an ordering constraint and `w:tblHeader` a repeating prefix**, and neither is
+  special-cased inside the paginator: a row that may not split contributes **one** slice, so it moves
+  whole through the same arithmetic `w:keepLines` already used, and a repeated heading adds a
+  constant to a continuation's height.
+- **Real wrap polygons.** `wp:wrapTight` and `wp:wrapThrough` take the polygon rather than the
+  bounding box, exactly rather than by sampling, and the two elements genuinely differ: `tight` takes
+  the outline's outermost crossings and `through` keeps every covered interval, so text enters a
+  concavity in one and not the other.
+
+### Fixed
+
+- **`combine_run_tiers` never merged the table-style tier it was given.** Every caller passed the
+  all-`None` identity until this child, so the missing `merge_under` was invisible;
+  `Document::effective_cell_run_properties` has always merged it in that position, and two
+  orchestrations of one ladder is precisely the shape `crates/mjx-docx/tests/residency.rs` exists to
+  keep honest.
+
+### Notes
+
+- **A float's frame is resolved against the page's body height and never against the assembly's own
+  reduced height.** That is not a detail: the footnote fixed point's two-assembly proof rests on *the
+  body content placed is non-increasing in the reservation*, which would be false if a float anchored
+  to the bottom of its column moved between the two assemblies. `crates/mjx-layout-docx/src/notes.rs`
+  carries the amended argument in full.
+- **An inline drawing's advance is not measured**, and it is declared rather than approximated:
+  reserving one means a fixed advance on a composer run and `mjx_layout::TextRun` has no such field.
+  A line carrying an inline drawing is measured as if the drawing were not on it. It is the same
+  shape as R20's footnote-mark gap and belongs to the same later child.
+- **Nothing here is parity with Word.** The provenance ledger prints on every run: **40 `SpecCode`,
+  23 `DocumentedBehaviour`, 61 `EngineDerived`** over 124 rows. R21's own share is the weakest in the
+  crate for a nameable reason — *there is no external standard for text wrapping at all*. The
+  sharpest guess is what unit a `wp:wrapPolygon`'s coordinates are in: the schema says EMU and Word
+  writes 21600ths of the extent, and both readings are implemented with the choice made per object.
+
+### 0.0.151 on the branch — 2026-09-09
+
+**Sections, columns, headers, footers and footnotes — and the fixed point between a note and the
+body it takes space from (MJXOFF-175, R20).**
+
+R19 flowed text down one column of one page shape. Real documents change page shape half way
+through, run several columns, repeat furniture at the margins, and carry a **second flow that
+competes with the first for vertical space**. The last of those is the whole difficulty: a footnote's
+height decides how much body text fits on its page, and the body text decides which footnotes are on
+it. `crates/mjx-layout-docx/src/notes.rs` resolves that circularity with a monotone reservation and
+**proves it converges in at most two body assemblies**, with the argument written out in the module
+rather than left to be rediscovered — an undocumented fixed-point loop is where a hang lives.
+
+### Added
+
+- **Four modules in `mjx-layout-docx`, one per subsystem.** `section` — the sheet, the margins, the
+  columns, the break kinds and the blank page an `evenPage` break demands; `stream` — a header, a
+  footer or a note laid out through the *same* flow engine the body uses, with its lines flattened so
+  that a note can split across pages; `notes` — the body/footnote fixed point and the note area it
+  produces; `numbering` — page, line and note counters, and the numeral systems they are written in.
+- **Multi-column flow with balancing.** A page is a stack of *column groups*, one per section that
+  shares the sheet, which is what a `continuous` break means. Balancing at such a break is a
+  **bisection** for the shortest column height at which the remaining content still fits, not a
+  division of the total by the column count: content is placed in whole lines, so the division's
+  answer is routinely a hair short and a column a hair short spills a whole line — unbalancing the
+  thing being balanced.
+- **Headers and footers, with `w:titlePg` and `w:evenAndOddHeaders` resolved once in `mjx-docx`.**
+  A page selects a stream rather than resolving one, and a header's height comes off the body's.
+- **Footnotes with their own reflow**, Word's `separator` and `continuationSeparator` rules, and
+  continuation across pages for a note taller than the page it is referenced from.
+- **Endnotes as *flow*.** §17.11.3's `sectEnd`/`docEnd` are positions in the flow, not a second area,
+  so an endnote's paragraphs are spliced into the body's own stream at the end of their scope —
+  which is the whole difference between an endnote and a footnote, in one sentence.
+- **Line numbers, computed *and drawn*.** A page number is displayed by a `PAGE` field and a
+  footnote's mark by `w:footnoteRef`, both of which are R22's to render from the run stream; a line
+  number is in no run stream at all, so a child that computed it and drew nothing would leave a
+  feature no later renderer could complete.
+- **`DocumentBoxModel::last_page`** — the page number, the section, the column heights, the notes and
+  their numbers, the printed line numbers, and how many body assemblies the fixed point needed. None
+  of it belongs in a tree of positioned boxes, and all of it is what a gate has to assert on.
+- **`mjx-docx`'s residency grew the rest of a section** — the break kind, `w:cols` with §17.6.4's
+  precedence applied, `w:titlePg`, `w:pgNumType`, `w:lnNumType`, `w:vAlign` and the note rules — plus
+  the **header, footer, footnote and endnote content streams**, read once each and resolved through
+  the same ladder the body's paragraphs go through, and `ParagraphFormatting::note_references`.
+
+### Changed
+
+- **The document's own page geometry now outranks the caller's `Constraints`**, falling back to it
+  wherever a section states nothing. Not a preference: which section page 200 is in is not knowable
+  without laying out the 199 before it, so the caller cannot choose. `mjx_docx::SectionFormatting`
+  is no longer `Copy` (it carries a column list).
+- **The continuation state is version 2, forty-five bytes**, and old thirteen-byte checkpoints are
+  refused rather than misread. The four new fields are exactly the four things that cannot be
+  recomputed from the position — the displayed page number, the continuous line-number counter, and
+  the carried note with its number and resume line. A footnote's *number* is deliberately **not**
+  among them: the *n*th reference in document order is note *n*, which is a prefix sum taken once.
+- **Fragment addresses carry a part.** A header's third paragraph and the body's third paragraph are
+  not the same place; `mjx_layout_docx::address` numbers the five streams, and the baseline snapshots
+  print the part so that a header drawn twice cannot look like a header drawn once.
+
+### Notes
+
+- **Nothing here is parity with Word, and the evidence got weaker.** R19's strongest rows quoted
+  UAX #14, an external definition of exactly what a line breaker consumes. There is no equivalent for
+  *where a footnote area's gap goes* or *which number decides that a page is even*: ECMA-376 defines
+  the attributes and is nearly silent on the rendering. The provenance ledger now prints **31
+  `SpecCode` / 20 `DocumentedBehaviour` / 46 `EngineDerived`** on every run, and the `EngineDerived`
+  rows are change detectors rather than evidence.
+- **Word still has no scene companion** (MJXOFF-255), so a Word `FragmentTree` cannot reach pixels.
+- Tables and floating objects are R21; fields, numbering, revision marks and OMML are R22.
+
+### 0.0.150 on the branch — 2026-09-09
+
+**Word's flow engine: lines, justification, and a pagination that is emergent (MJXOFF-174, R19).**
+
+PowerPoint's box model places absolutely and Excel's addresses a grid: in both, page *N* is reachable
+without ever looking at page *N−1*. **Word's pagination is emergent** — where page 200 begins depends
+on everything on the 199 pages before it, and a single font substitution moves every boundary in the
+document. `mjx-layout`'s `Checkpoint` exists for exactly that, and this is its first real consumer.
+
+### Added
+
+- **`mjx-layout-docx`, rank 3.6** — the third box model, beside PowerPoint's and Excel's so that an
+  edge between any two of them is *sideways* and the layering gate refuses it by name. Thirteen
+  modules: line layout against a per-line measure, the five alignments and two kinds of expansion,
+  the three line rules, the five tab kinds with their leaders and their implicit grid, hyphenation,
+  and a paginator that honours `w:pageBreakBefore`, `w:keepLines`, `w:widowControl` and `w:keepNext`.
+- **`mjx_docx::Document::formatting` — the whole document read once.** The per-paragraph reader
+  re-parses `word/document.xml`, `word/styles.xml` and the theme on **every call**, which is right
+  for a caller asking one question and quadratic for a layout engine asking per paragraph. The
+  read-once surface is `mjx-xlsx`'s `SheetFormatting` answer applied to a second format; the ladder's
+  order is now stated in exactly one place and both orchestrations call it, with
+  `crates/mjx-docx/tests/residency.rs` asserting they agree paragraph by paragraph and run by run.
+- **`mjx_docx::Document::edit_paragraph_properties`** — the one primitive behind every `CT_PPrBase`
+  member, exactly as `edit_section_properties` is the one primitive behind every `w:sectPr` member.
+  Without it a caller could author a paragraph's *text* and not its *layout*.
+- **`mjx_ooxml_types::support::universal_measure` and `half_point_measure`.** `ST_TwipsMeasure` and
+  `ST_HpsMeasure` are `xsd:union`s of a number and a universal measure, so `w:defaultTabStop` may
+  legally read `"0.5in"`. Two crates read them; one parser answers both.
+- **Hyphenation in `mjx-text` and `mjx-layout`.** `BreakKind::Hyphenation`,
+  `break_opportunities_with_hyphenation`, `LineBreaker::with_hyphenation` / `next_line_with`, and
+  `LineComposer::hyphenating` — which adds the hyphen's own advance to every candidate it measures,
+  because a line fitted without it overruns its measure on every hyphenated line.
+
+### Changed
+
+- **`LineComposer` reports `hyphenated`** on a composed line, and `ComposedLine` gained the field.
+  A soft hyphen already broke a line through UAX #14's class `BA`; whether a *hyphen is drawn* is a
+  rendering rule and now has somewhere to live.
+- **`mjx_docx::Hyperlink::content` is reachable inside the crate** (it already existed as
+  `pub(crate)`), which is what lets a reader walk a paragraph without living in `body.rs`.
+
+### Verified
+
+- **The checkpoint is proved by work, not by output.** `DocumentBoxModel::paragraphs_visited`
+  reports what a call had to look at, and `tests/a_checkpoint_is_work_not_output.rs` lays page 41 out
+  both ways: the fragments are identical EMU for EMU, the work is not, and — the assertion that makes
+  the other two mean something — **withholding the checkpoint makes the cost scale with the page
+  number while supplying it does not.**
+- **Each of the four pagination constraints is asserted by page assignment**, in a pair that differs
+  only in the one attribute, so a constraint that changed no page assignment fails rather than
+  passes.
+- **Justification is asserted on positions**, against each line's own natural positions rather than
+  against a left-aligned layout — the two are cut differently and are not comparable. The identity
+  case (a line with no gap) is asserted as an identity.
+- **Fragment-tier baselines over the Word corpus**, eight committed specimens reached page by page
+  through each checkpoint, every one stating `approver = generator` — which records that it is a
+  change detector and that no person has looked at it.
+- **Termination** for an unsatisfiable thousand-link `w:keepNext` chain, a paragraph taller than its
+  page, a column narrower than one glyph and an indent wider than the column.
+- **Provenance is declared and printed**: 13 `SpecCode`, 15 `DocumentedBehaviour`, 19
+  `EngineDerived`, of 47 rows. **Nobody ran Word.** The `EngineDerived` rows are change detectors and are not
+  evidence about Word; every one carries the reason it is a guess.
+
+### Known limitations
+
+- **Word has no scene companion.** `mjx-scene-docx` is the ticket that has to follow this one; until
+  it exists a Word `FragmentTree` cannot reach pixels.
+- **No pattern hyphenator ships.** `mjx_text::PatternHyphenator` exists and works; the Liang patterns
+  it needs are language data and none is committed here, so `w:autoHyphenation` hyphenates only at
+  the soft hyphens an author wrote unless a caller supplies one.
+- **No CJK face is committed**, so the East Asian justification difference is asserted at the cut and
+  the expansion point rather than end to end.
+- Sections, columns, headers, footers and footnotes are R20; tables and floating objects R21; fields,
+  numbering, revision marks and OMML R22.
+
+### 0.0.149 on the branch — 2026-09-09
+
+**Conditional formatting evaluated, cell drawings placed, and a sheet paginated for print
+(MJXOFF-173, R18).**
+
+`crates/mjx-xlsx/docs/guide/deliberate_limitations.md` named rule evaluation as a standing refusal,
+because the library was a reader and a writer. A renderer has no such option: a sheet whose data
+bars, colour scales and highlights are missing is not a rendering of that sheet. This child turns the
+documented non-goal into implemented behaviour **one tier up** — in the box model, where a decided
+rule is a rendering fact rather than a document one — and the documentation moves with it.
+
+### Added
+
+- **`mjx_layout_xlsx::condfmt`, six modules.** All eighteen members of `ST_CfType` are decided:
+  the twelve `cellIs` operators over literal operands, `top10` (by rank and by percentage, from
+  either end), `aboveAverage` with `@equalAverage` and `@stdDev`, `duplicateValues`/`uniqueValues`,
+  the four text kinds, blanks and errors, the ten `timePeriod` windows, and the three graded kinds.
+- **The `dxf` layer composes in Excel's order, not the file's.** Rules apply from the lowest
+  `@priority` number down; the **first** rule to state a member keeps it, because §18.8.15 makes a
+  `dxf` a delta and every one of its children is `minOccurs="0"`. `@stopIfTrue` ends the walk after
+  the rule carrying it has fired, and does nothing on one that has not.
+- **⚠ A `dxf`'s fill is read differently from a cell's, and this decides whether the whole feature
+  is visible.** Excel writes a highlight as `<patternFill><bgColor rgb="FFFFC7CE"/></patternFill>` —
+  no `@patternType`, and the colour in `bgColor`. Read as a cell's fill that is a pattern of `none`
+  with no foreground, which paints nothing: the rule fires, the report says so, and the sheet looks
+  identical.
+- **Colour scales, data bars and icon sets as numbers.** A bar's width is a fraction of the cell
+  (`@minLength` and `@maxLength` included, so the schema defaults give 0.10 and 0.90 rather than 0
+  and 1); a scale answers the two stops a value fell between and how far along it is; an icon
+  answers its index, after `@reverse`.
+- **`Decoration::scale_fill`** — a colour scale travels **unresolved**, as two `CT_Color` stops and
+  a position, because blending them needs the theme part and the workbook's `indexedColors`.
+  `mjx-scene-xlsx` does the blend and the midpoint is asserted at the encoded display list.
+- **`mjx_layout_xlsx::drawings`** — the three anchor modes placed against this crate's own row
+  heights and column widths, which is the grid the cells underneath are on.
+- **`mjx_layout_xlsx::print`** — the sheet's **second** pagination: paper and orientation, margins,
+  manual row and column breaks, `_xlnm.Print_Area`, `_xlnm.Print_Titles` repeated at the top and
+  left of every later page, `@scale`, fit-to-page, `@pageOrder` and `@firstPageNumber`.
+- **`mjx_xlsx::AnchorPlacement` and `AnchorCell`** on `SheetDrawingObject`, plus
+  `mjx_xlsx::drawing_geometry` — the three `mjx-dml` types the drawing surface takes as arguments,
+  re-exported so a caller that declares no `mjx-dml` edge can still call it.
+- **`Workbook::print_titles`**, the twin of the existing `print_area`.
+
+### Changed
+
+- **`Workbook::defined_names`, `defined_name` and `print_area` take `&self`.** Reading a part is not
+  a mutation, and the box model's snapshot holds a `&Workbook`. New `Workbook::read_workbook_markup`
+  is the `&self` counterpart of `workbook_markup`, and it reads an **edited** part from its tree
+  rather than answering `MissingWorkbookPart` — a part in `PartBody::Edited` has no stored bytes.
+- **The decoration sharing key gained a conditional signature.** Two cells with one `xf` that fired
+  different rules no longer share a handle; two that fired the same rules still do, so a screen of
+  highlighted cells stays one entry rather than two hundred.
+- **`deliberate_limitations.md` §2 and `conditional_formatting.md` are scoped rather than absolute.**
+  The refusal is now stated as a property of the read/write path, with the reason it stops there.
+
+### Deliberately not done, and reported rather than hidden
+
+- **Sparklines.** `x14:sparklineGroups` lives in a worksheet's `extLst`, which `mjx-sml` preserves
+  verbatim and deliberately does not model. There is nothing to evaluate until a `mjx-sml`
+  workstream models the extension.
+- **A data bar's axis, negative fill, border and gradient**, all of which are `x14:dataBar`. What is
+  drawn is Excel 2007's bar: a solid rectangle growing rightward, negatives clamped to
+  `@minLength`.
+- **An icon's artwork.** The index is computed and asserted; the eighteen sets of glyphs are Excel's
+  and are not in this repository, so a stand-in would be an invented picture presented as the file's.
+- **The inside of a drawing.** A drawing's content is DrawingML and `mjx-layout-pptx` lays DrawingML
+  out — at rank 3.6, the same rank as `mjx-layout-xlsx`, so the edge is *sideways* and the layering
+  gate refuses it by name. The placement is this child's; the content needs a crate below both box
+  models that neither of them owns.
+- **A `dxf`'s `numFmt`**, which is reported and not applied.
+
+### Fixed
+
+- A fit-to-page scale is **floored to a whole percentage**. The exact ratio makes the content
+  precisely as wide as the page, so the last column tipped the accumulator over by a rounding EMU
+  and a fit-to-one-page sheet paginated onto two.
+
+### 0.0.148 on the branch — 2026-09-09
+
+**The number-format engine — a date stops being a serial (MJXOFF-172, R17).**
+
+R16 built Excel's box model and deliberately left number formatting out: a cell rendered its **raw
+stored value**, so a date read `45719` and a currency read `1234.5`. MJXOFF-244 then built
+`mjx-scene-xlsx`, which made that output visible. This child is the evaluator — `numFmt@formatCode`
+applied to a cell's value — and it is a sub-project rather than a feature: a small language with its
+own grammar, four conditional sections, bracketed conditions, colour codes, two date epochs and a set
+of behaviours that are quirks rather than rules.
+
+### Added
+
+- **`mjx_layout_xlsx::numfmt`** — the evaluator, six modules: the two-phase parser (a format code
+  cannot be classified while it is being read — `,` groups or divides depending on what *follows* it,
+  `/` is a fraction bar only between digit runs, and `m` is a month or a minute depending on its
+  neighbours), the numeric renderer, the date arithmetic, `General` and the fifteen-digit display
+  clamp, the two caches, and the module that joins them.
+- **Everything the language has, except five things named as absent**: the three digit placeholders
+  and their padding, decimal points, thousands grouping, trailing-comma scaling, percentages,
+  scientific *and engineering* notation (`##0.0E+0` on `12345` is `12.3E+3`), fractions with variable
+  and fixed denominators, quoted and escaped literals, `_` skips, `*` fills, `@` substitution,
+  `General`, the eight colour names and `[ColorN]`, bracketed conditions, `[$…]` currency and locale
+  prefixes, every date and time token, `AM/PM` in four spellings, sub-seconds, elapsed `[h]`/`[mm]`/
+  `[ss]`, and both date systems.
+- **`Decoration::text_colour`** and a decoration table keyed on `(effective format, colour)`. A
+  number format states its colour per **section**, and which section runs depends on the *value* — so
+  the negative cells of a `#,##0;[Red]#,##0` column are red and the positive ones are not, with one
+  `xf` between them. Every mechanism the two crates share for *not* duplicating a decoration worked
+  against that, and this is what resolves it.
+- **`SheetPalette::resolve_indexed`** in `mjx-scene-xlsx`, and a `text_decoration` that prefers a
+  format's colour over the font's. `[Red]` travels as a bare **row of `indexedColors`**, unresolved,
+  for the same reason a `mjx_sml::Color` does: resolving a palette row is the companion's job.
+- **`CellReport::text`** — what a cell displayed, after its format ran. A `GlyphRunFragment` carries a
+  shaped run and a byte range and *not* the string those bytes index, so a hit test, an accessibility
+  tree or an exporter had nowhere to ask. It moves the string the box model already built.
+- **`SheetGrid::with_number_format_language`**, and with it the *other* half of §18.8.30. Ids 27–36,
+  50–58 and the Thai block have a **different** code per UI language — id 30 is `m/d/yy` in `zh-tw`,
+  `m-d-yy` in `zh-cn` and `mm-dd-yy` in `ko-kr` — and nothing in a `.xlsx` states which language a
+  consumer runs in, so `builtin_format_code` correctly answers `None` for all of them. The default is
+  still `None` (those ids fall back to `General`, which is visibly and honestly wrong); a shell that
+  knows its language now has somewhere to say so, and `format_code_in` is used when it does.
+- **`SheetGrid::date_system` / `with_date_system`**, read from `workbookPr@date1904` by
+  `SheetGrid::read`. The two epochs are 1,462 days apart, so a snapshot that defaulted to 1900 would
+  shift every date in a Macintosh-authored workbook by four years, silently.
+- **Four new suites** — 29 cases across `mjx-layout-xlsx` and `mjx-scene-xlsx`, plus five more in the two crates’ existing surface and ladder gates. A conformance table of **193 rows** with a declared provenance on each;
+  a malformed-code suite over 57 broken codes × 21 values × two epochs × four value kinds; an
+  end-to-end suite that reaches the engine through a real `numFmtId`; and a reachability gate that
+  fails if any construct of the language — any `Element`, any `DateToken`, any `SectionKind`, any of
+  the four `AM/PM` spellings — is not reached **by a row of the table**.
+
+### Changed
+
+- **`Workbook::date_system` takes `&self`** rather than `&mut self`. Reading a part does not dirty
+  the package, and a box model holding a `&Workbook` has to be able to ask which epoch it is laying
+  out. Relaxing a receiver is source-compatible.
+- **`mjx-layout-xlsx`'s seven fragment baselines regenerated.** Four moved, all in the same
+  direction: a one-character cell became an eight- or ten-character one. `100.000%` where the file
+  says `1`; `2.00  USD;` where it says `2`. Still `approver = generator` — a change detector, not a
+  human review.
+- **`tests/the_ladder_is_consumed.rs` no longer forbids `evaluate`**, because R17 *is* the evaluator
+  the refusal was holding the place for. What replaced it is stronger and aimed at this child's own
+  named trap: the built-in format codes of §18.8.30 are a table nobody wrote down, a short copy falls
+  back to `General` and **looks plausible**, so the gate now greps this crate's source for the codes
+  themselves — asking `mjx-sml` for the list rather than restating it.
+
+### ⚠ Two Excel quirks, reproduced rather than corrected
+
+- **Serial 60 is 1900-02-29**, a day that never existed. Lotus 1-2-3 had the defect, Excel copied it
+  for file compatibility, and a renderer that prints the arithmetically right answer prints something
+  no Excel user has ever seen. The 1900 epoch is therefore *three* branches and not one constant.
+- **Fifteen significant digits.** Excel stores a `f64` and displays it as a fifteen-digit decimal,
+  which is why `=0.1+0.2` shows `0.3` in one cell while `=(0.1+0.2)=0.3` is `FALSE` in the next. That
+  clamp also makes the rounding **decimal**: `2.675` is stored as `2.67499999999999982…`, and rounding
+  the binary value to two places gives `2.67` where Excel gives `2.68`.
+
+Both are asserted, and a renderer that "fixes" either fails deliberately.
+
+### ⚠ Nothing here is parity with Excel, and the conformance table says so per row
+
+The ticket asked for a table *transcribed from real Excel output*, and correctly warned that a table
+whose expectations came from running the engine is green for any behaviour whatsoever. **No such
+transcription was possible**: nobody ran Excel. So every row declares where its expectation came from
+— 31 spec-transcribed codes, 110 documented behaviours, 52 engine-derived rows that are change
+detectors and **not** evidence — and a test prints the split so nobody mistakes a green run for one.
+`MJX_NUMFMT_CONFORMANCE_SHEET=<path>` writes the table as a sheet a person takes to Excel;
+`docs/validation/07-the-reference-pack.md` §7 says how, and it is ten minutes.
+
+Every behaviour chosen rather than read is marked `GUESS:` at its site. The sharpest: where a `-`
+lands relative to a currency sign; whether a *conditioned* second section still renders unsigned;
+what a conditional code no section matches shows (Excel fills the cell with `#`, which needs a
+width); `General`'s digit count and its scientific thresholds, both of which are width-dependent in
+Excel and are not here; how wide `_` is; and that a whole number under `# ?/?` blanks its fraction.
+
+### Deliberately not implemented
+
+Localised month and weekday names (English only — no locale database may enter the cross-build
+matrix, and ECMA-376 publishes no name table), the Japanese era and Thai Buddhist calendars, `*`
+expansion and `#######` overflow (both need a cell width the evaluator does not have, and a width in
+the evaluator would put a column's geometry into the cache key of every value on the sheet).
+
+### 0.0.147 on the branch — 2026-09-09
+
+**`mjx-scene-xlsx` — Excel's scene companion, and the first worksheet to reach pixels (MJXOFF-244).**
+
+R16 built Excel's box model and named its own weakest part: *"nobody has looked at a picture, and
+here that is not a criticism of the gate — there is no path to one."* There was no path because a
+`FragmentTree` carries `DecorationRef`s — bare numbers — and something has to resolve them into
+paints. That something is `mjx_scene::ResourceResolver`, whose own documentation names the
+implementor as *the box model's companion*; and the box model cannot be it, because
+`crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene` there by name. So the resolver
+got a crate, exactly as PowerPoint's did.
+
+### Added
+
+- **`crates/mjx-scene-xlsx` at rank 3.7**, *beside* `mjx-scene-pptx` rather than above it — the same
+  arrangement, and for the same reason, as the two box models at 3.6. Two companions at equal rank
+  makes an edge between them **sideways**, which the layering gate refuses by name: the two formats
+  meet at `mjx-scene`, and a resolver that could read the other's would have made the display list a
+  place where two formats negotiate. Both rank tables grown (`CLAUDE.md` and
+  `xtask/tests/layering.rs`), each with what the rank does **not** buy written out.
+- **A worksheet's colours, resolved.** `SheetPalette` holds the two tables a SpreadsheetML colour
+  needs — the theme (addressed **by position**, not by a `SchemeColor` token) and the legacy indexed
+  palette — plus the pair of system colours `auto="1"` and `indexed="64"`/`"65"` fall back to. The
+  resolution algorithm is ECMA-376 §18.8.19's and already lived in `mjx-sml`; this calls it.
+- **`Workbook::theme_colors`** in `mjx-xlsx`. `mjx_sml::styles::resolve_color` takes a
+  `SchemeColors`, and that type's own documentation says *"getting the theme part out of the package
+  is `mjx-xlsx`'s"* — but nothing there answered it, so every consumer wanting a theme colour would
+  have become a second reader of the package. It is not a mutation: the part keeps its bytes.
+- **Fills in all four of their shapes**: `patternType="solid"` (which paints its **`fgColor`** — the
+  single most commonly got-wrong rule in SpreadsheetML), the seventeen hatches, a `dxf`'s
+  colour-with-no-pattern third state, and gradients in both `linear` and `path`.
+- **A worksheet travels the whole pipeline to pixels**, headlessly, in
+  `crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs` — the only crate that may name
+  a format crate (3.0) and `mjx-paint` (5.5) together. The gate asserts **content**: fragment counts
+  by kind, band counts, one `DrawGlyphs` per glyph run, ink coverage with a floor *and* a ceiling,
+  ink inside the tree's own rectangles, and `DrawReport::placeholders` against a count taken from the
+  geometry provider **before** the render.
+
+### Changed
+
+- **A cell's borders are fragments now, not a value on its decoration.** R16 carried the four edges
+  on `Decoration`, which a display list cannot consume: `mjx_scene::Decoration` has **one** stroke
+  and a cell has four edges that differ in weight, colour and style, so a resolver handed those four
+  can only pick one — and picking one draws it on all four sides. `mjx-layout-xlsx` now emits each
+  edge as its own filled `BoxFragment`, which is what `mjx-layout-pptx` already does for a table
+  cell, with the new `crates/mjx-layout-xlsx/src/border.rs` owning the weight table. Bands are
+  emitted **after** every cell of a pane region, so that every fill is behind every border; a band
+  drawn as a child of its own cell would be covered by the next cell's fill.
+- **A gradient fill carries its stops.** R16 carried `is_gradient: bool` on the reasoning that the
+  companion would resolve the gradient; the companion is handed a catalogue and nothing else, so a
+  boolean names no stops and a gradient-filled cell had no path to a pixel at all.
+- **`CellReport` carries its decoration handle**, which is what lets `text_decoration` turn a glyph
+  run's address back into the cell's font colour. This is the method PowerPoint's companion still
+  answers `None` from, and the difference is the document model rather than the effort: a cell's text
+  is one string in one cell, and a slide's run lives inside a paragraph inside a shape.
+
+### Fixed
+
+- **The legacy indexed palette's alpha is no longer read as an opacity.** ECMA-376 §18.8.27 prints
+  every row of the table with an ARGB alpha of `00` — black is `00000000` — and `mjx-sml` reports
+  what Part 1 prints, which is right for a model and catastrophic for a painter: read as an opacity
+  it makes every `indexed` colour in every workbook **fully transparent**, so
+  `<left style="medium"><color indexed="8"/></left>` is a border that is simply not there. A colour
+  reached through `@indexed` is now drawn opaque; one that states `@rgb` is left exactly as written.
+
+### Reported, not fixed
+
+- **The MJXOFF-243 opacity loss does not exist on this path**, and that was checked rather than
+  assumed. A SpreadsheetML colour's `@rgb` is `AARRGGBB` with the alpha first, and it survives to
+  `mjx_scene::Color::alpha` — `crates/mjx-scene-xlsx/tests/the_alpha_survives.rs` asserts it at the
+  **encoded display list** rather than at the resolver. One narrower loss on the same subject does
+  exist one crate below: `mjx_dml::SchemeColors::from_scheme` drops each theme slot's own alpha.
+- **A border band is solid**, so the eight dashed `ST_BorderStyle` values draw as solid lines of the
+  right weight. The style is still carried, so the fix is a change to two crates rather than a value
+  recovered from the document again; `tests/the_dash_is_lost_at_the_band.rs` asserts the loss.
+- **Gridlines are not in the fragment tree.** `showGridLines` defaults to on and a grey grid is the
+  most recognisable thing on an Excel screen, but a gridline is a property of the *view* rather than
+  of the document, and no hit test can ever land on one. Where it belongs is a decision for the child
+  that draws a sheet on a screen.
+- **`darkTrellis` and `lightTrellis` are drawn identically**, because DrawingML defines one trellis
+  and SpreadsheetML two.
+
+Nothing here is parity with Excel and nothing is described as such: every reading is marked `GUESS:`
+at its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
+
+### 0.0.146 on the branch — 2026-09-09
+
+**Excel's box model — a worksheet becomes a fragment tree (MJXOFF-171, R16).**
+
+The second implementation of `mjx_layout::BoxModel`, and the first whose layout discipline is a
+**grid**. PowerPoint places shapes absolutely, so a slide's layout costs what its shapes cost. A
+worksheet addresses 16,384 columns by 1,048,576 rows — seventeen billion cells — so its layout has
+to cost what is *on screen*, and that one fact decides the whole crate.
+
+### Added
+
+- **`crates/mjx-layout-xlsx` at rank 3.6**, *beside* `mjx-layout-pptx` rather than above it. Two box
+  models at equal rank makes an edge between them **sideways**, which the layering gate refuses by
+  name: a spreadsheet's box model must not know what a slide is. Both rank tables grown (`CLAUDE.md`
+  and `xtask/tests/layering.rs`).
+- **Two sparse indices and no dense array.** `RowGeometry` holds one record per row that states a
+  height, a hidden flag, an outline level or a collapse flag; `ColumnGeometry` one per `col` **run**,
+  which is what `CT_Col` already is. Both answer *where is row n* and *which row is at y* by binary
+  search plus one multiplication, at a cost independent of how far down the sheet the question is
+  asked.
+- **Units converted in one place**: a row's `@ht` in points, a column's `@width` in characters of the
+  Normal font's maximum digit width — *measured* through `mjx-text` rather than assumed — and EMU out
+  the other side, through ECMA-376 §18.3.1.13's own truncating round trip.
+- **Merged regions render once**, at the union rectangle, from the anchor; the covered positions
+  produce no fragment at all. Each of the union's four borders resolves from the perimeter cells
+  scanning outward, so a border Excel wrote onto the *last* column of a merge is not lost.
+- **Text overflow into empty neighbours, in all four states** — spills, stops at the first non-empty
+  cell in the direction of alignment, suppressed by `wrapText`, suppressed by `horizontal="fill"` —
+  with the direction taken from the **resolved** alignment, so a number in a `general` cell spills
+  leftward.
+- **Wrap, shrink-to-fit, indent, rotation and stacked text**, and the eight horizontal alignments
+  including `fill`, `centerContinuous` and `distributed`.
+- **Frozen and split panes** as up to four regions over **one** grid geometry, with `@xSplit` read as
+  a column count for a freeze and as twentieths of a point for a split.
+- **Auto-fit column width**, measured over a column's populated cells and memoised. Row heights are
+  deliberately *not* recomputed: Excel writes the fitted height into the file, and a recomputed one
+  would make the top of row *n* depend on every row above it — a prefix sum over the addressable
+  range rather than the stated one, which the sparse index cannot coexist with.
+- **`Row::cell_after` / `Row::cell_before`** in `mjx-sml`: the nearest populated cell strictly to one
+  side of a column, by binary search. The overflow rule needs it; without it a renderer would probe
+  up to 16,383 columns per overflowing cell.
+- **`CellFormatResolver::interner`** in `mjx-sml`, so a caller holding a resolver can read an
+  attribute off the `Font`, `Fill`, `Border` or `CellAlignment` it answers with.
+
+### The gate
+
+`crates/mjx-layout-xlsx/tests/sparsity_is_measured.rs` lays out a sheet whose only populated cell is
+`XFD1048576` under a counting global allocator. One band costs **58 KB** and visits 20 rows by 9
+columns; the band containing the far corner, 54,613 bands down and scrolled to column 16,380, costs
+**12 KB** and 359 µs. The same file then does what the crate refuses to do — walks a *range of
+coordinates* over one 16,384th of the grid — and shows it already costs **8.4 MB**, sixty-four times
+the whole windowed layout's bound. A gate that cannot fail is not a gate.
+
+### Not in this child
+
+Number formatting (MJXOFF-172 — a cell renders its raw stored value, and the format code in force is
+carried on every decoration so that child is a change to one crate), conditional formatting,
+drawings and print layout (MJXOFF-173), charts (R23), and formula evaluation, which does not exist in
+this loop at all: a cached value is rendered as stored, which is correct for a viewer.
+
+**Nothing here is parity with Excel.** Every behaviour chosen rather than read is marked `GUESS:` at
+its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
+
+### 0.0.145 on the branch — 2026-09-08
+
+**The first end-to-end deck — a `.pptx` becomes pixels (MJXOFF-170, R15).**
+
+Every stage of the render pipeline has existed and been gated on its own since R06. **Nothing had
+ever driven all of it at once with a real document.** This is the child that does:
+
+```
+Presentation → SlideDeck → SlideBoxModel → FragmentTree
+             → SlideResources + SlideGeometry → build_scene → DisplayList
+             → SoftwarePainter → pixels
+```
+
+`crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs` runs that chain over three committed
+fixtures, headlessly, on the pure-Rust painter.
+
+### The new crate
+
+**`mjx-scene-pptx` at rank 3.7** — PowerPoint's companion to the box model: the `ResourceResolver`
+that turns `mjx-layout-pptx`'s decoration, image and outline handles into `mjx-scene`'s paints,
+strokes and effect DAG, and the `GeometryProvider` that resolves an outline handle through
+`mjx-geometry`'s preset tables.
+
+**It is a crate rather than a module because `mjx-layout-pptx`'s own seam gate refuses `mjx-scene` by
+name**, on the ground that a box model which built a display list would have merged two stages the
+architecture separates on purpose. That gate is right; the answer to it is a crate, not an exemption.
+3.7 is the only rank from which one crate can name the box model (3.6), the display list (1.7) and
+the geometry tables (2.5) at once while staying below the viewport (3.8).
+
+### `mjx-layout-pptx` grew the rest of PowerPoint's visual vocabulary
+
+- **Tables** — the grid, column widths, row heights that *grow* to fit their text, merged and spanned
+  cells, cell insets and anchoring, effective cell fills and borders through the table style's six
+  conditional bands. Cells become `BoxFragment`s carrying a `TableCell`; the frame becomes a
+  `TableFragment`.
+- **Effects** — a shape's effective `a:effectLst`, carried on its decoration and translated into
+  `mjx-scene`'s effect chain in ECMA-376's own child order.
+- **Pictures** — `p:pic` becomes an `ImageFragment` with a handle shared by relationship id, so a
+  page that repeats a logo decodes it once.
+- **Speaker notes** — `SlideBoxModel::layout_notes` lays a notes slide out through the identical
+  walk, addressed under `mjx-session`'s notes part rather than its slides part.
+
+### `mjx-pptx` grew one reader
+
+`Presentation::shape_preset` answers a shape's `a:prstGeom@prst`. `shape_geometry` answers the
+*typed adjustments* and carries no `ST_ShapeType` token, so before this there was no way for a
+renderer to ask which preset a shape draws — which the first end-to-end render found the moment it
+needed to feed a geometry provider.
+
+### The gates that would catch a silent regression
+
+- **Every effect proved by its absence failing.** Each of the seven is rendered with and without,
+  and the pixels must differ; and no two kinds may rasterise identically, which refuses a
+  translation that mapped them all onto one.
+- **Merged cells that a naive walk gets wrong** — a 4×3 grid carrying a horizontal merge, a vertical
+  merge and a second horizontal merge outside the header row, asserted on rectangles and counts.
+- **Nested group transforms compose** — a shape two groups deep, each scaling, where the right
+  answer (6×) and the single-application defect (3×) are different numbers.
+- **Stand-ins are counted, not assumed** — the painter's `placeholders` is compared against the
+  geometry provider's own count of unanswerable handles, taken before the render.
+
+### ⚠ A defect this release asserts rather than fixes
+
+`mjx-dml`'s `resolve_fill` / `resolve_line` / `resolve_effects` bake every colour to a
+`ColorSpec::Srgb` hex **triplet**, which has no alpha channel — so an `a:alpha` transform is lost.
+The standard Office theme puts `<a:alpha val="63000"/>` on the shadow of every shape, so a shadow
+renders **solid** where the document asks for 63 %.
+`crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs` proves the loss off a real
+fixture and records what fixing it costs. It is a work item of its own: `ColorSpec` is constructed at
+263 sites and matched in both bindings.
+
+### ⚠ Nothing here is parity with PowerPoint
+
+Every behaviour chosen rather than read is marked `GUESS:` at its site. Confirmation is a human
+sitting against real Microsoft Office on Windows.
+
+### 0.0.144 on the branch — 2026-09-08
+
+**A `.pptx` becomes a `FragmentTree` — the first real box model (MJXOFF-169, R14).**
+
+Thirteen children built machinery: fonts, shaping, the `BoxModel` contract, the display list, four
+painters, a fidelity oracle, a session, a viewport. **Not one of them laid out a document.** This is
+the one that does: `mjx-layout-pptx` (rank 3.6) walks a slide's shape tree in z-order, places every
+shape at the bounds `mjx-pptx` resolves for it, and lays out every text body inside its shape — the
+four insets, the columns, the nine indent levels with their bullets, the line spacing, the anchor,
+and the autofit that ties them together.
+
+### The new crate
+
+- **`crates/mjx-layout-pptx`** — `SlideBoxModel`, the first implementation of
+  `mjx_layout::BoxModel`. One slide is one page, so `estimate_extent` is `Exact` (the only box model
+  in the programme whose "estimate" is the answer), `invalidate` names pages rather than a suffix,
+  and a checkpoint carries four bytes.
+- **It consumes the seven-tier effective-property ladder and re-derives none of it.**
+  `effective_shape_bounds`, `effective_shape_transform`, `effective_body_properties`,
+  `effective_paragraph_properties`, `effective_run_properties`, `effective_shape_fill` and
+  `effective_shape_outline` answer every question about what a shape *says*.
+  `tests/the_ladder_is_consumed.rs` holds that by grepping this crate's source for the wire
+  vocabulary a second resolver would need, and by refusing every *declared*-property reader by name.
+- **Every measurement comes from `mjx-text`.** Shaping, bidirectional resolution, script
+  itemisation, face fallback and line breaking; nothing here measures a glyph.
+
+### `a:bodyPr` is modelled for the first time
+
+It was preserved verbatim and typed nowhere, because fidelity never needed it — and layout does: the
+insets, the anchor, the wrap flag, the column count and the autofit choice are the whole of a text
+body's geometry.
+
+- **`mjx_dml::TextBodyProperties` / `TextBodyPropertiesSpec`** — the fifth typed piece of
+  `a:txBody`, in the same two-type shape as the four before it. Its schema defaults are named
+  constants applied at the point of use, so an authored `0` inset is still distinguishable from an
+  unstated one. `TextWrapping` is hand-written beside the attribute that reads it, because
+  `ST_TextWrappingType` is not in the generator's curated type list.
+- **`Presentation::body_properties`, `effective_body_properties`, `set_body_properties`** — the
+  stated value, the value after the placeholder chain has been walked, and a merging writer.
+
+### ⚠ Nothing in the new crate is parity with PowerPoint
+
+ECMA-376 says what the attributes are and is nearly silent on what a renderer does with them, so a
+number of behaviours are readings rather than facts. Every one is marked `GUESS:` at the site that
+makes the choice. The sharpest is autofit, and it is deliberately split in two:
+
+- **honouring** a stored `a:normAutofit@fontScale` reproduces exactly what the author saw, and is
+  exact;
+- **computing** one is running PowerPoint's own search, which has never been specified. The ladder
+  of scales is derived from the values PowerPoint is observed to write; the order the two factors are
+  stepped in is a guess.
+
+`AutofitOutcome::recomputed` is what keeps the two apart, and `AutofitPolicy::Disabled` exists so a
+gate can prove the search is what makes the difference. Confirmation is the Windows sitting.
+
+### Gates
+
+Fragment-tier golden snapshots over nine committed slides, each carrying an approval record that
+says `generator` — a real record, and not a human review. Autofit proved on **overflowing** fixtures
+with the computed scale asserted as a number. A `SourceRef` round trip that goes out of the crate
+and back through `mjx-pptx`. Nine indent levels asserted as nine distinct indents. The addressing
+scheme checked against `mjx-session`'s, which wrote it down first.
+
+### 0.0.143 on the branch — 2026-09-08
+
+**Viewport windowing, byte-budgeted caches and frame scheduling — and the unbounded residency
+MJXOFF-167 declared is now closed (MJXOFF-168, R13).**
+
+A four-hundred-page document at 150 dpi is roughly four gigabytes of pixels. Nobody holds that
+anywhere, client or server, so *"high-throughput page view memory management"* is a **windowing**
+problem rather than a hosting one, and `mjx-view` (rank 3.8) is where that discipline lives.
+
+### The new crate
+
+- **`crates/mjx-view`** — generic over `mjx_layout::BoxModel` and over a new `SceneSource` seam, so
+  it windows a `.pptx`, a `.docx` and an HTML paste with one body of code and names none of them.
+  Four things in it:
+  - **`PageWindow`** — the pages on screen plus a prefetch ring **biased in the direction of
+    travel**, sized by the viewport rather than fixed at one page (`Viewport::with_zoom` is how a
+    zoom becomes a window size).
+  - **`CacheBudget`** — a declared byte ceiling for each of the seven stages `UI_PLATFORM_PLAN.md`
+    §4 L6 names. Three are held here; the other four are `mjx-scene`'s and the painter's, and the
+    table says which rather than pretending otherwise. **Checkpoints are kept for every page and
+    fragments are not** — that asymmetry is the design, and it is what turns a jump to page 300
+    into one page of layout.
+  - **`ScrollModel`** — the scrollbar exists before anything is laid out, and estimates become
+    measurements **without the scrollbar jumping under the reader's thumb**. The state is an
+    *anchor* (a page and how far into it), never a document offset, which is the whole fix.
+  - **`FrameBudget`** — 16.6 ms at 60 Hz, checked between tasks; visible pages run first, prefetch
+    is deferred rather than dropped, and a fling gets a preview tier that lays pages out and builds
+    no display lists.
+
+### The weakness R12 declared, closed
+
+- **`SpreadsheetSession`'s worksheet residency is bounded**, by **bytes** rather than by a sheet
+  count — `mjx-sml`'s own gate measures its packed store at 36.8 bytes per cell, which is what makes
+  a figure in bytes meaningful. A clean sheet is evictable, least recently used first, and re-parses
+  from its part; a **dirty** sheet is pinned and never evicted, because evicting it would drop an
+  edit the package has never seen. `resident_bytes`, `pinned_residency_bytes`,
+  `residency_evictions` and `least_recently_used_sheet` make it a measurement, and
+  `crates/mjx-session/tests/residency_budget.rs` walks forty sheets through a budget that fits four.
+
+### One cache, three consumers
+
+- **`mjx_ooxml_core::ByteBudgetCache`** — the workspace's one byte-budgeted least-recently-used
+  cache, at rank 0.0 because its three consumers sit at 1.7, 3.5 and 3.8 and a cache written in the
+  highest of those is unreachable from the other two. The same argument, and the same answer, as
+  `Emu` moving down in MJXOFF-160. `mjx-scene`'s `MeshCache` was rebuilt on it and its ten-case
+  budget gate passes unchanged.
+
+### Two failures a viewport must not have, and does not
+
+- **An over-long estimate is not an error.** A window is built from the scroll model's page count,
+  which is a guess until a page reports no continuation, so a window can name a page that is not
+  there — including one the same frame has just discovered is past the end. The frame **skips** it
+  and counts it in `FrameReport::pages_past_the_end`. `ViewFailure` therefore has no viewport
+  variant at all: *no such page* is a question only a box model can answer, and a viewport that
+  answered it could disagree with the document it is showing.
+- **A reflow makes the document's length a guess again.** A page that ended the content made the
+  scrollbar's length a fact; an insertion undoes that, and a model that kept the old figure would
+  clamp the scrollbar short of the content the edit added. So a reflow clears the end marker and the
+  next frame asks `BoxModel::estimate_extent` how long the document is now — on the frame, because
+  that is where the content is.
+
+### Breaking
+
+- **`mjx_session::Invalidation` carries a `mjx_layout::ChangeKind`.** An address says *where*, and a
+  box model needs *what*: a reformat cannot move the content after it and an insertion moves every
+  page that follows. `Invalidation::new` takes a third argument; `Invalidation::at` keeps its
+  meaning and reports `Reformatted`, and `Invalidation::reflowing` is the wide one. `WordSession`
+  reports the wide one for a run whose text changed length.
+
+### 0.0.142 on the branch — 2026-09-08
+
+**The resident document: an operation journal recorded the instant an edit happens, and a commit
+that serialises dirty parts on a schedule rather than on every operation (MJXOFF-167, R12).**
+
+The rest of this workspace is a batch library and holds nothing between calls —
+`crates/mjx-xlsx/docs/guide/large_workbooks.md` says so in its own words, and it is right for a
+program that opens a file, changes it and writes it out. It is fatal for an editor. `mjx-session`
+holds a document open and separates the three layers `docs/client-platform/SESSION_AND_PERSISTENCE.md`
+names: **record** into the journal immediately, **apply** to the model immediately, **commit** on a
+schedule.
+
+### Added
+
+- **`mjx-session` at rank 3.5**, a new workspace member, in both rank tables and in `README.md`'s
+  ladder. `Session` is generic over `ResidentDocument`; `PresentationSession`, `WordSession` and
+  `SpreadsheetSession` implement it for the three formats behind a default `ooxml` feature.
+- **An operation vocabulary written in `mjx-layout`'s address space.** An `Operation` is a
+  `SourceRef` — a part number, a path of small integers, a character range — plus either a `Value`
+  or a `LayoutRect`. No OOXML type appears in one, which is what makes the journal a journal a
+  non-OOXML box model can also produce, and what keeps the collaboration seam open at no cost now.
+  Every operation is an **absolute assignment**, which is what makes replaying a journal tail over
+  work a commit already wrote idempotent.
+- **`CommitScheduler` and seven triggers** — idle, max age, a dirty-byte threshold, the journal's
+  memory bound, an explicit save, backgrounding and a consistency point — with a gesture that defers
+  the four economic ones and cannot defer the other three. **Backgrounding is mandatory and
+  immediate**: iOS terminates backgrounded applications without warning.
+- **Undo units that are semantic and independent of the commit window.** A unit owns its own steps
+  rather than pointing into the journal, precisely because the journal is truncated at every commit;
+  tying the two together is the classic bug where undo jumps by however much happened to be batched.
+- **A framed, checksummed journal encoding and `Recovery`.** A record carries its own length and an
+  FNV-1a check, so a torn tail — the shape a crash leaves — costs exactly that record.
+- **`Package::settle_edited_parts` and `Package::dirty_part_names`**, with `dirty_parts` /
+  `settle_dirty_parts` on all three format types. Settling serialises each dirty part once and moves
+  it to *clean but still resident*: the next save writes it verbatim, the next edit costs no
+  re-parse, and the dirty set actually clears. Without it a part edited once re-serialises on every
+  commit for the rest of the session, which is the cost batching exists to avoid.
+
+### Changed
+
+- **The documented copy-on-write rule now states two moments instead of one**, in `CLAUDE.md` and
+  `PLAN.md`. *On first edit, drop the raw bytes and mark the part dirty — the model is now
+  authoritative; serialise at commit, once, however many edits have accumulated.* The implementation
+  always worked this way; the prose described one moment. **The round-trip guarantee is untouched**
+  and `crates/mjx-session/tests/fidelity.rs` says so: opening and committing a `.pptx`, a `.docx` and
+  an `.xlsx` changes no part, editing changes exactly one, and an edit followed by its undo changes
+  none.
+
+### Measured
+
+- **Twenty keystrokes into one run cost one part serialisation; the same twenty under
+  `CommitPolicy::per_operation` cost twenty.** Asserted on all three formats, because *"a commit
+  produces a valid document"* is green for a session with no batching in it at all — the check
+  passes precisely when the feature is absent. Five hundred keystrokes cost **one** commit and one
+  serialisation, a ratio of 500 : 1.
+- **Recording is allocation-free.** A thousand payload-free operations into a reserved journal hand
+  the allocator **0 bytes** of work, measured with `mjx-allocation-counter` — its third consumer.
+  The gate is `harness = false` for the reason `mjx-sml`'s is: the first version of it was a
+  three-case harness and read 92,376 bytes, every one of them another case's, on another thread.
+- **Recovery is proved against a real process kill.** The suite re-launches its own test binary, has
+  the child record four operations, flush, record two more without flushing and then `abort()`, and
+  reads the file back from the parent: the four are there and the two are not. A same-process replay
+  would have proved only that the encoder agrees with the decoder.
+
+### 0.0.141 on the branch — 2026-09-08
+
+**Audit pass 10: the token editor stops accepting a colour that breaks the next build, and the two
+crates above the graph get the gate their rank cannot give them.**
+
+Ten findings from a read-only audit of MJXOFF-166, ordered by how badly each would mislead a reader
+into believing something was proved that was not.
+
+### Fixed
+
+- **The live token editor validated a value's *type* and not its *contrast*, and the contrast rule
+  is the one a design tweak trips.** `DESIGN_TOKENS.md` §2.2 — every colour tagged for text reaches
+  4.5 : 1 against its declared background — lived in `xtask/src/codegen/tokens/model.rs`, and
+  `mjx-canvas-harness` may not depend on `xtask`. So a person tweaked a text colour in the harness,
+  got a green write-back, and `cargo run -p xtask -- tokens` went red afterwards: exactly the
+  failure the editor's own comment says its validation exists to prevent. **The rule moved down into
+  `mjx-tokens`**, where every writer of `tokens.json` can reach it — `check_usage`, `contrast_ratio`
+  and `ColorUsage` are one implementation, and `xtask`'s generator now *calls* it rather than
+  keeping a copy. This matters immediately: the user is about to audit sixty-one elements through
+  that editor.
+- **Entry 30's note indicator was badged `touch` and recorded no grab region** — a touch element the
+  audit surface could not answer for, on the entry whose own description is *"four device pixels on
+  a side at 1×, which is where a triangle stops being one"*. Found by the new assertion below rather
+  than by reading.
+
+### Added
+
+- **`TokenIdentity` carries `usage` and `background` as data**, not as prose in a generated doc
+  comment. A program could not read the old form, which is why the rule could not travel.
+- **`crates/mjx-canvas-harness/tests/the_seam_holds.rs` and
+  `crates/mjx-render-oracle/tests/the_seam_holds.rs`.** Both crates sit above the whole document
+  graph with **no rank**, so `xtask/tests/layering.rs` — whose rule is a comparison of two ranks —
+  holds nothing about what either depends on and would have accepted `mjx-canvas-harness → mjx-pptx`
+  without a word, while `CLAUDE.md` described the property as though something held it. Each gate
+  asserts its crate's dependency set **exactly** and scans its sources for a forbidden name. Both
+  read the one scanner at `crates/mjx-paint/tests/support/manifest.rs`, shared by `#[path]` include
+  rather than copied — what is worth sharing is the three parser defects MJXOFF-164 fixed in it, and
+  a copy would not carry them — and that scanner's **own two instrument tests** compile into all
+  three gates, because a manifest scanner that silently stops seeing a category passes forever.
+- **`crates/mjx-canvas-harness/tests/the_router_answers.rs`.** `server.rs` shipped at 591 lines with
+  no test calling any of it: an `abort()` in the `("GET", "/api/probe")` arm would have fired
+  nowhere, and the existing assertion was that the HTML *string contains* `"/api/probe?"` — a claim
+  about a hyperlink. Twelve cases now drive `route` and a new `read_request` directly: every route
+  with its content type, a `POST /api/tokens` round trip against a copy of the source, eight
+  refusals each checked to leave the file byte-identical, the body-length cap, the `Content-Length`
+  parse and an unreadable request line.
+- **`xtask/tests/unsafe_allowance.rs`**, holding the exact set of files that carry
+  `#![allow(unsafe_code)]`. `README.md` said *"the two binding crates are the only ones"* — false
+  since MJXOFF-163, there are four crates and five files — and ended *"CI greps them to keep that
+  claim true"*, which made a stale claim look mechanically guarded. The grep it named guards what
+  the allowance is *used for* and never who has one.
+- **An assertion that every entry declaring `Axis::Input` records a grab region.** It was read in two
+  places and both purely for display.
+- **Disclosure where the reader actually is.** `check` now ends with *"61 of 61 carry NO HUMAN
+  REVIEW"*, matching the oracle's; the harness page carries a banner saying the sixty-one designs
+  are proposals awaiting the user's pass. The gallery, the checklist and the CI job already said so
+  — the command CI runs and the page the review happens on did not.
+
+### Documentation
+
+- **`CLAUDE.md`'s claim that the harness names no format crate *"exactly like the oracle"* was false,
+  and backwards.** The oracle declares `mjx-geometry`, `mjx-dml` and `mjx-ooxml-types` for the
+  `preset-star` specimen; the harness declares none of them. The harness's property is the
+  **stronger** of the two. Both sentences are corrected, and the paragraph now states plainly that
+  neither property was enforced by anything until this pass.
+- `README.md`'s test-only crate list named three of six and drew none of the distinction between the
+  three *below* their consumers and the three *above the whole graph*; `CONTRIBUTING.md` still said
+  *"pure-Rust dependencies only in shipped crates"*, superseded by MJXOFF-163. Both are held by
+  `xtask/tests/unsafe_allowance.rs` now, because a claim that drifted once will drift again.
+- **`docs/UI_PLATFORM_PLAN.md` §11.2**, the description of the canvas harness that did not exist —
+  the plan's only account of R11 was a stale parenthetical saying in-canvas UI *"is audited as
+  generated image plates instead"*, which R11 superseded. Written in the shape of §11.1.
+- `Entry::responds` records that six of the sixty-one declarations were corrected *from* the first
+  measurement and that only two are recoverable from the tree, because the crate landed in one
+  commit. A declaration written from a measurement cannot detect that the measurement was wrong to
+  begin with, and saying which four is not something an agent can reconstruct.
+
+### 0.0.140 on the branch — 2026-09-08
+
+**The canvas UI harness: sixty-one in-canvas elements, exercised by hand** (MJXOFF-166).
+
+`docs/client-platform/CANVAS_UI_INVENTORY.md` §2 lists sixty-one things the Rust renderer draws that
+are not document content — selection outlines, resize and rotation handles, carets, squiggles, range
+borders, marching ants, page shadows, focus rings. They are the most design-sensitive surface in the
+product and **none of them can be a web component**, so a Storybook-only audit would miss all
+sixty-one. This is the surface they are audited on.
+
+### Added
+
+- **`crates/mjx-canvas-harness`** — a new test-only crate, `publish = false`, outside the ranked
+  graph and at the top of it beside `mjx-reference-pack`. `cargo run -p mjx-canvas-harness -- serve`
+  binds a local server and prints a URL; the page carries a searchable scene list, a state panel for
+  every axis of the matrix (default/hover/active/focused/disabled × light/dark × 1×/2×/3× ×
+  pointer/touch), an overlay ruler, a hit-test visualiser, a pixel inspector and a live token editor.
+- **Sixty-one synthetic scenes**, each a `FragmentTree` built by hand. **The harness needs no
+  document and no fixture**, which is the property that lets in-canvas design be settled while the
+  format renderers are still being built.
+- **A live token editor that writes back** to `docs/client-platform/data/tokens.json`, editing the
+  narrowest possible span so a one-character tweak is a one-line diff rather than a reformat of the
+  one hand-edited artefact in the pipeline.
+- **Sixty-one plates**, through `mjx-render-oracle`'s plate generator, its PNG encoder, its manifest
+  schema and its baseline store — no second emitter and no second schema. This is the **first**
+  consumer of that crate's plate generator; `mjx-reference-pack` uses its authority vocabulary and
+  never renders a plate, so the permitted half of the layering rule was asserted and unexercised
+  until now, and `xtask/tests/layering.rs` now names both consumers.
+- **A new CI job, `canvas-harness`**, which uploads the plates, the gallery and the checklist on
+  failure as well as on success. It needs no GPU and no external reader.
+- **`docs/client-platform/CANVAS_UI_AUDIT.md`** — the checklist, one line per element. **Nothing in
+  it is ticked and no agent may tick it.**
+
+### The gates, and the traps they are written against
+
+- *"All 61 elements have a scene" is satisfied by 61 empty canvases.* Five counters per entry —
+  placeholders, draw calls, covered pixels, **distinct colours**, declared command kinds — plus a
+  command count strictly above the bare stage's. The distinct-colour counter is R10's own hand-off:
+  an overlay drawn in the page's own ink passes every other check and is invisible.
+- *A state toggle that does nothing is invisible to any reachability check.* Every entry declares
+  which axes move its pixels; the suite measures the declaration **in both directions** and prints
+  the per-axis counts. It found six disagreements on its first run. All sixty-one canonical renders
+  are asserted to be distinct pictures, which is what makes "61 elements" a number rather than a
+  claim.
+- *A hit-test visualiser that computes its own regions proves nothing about the index.* A grab region
+  records a **fragment**, and the rectangle is `SpatialIndex::bounds_of` inflated by the input
+  device's padding. There is nowhere for a second computation to live.
+- *A golden image generated by the code under test always matches the code under test.* Answered by
+  not answering it here: the baselines, the approval events and the explicit-only regeneration path
+  are `mjx_render_oracle::baseline`'s, unchanged. **Every plate is stamped `approver = generator`,
+  which is a real approval record and is not a human review.**
+
+### ⚠ What this does not include
+
+**The mobile render surface.** MJXOFF-166 specifies a `tauri-plugin-mjx-surface` and it was not
+written: a plugin that compiles and has never created a surface would satisfy the sentence and prove
+nothing. The eleven touch entries are exercised in a **mobile browser** over the LAN
+(`serve --host 0.0.0.0`) — a real touch device at a real density — and that is not the native
+surface. `docs/client-platform/CANVAS_UI_INVENTORY.md` §4.2 says exactly what is missing, and
+corrects the ticket's premise while it is there: R08 already generalised `SurfaceHost` over a
+platform window handle, so what is missing is a **shell** on a phone, not a rendering seam.
+
+### 0.0.139 on the branch — 2026-09-08
+
+**The preset-shape geometry sweep runs on CI, and the class of hole it belonged to is now a test**
+(MJXOFF-197).
+
+`crates/mjx-dml/tests/guide_formula.rs`'s
+`every_guide_of_every_preset_shape_definition_evaluates` walks the *entire* normative preset-shape
+corpus — every guide of every shape block of `presetShapeDefinitions.xml`, evaluated at a
+deliberately lopsided box so a guide that confuses two extents cannot pass by coincidence. **It had
+never once executed on CI**, in the whole history of the repository, and reported `ok` every time.
+
+Three individually-correct facts composed into the hole. The suite skips when `References/` is
+absent, which is right — the tree is licensed material and git-ignored. Its escape
+`MJX_REQUIRE_PRESET_GEOMETRY` was set by no workflow. And the only job that extracts `References/`
+never named `-p mjx-dml`; `mjx-dml` appeared in no job in any workflow file. **An absent corpus reads
+exactly like success**, which is why two independent programmes built the same instrument and neither
+noticed.
+
+### The archive comes first, and that ordering is the finding
+
+The obvious fix — set the variable on `schema-validity` — **would have turned CI red**, because that
+job had no ECMA-376 Part 1 to read. A step written that cannot execute is this defect one level up,
+and the ticket committed it inside the ticket that names it.
+
+So `.github/scripts/fetch-ecma-schemas.sh` carries **Part 1** now, pinned in
+`.github/ecma-376-archives.sha256` by a SHA-256 computed from a fresh download off ECMA's own server
+— never from the copy sitting in a developer's `References/`, which is precisely the artefact whose
+provenance nobody can reconstruct later.
+
+Part 1 needs **two** of its six members (`OfficeOpenXML-XMLSchema-Strict` and
+`OfficeOpenXML-DrawingMLGeometries`), and the script's `outer|member|marker` entry format assumed
+one. Two entries sharing one outer archive is the tempting shape and it is wrong twice:
+`verify_archives` runs `sha256sum --check --strict` against a manifest that carries each file once,
+so the two lists stop corresponding and the next person adding a part cannot tell which is
+authoritative. The member field is a **list** instead, each member with its own marker, so one
+archive stays one entry — and a new guard refuses an `ARCHIVES` entry the manifest does not cover,
+which would otherwise be fetched and extracted unverified.
+
+**What it costs is two numbers, not one:** the download and the CI cache grow by **42 MB** (the
+outer archive is atomic and 35.3 MB of it is the part's PDF), while the extracted tree grows by
+**~1.5 MB**. The `-j`-plus-explicit-member extraction is what keeps the difference; the PDF is never
+written to disk.
+
+### Two gates, both observed executing rather than merely configured
+
+`schema-validity` now runs `cargo test -p mjx-dml --test guide_formula` under
+`MJX_REQUIRE_PRESET_GEOMETRY=1`, and `cargo test -p xtask --bin xtask`, which is the selector that
+reaches `the_committed_geometry_table_is_exactly_what_the_file_produces` — the byte-for-byte
+re-derivation of `crates/mjx-geometry/src/generated.rs`. That one had the same hole for a subtler
+reason: it lives in the xtask **binary's** unit tests, and `lint-test` runs `--workspace` without a
+schema tree while this job selected integration targets by name.
+
+Both steps run with `--nocapture` and both now **print the counts they evaluated**, because
+`cargo test` swallows a passing test's output and a green tick cannot distinguish "the corpus was
+swept" from "the corpus was absent". A log line with a number in it can.
+
+The sibling drift check over `mjx-ooxml-types` — the other programme's `codegen_drift.rs`, which
+needs this same Part 1 archive — is not in this tree. It is **MJXOFF-227**, whose stated precondition
+is the archive line added here.
+
+### And the class, closed by an instrument rather than by a sweep
+
+`xtask/tests/escape_hatches.rs` enumerates every `MJX_REQUIRE_…` in the workspace and fails on one
+that is neither bound by a workflow nor justified where it is defined. A one-time census was never
+going to be enough: **the roster expired twice while this ticket was open**, once from a child in
+this programme and once from a peer branch.
+
+Three states, not two, and the middle one is why the workflow is *parsed* rather than grepped. A
+string census cannot tell a binding from the comment a careful author writes explaining why there is
+no binding — and this repository has exactly that case, `MJX_REQUIRE_OFFICE_CORPUS` appearing in
+`ci.yml` only inside "deliberately NOT set". So the parser reads the file's indentation structure
+with comments removed quote-aware, and counts a key only under an `env` ancestor. The scanner has its
+own instrument tests over synthetic trees — including one proving a comment is not a binding and one
+proving the gate can go red at all — because a scanner that silently stops discriminating passes
+forever, which is this ticket's own defect class one level up.
+
+`MJX_REQUIRE_OFFICE_CORPUS` and `MJX_REQUIRE_OFFICE_EXPORTS` are marked `MJX-ESCAPE-UNSET` at their
+definition sites, with the reason they already carried in prose: both guard directories that ship
+empty by design and that no agent may fill, so binding either would make the build red about
+something no build can fix.
+
+### 0.0.138 on the branch — 2026-09-08
+
+**The fidelity oracle — layered assertions, perceptual diffing, and the document plate gallery**
+(MJXOFF-165, Phase R position 10 of 24).
+
+For an engine claiming parity this is the most important instrument in the project, and it is a
+foundational child rather than a later one: building the renderer for a year and *then* asking how
+close it is would be the defining mistake available here. Every layout child from R14 onward is gated
+by this harness, so it exists before there is anything to regress.
+
+### The trap it is written against
+
+**A golden image generated by the code under test always matches the code under test.**
+Regenerate-and-compare is green by construction and proves nothing whatever. Three refusals answer
+it, and none is a matter of policy:
+
+* **A baseline with no approval record fails**, rather than passing — proved by adding one.
+* **Regeneration is explicit and cannot happen implicitly.** `Baselines::regenerate` takes a
+  `RegenerationIntent`, whose only constructor reads `MJX_ORACLE_REGENERATE`. A check path cannot
+  make one by accident because it cannot make one at all.
+* **Regeneration removes the approval it overwrites**, before writing anything. A path that kept it
+  would ratify exactly the regression the baseline exists to catch.
+
+An approval binds **the bytes and not the name**: a SHA-256 per artefact, which `sha256sum`
+reproduces, so the record is auditable by the person whose approval it claims.
+
+**And the honest part.** Every baseline shipped here is stamped `approver = generator`, which is a
+real approval record — the digest binding is live — and is **not a human review**.
+`awaiting_human_review` lists all of them, the gallery says so at the top of its page, and the
+manifest says `"reviewed": false`. An agent cannot manufacture a person's approval, and stamping one
+with a human's name would be worse than having no approval machinery at all.
+`docs/validation/08-the-fidelity-oracle.md` is the page addressed to the person who can end that,
+and a suite holds the page to the code.
+
+### The three tiers, and the localisation that is the actual gate
+
+One specimen is asserted at three stages of one pipeline — `FragmentTree` snapshot, `DisplayList`
+snapshot, rendered pixels — and the **first tier to differ** is the one that caused it, so a failure
+reports `Layout`, `SceneBuilding` or `Painting` rather than reporting that the picture changed. Tiers
+one and two need no painter at all.
+
+Three tiers that always agree are one tier written three times, so what is asserted is the *pattern*:
+moving a fragment reddens all three; **recolouring a paint leaves tier one green**, because a
+fragment tree carries a `DecorationRef` — a bare number — and never a colour; corrupting the stored
+image alone reddens only the third.
+
+### The pixel tier, and a tolerance that was measured absorbing a real defect
+
+Perceptual diffing with a structural metric, never a byte compare. It carries four numbers, and the
+fourth is there because this crate's own PDF suite caught the first three failing: a word displaced
+eight points is 0.85 % of a page and drags the mean SSIM only from 1.0 to 0.98, both of which a
+cross-producer tolerance allows. **A fraction and a mean both divide by the whole page**, so neither
+can see a local defect; the minimum over windows has no denominator, and
+`Tolerance::worst_window_similarity` is what makes the tier local.
+
+### The PDF pipeline, proved before the Windows sitting
+
+`pdftotext -bbox-layout` over two of our own exports **names the word** that moved — not *"the pages
+differ"* — and `pdftoppm` rasterises both sides with **one rasteriser** at one stated DPI, which is
+the only construction in which "pixel perfect against PowerPoint" is a coherent phrase. Both readers
+are external on purpose; `MJX_REQUIRE_TOOLS=1` turns an absence into a failure.
+
+### The premultiplication decision, recorded before the first baseline
+
+`mjx_paint::Pixels` is premultiplied and **stays** premultiplied — it is what the render targets
+hold, and un-premultiplying on readback would be lossy at alpha zero. A PNG sample is not
+premultiplied, so the conversion happens exactly once, at the file boundary, and ImageMagick reads
+`#FF000080` back out of a half-alpha red to prove it.
+
+### Also
+
+* **`mjx-render-oracle`** — new, test-only, `publish = false`, outside the rank graph, one step below
+  `mjx-reference-pack`, which is the only crate allowed to depend on it. The *authority vocabulary*
+  moved down into it from the pack, because a workspace with two answers to "how much is this
+  reference worth" has one too many and nothing may depend on the pack.
+* **A PNG encoder and a matching decoder**, hand-written and dependency-free. MJXOFF-165's brief says
+  to reuse `mjx_paint::export::png`; **there is no such module** — R09 never wrote one. Fixed-Huffman
+  deflate over an LZ77 search, byte-reproducible, checked by ImageMagick rather than by itself.
+* **SHA-256**, hand-written, checked against FIPS 180-4's vectors *and* against the system
+  `sha256sum`.
+* **The plate manifest** R11 and U01 load: PNG plus JSON, parsed back by the suite from the
+  consumer's side rather than asserted as a string.
+* **The gallery** — one self-contained HTML file, uploaded by a new `oracle` CI job on failure,
+  because a failure a reviewer cannot see is a failure nobody fixes. It prints the *measured*
+  `DrawReport::placeholders`, which is zero now that Phase G has landed, rather than a sentence about
+  stand-ins that would have to be remembered and edited.
+* **A regression arrives with its picture, and only then.** When a plate stops matching its approved
+  baseline the gallery carries three images — the current render, what a person approved, and the
+  difference amplified four times — and the manifest names all three. On a run that matches they are
+  absent: a black rectangle under every green plate is one a reader learns to scroll past, and by the
+  time a real diff appeared they would scroll past that too.
+* **`docs/validation/08-the-fidelity-oracle.md`** — the page addressed to the person who can end the
+  circularity, listed in the series index, and held to the code by a suite: it fails if it names a
+  plate that does not exist, quotes a variable the code does not read, or goes on claiming nobody has
+  looked once somebody has.
+
+### 0.0.137 on the branch — 2026-09-08
+
+**The reference pack — what the one Windows sitting needs, prepared in advance** (MJXOFF-207,
+Phase G position 6 of 6, the epic's last child).
+
+Seven questions have accumulated that **no agent can answer**, because each needs Microsoft Office on
+Windows and a person to run it. Arranging that is expensive, so it should happen once and cover
+everything at once. This release makes that morning four exports long.
+
+### Added — `mjx-reference-pack`, test-only, outside the rank graph
+
+A new crate that authors the artefacts and ingests what comes back. It has **no rank**, and for the
+opposite reason the other three test-only crates have none: they sit below their consumers so they
+can be reached from everywhere, and this one sits at the **top** — it names `mjx-pptx`, `mjx-docx`,
+`mjx-geometry` and `mjx-paint` together, which no shipped crate could legally do. Nothing may depend
+on it in either dependency section, and `xtask/tests/layering.rs` refuses the edge by name.
+
+**Four artefacts**, generated reproducibly (`cargo run -p mjx-reference-pack -- generate`):
+
+| File | Asks |
+|---|---|
+| `01-presets-at-their-defaults.pptx` | all 187 preset shapes at their own defaults |
+| `02-presets-at-their-extremes.pptx` | the same 187 with **every handle at an end of its domain** |
+| `03-type-specimens-and-hatches.pptx` | advance rulers and line pitch for five families, and all 54 preset hatches |
+| `04-hanging-punctuation.docx` | whether Word hangs ASCII `,` and `.` past the measure |
+
+The fourth is a `.docx` because **`w:overflowPunct` is a WordprocessingML setting**: there is no way
+to ask a `.pptx` the hanging question at all.
+
+**Four readers**, each of which refuses a number it could not see. `read_advances`,
+`read_line_pitch`, `read_hanging` and `read_hatch_tiles` turn an exported PDF into answers through
+`pdftotext -bbox-layout` and `pdftoppm`, and a probe whose words did not come back is `not evidence`
+rather than an advance of zero.
+
+**`docs/validation/07-the-reference-pack.md`** is the hand-off, a sibling of MJXOFF-130's own Office
+pass, and `tests/office-exports/` is where the exports land. **It ships empty and no
+agent may fill it**, for the reason the corpus above it ships empty: the value of an Office export is
+entirely its provenance.
+
+### Added — `Presentation::set_shape_adjustments`, the `a:avLst` writer by wire name
+
+`set_shape_geometry` writes `mjx-dml`'s **typed** `ShapeGeometry`, and a deck of every preset *at an
+extreme of its own handles* cannot be authored through it. The new call takes `&[(&str, i32)]` —
+`adj`, `adj1`, `adj5` — in the file's own units, upserts each into the shape's `a:avLst`, and leaves
+the `prst` token and every unnamed adjustment exactly as they were. All **285 adjustments across the
+119 adjustable presets** are written and read back in `crates/mjx-pptx/tests/preset_adjustments.rs`.
+
+### Fixed — the count in MJXOFF-206's hand-off, and one in `mjx-paint`'s documentation
+
+* **"An extremes deck cannot be authored for 70 of the 187" is not what the numbers say.**
+  `ShapeGeometry` has 118 variants, of which one is `Unmodeled`, so 117 presets are typed and 70 are
+  not — that arithmetic is right. But **only 119 presets have an adjustment at all**, and of those
+  **exactly two** are untyped: `sun` and `teardrop`. The other 68 untyped presets are `rect`,
+  `ellipse`, `line` and their kin, which have no handle to move and therefore no extreme to author.
+  Measured in `exactly_two_adjustable_presets_have_no_typed_variant`.
+* **`mjx_paint::pattern` said "Nine are pictorial" and listed ten.** The list was right and the count
+  was not; the length is now asserted.
+
+### Found, and reported rather than changed
+
+* **`Document::from_package` and `Presentation::from_package` refuse a package whose main part has
+  been edited.** Both probe for it with `Package::part_bytes`, which answers `None` for a part in the
+  `Edited` state — the state `part_tree_mut` leaves it in. The failure is `MissingDocumentPart`,
+  naming a part that is present and correct, and both constructors document themselves as taking
+  *"one authored part by part"*, which is exactly the case that does not work.
+* **A probe that repeats a character measures the character in a context no ordinary text puts it
+  in.** The advance ruler was built as `(run - probe) / (N - 1)` and read Arial's `f` at 260
+  thousandths of an em against a published 278, and `1` at 482 against 556 — `ff` is a ligature, and
+  a run of `1`s is shaped. The ruler now measures against an `HH` baseline box instead, which is
+  exact and shaping-free; **89 of Arial's 92 probes then read back within 0.93 thousandths of an em
+  of the published table** through LibreOffice's own export, and the run is kept as a second estimate
+  whose disagreements name the shaping.
+
+### The claim this release does *not* make
+
+**Nothing here says any shape matches PowerPoint.** Every gate in the new crate passes with no
+authoritative reference in existence, because the reference is the one thing an agent cannot produce.
+A LibreOffice run is `Provisional`, `parity_count` over one is **zero by construction**, and the
+gradient and hatch exclusions are attached to the *provider* so they lift by themselves when the
+Office exports arrive. The suites say so in their own file names —
+`the_plumbing_is_proved_and_not_the_fidelity.rs`, `an_excluded_result_is_not_evidence.rs`.
+
+### 0.0.136 on the branch — 2026-09-08
+
+**The provider wired in, and the placeholder proved gone** (MJXOFF-206, Phase G position 5).
+
+Everything Phase G built could be true while the renderer still drew placeholders, **because the
+provider is chosen by the caller.** This release makes the real one what a document is rendered
+with, and — more to the point — makes "the placeholder is gone" a checked claim instead of a
+sentence.
+
+### Fixed — half of `DrawReport::placeholders` had never executed
+
+The count is incremented in exactly two places in `crates/mjx-paint/src/plan.rs`: once under
+`Command::FillPath` and once under `Command::StrokePath`. **Every stand-in scene in this workspace
+was filled**, so the second line had never run. Replacing it with `std::process::abort()` left
+`mjx-paint`, `mjx-scene` and `mjx-geometry` green — a mutation that should have aborted the process
+and did not.
+
+That is the exact shape of the defect the field exists to prevent, one level down: a counter that
+never increments satisfies *"zero placeholders"* perfectly. An outlined shape is not exotic —
+`straightConnector1` has no interior at all, and **63 of the 186 presets** end a contour without an
+`a:close` — so a deck of connectors would have reported a clean fidelity render while drawing
+framed, crossed rounded rectangles. The stroke arm is now asserted in five places: the software
+painter, the GPU painter, both document exporters, and `mjx-geometry`'s own wiring suite. Mutating
+the line now aborts.
+
+### The wiring gate — `crates/mjx-geometry/tests/the_provider_is_wired_in.rs`
+
+The existing placeholder-count cases build their scenes from the typed registry, draw them as fills
+and lower them with `plan_frame`. Each of those three is a place a wiring defect can hide, and the
+new suite closes all three:
+
+- **the document's own `a:prstGeom` is the route.** All 186 presets are registered through
+  `ShapeOutline::from_preset_geometry`, out of a `PresetGeometry` built the way a `.pptx` has it.
+  That bridge was written, documented and exported in MJXOFF-202 and had **never been shown to reach
+  a painter's report** — a bridge that resolves correctly and is wired to nothing renders exactly as
+  many placeholders as no bridge at all;
+- **both command kinds**, and each alone as well as together, so a page that silently skipped one
+  cannot pass by reporting a lower number;
+- **both orientations**, because `ss` is `min(w, h)` and a sheet laid out at one aspect ratio is one
+  sample;
+- **every pure-Rust painter** — `tiny-skia`, SVG and PDF — asserted in both directions over a deck
+  of 186 shapes and over a scene that certainly contains one that cannot be drawn. R09 added three
+  painters and asserted this field for none of them; the `wgpu` painter asserts the same pair in
+  `crates/mjx-paint/tests/a_page_becomes_pixels.rs`, where a missing adapter is a named skip.
+
+**All three producers of a stand-in are exercised, not one**: an unregistered handle
+(`UnregisteredOutline`), `upArrow` — the single preset `ST_ShapeType` declares and
+`presetShapeDefinitions.xml` defines nothing for (`UnseededShape`) — and `circularArrow` at `adj5`'s
+own minimum, where `swAng` has no value (`SingularGeometry`). The three are asserted to land on
+three *different* arms, so the list cannot quietly become one case written three times. And the
+stand-in is asserted to be **`mjx-scene`'s own**, command for command: a provider that grew a second
+framed rectangle of its own would pass every count and fail that comparison.
+
+### The census — no shipped code renders with the stand-in, and every test that uses one says why
+
+`crates/mjx-geometry/tests/the_stand_in_is_named_wherever_it_is_used.rs` reads the workspace off the
+file system and asserts two things:
+
+1. **exactly one shipped file constructs `PlaceholderGeometry`** — `crates/mjx-geometry/src/
+   provider.rs`, the `UnknownShapePolicy::StandIn` fall-through. That is the whole of *"the
+   placeholder is gone"*: no other `src/` path can put one on a page; and
+2. **every other file that constructs one declares a reason**, on a line carrying `MJX-STAND-IN:`
+   and at least sixty characters of prose. **Seventeen files carry one** — the tessellator's suites
+   need a provider that answers every handle and do not care what it draws, and `mjx-scene`
+   (rank 1.7) and `mjx-paint` (forbidden by name in `tests/the_seam_holds.rs`) *cannot* name the
+   real one.
+
+The idiom is `mjx-paint`'s `MJX-PAINT-SURFACE-UNSAFE`, and for its reason: a claim CI does not check
+is a claim that quietly stops being true. The gate carries its own negative control, so it is shown
+able to fail rather than merely observed to pass.
+
+### The gallery, drawn through the renderer
+
+`cargo run -p mjx-geometry --example painted_gallery -- <stem>` writes the same 186 plates as
+`plate_gallery`, in the same grid, but draws none of them itself: every shape is a
+`Geometry::Unresolved` in a `DisplayList`, resolved by a painter walking that list. It writes an SVG
+through `SvgPainter` — whose root carries `data-mjx-placeholders="0"`, so the picture states its own
+count — and a PNG through the pure-Rust `SoftwarePainter`, and it **refuses to write either** if the
+report is not zero or the sheet is missing shapes. It is an aid for a person, not a gate: MJXOFF-201
+§6 is unchanged, and the authoritative visual check is PowerPoint on Windows.
+
+### Fixed — a count four comments quoted and nothing checked
+
+Writing G06's hand-off meant restating *"sixty-four of the presets end a contour without an
+`a:close`"*, which appears in four comments across `mjx-geometry` and `mjx-paint` and is sourced from
+**no assertion at all**. The crate asserts a different quantity — `PATHS_THE_FILE_LEAVES_OPEN`, 70 of
+the file's 319 *paths* — and a path count is not a shape count.
+
+Measured: it is **63**. `every_preset_is_structurally_sound.rs` now carries
+`PRESETS_WITH_AN_OPEN_PATH` beside the path-level constant and counts both in the same walk, so the
+shape-level figure is checked where it was quoted. Nothing depended on the wrong number, which is
+precisely why it survived four readings: an unchecked figure is not caught by being read.
+
+### Documentation corrected
+
+*"Every preset shape in this platform resolves to a stand-in today"* was true when it was written
+and, in one wording or another, ran through **fourteen files** across `mjx-scene`, `mjx-paint` and
+`docs/UI_PLATFORM_PLAN.md` — including the documentation on `DrawReport::placeholders` itself and
+`mjx-paint`'s own end-to-end frame example, which built a stand-in and then asserted the page had no
+placeholders. Every one now says what is true: a preset resolves to the document's own geometry,
+which makes the flag a *signal* rather than a constant. `docs/UI_PLATFORM_PLAN.md`'s gap #1 is marked
+closed with its evidence kept rather than deleted, and §1.11's prediction — *"swapping in the
+generated table later is one implementation, not a rework"* — is recorded as having held.
+
+### 0.0.135 on the branch — 2026-09-08
+
+**Verification across all 186 presets — structural, differential and monotonic** (MJXOFF-205, Phase
+G position 4).
+
+It is mechanically easy to produce 186 shapes that resolve and geometrically hard to know any of
+them is right. Nobody reads 3 923 guide formulas and the output is visual, so this release is three
+gates that need no reference render, and the defect the first of them found.
+
+### The monotonicity gate now covers 285 adjustments, not four
+
+`an_adjustment_moves_the_shape.rs` states a direction in a shape's own words and asserts the
+geometry moves that way; it covers `triangle`, `roundRect`, `rightArrow` and `pie`. The remaining
+182 presets had never had an adjustment checked against a geometric expectation.
+`every_adjustment_moves_its_shape.rs` sweeps **all 285 (shape, adjustment) pairs across 119
+presets**, in both orientations, and asks four questions:
+
+- **every one of the 285 moves its geometry** — no exceptions;
+- **the axis it moves on is the axis its own `a:ahLst` handle declares** — a differential against a
+  part of ECMA-376's file the path table does not read — with **eight** named exceptions, each a
+  shape whose handle drags along one axis and whose geometry is arranged along the other;
+- **it keeps its shape in its box throughout**, with **eleven** named exceptions carrying measured
+  bounds in both orientations, and the worst shape that stays inside measuring 0.005 28 px against a
+  0.01 px tolerance — so halving the tolerance would fail a correct shape; and
+- **three adjustments reach a point their own formulas have no value at**, each at a stop a handle
+  drag reaches, each answering `SingularGeometry` so a stand-in is counted rather than the page
+  failing.
+
+### Fixed — an arc on a degenerate ellipse landed a whole radius from the pen
+
+Found by that gate, on its first sample. `parametric_angle` tested for a degenerate ellipse by
+asking whether `wR·sin θ` and `hR·cos θ` were **both exactly zero**, and `sin π` is `1.22e-16` in
+binary floating point. So an `a:arcTo` whose ellipse has one radius zero took the general branch,
+`atan2(1.22e-16, -0.0)` answered `π/2` instead of `π`, and the quarter turn that invented put the
+derived centre a whole `wR` from the pen. **`can` at `adj = 0` drew its top ellipse 80 device pixels
+left of a box beginning at zero, and `leftBracket` at `adj = 0` drew a full 160 outside a 160-pixel
+box** — both at an adjustment's own minimum, which a handle drag reaches. The guard is now on the
+radii, which is what the function's own documentation always claimed. **No existing gate saw it**:
+the box census resolves at default adjustments, the four monotonicity cases are four other shapes,
+and the degenerate-size sweep asserts finiteness rather than position.
+
+### A third route to the same geometry, through the parser
+
+`the_third_route_is_the_parser.rs` writes each of the 186 out as `a:custGeom` XML, reads it back
+through `mjx_xml::fidelity::parse`, and resolves it with `mjx-dml` alone — then compares **all three
+surfaces**: 6 189 path commands, 362 text rectangles and 1 712 connection sites, in two
+orientations. Every one agrees **exactly**, to 0.0 px and 0.0°. The route shares the arc
+decomposition and the guide evaluator (there is one of each in the workspace, deliberately) and
+shares nothing else: the table is read off the wire as `ST_AdjCoordinate` and `ST_AdjAngle` rather
+than out of a `static`, and the map onto the page — `CT_Path2D`'s `@w`/`@h` coordinate box included
+— is written a second time.
+
+### The structural walk: correspondence, not counts
+
+`every_preset_is_structurally_sound.rs` walks each of the 186 at **six sizes** and at **every
+adjustment's own extremes**, and asserts the resolved command list *is* the table's step list with
+exactly three transformations: an arc expanded into cubics, a `MoveTo` inserted where a step follows
+an `a:close` (six presets, all accent callouts), and a second `a:close` suppressed (none). It also
+asserts the map onto the box is affine, by resolving every preset in two boxes eight times apart and
+comparing every point through the transform between them — 15 096 points, worst disagreement
+6.1e-5 px.
+
+### Each check proved able to fail
+
+One mutation per check, each run over the whole table and each reddening **one shape and only that
+shape**: a `pie` whose swing angle is written in degrees rather than the wire's sixty-thousandths
+(the structural walk), a `triangle` whose apex guide reads `h` where the file writes `w` (the
+differential, 20 px), and a `triangle` whose apex is pinned to a constant equal to its own default —
+identical at its defaults and dead under a sweep (the monotonicity gate).
+
+### Also
+
+- `cargo run -p mjx-geometry --example plate_gallery -- out.svg` draws all 186 on one sheet with
+  their boxes, text rectangles and connection sites. It is **for the user to compare against
+  PowerPoint** and nothing gates on it: a picture that looks right is not evidence.
+- `orientations()` moved into the suites' shared scaffolding; it had been written twice and was
+  about to be written twice more.
+- Corrected stale prose on `TextRectangle::Singular`, which still said four presets are singular
+  there and named `parallelogram`. It is three, and `parallelogram`'s singular guide is one its
+  *connection sites* read — measured in 0.0.134 and asserted since, while the sentence in
+  `resolve.rs` went on saying otherwise.
+
+### 0.0.134 on the branch — 2026-09-07
+
+**The text rectangle and the connection sites — `a:rect` and `a:cxnLst`** (MJXOFF-204, Phase G
+position 3).
+
+A preset shape is more than its outline. `a:rect` says where text goes *inside* it and `a:cxnLst`
+says where a connector attaches and which way it leaves. Both live in the same file MJXOFF-203 read
+and are written in the same guide language, so both are extracted by the same parse and resolved
+through the same guide environment and the same affine map the paths use — not a second
+implementation of either.
+
+**181 of the 186 declare a text rectangle** (`chartPlus`, `chartStar`, `chartX`, `line` and
+`lineInv` do not), and **136 of those inset it from the shape's own box**. **173 declare connection
+sites**, 856 in all; the thirteen that do not are the nine connectors — a connector has nothing to
+connect to — plus the three `chart*` marks and `funnel`.
+
+### Absent, unresolvable and broken are three different answers
+
+The defect this had to avoid is invisible: a text rectangle that silently falls back to the bounding
+box still renders text, just in the wrong place, and every test that asks *"did text appear"*
+passes. So `mjx_geometry::preset_text_rectangle` answers with a four-armed `TextRectangle` —
+`Declared`, `NotDeclared`, `Singular { guide }`, `Inverted { crossed }` — and the bounding-box
+fallback is `or_bounding_box`, a **named call** a reviewer can grep for rather than a default
+buried in the resolver.
+
+All four arms occur in ECMA-376's own data. Three presets lose their rectangle to a singular `il` at
+`adj2 = 0`, that adjustment's own minimum (`leftRightUpArrow`, `leftUpArrow`, `quadArrow`), and both
+`ellipseRibbon`s cross their edges at `adj1`'s maximum, where the ribbon's body is squeezed to
+nothing.
+
+A connection site's list, by contrast, fails as a whole when one of its members has no value:
+a connector names a site by `a:cxn@idx`, so dropping the fourth would renumber the fifth and attach
+every connector after it to the wrong side.
+
+### Two more defects in ECMA-376's own geometry file
+
+MJXOFF-203 corrected eight malformed formulas. Two more turned up here, both found by a gate rather
+than by reading, and both corrected in `xtask` with the file's own sibling rows as evidence and its
+text guarded so a later edition cannot leave a silent rewrite behind:
+
+- **`pie`'s `a:rect` is transposed** — `t="ir" r="it"`, a horizontal guide used as the top edge and
+  a vertical one as the right. The rectangle it describes is inverted on both axes and reaches
+  16.6 points below a 120-point shape. Every one of the other 180 maps `l t r b` to
+  `il it ir ib`.
+- **`squareTabs`'s sixth connection site reads `y="x1"`** — again a horizontal guide as a vertical
+  coordinate. Its three siblings are the other three inner corners, the corrected point `(dx, y1)`
+  is a vertex of the shape's own second path, and as written the site sits ten points below the
+  shape's bottom edge.
+
+### Every census is now taken in two orientations
+
+`ss` is `min(w, h)`, so in a landscape box the shorter side is always the height — and every box and
+every non-degenerate extent `mjx-geometry`'s suites had was landscape or square. An implementation
+that read `h` where a formula says `ss` was therefore invisible to every gate in the crate. There is
+now a portrait box with the same `ss`, and every census is taken in both.
+
+It found two things a single aspect ratio had hidden, neither of them a defect: `chevron`'s text
+rectangle collapses to the whole box in portrait, because its `il` is a `?:` whose condition is
+`w - 2·x1` with `x1` a fraction of `ss` — **an else-arm no landscape box can reach** — and `chord`'s
+inscribed rectangle clears its own chord in landscape and does not in portrait.
+
+### Also
+
+- The extractor now treats an empty XML element as a start immediately followed by an end. A
+  self-closing `<gdLst/>` previously set a section flag that was never cleared, which would have made
+  every later element of that shape unreadable. ECMA-376's file writes none, so the output is
+  unchanged; the latent bug is closed.
+- `crate::seed`'s hand-written reference gains `rect`'s and `ellipse`'s text rectangles and
+  deliberately gains nothing else. A text rectangle is a design decision and a connection site's
+  placement a convention, so transcribing the other four would have been a copy of the file wearing
+  a different hat. `ellipse`'s is the exception worth having: the largest inscribed rectangle has
+  half-axes `a/√2`, `b/√2` — a theorem, and a second measurement the file could have disagreed with
+  while drawing the identical outline. It agrees to 0.0003 device pixels.
+
+### 0.0.133 on the branch — 2026-09-07
+
+**All 186 preset shapes ECMA-376 defines, extracted from `presetShapeDefinitions.xml`**
+(MJXOFF-203, Phase G position 2).
+
+MJXOFF-202 built the machine and seeded it with six shapes transcribed by hand. This fills it from
+the normative file: every shape's whole `a:gdLst` and `a:avLst` in declaration order, every
+`a:pathLst` with each path's coordinate box, its `@fill`/`@stroke`/`@extrusionOk` flags and its
+ordered steps. `mjx-geometry`'s provider needed no structural change to consume it.
+
+**186, and not 187.** `ST_ShapeType` declares 187 values and ECMA-376's own geometry file has no
+`upArrow` element at all. That is a gap in the spec, not in the extraction, and it is named in
+`mjx_geometry::PRESETS_WITHOUT_GEOMETRY` — derived from the difference between the enumeration and
+the file rather than written down — so `upArrow` is the one preset that still reaches
+`UnknownShapePolicy`.
+
+### The differential, reported per shape
+
+The strongest gate available was diffing this mechanical extraction against MJXOFF-202's hand
+transcription from the spec's *prose*: two genuinely independent routes to one answer.
+`crates/mjx-geometry/tests/the_two_routes_agree.rs` runs it on every build, over the defaults and
+both ends of every adjustment's domain — 18 comparisons — and reports each with its derivation
+class, because **they are not six confirmations**:
+
+| Shape | Result | What the agreement is worth |
+|---|---|---|
+| `rect` | 0.00000 px | Fully independent, and proves the least: there is one way to draw a rectangle. |
+| `ellipse` | 0.00000 px | **Structural coincidence, not a second measurement.** Four 90° `a:arcTo` quadrants clockwise from `(l, vc)` is the only structure DrawingML's arc semantics make natural, and MJXOFF-202 predicted the file would use it. |
+| `triangle` | 0.00000 px | Paths independent; the `adj` domain came from the generated `adjustments_of`. |
+| `roundRect` | 0.00000 px | Paths independent; the `adj` domain came from `adjustments_of`. |
+| `rightArrow` | 0.00000 px | **Strong.** Seven points and eight guides, including `dy1 = */ h a1 200000` — the row MJXOFF-202 named as its own weakest point. The file writes the same eight formulas and the same seven points, in the same order. |
+| `pie` | 0.00000 px | **Strong on the paths**, and it disagreed structurally: the file draws `moveTo(rim) → arcTo → lnTo(hc, vc) → close` and the seed draws `moveTo(hc, vc) → lnTo(rim) → arcTo → close`. Same wedge, rotated start point — exactly the difference MJXOFF-202 predicted, which is why the comparison is of resolved outlines and never of step lists. |
+
+`triangle` also disagreed on *names*: the file's apex guide is `x2`, and its `x1` is a different
+formula (`*/ w a 200000`, for the text rectangle). A diff on guide names would have reported a
+contradiction where there is agreement to the EMU. The comparison is a symmetric point-to-segment
+Hausdorff distance over flattened contours, and a one-digit slip in `rightArrow`'s divisor measures
+30 device pixels against it.
+
+### Added
+
+- **`crates/mjx-geometry/src/generated.rs`** — 186 `PresetShapeDefinition` rows, 3 612 `gdLst`
+  guides, 298 `avLst` values, 319 paths and 2 907 drawing steps, emitted by
+  `cargo run -p xtask -- codegen`. Committed output, never a `build.rs`.
+- **`PresetShapeDefinition::adjustment_values`** — the shape's whole `a:avLst`, not the subset
+  `adjustments_of` exposes. An `avLst` entry no adjust handle references is not a user-facing
+  adjustment and **is** a name the shape's `gdLst` reads: `pentagon`'s first guide is
+  `*/ wd2 hf 100000`. Nine shapes could not evaluate a single guide without it.
+- **`PresetPath::fill` / `stroke` / `extrusion_ok`**, and the consumer MJXOFF-202 required them to
+  arrive with. `contours_of_definition` / `preset_contours` / `PresetGeometryProvider::contours`
+  answer per `a:path`, each contour carrying its own treatment — the answer `ResolvedOutline`
+  cannot hold, and the reason `arc` needs the flags at all: it strokes a `fill="none"` path and
+  fills a `stroke="false"` sibling. `outline_of_definition` **acts** on the pair, leaving out the
+  one contour in the whole file that is neither filled nor stroked
+  (`flowChartMultidocument`'s third).
+- **`GeometryError::SingularGeometry`**, and `has_no_geometry_to_draw` (was
+  `is_a_gap_in_the_table`). ECMA-376's formulas divide and take square roots, and at the ends of an
+  adjustment's domain the divisor can be zero — `circularArrow`'s `swAng` has no value at
+  `adj5 = 0`, which is that adjustment's own *minimum*. Six presets have such a point; they answer
+  with a counted stand-in under `StandIn` rather than failing the page, and never with a silent
+  empty path.
+- **`Derivation::ExtractedFromTheGeometryFile`**, the third value, carried by every generated row.
+- **`mjx_geometry::seed::HAND_TRANSCRIBED_SHAPES`** — the six hand-written rows, now public and no
+  longer the live table. They are the differential's reference; a reference nothing compares
+  against is not a reference.
+
+### Changed
+
+- **`seeded_shapes()` returns the generated table**, 186 rows instead of six. Nothing else in the
+  provider changed.
+- **The `gdLst` is evaluated one guide at a time.** A guide with no finite value is left
+  *undefined* rather than fatal, and so is every later guide naming it. In four of the ten shapes
+  that have a singular point the guide is `il`/`it`/`ir`/`ib` — the **text rectangle**'s insets,
+  which draw nothing — so the shape now draws where it previously could not. A *path* reading one
+  is `SingularGeometry`; a malformed formula or a name nothing defines stays fatal, because those
+  are table defects.
+- **Eight formulas of `presetShapeDefinitions.xml` are corrected on the way out.** `+-` takes three
+  arguments and these give it four, with a trailing `0` after an expression that is already
+  complete; `circularArrow`, `leftCircularArrow` and `leftRightCircularArrow` cannot evaluate a
+  single guide without the correction. Each has a sibling written a few guides earlier with three
+  arguments and the same shape (`xG = "+- xH dxG 0"` beside `xB = "+- xH 0 dxB 0"`), so dropping
+  the excess token is the file's own reading rather than a guess. Two gates hold the table honest:
+  `apply_errata` fails if a corrected guide says something else, and `check_formula_arity` walks
+  every formula afterwards and fails on any still malformed — which is what caught the two of the
+  eight the first draft missed.
+- **`xtask` gains a `mjx-dml` dependency**, so that arity gate checks against
+  `GuideOperator::argument_count` — the same function the resolver checks against — rather than a
+  second copy of §20.1.9.11's argument counts.
+
+### Fixed
+
+- `xtask/src/codegen/geometry.rs`'s header said the adjustment-bound closure was **335** guides,
+  and MJXOFF-201 and MJXOFF-203 repeated the figure from it. It is **334** —
+  `crates/mjx-dml/tests/guide_formula.rs` has asserted that number all along — and the geometry
+  table's own suite now asserts it too, so the prose and the assertion cannot drift apart again.
+
+### 0.0.132 on the branch — 2026-09-07
+
+**`mjx-geometry`: the preset shape path tables, and the `GeometryProvider` that ends the
+placeholder** (MJXOFF-202, Phase G position 1).
+
+Until this release every preset shape in every deck resolved to the same framed, crossed rounded
+rectangle — `mjx-scene`'s `PlaceholderGeometry`, built deliberately wrong so that a placeholder
+render could never be mistaken for a fidelity one. This is the machine that replaces it, built and
+gated against six shapes transcribed by hand so that it could exist before
+`presetShapeDefinitions.xml` was available. MJXOFF-203 feeds the same machine 187 shapes instead of
+six.
+
+### Added
+
+- **`mjx-geometry`, a new crate at rank 2.5**, between shared markup and the format tier. Every
+  other rank in the workspace is justified by what its crates may not *reach*; this one is placed by
+  what may not reach **it**. A preset path table is DrawingML, so it lives above `mjx-dml` (2.0) —
+  which is what keeps `mjx-scene` (1.7) and `mjx-layout` (1.6) structurally unable to depend on it,
+  and therefore keeps a display list from ever learning what a `.pptx` is. It is deliberately
+  *below* the format tier, because a format crate is allowed to know what its own shapes look like.
+  Grown in all three rank tables (`xtask/tests/layering.rs`, `CLAUDE.md`, `README.md`) and proved by
+  mutation in both directions: `mjx-sml -> mjx-geometry` (2.1 → 2.5) and `mjx-geometry -> mjx-pptx`
+  (2.5 → 3.0) each go red naming both crates and both ranks.
+- **`PresetGeometryProvider`** — a registry of outline handles, each naming a `PresetShapeType`, the
+  shape's extents and its `a:avLst` overrides. Answering a handle evaluates the shape's whole
+  `gdLst` through `mjx-dml`'s own evaluator, resolves its path through `mjx-dml`'s own resolver, and
+  maps the result onto the device-pixel box the seam supplied. Every answer carries
+  `OutlineProvenance::Document`, which is the field R10 gates a fidelity render on.
+  `ShapeOutline::from_preset_geometry` is the bridge from a document's own `a:prstGeom`.
+- **`UnknownShapePolicy`** — what a provider does with a shape it cannot draw: `Refuse`, so the page
+  fails rather than rendering a lie, or `StandIn`, which answers with `mjx-scene`'s placeholder
+  *with its provenance intact* so the render is visibly wrong and countable. Neither answer is an
+  empty path. The policy applies only to a gap in the table: a seeded shape whose guides will not
+  evaluate is an error under both, because papering over it would hide the one failure the seed
+  table exists to catch.
+- **Six seed shapes** — `rect`, `ellipse`, `triangle`, `roundRect`, `rightArrow` and `pie` —
+  transcribed from ECMA-376 Part 1 §20.1.10.56's descriptions and §20.1.9.11's formula language,
+  each recording **how independently it was derived**, because MJXOFF-203's strongest gate is
+  diffing its mechanical extraction against a transcription that did not come from the same file,
+  and a comparison whose two sides share a source proves nothing.
+- **Arc decomposition.** `mjx-dml` resolves an `a:arcTo` to two radii and two angles and stops,
+  because how many cubics an arc becomes is a renderer's decision. `mjx_geometry::arc` is that
+  decision, and it settles the question the spec answers only implicitly: **`stAng` is a true angle,
+  not an ellipse parameter**, which the `arc` preset's own `cat2 wd2 ht1 wt1` start point proves —
+  the derived centre lands on `(hc, vc)` under that reading and nowhere near it under the other.
+- **`mjx-paint`'s seam gate now forbids naming `mjx-geometry`.** At rank 5.5 the edge would be a
+  legal downward one, and a painter that built its own preset provider would be a painter that knows
+  what an `a:prstGeom` is.
+
+### Changed
+
+- Nothing below the display list. `mjx-scene` still takes a `&dyn GeometryProvider` and still has
+  never heard of OOXML; `mjx-paint` still does not name `mjx-dml`. That was MJXOFF-201 §3's rule and
+  it held without amendment.
+
+### 0.0.131 on the branch — 2026-09-07
+
+### Merged `main` into the client-platform phase branch
+
+**Two programmes ran concurrently and numbered independently, so `0.0.122` through `0.0.130` each
+appear TWICE below** — once for the client-platform renderer (MJXOFF-155, `mjx-tokens` through
+`mjx-paint`) and once for the validation and corpus work on `main` (MJXOFF-128, MJXOFF-130 and the
+Phases B–F programme). Neither set is wrong and neither is renumbered: nothing here is published,
+the two histories describe disjoint crates, and rewriting either would break the commit trail that
+`MJXOFF-<n>` references depend on. **This entry is the seam.** From here the numbering is single
+again, and the renderer side is the one that renumbered.
+
+The client-platform entries come first, then `main`'s.
+
+### 0.0.130 on the branch — 2026-09-07
+
+**`mjx-paint` part 2: the `tiny-skia` software painter, the PDF and SVG exporters, and the
+cross-painter gate they exist to make possible** (MJXOFF-164, Phase R position 9).
+
+**Three more painters against the same contract.** `SoftwarePainter` executes a `FramePlan` on the
+processor with no graphics stack, no window and no `unsafe`; `PdfPainter` and `SvgPainter` write
+documents from the same lowering. All four are `Painter`, so a caller — and R10's oracle — drives
+them through one loop.
+
+**The software painter is not a fallback, it is what makes the rest of the programme testable.**
+Every golden image from here on is taken headlessly through it, and it is the guarantee that a fully
+pure-Rust path to pixels always exists — which is half of what made 0.0.129's amendment to the
+pure-Rust rule a boundary rather than a concession. `tiny-skia` is used for scan conversion and pixel
+storage only; the *shading* mirrors `backend/shaders.wgsl` function for function, because a second
+painter that shaded differently would make the comparison compare two shaders rather than two
+rasterisers.
+
+**Cross-painter equivalence, and the way it degrades into nothing.** `compare_painters` renders one
+display list through two painters and reports where they disagree. If the GPU painter is unavailable,
+"the painters agree" silently becomes "`tiny-skia` agrees with itself", so the **library refuses** two
+painters with the same name (`PaintError::PaintersNotDistinct`), before either is asked to draw. Over
+a page using all nine commands the two agree on 99.6 % of pixels, and on all seven effect kinds to
+within one level of 255.
+
+**PDF text is text.** A run becomes a `/Type0` font with `/Identity-H` encoding, a `/CIDFontType2`
+descendant with an `/Identity` `CIDToGIDMap`, an embedded subset in `/FontFile2`, and a `/ToUnicode`
+CMap — which is the part that decides whether a reader can extract anything at all. `pdftotext`, a
+reader this project did not write, reads the word back out; checking our own export with our own
+reader would prove nothing. Gradients are PDF shadings built from the same 256-texel ramp both
+rasterisers sample, hatches are tiling patterns from the same fifty-four masks, group opacity is a
+transparency-group form XObject, and text filled with a gradient uses text render mode 7 so it stays
+selectable. PDF has no blur operator, so every effect that needs one is rasterised through the
+software painter and embedded — the documented fallback.
+
+**SVG is vector output and a readable view of the display list.** Every element carries
+`data-mjx-command`, `data-mjx-table`/`row`, `data-mjx-paint`, `data-mjx-role` and
+`data-mjx-provenance`, so *"the third shape is the wrong colour"* becomes *"command 12 names paint
+row 4"*. Validated with `xmllint`.
+
+### Font subsetting, in the font engine
+
+`mjx_text::subset_truetype` cuts a face down to the glyphs a page drew. It **truncates rather than
+renumbers**: every glyph keeps its own id, so a composite glyph's component ids are correct because
+they were never touched — which is where every subsetter bug lives. A `CFF` face comes back whole and
+says so. `FaceReader` also grew `outline` (a glyph's path at a size) and `for_each_mapped_character`
+(the `cmap`, read backwards, for a `/ToUnicode` map).
+
+### Defects found and fixed
+
+* **`plan::draws_behind` decided nothing.** 0.0.129 documented it as the single place all four
+  painters learn an effect's ordering from, and the `wgpu` painter called it as
+  `let _ = draws_behind(..)` — computed and discarded — while each arm hard-coded its own ordering.
+  Flipping the function failed a test and changed no pixel; swapping two pushes in the shadow arm
+  painted every shadow **on top of its shape** and left the suite green. Both painters now assemble
+  an effect's composite steps from it and from the new `replaces_subtree`, and where the ink lands is
+  asserted on pixels by region.
+* **An inner shadow's offset moved its mask as well as its blur**, so it leaked outside the shape it
+  is inside. The offset now shifts only the source lookup, in the shader and on the processor.
+* **`Effect::new` leaves both reflection alphas at zero**, so every reflection this workspace had ever
+  constructed was invisible — and two painters drawing nothing agree perfectly.
+* **The seam gate at rank 5.5 had three holes** that compose into a one-commit escape to the facade:
+  `mjx_ooxml` was absent from its forbidden list (only `mjx_ooxml_types` and `mjx_ooxml_core` were),
+  the manifest scan read `[dependencies]` alone and missed this crate's own target-specific table, and
+  it read only the `name.workspace = true` spelling. All three closed, and the scanner now has its own
+  instrument test.
+* **Sixteen public items were reachable from nothing**, including `Viewport::physical_x`/`physical_y`
+  and `DesktopWindow::requesting_redraws_through`. A new reachability gate covers functions,
+  constants, enum variants **and struct fields**.
+
+### Supersession
+
+`PLAN.md`'s Phase 7 line describes an IR → SVG → raster → PDF chain. **It is superseded**: both
+exporters consume the display list directly through the same `plan_frame_with` every painter uses,
+and neither is built out of the other.
+
+### 0.0.129 on the branch — 2026-09-07
+
+**`mjx-paint`: the `Painter` contract, the `wgpu` painter, and the two architecture rules that had
+to change** (MJXOFF-163, Phase R position 8).
+
+**Where pixels first appear in this programme.** A display list becomes a frame: tessellated path
+fills and strokes, batched glyph quads out of the atlas, pictures, the fifty-four preset hatches,
+gradients, exact path clipping through a stencil buffer, opacity groups, five blend modes, the seven
+DrawingML effects as offscreen subtree renders, and four-sample multisampling — on Vulkan, Metal,
+Direct3D 12, OpenGL ES / WebGL 2 and WebGPU, from one shader and one pipeline layout.
+
+### Two `CLAUDE.md` rules amended, in writing rather than quietly
+
+- **The pure-Rust rule now governs the *document graph*, not the workspace.** A pixel cannot reach a
+  screen without the operating system's graphics stack, and `wgpu` links `ash`, `metal`/`objc2` and
+  `windows-rs`. Ranks 0 through the facade stay pure Rust; **`mjx-paint` at rank 5.5 is the declared
+  platform boundary** and the only crate that may link a graphics API. `tiny-skia` remains a
+  *required* second painter (R09) precisely so a fully pure-Rust path to pixels always exists.
+- **`mjx-paint` is the fourth crate with a local `#![allow(unsafe_code)]`**, with exactly one
+  hand-written `unsafe` block: the surface created from a window handle the shell supplied. CI greps
+  `crates/mjx-paint/src` for the keyword and fails on any line without the
+  `MJX-PAINT-SURFACE-UNSAFE` marker, in the same job that guards `bindings/*/src`.
+
+### The rank does not protect the painter's own edges, and something else had to
+
+Rank 5.5 sits above the facade so that *nothing in the document graph can depend on `mjx-paint`* —
+which is what keeps a GPU out of `bindings/mjx-python`. But the layering gate refuses only edges that
+point up or sideways, so at 5.5 every crate in the workspace is a legal dependency of the painter.
+`crates/mjx-paint/tests/the_seam_holds.rs` is what holds the architecture's second seam instead: it
+refuses `mjx-layout`, `mjx-dml`, every format crate and the facade in the painter's source, asserts
+the manifest exactly, and confines `mjx-text` to the **one** file that adapts R04's atlas delta —
+asserting both that no other file names it and that that one still does.
+
+### `mjx-scene`: a mesh now says where its outline came from
+
+`ResolvedOutline::provenance` was written once and read zero times: `outline_of` dropped it at the
+single point where the crate consumes a geometry provider, so **a painter could not tell a
+placeholder rounded rectangle from the document's own shape**. Since every preset shape resolves to
+a placeholder today, the guard R10's fidelity rule depends on did not exist. `SceneMesh` now carries
+a `Provenance` — origin and the provider's label — populated by `tessellate_scene` through the new
+`Tessellator::fill_resolved` / `stroke_resolved`; the painter counts them into
+`DrawReport::placeholders` and paints them in a warning colour.
+
+### Added
+
+- `crates/mjx-paint` — `Painter`, `SurfaceHost`, `Viewport`, `Frame`, `Resources`, `AtlasSource`,
+  `ImageSource`, the GPU-free `FramePlan` lowering, the budgeted `TexturePool`, the fifty-four
+  preset hatch masks and the gradient-ramp resolver.
+- `mjx_scene::Provenance`, `SceneMesh::provenance`, `Tessellator::fill_resolved` and
+  `Tessellator::stroke_resolved`.
+- A `render` CI job on a software Vulkan implementation with `MJX_REQUIRE_GPU=1`, so a missing
+  device there is a failure rather than a silent skip.
+
+### 0.0.128 on the branch — 2026-09-07
+
+**`lyon` tessellation and the geometry-provider seam** (MJXOFF-162, Phase R position 7).
+
+Paths become triangles, above the display list and below every painter. Tessellating here rather
+than in a painter is what makes the result deterministic across platforms — R10's golden images rest
+on it — testable without a GPU, and shared by four painters and two exporters. It is also why this
+platform's vector rendering is a *tessellation* pipeline and not a compute-shader one: `wgpu`'s
+WebGL2 backend has no compute stage, and the browser is a target.
+
+Real preset geometry is **deliberately not built here**, by decision: it depends on context the
+concurrent MJXOFF-88 programme supplies. What ships is the seam and a stand-in behind it, and every
+gate above is written against paths that are *not* the stand-in.
+
+### Added
+
+- **`GeometryProvider`** — one method, no OOXML in its signature, taking the shape's box as a
+  `SceneRect` in device pixels. Not `mjx_layout::Extent`, which is a *page count* carrying an
+  `ExtentPrecision`: a signature that took one as a size would compile, read plausibly and mean
+  something else.
+- **`PlaceholderGeometry`** — the first implementation: a framed, crossed rounded rectangle at the
+  shape's own box, deliberately not a shape DrawingML defines, carrying `OutlineProvenance` and a
+  label naming the handle it stands in for, so a placeholder render can never be mistaken for a
+  fidelity render.
+- **`Tessellator`** — fills under both winding rules; strokes with every join, cap, miter limit,
+  preset dash and compound band; beziers flattened to a tolerance derived from the scale bucket the
+  record already carries. Degenerate paths — zero-length, self-intersecting, `NaN`, coordinates past
+  every limit — produce empty or clamped meshes and never panic.
+- **`MeshCache`** — triangles kept per `(path, style, scale bucket)` under a byte budget, keyed on
+  the path's coordinate **bit patterns** rather than on a hash of them, so a collision cannot hand a
+  painter somebody else's shape.
+- **`tessellate_scene`** — every mesh a display list needs, in paint order.
+- **`lyon_tessellation`** as a workspace dependency of `mjx-scene` alone, and **`mjx-dml` as a
+  `dev-dependency` of `mjx-scene`** — never a dependency: rank 2.0 above rank 1.7 is the edge the
+  layering gate exists to refuse, and the exemption buys a seam test satisfied by DrawingML's own
+  resolved `custGeom` rather than by a second invention.
+
+### Fixed
+
+- **A latent panic on untrusted input in the display-list decoder.** `SECTION_SLOTS` was the literal
+  `14` and the decoder wrote `sections[kind_value]` — a direct array index driven by input bytes, in
+  bounds only because the section vocabulary happened to stop at thirteen. A fourteenth section kind
+  would have made a display list *from a file a reader opened* index out of bounds. The slot count is
+  derived from `SectionKind::ALL` now, with a compile-time assertion that every wire value has a
+  slot; the write is a `get_mut`; and the header's section-count bound is expressed against the
+  vocabulary rather than against the array.
+- **The four-byte section alignment was held by arithmetic and asserted nowhere.** The writer pads
+  nothing between sections, so a stride that is not a multiple of `SECTION_ALIGNMENT` makes a table
+  of an odd number of records push the next section onto an offset this crate then rejects. Asserted
+  at compile time and in `tests/the_encoding_is_pinned_to_literals.rs`.
+- **The encoding gate sampled the section vocabulary rather than sweeping it**, so a kind could be
+  added, or renumbered, with no byte literal disagreeing. Every kind's wire value and stride is now
+  pinned to a hand-written table, and a real thirteen-section blob's rows are compared against it.
+
+### 0.0.127 on the branch — 2026-09-07
+
+**The display list, and its flat binary encoding** (MJXOFF-161, Phase R position 6).
+
+The upper of the architecture's two seams. `mjx-layout`'s `FragmentTree` is the seam above which
+nothing has heard of OOXML; `DisplayList` is the one **below which nothing has heard of a font, a
+layout algorithm or a document either**. That is what lets four painters — GPU, software, PDF, SVG —
+consume one output, and what will later let the same bytes cross a transport boundary without a
+redesign, because they are already bytes.
+
+### Added
+
+- **`crates/mjx-scene`, rank 1.7** — a new crate depending on `mjx-ooxml-core`, `mjx-tokens`,
+  `mjx-text` and `mjx-layout`, and on **no format crate and not on `mjx-dml`**. All four rank tables
+  grew: `xtask/tests/layering.rs`, `CLAUDE.md`, `README.md` and `docs/UI_PLATFORM_PLAN.md` §7.
+- **Nine commands** — `PushTransform`, `PushClip`, `PushOpacity`, `PushEffect`, `Pop`, `FillPath`,
+  `StrokePath`, `DrawGlyphs`, `DrawImage` — and the balanced push/pop stack a malformed stream
+  cannot violate.
+- **The paint vocabulary**: solid; linear, radial and path gradients with DrawingML's full stop, tile
+  and flip semantics; all 54 preset patterns; picture fills with crop, tiling and the image
+  adjustments DrawingML defines (alpha, luminance, greyscale, duotone, colour change). Neutral
+  names, none of `mjx-dml`'s types.
+- **The effect vocabulary**: blur, glow, outer and inner shadow, soft edge, reflection and fill
+  overlay, composed as a **DAG** in topological order. Declared here as data; executed in R08/R09.
+- **The flat binary encoding** — a versioned, typed-record arena in one `Vec<u8>`: a 32-byte header,
+  a section table with a row per non-empty table, and thirteen sections of which ten have a fixed
+  stride so entry *n* is an offset multiply. Readable without deserialisation, cacheable to disk,
+  and diffable frame to frame.
+- **`build_scene`** — a `FragmentTree` in, a `DisplayList` out, driven only by fragments. `place_run`
+  and the glyph atlas are called *here*, because this is the first layer that knows the device scale.
+- **A reachability gate over the public surface** that sees **enum variants** as well as functions
+  and constants. It found three orphans in `mjx-scene` on its first run, all three removed or given
+  a test.
+
+### Changed
+
+- **`crates/mjx-layout/tests/public_surface_is_reachable.rs` now scans enum variants too.** It found
+  three in `mjx-layout` — `ExtentPrecision::Exact`, `LayoutError::PageBeyondContent` and
+  `ChangeKind::Reformatted` — each constructed nowhere in the workspace. They are recorded in a new
+  `VARIANTS_ALLOWED_WITHOUT_A_CALLER` list with the reason, because giving one a producer is a
+  contract decision rather than a gate's to make. `ExtentPrecision::Exact` in particular means the
+  estimated-against-measured distinction R13 was told to depend on has one realisable value today.
+- **`docs/UI_PLATFORM_PLAN.md` §7 corrected `mjx-scene` from rank 2.6 to 1.7.** At 2.6 the crate
+  would sit *above* `mjx-dml`, which makes `mjx-scene → mjx-dml` a legal **downward** edge — so the
+  layering gate, which only refuses an edge that points up or sideways, would have enforced nothing
+  at all. `mjx-layout` was placed at 1.6 for exactly this reason.
+
+### 0.0.126 on the branch — 2026-09-07
+
+**The box model contract** (MJXOFF-160, Phase R position 5).
+
+The layer the whole client-platform architecture is organised around. `mjx-layout` defines what a box
+model *is* and what it produces, and nothing else: no document format is laid out here, and no OOXML
+type may appear in its public API. Above a `FragmentTree`, scene building, painting, hit-testing,
+selection, caret placement, comment anchoring, accessibility and every exporter are written against
+six fragment kinds and a `SourceRef`, and none of them can tell a `.docx` from a Markdown file. That
+is what makes the box model swappable, which was the requirement this architecture exists to satisfy.
+
+### Added
+
+- **`crates/mjx-layout`, rank 1.6** — a new crate depending on `mjx-ooxml-core` and `mjx-text` and on
+  **no format crate, ever**. `CLAUDE.md`'s rank table, `README.md`'s ladder and
+  `xtask/tests/layering.rs` all grew the row; adding `mjx-pptx` to its manifest turns the layering
+  test red naming both crates and both ranks, which is how the seam is held rather than asserted.
+- **`BoxModel`** — `layout_page(content, page, constraints, resume) -> PageFragments`,
+  `estimate_extent(content, constraints) -> Extent`, `invalidate(change) -> DirtyPages`, and
+  `signature() -> ModelSignature`, with associated `Content` and `Error` types. `estimate_extent`
+  takes the constraints as well as the content, which the specification's sketch did not: a page
+  count is a function of the page, and an extent computed without one would be an answer to no
+  question.
+- **`FragmentTree`** — `BoxFragment`, `LineFragment`, `GlyphRunFragment`, `ImageFragment`,
+  `ShapeFragment` and `TableFragment` in a flat arena with parent/child/sibling indices: one
+  allocation for a page, iteration in memory order for a painter, no recursion anywhere. Transforms
+  and clips live in shared side tables, so a page with no rotation stores exactly one `Transform`
+  however many fragments are on it. Children are in paint order; the children of a `LineFragment` are
+  in **visual** order while their `SourceRef`s stay **logical**, which is the contract half of
+  `mjx-text`'s "shape in logical order, place in visual order".
+- **`SourceRef`** on every fragment — a part number, a path of child indices and a character range,
+  and **no OOXML type**. Six path segments are held inline and deeper ones spill to a shared `Arc`,
+  because there is one of these per fragment and hundreds of thousands of fragments in a document.
+  Ordering is document order, which is what lets an invalidation binary-search and a caret walk.
+- **`Checkpoint`** — the continuation token that makes page 300 reachable without laying out 299.
+  Carries the page it ends, a shared inspectable position, a `ModelSignature` and the box model's own
+  opaque bytes under a 1 KiB ceiling. `Checkpoint::state_for` checks **both** halves — the right model
+  *and* the right page — because a checkpoint from the right model and the wrong page produces a page
+  that looks entirely plausible and holds the wrong content.
+- **`SpatialIndex`** — a uniform grid in CSR form, built in bulk at the end of layout, with an
+  oversized list for fragments too large to write into cells. Point and rectangle queries, and a
+  `topmost_at` that answers what a click is about.
+- **`LineComposer`** — the join to the text engine. Fits a line against a measure, shapes each item,
+  and emits the segments in visual order. It **calls** `mjx-text` and never re-implements measurement.
+- **`mjx_ooxml_core::measure`** — `Emu` and `Angle` moved down from `mjx-dml`, which now re-exports
+  them. `mjx-layout` positions every fragment in EMU and may not depend on `mjx-dml`; a second `Emu`
+  is the defect the layering rule exists to prevent, so the type moved rather than being copied.
+  `Emu` gained saturating arithmetic, `from_twips`/`from_inches` and `from_emu_rounded`; **there is
+  still exactly one `Emu` in the workspace.**
+- **`ShapedRun` is `PartialEq`** — needed to prove that resuming a page from a checkpoint produces the
+  *same fragments*, which is a question about values rather than about the `Arc` identity
+  `shares_glyphs_with` already answered.
+
+### Fixed
+
+- **`LineBreaker::next_line` exempted every paragraph's last line from its own measure** (MJXOFF-158,
+  found here). UAX #14 reports the end of the text as a *mandatory* break, and the loop returned at
+  the first mandatory opportunity without measuring it — so `"a bbbbbbbbbbbbbbbbbbbb"` against a
+  measure of five came back as one twenty-two-character line, discarding the fitting break at byte 2
+  that the loop had already found. The end sentinel is now an ordinary candidate; a real hard break —
+  a line feed, `U+2028`, a paragraph separator — is still taken whatever the measure says.
+
+### Changed
+
+- **`LineBreakOptions::default()` is now plain UAX #14** rather than Japanese typesetting, and the
+  Japanese answer has a name: `LineBreakOptions::japanese_typesetting()`. The old default enabled
+  `east_asian_rules` and `hanging_punctuation`, and JIS X 4051's hangable set contains the **ASCII**
+  comma and full stop — so a caller who said nothing got an English paragraph whose line-final full
+  stop did not count against the measure. Both flags are named for document settings (`w:kinsoku`,
+  `w:overflowPunct`), and a document that carries neither has not asked for either; a `Default` that
+  silently enables two settings the document did not write is a hidden policy, not a default.
+  **What is deliberately *not* decided here:** whether Word hangs an ASCII full stop in a *Japanese*
+  paragraph, and whether it treats a Latin paragraph in the same document differently. That is a
+  measurement against Word, and the character set is left exactly as it was until the reference pass
+  makes it. `mjx-text`'s suite gained the Latin case that was missing.
+
+### Tested
+
+- **A second `BoxModel` implementation with no OOXML in it** — `tests/support/plain_text.rs` reflows
+  a `Vec<String>` into a fixed-width column, produces a real `FragmentTree` with real `SourceRef`s,
+  paginates, resumes and hit-tests. An abstraction with one implementation is a guess.
+- **Checkpoint resumption proved equivalent, not merely present** — pages 1..=*N* laid out in order
+  and page *N* laid out alone from *N−1*'s checkpoint compare equal as whole fragment trees, down to
+  the glyphs. Perturbing one byte of the continuation makes them differ, so the equality can fail.
+- **The spatial index proved against brute force** — every point and rectangle query over randomised
+  fragment sets equals a linear scan's, across fragment counts and rectangle sizes that move the grid
+  through three shapes and both the cell and oversized paths.
+- **`ShapedGlyph::unsafe_to_break` has its first consumer and its first assertions.** It had zero
+  readers anywhere in the workspace, so no assertion could depend on it. `slice_width` reads it, and
+  two fixtures show why: Carlito's `ffi` ligature in `"office"` leaves bytes 2 and 3 with no glyph to
+  slice at, and Liberation Sans's kerned `"AV"` has a glyph at byte 1 that only the flag marks unsafe
+  — the case that distinguishes reading the flag from ignoring it.
+- **A reachability gate over this crate's own public surface.** Every `pub fn` and `pub const` in
+  `src/` must be named somewhere else, or the suite fails and prints it. It found four orphans on its
+  first run; two were deleted and two given tests. MJXOFF-155 §9 item 10 asked for a gate rather than
+  a list, and this is that gate, scoped to the crate where a dead export does the most harm.
+
+### 0.0.125 on the branch — 2026-09-06
+
+**Glyph rasterisation and the scale-bucketed atlas** (MJXOFF-159, Phase R position 4).
+
+`mjx-text` could say what glyphs a run becomes and where they sit in the face's own units. It can now
+say what one of those glyphs *looks like* at a zoom level, and hold the answer under a byte ceiling
+that a test measures rather than a document asserts. This is the first place in the client-platform
+programme where one of `docs/UI_PLATFORM_PLAN.md` §12's performance budgets becomes a gate.
+
+### Added
+
+- **`raster`** — `GlyphRasteriser`, `GlyphRasterKey`, `FaceId`, `GlyphRender`, `GlyphRoute`,
+  `GlyphBitmap`, `GlyphOutline`, `OutlineCommand`, `OutlinePoint`, `BitmapFormat`, `Hinting`,
+  `ScaleBucket`, `SubpixelPosition`, `RasterStatistics`. Rasterisation is `swash` — pure Rust, built
+  over `FontFace::data()` plus `index()` exactly as the shaper is, because `swash` reads fonts with
+  `skrifa` and this crate reads them with `ttf-parser`: each parser reads the file for itself and
+  neither is ever handed the other's view.
+- **Two routes, and the threshold between them is a named constant.** Below
+  `OUTLINE_PIXELS_PER_EM_THRESHOLD` (96 pixels to the em) a glyph is a coverage bitmap; above it, a
+  path for R07 to tessellate. The constant carries all three reasons it is where it is — a bitmap's
+  area grows with the square of the size, hinting stops mattering once stems are six pixels wide, and
+  a path is correct at every zoom — so moving it moves all three together.
+- **Colour glyphs rasterise to RGBA**, and the face's `colour_formats()` is what decides it: the
+  `COLR`/`CPAL`, `sbix` and `CBDT` tables were probed once when the face was parsed, and the
+  rasteriser asks that answer rather than re-opening them. A face carrying colour glyphs stays on the
+  bitmap route at any size, because a layer stack has no single outline to hand a tessellator, and is
+  bounded instead by `MAXIMUM_RASTERISED_PIXELS_PER_EM`.
+- **Scale buckets.** `SCALE_BUCKET_STEP_PIXELS_PER_EM` quantises the raster scale to a quarter of a
+  pixel per em, and a run is *positioned as well as rasterised* at its bucket's size —
+  `RunPlacement::residual_scale` is the one number a painter applies to the whole run to reach the
+  size that was asked for. Positioning at the bucket rather than at the request is what makes the
+  technique exact (positions and images scale together, so no letter moves relative to another) and
+  is also what makes it work at all: two sizes in one bucket place byte-identically, so the second
+  costs no rasterisation.
+- **Quantised subpixel positioning.** `SUBPIXEL_POSITION_COUNT` horizontal phases per pixel, so text
+  does not snap to the pixel grid as it scrolls. `SubpixelPosition::split` returns the whole pixel
+  and the phase together, because rounding to the nearest phase can carry into the next pixel.
+  Vertical positions are snapped deliberately: a fractional baseline undoes the hinter's work.
+- **`placement`** — `place_run`, `RunPlacement`, `PlacedGlyph`, `DeviceScale`. Walks a `ShapedRun`
+  forwards, applies `ShapedGlyph`'s `x_offset`/`y_offset` — which is what puts a combining mark over
+  its base instead of on the baseline — and produces a raster key and a whole-pixel position per
+  glyph.
+- **`atlas`** — `GlyphAtlas`, `AtlasEntry`, `AtlasPageIndex`, `AtlasDelta`, `AtlasUpload`,
+  `AtlasPageCreation`, `AtlasStatistics`, `PreparedRun`, `PreparedGlyph`, `PreparedImage`. Best-fit
+  shelf packing into `ATLAS_PAGE_SIZE_PIXELS`-square pages, eviction by whole page under
+  `DESKTOP_GLYPH_ATLAS_BYTE_CEILING` / `MOBILE_GLYPH_ATLAS_BYTE_CEILING` (a quarter of §12's texture
+  budgets each), and a per-frame `AtlasDelta` so a painter uploads only what changed. **The atlas
+  never evicts a page holding a glyph the current frame has drawn**; when that leaves nothing to
+  evict it returns `GlyphAtlasExhausted` instead, because a cache that throws its working set away
+  satisfies every byte bound and draws nothing.
+- **The budget, asserted.** `crates/mjx-text/tests/glyph_atlas_allocation.rs` is a harness-free
+  binary installing `mjx-allocation-counter` — the workspace's one counting allocator, now on its
+  third consumer rather than its second implementation. It asserts the ceiling from both sides (the
+  atlas's own accounting *and* the allocator's), that eviction really ran, that the atlas is not
+  empty, and that the frame being drawn survived; and it re-runs the identical workload under half
+  the ceiling to prove the ceiling is what bounds it.
+
+### Fixed
+
+- **A panic on a malformed font, in a dependency, on the untrusted-input path.** The new corruption
+  sweep in `crates/mjx-text/tests/glyph_rasterisation.rs` found that `read-fonts 0.41.0` — which
+  `swash 0.2.10` pins through `skrifa 0.44` — indexes a zero-length slice when a `glyf` entry's
+  `endPtsOfContours` wraps its point count to zero. One flipped byte in an embedded font reaches it.
+  `read-fonts 0.43.3` fixes it upstream and the fix is out of semver reach, so `raster.rs` closes the
+  boundary: the panic is caught, every piece of `swash` state it could have left half-written is
+  thrown away, and the caller gets a typed `FontError::UnreadableGlyphOutline`. The test asserts the
+  boundary actually fires, so it cannot quietly become dead. **The durable fix is a dependency
+  decision and is recorded on MJXOFF-159 for the repository's owner.**
+
+### Notes
+
+- The `synthetic_font` test builder grew `glyf`/`loca` outlines and a `COLR`/`CPAL` pair, so the
+  colour route and the rasterisation route are exercised without committing an emoji binary — which
+  MJXOFF-157 already escalated as a repository owner's decision. It also now writes each glyph's left
+  side bearing to match its outline, because a TrueType rasteriser shifts an outline by `lsb - xMin`
+  and a bearing of zero silently stacked two colour layers meant to sit side by side.
+- Two records that the MJXOFF-155 ledger left for whichever child came next, both corrected here.
+  `cargo run -p xtask -- tokens` grew an **`--out-dir <directory>`** flag in `0.0.123` and shipped
+  with no entry: it moves where the three token artefacts are *written* (and, with `--check`, which
+  copies are compared) without moving where the source is read from, and it exists so that
+  `xtask/tests/tokens.rs` can exercise the write path without truncating a file another test binary
+  is reading in a concurrent process. And `crates/mjx-text/assets/fonts/README.md` cited
+  `docs/UI_PLATFORM_PLAN.md` for a statement that document does not make — §10 names Caladea as a
+  bundled substitute and says nothing at all about its licence.
+
+### 0.0.124 on the branch — 2026-09-06
+
+**Shaping, bidirectional resolution, itemisation, line breaking and hyphenation** (MJXOFF-158,
+Phase R position 3).
+
+`mjx-text` could say which face a run is drawn in and what its numbers are. It can now say what
+glyphs the run becomes, in what order, at what positions, and where a line may end. A renderer that
+draws one glyph per code point looks approximately right in Latin and visibly broken in half the
+world's scripts; this is the layer where that difference is decided.
+
+### Added
+
+- **`shaping`** — `Shaper`, `ShapingRequest`, `ShapedRun`, `ShapedGlyph`, `FontSize` and
+  `shape_uncached`. Shaping is `rustybuzz`, a pure-Rust port of the engine Office itself shapes
+  with, built over `FontFace::data()` so no `ttf_parser` type crosses the boundary. Output is in the
+  face's own units — never a pixel size — so a shaped run is reusable at any zoom, and
+  `ShapedRun::advance_in_points` is where a size is finally applied. **Parley is deliberately not
+  adopted**, and the reason is recorded in the crate and module documentation so it is not
+  re-opened: it is a layout library, and this project's line and page decisions have to come out
+  where Office's do.
+- **`direction`** — `BidiAnalysis`, `ParagraphDirection`, `TextDirection`, `BidiLevel`,
+  `DirectionalRun`, `DeclaredRunDirection`. UAX #9 through `unicode-bidi`, with the document's own
+  declaration ahead of the content: `w:bidi` and `a:pPr/@rtl` set the base direction outright rather
+  than being inferred by rule P2/P3, which gets a right-to-left paragraph that opens with a Latin
+  word wrong. A run's `w:rtl` is expressed as a UAX #9 **embedding**, not an override, so a number
+  inside it still reads left to right.
+- **`script`** — `TextScript`, `ScriptRun`, `itemise_by_script`, `itemise_range_by_script`. ISO
+  15924 codes rather than an enumeration that would have to grow with Unicode; `Zyyy`/`Zinh`
+  characters extend the run they touch rather than splitting it.
+- **`itemisation`** — `itemise`, `TextItem`. The three cuts a shaping call needs — embedding level,
+  then script, then face — in that order, and the first caller of `FontRequest::requiring`, which is
+  what makes R02's third tier answerable.
+- **`line_breaking`** — `LineBreaker`, `break_opportunities`, `KinsokuRules`, `LineBreakOptions`,
+  `LineBreak`. UAX #14 through `unicode-linebreak`, plus the East Asian rules Office applies on top:
+  JIS X 4051's 行頭禁則 and 行末禁則 sets (`w:kinsoku`), a document's own sets
+  (`w:noLineBreaksBefore` / `w:noLineBreaksAfter`), and hanging punctuation (`w:overflowPunct`).
+- **`segmentation`** — grapheme-cluster and UAX #29 word boundaries, the granularity R11's caret and
+  every selection extension will move by.
+- **`hyphenation`** — the `Hyphenator` trait with `NoHyphenation`, `SoftHyphenHyphenator` (complete,
+  and needing no language data) and `PatternHyphenator`, a full implementation of Liang's algorithm
+  with a TeX pattern reader and an exception dictionary. **No language's patterns are shipped**: a
+  pattern set is licensed data, and which to commit is the same kind of repository-owner decision as
+  the bundled font faces.
+- **`feature`** — `TypographyOptions`, `FeatureSet`, `FeatureTag` and the vocabulary a document's own
+  properties map onto. The set is canonical (sorted, one entry per tag) because the shaped-run cache
+  keys on it.
+- **`cache`** — `ShapedRunCache`, `CacheStatistics`. Keyed on face identity, size, direction,
+  script, language, features and text — the plan's `(font, size, features, text)` plus the three
+  additions without which a hit would draw the wrong glyphs. Faces are compared by `Arc` identity and
+  retained, which is what keeps the pointer sound. Least-recently-used, evicted in batches.
+- **`FontError::ShapedRunTooWide`** — a run whose advances sum past what an `AdvanceWidth` carries is
+  refused rather than wrapping into a negative width.
+
+### Fixed
+
+- **`AdvanceWidth::equals` has a caller and coverage.** It shipped in 0.0.123 as public API with
+  neither, and its documented cross-em property was unverified — found by MJXOFF-157's review, when
+  replacing its body with `std::process::abort()` stopped no test. `ShapedRun::occupies_the_same_width_as`
+  is the caller, and three tests cover the case a naive `font_units == font_units` gets wrong.
+- **The `wasm-pack` CI job, red since 0.0.122** (origin MJXOFF-156). `bindings/mjx-wasm/npm/package.json`
+  still said `0.0.121` while the workspace had moved twice, and `build-npm.sh` refuses to build on the
+  mismatch by design. The number is now correct **and the hole is closed**: the rule that three files
+  carry the version — the workspace manifest, this file, and the npm package — is now written in
+  `CLAUDE.md` and beside the version itself, not only inside the build script the person doing the
+  bump never opens.
+- **The `naming (suppress, not delete)` CI job, red since 0.0.122** (origin MJXOFF-156).
+  `crates/mjx-tokens/src/generated.rs` spells `tracked_change_delete` / `trackedChangeDelete`, and
+  the gate forbids `delete` as an identifier. The rule is not wrong and the token is not wrong: the
+  gate exists because a *chart* element is suppressed rather than deleted, and a tracked change that
+  removed text genuinely is a deletion — the same judgement already recorded for `mjx-docx`'s
+  `RevisionKind::Deleted`. The name is also not this repository's to choose: it is generated from
+  allr.work's own `--color-tracked-change-delete`. Allow-listed by exact token and exact file, with
+  its reasoning, and probed both ways — an unrelated `delete_token` planted in that very file still
+  fails the gate.
+- **`the_parse_path_contains_no_unwrap_expect_or_panic` walked only the top level of `src/`** and
+  asserted a floor of nine files against a crate that had ten. A crate laid out as
+  `src/shaping/mod.rs` would have been green over code the walk never opened. The walk is now
+  recursive and the floor is the crate's real file count, so a module added or removed without
+  updating it fails.
+
+### Changed
+
+- `LineBreaker::next_line` reports the end of the text as `LineBreakKind::EndOfText` rather than
+  `Mandatory`. UAX #14 calls it a mandatory break because there is nothing after it to break before;
+  a caller that treated it as a hard break would draw a paragraph mark that is not there.
+- An empty paragraph declared right-to-left keeps its direction. `unicode-bidi` reports no paragraph
+  for an empty string, and the base direction fell back to left-to-right — which is what an author
+  sees after pressing Return in a Hebrew document.
+
+### Dependencies
+
+`rustybuzz` 0.20, `unicode-bidi` 0.3, `unicode-linebreak` 0.1 and `unicode-script` 0.5, all used only
+by `mjx-text`, all pure Rust, none of them adding a C dependency or an `unsafe` block to the shipped
+graph. `rustybuzz` reads faces through the same `ttf-parser` 0.25 the crate already declared, so the
+two can never disagree about a face. `mjx-text` cross-compiles for `wasm32-unknown-unknown` and
+`aarch64-linux-android` unchanged.
+
+### 0.0.123 on the branch — 2026-09-06
+
+**The font engine: three tiers, a metric-compatible substitution table, and a substitution manifest
+a user can read** (MJXOFF-157, Phase R position 2).
+
+Fonts are the largest fidelity variable in the renderer, and metric compatibility is a correctness
+requirement rather than a nicety. If a substituted face's advance widths differ from the original's,
+every line breaks in a different place and pagination diverges from Office on page one. Everything
+R19–R22 does with Word's reflow rests on this.
+
+### Added
+
+- **`crates/mjx-text`** — a new crate at **rank 1.5**, depending on `mjx-ooxml-core` and
+  `mjx-tokens` and on no format crate and not on `mjx-dml`. It answers two questions and no others:
+  *which face should this run be drawn in*, and *what are that face's numbers*. Shaping is R03 and
+  rasterisation is R04.
+- **Face loading and metrics** through `ttf-parser`: units per em, the `hhea` and `OS/2` vertical
+  metrics, cap height, x-height, italic angle, underline and strikeout, glyph advances and bounding
+  boxes, variable-font axes, and the colour-glyph formats (`COLR`/`CPAL`, `sbix`, `CBDT`, `SVG `).
+  `FontFace` holds the bytes and the once-per-face values; `FaceReader` is the borrowed view the
+  once-per-glyph lookups go through, so a self-referential struct — and the `unsafe` it would need —
+  never arises.
+- **The system font database** through `fontdb`, taken without default features so neither `memmap2`
+  nor a fontconfig C library is ever linked. **An empty system tier is a supported configuration,
+  not a failure**: iOS exposes no system font files to a sandboxed process, and reaching them would
+  need CoreText, which this crate may not link.
+- **The three tiers, resolved in order** — embedded in the document, installed on the device,
+  bundled with the application, and then the tier-3 *policy*: eleven fetchable Noto subsets with
+  their coverage and their download size. There is no transport in this loop, so a resolution that
+  reaches tier 3 is a `FetchPlan`.
+- **The substitution table**, sourced from `fontconfig`'s `30-metric-aliases.conf` — Calibri →
+  Carlito, Cambria → Caladea, Arial/Times New Roman/Courier New → the Liberation family, plus Arial
+  Narrow, Georgia, Symbol and the PostScript base-35. It is consulted **before** any blind fallback,
+  and the blind fallback runs once after a whole font stack rather than once per entry.
+- **Published reference metrics** for the originals, in `mjx_text::reference`, every number
+  transcribed from outside this repository and carrying its citation and an authority flag: the
+  (URW)++ base-35 AFM widths for Arial, Times New Roman and Courier New, `@capsizecss/metrics`
+  4.2.0's measurements of Microsoft's own faces for their vertical metrics, and ECMA-376 Part 1
+  §18.3.1.13's Maximum Digit Width for Calibri.
+- **Metric compatibility measured at resolution time**, not only in a test: every substitution the
+  table makes is compared against those references and the verdict — verified, divergent with the
+  worst character named, or unverified with the reason — is written into the manifest.
+- **The substitution manifest**, per document, queryable: what was asked for, what was used, which
+  tier answered, whether the line breaks survive, and how many runs it affects. U08's font picker
+  renders it.
+- **Embedded fonts**, including the ECMA-376 / XPS obfuscation the `.docx` form uses: the key is a
+  GUID whose sixteen bytes, reversed, mask the face's first thirty-two.
+- **`crates/mjx-text/assets/fonts/`** — the five regular metric-compatible faces (Carlito, Caladea,
+  Liberation Sans, Liberation Serif, Liberation Mono), 1.8 MB, each under the SIL Open Font License
+  1.1 with the licence text committed beside it and a `README.md` recording every file's source
+  version and SHA-256.
+
+### Changed
+
+- **`CLAUDE.md`'s rank table and `xtask/tests/layering.rs` both gain rank 1.5**, as they must.
+- **The layering gate now counts exercised tiers from both ends.** `mjx-ooxml-core`, `mjx-derive`
+  and `mjx-tokens` declare no workspace dependency at all, so no edge ever *leaves* their tiers and
+  a list of outgoing edges could never cover them. `mjx-text -> mjx-tokens` and
+  `mjx-text -> mjx-ooxml-core` are the first edges to reach two of them, and the gate now fails if
+  nothing reaches a tier that ought to be reachable.
+
+### Known limitation
+
+- **Cambria → Caladea is recorded as unverified, deliberately.** Microsoft publishes no width table
+  for Cambria and it is absent from the metric collections that carry Arial, Times New Roman and
+  Courier New, so there is no independent reference to measure Caladea against. The pair resolves,
+  and the manifest says the substitution is unproven rather than claiming a verification nothing
+  stands behind. Filling it in needs one measurement of the real face on a licensed Windows
+  machine — advance widths are facts about a font rather than the font program, so what that
+  produces is numbers.
+
+### 0.0.122 on the branch — 2026-09-06
+
+**One design-token source, three generated consumers — and the contrast rule enforced rather than
+documented** (MJXOFF-156, Phase R position 1).
+
+The chrome is HTML and the document canvas is Rust, and **a canvas cannot inherit a CSS custom
+property**. A token system that stopped at a stylesheet would leave the in-canvas UI — selection
+handles, alignment guides, rulers, marching ants — visually detached from the application drawn
+around it. So one source reaches three consumers that share nothing.
+
+### Added
+
+- **`docs/client-platform/data/tokens.json`** — the token source, in the W3C Design Tokens
+  Community Group format. It carries the allr.work values **as measured** in `DESIGN_TOKENS.md` §1
+  (read from the site's own stylesheet, not approximated) plus the three additions an editor needs
+  and a marketing site does not: the derived dark palette (§2.1), the document-surface palette that
+  keeps the page true white in both schemes (§2.3), and the semantic aliases. 92 tokens.
+- **`cargo run -p xtask -- tokens`** — the generator, a subcommand of the existing codegen rather
+  than a second generator, sharing its `rustfmt` pass, its plain writer and its committed-output
+  doctrine. `tokens --check` regenerates in memory and refuses instead of writing, naming the file,
+  the line and both spellings of the first value that differs.
+- **`ui/tokens/tokens.css`** — every token as a flat custom property under the name the source
+  stylesheet itself declares (`--color-paper`, `--radius-card`), which is what makes *"drop the
+  platform into a host that already defines these properties and it re-themes with no code
+  change"* true rather than aspirational — plus a colour-scheme layer resolving `--theme-*` and
+  `--document-*` in the only cascade order that behaves: light by default, the system's preference
+  unless the host asked for light, an explicit `data-theme` over both.
+- **`ui/tokens/tokens.ts`** — one interface per group, the `Tokens` type, the constant that
+  satisfies it, `ColorScheme`, and `customProperties`, the path → custom-property map a runtime
+  resolver reads host overrides through. Property names are **camelCase**, from the same rule
+  `bindings/mjx-wasm` applies to every method it exports.
+- **`mjx-tokens`, a new crate at rank 0.2** — `Tokens`, `Tokens::DEFAULTS`, the eight value types
+  (`Color`, `Dimension`, `Duration`, `CubicBezier`, `FontStack`, `Shadow`, `TokenValue`,
+  `LengthUnit`), the `TOKENS` identity table, and `resolve`, which layers *explicit configuration →
+  host-supplied overrides → generated defaults*. The two sources are treated differently on
+  purpose: a host element carries properties that are not ours, so an unknown name there is skipped;
+  explicit configuration is the caller's own, so an unknown name there is a typo, and a typo
+  silently ignored is the classic theming bug. It declares **no workspace dependency at all** —
+  `thiserror` and nothing else. `CLAUDE.md`'s rank table and `xtask/tests/layering.rs` both carry
+  the row.
+
+### The contrast rule is a build failure
+
+`DESIGN_TOKENS.md` §2.2 measures `--color-green` `#2e9e63` at **3.39 : 1** on white — legal for a
+fill, illegal for body text — and `--color-green-deep` `#1e7a49` at **5.34 : 1**, and calls getting
+that backwards *"the most likely accessibility defect in the chrome"*. Every colour token in the
+source now declares `usage` (`on-light-text`, `on-dark-text` or `fill-only`) and, where it is
+meaningful, the `background` it was measured against. **There is no default**, because a default
+would make an omission invisible. The generator refuses a token tagged for text that does not reach
+4.5 : 1, quoting the ratio it measured; it also refuses a text tag that names a background of the
+wrong lightness, a translucent text colour, an alias cycle, a dangling alias, two colour schemes
+that disagree about their members, and two tokens that would reach the same custom property.
+
+The measured ratio is recorded in all three artefacts for every colour that declares a background,
+so a `fill-only` decision is auditable at the point of use rather than only at the point it was
+taken. One such decision is new: `--color-honey-deep` `#b77e1f` measures **3.49 : 1** on white — the
+honey ramp has no text-legal deep step the way the green ramp does — so it, and the tracked-change
+colours built on it, are `fill-only`.
+
+### The two gates, both divergence gates
+
+*"The three artefacts are generated and committed"* is satisfied by three files nothing reads.
+
+- **Derived, not hand-written** — `xtask/tests/tokens.rs` runs the real binary with `--check`, and
+  the emitters' own tests add a token to a source and watch it appear in all three.
+- **Equal to each other** — `crates/mjx-tokens/tests/artefacts_agree.rs` parses the emitted CSS and
+  TypeScript from disk, with no help from the generator that wrote them, and compares every value
+  against the Rust table. The three names a token goes by come out of `TOKENS` rather than being
+  re-derived, because a test that recomputed `--color-ink-soft` from `color.inkSoft` itself could
+  agree perfectly with a wrong rule.
+
+### Changed
+
+- **`xtask`'s JSON reader moved to `xtask/src/json.rs`** and grew number and boolean payloads and an
+  ordered-member accessor. It was a private module of `xtask/tests/layering.rs` while that gate was
+  its only consumer; the token generator is a second one, and an integration test cannot reach a
+  binary crate's private modules, so the gate now pulls the one file in by path rather than keeping
+  a copy. A workspace with two JSON readers in it has one reader too many.
 ## [0.0.173] - 2026-09-10
 
 ### Every raise in both bindings is a registered class

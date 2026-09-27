@@ -25,7 +25,7 @@
 //! It is not the number-format subject. [`NumberFormat`] is the two attributes of one `numFmt`
 //! element; the `numFmts` table, the implied built-in format codes of Part 1 §18.8.30, and the
 //! ladder that resolves a cell's `@s` through `cellXfs` into a format code are all MJXOFF-108's, and
-//! `styles.xml`'s `numFmts` slot is held raw by [`super::stylesheet`] until it lands.
+//! `styles.xml`'s `numFmts` slot is typed by [`super::stylesheet`] as its `NumberFormatTable`.
 
 use mjx_ooxml_core::{Enumeration, Number, Text};
 use mjx_ooxml_types::spreadsheetml::{HorizontalAlignment, TextRotation, VerticalAlignment};

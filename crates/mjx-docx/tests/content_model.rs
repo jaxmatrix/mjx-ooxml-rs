@@ -83,16 +83,27 @@ fn runs_out_of_a_naive_order_and_inside_a_hyperlink_are_still_reachable() {
     );
 }
 
-/// `Text::set_text`'s `xml:space` rule, both directions, proved through the public API rather than
-/// against the type directly (so the test also proves `Document::set_run_text` reaches it).
+/// `Text::set_text`'s `xml:space` rule, proved through the public API rather than against the type
+/// directly (so the test also proves `Document::set_run_text` reaches it): the attribute is added
+/// when the new text needs it, and an attribute the document already carries is never removed.
 #[test]
-fn set_run_text_writes_xml_space_preserve_only_when_the_new_text_needs_it() {
+fn set_run_text_adds_xml_space_preserve_when_needed_and_never_removes_one() {
     let mut document = Document::open(&fixture("sample.docx")).expect("open sample.docx");
 
-    // Direction 1: text with significant leading/trailing whitespace gets `xml:space="preserve"` —
-    // without it, re-opening the saved bytes would return whitespace-collapsed text and this
-    // assertion would catch it (the read side never trims, but a consumer that does not preserve
-    // literal source bytes could not roundtrip through Word without the attribute).
+    // Plain text into a plain run: `sample.docx`'s first run carries no `xml:space`, and text with
+    // no edge whitespace does not need one, so none is written.
+    document
+        .set_run_text(0, 0, "no edges")
+        .expect("set run 0 text to text with no significant whitespace");
+    let plain = extract_document_xml(&document.save_unchecked().expect("save"));
+    assert!(
+        plain.contains("<w:t>no edges</w:t>"),
+        "text that does not need `xml:space` must not gain it:\n{plain}"
+    );
+
+    // Whitespace-bearing text gets `xml:space="preserve"` — without it, re-opening the saved bytes
+    // could return whitespace-collapsed text (the read side never trims, but a consumer that does
+    // not preserve literal source bytes could not roundtrip through Word without the attribute).
     document
         .set_run_text(0, 0, "  padded  ")
         .expect("set run 0 text to whitespace-bearing text");
@@ -108,20 +119,18 @@ fn set_run_text_writes_xml_space_preserve_only_when_the_new_text_needs_it() {
         "  padded  "
     );
 
-    // Direction 2: setting text that no longer needs it removes the attribute — proving this is not
-    // "always write preserve", which would churn markup a caller never asked to touch.
+    // Text that no longer needs the attribute leaves it where the document has it. Word writes a
+    // redundant `preserve` freely, and removing it would be a byte the caller did not ask to change
+    // (MJXOFF-349; the typed-edit ingest check found it on `corporate.docx`).
     reopened
         .set_run_text(0, 0, "no edges")
         .expect("set run 0 text to text with no significant whitespace");
     let saved_again = reopened.save_unchecked().expect("save again");
     let bytes_again = extract_document_xml(&saved_again);
     assert!(
-        bytes_again.contains("<w:t>no edges</w:t>"),
-        "expected a bare w:t with no xml:space:\n{bytes_again}"
-    );
-    assert!(
-        !bytes_again.contains("xml:space"),
-        "xml:space must be gone once the text no longer needs it:\n{bytes_again}"
+        bytes_again.contains("<w:t xml:space=\"preserve\">no edges</w:t>"),
+        "an `xml:space` the document carries must survive a text edit that does not need it:\n\
+         {bytes_again}"
     );
 }
 

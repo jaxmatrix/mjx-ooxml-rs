@@ -1,0 +1,79 @@
+MJXOFF-189 [U10] — selection and feedback: the mini toolbar, enhanced screentip, toast, progress and empty state
+branch:  pipeline/u10-selection-feedback
+head:    14fe4aa
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-10T08:53:07+05:30
+
+tokens:check             exit=0   start=2026-09-10T08:53:07+05:30  finish=2026-09-10T08:53:07+05:30
+icons:check              exit=0   start=2026-09-10T08:53:07+05:30  finish=2026-09-10T08:53:08+05:30
+typecheck                exit=0   start=2026-09-10T08:53:08+05:30  finish=2026-09-10T08:53:12+05:30
+lint                     exit=0   start=2026-09-10T08:53:12+05:30  finish=2026-09-10T08:53:17+05:30
+test:unit                exit=1   start=2026-09-10T08:53:17+05:30  finish=2026-09-10T08:53:24+05:30
+    --- last 30 lines ---
+        613|     // the model's explanation for not borrowing it cannot quietly bec…
+        614|     const borrowed = effectiveStatePaint('onHover');
+        615|     expect(ratio(borrowed.insetRing, borrowed.background, 'light')).to…
+           |                                                                     ^
+        616|     expect(optionStates.selectedActive.paint).not.toBe('onHover');
+        617|   });
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+    
+     FAIL  tests/pickers.test.ts > the swatch indicator > a swatch is told from the popup's own surface, in dark
+    AssertionError: worst boundary was 2.85 : 1 on #ff2222: expected 2.8538506219374633 to be greater than or equal to 3
+     ❯ tests/pickers.test.ts:357:78
+        355|         }
+        356|       }
+        357|       expect(lowest, `worst boundary was ${lowest.toFixed(2)} : 1 on $…
+           |                                                                              ^
+        358|         nonTextMinimum,
+        359|       );
+    
+    ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+    
+    
+     Test Files  2 failed | 12 passed (14)
+          Tests  5 failed | 503 passed (508)
+       Start at  08:53:17
+       Duration  6.70s (import 46%, tests 44%, transform 10%, worker 1%)
+    
+        Isolate  14 workers spawned · ~93ms startup each (spawn + environment, per file)
+                 at least ~1.21s faster with isolate: false — reuses workers across files instead of one per file
+    
+build-storybook          exit=0   start=2026-09-10T08:53:24+05:30  finish=2026-09-10T08:53:27+05:30
+test:browser             exit=1   start=2026-09-10T08:53:27+05:30  finish=2026-09-10T09:03:33+05:30
+    --- last 30 lines ---
+        + Array [
+        +   "color-contrast",
+        + ]
+    
+          79 |               )
+          80 |               .join('\n'),
+        > 81 |         ).toEqual([]);
+             |           ^
+          82 |         return;
+          83 |       }
+          84 |
+            at /home/xm-max/Documents/Projects/mjx-ooxml-rs/.claude/worktrees/client-platform/ui/tests/browser/a11y.spec.ts:81:11
+    
+        attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+        test-results/a11y-the-accessibility-swe-0f2cb-e-·-Against-A-Coloured-Page-chromium/test-failed-1.png
+        ────────────────────────────────────────────────────────────────────────────────────────────────
+    
+        Error Context: test-results/a11y-the-accessibility-swe-0f2cb-e-·-Against-A-Coloured-Page-chromium/error-context.md
+    
+        attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+        test-results/a11y-the-accessibility-swe-0f2cb-e-·-Against-A-Coloured-Page-chromium/trace.zip
+        Usage:
+    
+            npx playwright show-trace test-results/a11y-the-accessibility-swe-0f2cb-e-·-Against-A-Coloured-Page-chromium/trace.zip
+    
+        ────────────────────────────────────────────────────────────────────────────────────────────────
+    
+      1 failed
+        [chromium] › tests/browser/a11y.spec.ts:44:5 › the accessibility sweep › Surfaces/Task Pane · Against A Coloured Page 
+      469 passed (10.1m)
+cargo metadata           exit=0   start=2026-09-10T09:03:33+05:30  finish=2026-09-10T09:03:33+05:30
+
+finished: 2026-09-10T09:03:33+05:30
+failures: 2

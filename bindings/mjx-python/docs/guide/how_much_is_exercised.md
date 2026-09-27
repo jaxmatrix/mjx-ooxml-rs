@@ -28,8 +28,8 @@ second one, with a number.
 
 ```text
 binding surface exercised by its own suite:
-  Python       1012 of 1644 declared member(s) (61.6%), 632 named by no test
-  WebAssembly   946 of 1768 declared member(s) (53.5%), 822 named by no test
+  Python       1013 of 1645 declared member(s) (61.6%), 632 named by no test
+  WebAssembly   947 of 1769 declared member(s) (53.5%), 822 named by no test
 ```
 
 **Two fifths of the Python surface and half the WebAssembly surface is exercised by nothing.** That

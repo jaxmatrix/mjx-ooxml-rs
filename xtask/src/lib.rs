@@ -68,5 +68,9 @@ pub mod docs_site;
 pub mod facade_surface;
 pub mod fixture_corpus;
 pub mod guide_examples;
+// Moved up from the binary by the client-platform merge: `codegen` is a library module on this
+// side and `codegen::tokens` reads `tokens.json` through this parser, so a reader declared only in
+// `main.rs` was one the library could not see.
+pub mod json;
 pub mod repository_files;
 pub mod validation;

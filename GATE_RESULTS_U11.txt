@@ -1,0 +1,17 @@
+MJXOFF-190 [U11] — document furniture: status bar, zoom control, scrollbars and pane splitter
+branch:  pipeline/u11-furniture
+head:    e52d475
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-10T11:03:39+05:30
+
+tokens:check             exit=0   start=2026-09-10T11:03:39+05:30  finish=2026-09-10T11:03:40+05:30
+icons:check              exit=0   start=2026-09-10T11:03:40+05:30  finish=2026-09-10T11:03:40+05:30
+typecheck                exit=0   start=2026-09-10T11:03:40+05:30  finish=2026-09-10T11:03:48+05:30
+lint                     exit=0   start=2026-09-10T11:03:48+05:30  finish=2026-09-10T11:03:54+05:30
+test:unit                exit=0   start=2026-09-10T11:03:54+05:30  finish=2026-09-10T11:04:07+05:30
+build-storybook          exit=0   start=2026-09-10T11:04:07+05:30  finish=2026-09-10T11:04:12+05:30
+test:browser             exit=0   start=2026-09-10T11:04:12+05:30  finish=2026-09-10T11:18:26+05:30
+cargo metadata           exit=0   start=2026-09-10T11:18:27+05:30  finish=2026-09-10T11:18:33+05:30
+
+finished: 2026-09-10T11:18:33+05:30
+failures: 0

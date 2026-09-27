@@ -27,10 +27,16 @@
 //! # Nothing here paginates
 //!
 //! `fitToWidth="2"` is **reported**. Where the page breaks fall, how many pages a sheet occupies,
-//! what a margin is in device units: none of that is computed anywhere in this workspace, and the
-//! constraint is the ticket's own — *"Reporting `fitToWidth` is in scope; computing where pages
-//! break is rendering."* [`PageBreaks`](crate::PageBreaks) is the same rule from the other side: a
-//! break is a record of where a person put one, never a repagination.
+//! what a margin is in device units: none of that is computed here, and the constraint is the
+//! ticket's own — *"Reporting `fitToWidth` is in scope; computing where pages break is rendering."*
+//! [`PageBreaks`](crate::PageBreaks) is the same rule from the other side: a break is a record of
+//! where a person put one, never a repagination.
+//!
+//! ⚠ **"Anywhere in this workspace" is what this paragraph used to say, and MJXOFF-173 made it
+//! false.** `mjx-layout-xlsx`'s `print` module paginates a sheet — paper, margins, manual breaks,
+//! print area, repeated titles, scaling and fit-to-page — and it consumes these types to do it.
+//! Rendering happens in a renderer; the boundary moved to where the renderer is, rather than
+//! disappearing.
 //!
 //! # The printer-settings part is opaque, and this crate cannot see it
 //!

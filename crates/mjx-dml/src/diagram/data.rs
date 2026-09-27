@@ -29,6 +29,7 @@ use super::support::{dgm_element, dgm_name, is_dgm};
 /// four families are typed here; the two child elements are `presLayoutVars` (typed —
 /// [`LayoutVariables`]) and `style` (`a:CT_ShapeStyle`, preserved opaque — this crate does not yet
 /// model a standalone shape-style type outside a shape's own surface).
+/// Owned by MJXOFF-335 (RC42), which lays diagram nodes out and styles them.
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_DIAGRAM)]
 #[xml(attribute(local = "presAssocID", codec = Text, accessor = presentation_association_id))]

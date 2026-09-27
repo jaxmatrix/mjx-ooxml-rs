@@ -1,0 +1,18 @@
+fragment-tree nodes=17 roots=17
+#0 box rect=[0,0,3810000,2540000] transform=TransformId(0) clip=none part=1 path=/0 decoration=1 cell=none
+#1 box rect=[228600,152400,3581400,2387600] transform=TransformId(0) clip=none part=1 path=/1 decoration=2 cell=none
+#2 box rect=[431800,660400,1041400,723900] transform=TransformId(0) clip=none part=1 path=/2 decoration=3 cell=none
+#3 box rect=[1193800,660400,1701800,723900] transform=TransformId(0) clip=none part=1 path=/3 decoration=4 cell=none
+#4 box rect=[2108200,660400,2819400,723900] transform=TransformId(0) clip=none part=1 path=/4 decoration=5 cell=none
+#5 box rect=[1107440,681990,1127760,702310] transform=TransformId(0) clip=none part=1 path=/5 decoration=6 cell=none
+#6 shape rect=[1739900,679450,2070100,704850] transform=TransformId(0) clip=none part=1 path=/6 geometry=1 decoration=7
+#7 shape rect=[2006600,679450,2108200,742950] transform=TransformId(0) clip=none part=1 path=/7 geometry=2 decoration=8
+#8 shape rect=[2908300,596900,3035300,787400] transform=TransformId(0) clip=none part=1 path=/8 geometry=3 decoration=9
+#9 box rect=[2971800,609600,2984500,774700] transform=TransformId(0) clip=none part=1 path=/9 decoration=10 cell=none
+#10 box rect=[3003550,609600,3016250,774700] transform=TransformId(0) clip=none part=1 path=/10 decoration=11 cell=none
+#11 box rect=[431800,1016000,1930400,1079500] transform=TransformId(0) clip=none part=1 path=/11 decoration=12 cell=none
+#12 shape rect=[1968500,965200,2070100,1104900] transform=TransformId(0) clip=none part=1 path=/12 geometry=4 decoration=13
+#13 shape rect=[1930400,1079500,2032000,1143000] transform=TransformId(0) clip=none part=1 path=/13 geometry=5 decoration=14
+#14 box rect=[431800,1371600,1651000,1435100] transform=TransformId(0) clip=none part=1 path=/14 decoration=15 cell=none
+#15 box rect=[1701800,1398270,1765300,1408430] transform=TransformId(0) clip=none part=1 path=/15 decoration=16 cell=none
+#16 box rect=[1752600,1346200,1762760,1397000] transform=TransformId(0) clip=none part=1 path=/16 decoration=17 cell=none

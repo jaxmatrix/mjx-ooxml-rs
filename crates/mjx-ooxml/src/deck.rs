@@ -31,11 +31,21 @@
 //!   whose bytes are readable directly (`chart_part_bytes`, `picture_image_bytes`, …).
 //! - **`blank_with_properties`** takes an `mjx_opc::doc_props::CoreProperties` and an
 //!   `ExtendedProperties`, so an authored deck can carry a title, a creator and a created time.
-//!   Nothing on this facade sets them, and neither binding can — the one entry on this list that is
-//!   a **gap rather than a decision**. `Deck::blank` writes both `docProps` parts with the
+//!   Nothing on this facade sets them, and neither binding can — a **gap rather than a decision**.
+//!   `Deck::blank` writes both `docProps` parts with the
 //!   library's own defaults, and a deck opened from a file keeps the ones it came with, untouched.
 //! - **`from_package`** takes an `mjx_opc::Package`, which this facade seals for the reason
 //!   [`Deck::presentation_mut`]'s own documentation gives.
+//! - **`effective_shape_fill_reporting_lost_opacity`**, **`…_outline_…`** and **`…_effects_…`**
+//!   are superseded by [`Deck::effective_shape_fill`], [`Deck::effective_shape_outline`] and
+//!   [`Deck::effective_shape_effects`]: since MJXOFF-243 a resolved colour keeps its alpha, so the
+//!   count they add is zero by construction. **`theme_accent_colors`** is superseded by
+//!   [`Deck::theme`], whose colour scheme carries the six accents.
+//! - **Gaps rather than decisions**, added to `Presentation` for the renderer and not yet
+//!   projected: `body_properties`, `effective_body_properties` and `set_body_properties` (a text
+//!   body's insets, anchor and columns); `shape_preset` (the `prst` token a geometry provider
+//!   indexes by); and `dirty_parts` / `settle_dirty_parts` (the batched-commit pair `mjx-session`
+//!   drives). Each is reachable through [`Deck::presentation_mut`] (MJXOFF-349).
 //!
 //! Part-addressed readers that are the **only** door to their content — the ink, VML and diagram
 //! byte windows — are kept, with `&str` part names. [`Deck::presentation_mut`] is the Rust-only

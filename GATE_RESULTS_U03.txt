@@ -1,0 +1,17 @@
+MJXOFF-182 [U03] — the ribbon archetypes: button, toggleButton, splitButton and the dialog launcher
+branch:  pipeline/r21-tables-floats
+head:    3f500d4
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-09T19:28:51+05:30
+
+tokens:check             exit=0   start=2026-09-09T19:28:51+05:30  finish=2026-09-09T19:28:51+05:30
+icons:check              exit=0   start=2026-09-09T19:28:51+05:30  finish=2026-09-09T19:28:51+05:30
+typecheck                exit=0   start=2026-09-09T19:28:51+05:30  finish=2026-09-09T19:28:54+05:30
+lint                     exit=0   start=2026-09-09T19:28:54+05:30  finish=2026-09-09T19:29:20+05:30
+test:unit                exit=0   start=2026-09-09T19:29:20+05:30  finish=2026-09-09T19:29:24+05:30
+build-storybook          exit=0   start=2026-09-09T19:29:24+05:30  finish=2026-09-09T19:29:26+05:30
+test:browser             exit=0   start=2026-09-09T19:29:26+05:30  finish=2026-09-09T19:31:27+05:30
+cargo metadata           exit=0   start=2026-09-09T19:31:27+05:30  finish=2026-09-09T19:31:27+05:30
+
+finished: 2026-09-09T19:31:27+05:30
+failures: 0

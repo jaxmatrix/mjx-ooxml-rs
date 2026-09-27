@@ -168,6 +168,30 @@ impl<'a> Row<'a> {
             .map(|index| Cell::new(self.sheet, index))
     }
 
+    /// The nearest populated cell of this row **strictly to the right** of `column`, or `None` when
+    /// nothing in the row is.
+    ///
+    /// `O(log n)` for a row whose cells ascend, which is every row a producer writes. It answers the
+    /// question a spreadsheet renderer asks per overflowing cell — *where does this text stop?* —
+    /// without walking the 16,384 addressable columns to find out.
+    #[must_use]
+    pub fn cell_after(&self, column: u16) -> Option<Cell<'a>> {
+        self.sheet
+            .adjacent_cell_position(self.index, column, true)
+            .map(|index| Cell::new(self.sheet, index))
+    }
+
+    /// The nearest populated cell of this row **strictly to the left** of `column`, or `None`.
+    ///
+    /// The mirror of [`cell_after`](Self::cell_after), and needed for the same reason: a
+    /// right-aligned cell overflows leftward.
+    #[must_use]
+    pub fn cell_before(&self, column: u16) -> Option<Cell<'a>> {
+        self.sheet
+            .adjacent_cell_position(self.index, column, false)
+            .map(|index| Cell::new(self.sheet, index))
+    }
+
     /// Whether this row can still be written straight out of the part's bytes — nothing in it has
     /// been edited since it was read.
     #[must_use]

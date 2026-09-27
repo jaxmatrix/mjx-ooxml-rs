@@ -19,8 +19,11 @@
 //! # What is reported and what is never decided
 //!
 //! **Reporting which rules apply to a cell is in scope. Deciding whether a rule's condition is
-//! *true* is not**, and never will be: that needs a calculation engine, and `PLAN.md` settles the
-//! absence of one as scope rather than as an omission. A `cellIs` rule with
+//! *true* is not**, and never will be *here*: that needs a calculation engine for the formula kinds,
+//! and `PLAN.md` settles the absence of one as scope rather than as an omission. MJXOFF-173's
+//! renderer (`mjx-layout-xlsx::condfmt`) decides the other sixteen kinds one rank above the format
+//! tier, consuming this markup and re-modelling none of it — because a decided rule is a rendering
+//! fact and folding one into a cell's format *here* would put it into the write path. A `cellIs` rule with
 //! `operator="greaterThan"` and `<formula>0.5</formula>` is reported as exactly that — an operator
 //! and a piece of text — and the text goes through MJXOFF-115's contract, which is that a formula is
 //! carried and never parsed, rewritten or evaluated.

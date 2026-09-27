@@ -27,6 +27,7 @@ measured and saved is byte-identical to the deck that went in.
 | [`Presentation::effective_shape_effects`] | its shadow / glow / reflection / soft edge |
 | [`Presentation::effective_shape_transform`] | the offset, extent, rotation and flips it renders under |
 | [`Presentation::effective_shape_bounds`] | the same, as a plain rectangle |
+| [`Presentation::effective_body_properties`] | the insets, anchor, wrap, columns and autofit its text body lays out under |
 | [`Presentation::effective_run_properties`] | the character formatting one run renders with |
 | [`Presentation::effective_paragraph_properties`] | the bullet, indent and alignment one paragraph renders with |
 | [`Presentation::effective_cell_fill`] | a table cell's fill |
@@ -86,6 +87,19 @@ composition is the identity.
 
 `effective_shape_bounds` is that answer reduced to a plain rectangle, absolute within
 [`Presentation::slide_size`].
+
+## Body geometry
+
+`effective_body_properties` walks the same candidates and merges them **attribute by attribute**, as
+the text readers do rather than as the transform reader does: a slide title that states only
+`anchor="ctr"` keeps its layout's insets and its master's column count. A shape that is not a
+placeholder has no slot to be matched on, so it answers exactly what it states.
+
+The schema's own defaults are deliberately *not* applied. A `None` field means **no tier stated it**,
+never that it is the default, because a reader that could not tell an authored `lIns="0"` from an
+unstated one would have lost information a round-trip needs. The defaults are named constants on
+[`TextBodyPropertiesSpec`](mjx_dml::TextBodyPropertiesSpec) — `DEFAULT_LEFT_INSET` and the rest —
+applied by whoever lays the text out.
 
 ## Text — the seven tiers
 

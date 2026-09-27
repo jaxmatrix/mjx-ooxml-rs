@@ -2677,6 +2677,7 @@ mod tests {
     /// `numId`. `w:numberingChange`/`w:ins` have no public setter (MJXOFF-126 owns their semantics),
     /// so `NumberingProperties::insert` is never called with those variants — see this child's report
     /// for why that is a legitimate, stated gap rather than an untested one.
+    /// Owned by MJXOFF-351, setters for `w:numberingChange` and `w:ins`.
     #[test]
     fn authoring_numid_before_ilvl_still_emits_schema_order() {
         let mut interner = Interner::new();

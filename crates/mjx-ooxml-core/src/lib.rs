@@ -54,6 +54,25 @@
 //! `#[derive(XmlAttributes)]` in `mjx-derive` — so unknown attributes, their order and their quote
 //! style survive untouched.
 //!
+//! # Byte-budgeted caches
+//!
+//! [`cache`] holds [`ByteBudgetCache`], the workspace's one least-recently-used cache with a
+//! declared byte ceiling. It is here for the same reason [`Emu`] is: three crates at three
+//! different ranks need one — `mjx-scene`'s tessellation cache at 1.7, `mjx-session`'s worksheet
+//! residency at 3.5 and `mjx-view`'s per-stage caches at 3.8 — and a cache written in the highest
+//! of those is unreachable from the other two.
+//!
+//! # Measures
+//!
+//! [`measure`] holds the two units that are nobody's markup: [`Emu`], the English
+//! Metric Unit every length in every one of the three formats finally reduces to, and
+//! [`Angle`]. They were `mjx-dml`'s until MJXOFF-160 and now sit here, because the
+//! client platform's box model (`mjx-layout`, rank 1.6) positions every fragment in EMU and may not
+//! reach `mjx-dml` (rank 2.0). `mjx-dml` re-exports them, so there is still exactly one `Emu` in the
+//! workspace.
+//!
+//! Later phases also add the arena + stable-handle primitives, when the typed model needs them (see
+//! `PLAN.md`).
 //! # What is deliberately *not* here
 //!
 //! `PLAN.md` settles the in-memory model as *hybrid* — an arena or columnar store for bulk data,
@@ -78,15 +97,19 @@
 //! ```
 
 pub mod attribute;
+pub mod cache;
 pub mod convert;
 pub mod intern;
+pub mod measure;
 pub mod raw;
 
 pub use attribute::{
     AttributeCodec, AttributeError, Enumeration, InvalidAttributeValue, Number, Text,
 };
+pub use cache::{Admission, ByteBudgetCache, CacheStats, Rejection, ENTRY_OVERHEAD_BYTES};
 pub use convert::{FromXml, FromXmlError, ToXml};
 pub use intern::{Interner, Symbol};
+pub use measure::{Angle, Emu};
 pub use raw::{
     QuoteStyle, RawAttribute, RawDocument, RawElement, RawElementContent, RawName, RawNode,
 };

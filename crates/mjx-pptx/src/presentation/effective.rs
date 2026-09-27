@@ -5,12 +5,13 @@
 //! property, baking every colour to a concrete `RRGGBB`.
 
 use mjx_dml::{
-    applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
-    resolve_line, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
-    EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, OnOffStyle,
-    ParagraphPropertiesSpec, ResolvedColor, SchemeColor, SchemeColors, TableStyleBorder,
-    TableStyleCellStyle, TableStylePart, TableStyleTextStyle, TextBody, TextFont, TextListStyle,
-    Theme, ThemeableLineStyle, Transform2D,
+    applicable_parts, resolve_character_properties, resolve_color,
+    resolve_effects_reporting_lost_opacity, resolve_fill, resolve_fill_reporting_lost_opacity,
+    resolve_line, resolve_line_reporting_lost_opacity, CellBorder, CharacterPropertiesSpec,
+    ColorMap, EffectList, EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel, LineProperties,
+    LineSpec, LostOpacities, OnOffStyle, ParagraphPropertiesSpec, ResolvedColor, SchemeColor,
+    SchemeColors, TableStyleBorder, TableStyleCellStyle, TableStylePart, TableStyleTextStyle,
+    TextBody, TextFont, TextListStyle, Theme, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement};
 use mjx_ooxml_types::namespaces::PML;
@@ -49,7 +50,28 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<FillSpec>, PptxError> {
+        Ok(self
+            .effective_shape_fill_reporting_lost_opacity(surface, shape_idx)?
+            .0)
+    }
+
+    /// [`effective_shape_fill`](Self::effective_shape_fill), and how many of the colours the walk
+    /// baked stated an opacity a resolved [`FillSpec`] cannot carry.
+    ///
+    /// **One walk, two answers.** A resolved colour is a six-digit hex triplet, so a caller that
+    /// took the fill alone could not tell a 35 % overlay from an opaque one — and would paint a slab
+    /// over whatever is beneath it. The count is what lets the layer that draws report the
+    /// approximation rather than a lossless page; carrying the channel itself is MJXOFF-243 (RC04).
+    ///
+    /// # Errors
+    /// As [`effective_shape_fill`](Self::effective_shape_fill).
+    pub fn effective_shape_fill_reporting_lost_opacity(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(Option<FillSpec>, LostOpacities), PptxError> {
         let surface = surface.into();
+        let mut lost = 0usize;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
@@ -73,26 +95,27 @@ impl Presentation {
             let own = {
                 let doc = self.package.part_tree(&part)?;
                 match candidate_shape(doc, candidate)? {
-                    Some(shape) => shape_own_fill(shape, &doc.interner, &scheme, &map)?,
+                    Some(shape) => shape_own_fill(shape, &doc.interner, &scheme, &map, &mut lost)?,
                     None => OwnFill::Absent,
                 }
             };
 
             match own {
-                OwnFill::Resolved(spec) => return Ok(Some(spec)),
+                OwnFill::Resolved(spec) => return Ok((Some(spec), LostOpacities::new(lost))),
                 OwnFill::StyleRef(idx, color) => {
                     // Resolve the referenced theme fill-style (theme-part interner), substituting phClr.
                     if let Some(theme_part) = &theme_part {
                         let doc = self.package.part_tree(theme_part)?;
                         let theme = Theme::from_xml(&doc.root, &doc.interner)?;
                         if let Some(style) = theme.fill_style(idx) {
-                            return Ok(Some(resolve_fill(
+                            let (spec, dropped) = resolve_fill_reporting_lost_opacity(
                                 style,
                                 &scheme,
                                 &map,
                                 color,
                                 &doc.interner,
-                            )));
+                            );
+                            return Ok((Some(spec), LostOpacities::new(lost + dropped.count())));
                         }
                     }
                 }
@@ -100,7 +123,7 @@ impl Presentation {
             }
         }
 
-        Ok(None)
+        Ok((None, LostOpacities::new(lost)))
     }
 
     /// The **effective** outline of shape `shape_idx` on `surface`, as an interner-free
@@ -123,7 +146,24 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<LineSpec>, PptxError> {
+        Ok(self
+            .effective_shape_outline_reporting_lost_opacity(surface, shape_idx)?
+            .0)
+    }
+
+    /// [`effective_shape_outline`](Self::effective_shape_outline), and how many of the colours the
+    /// walk baked stated an opacity a resolved [`LineSpec`] cannot carry — see
+    /// [`effective_shape_fill_reporting_lost_opacity`](Self::effective_shape_fill_reporting_lost_opacity).
+    ///
+    /// # Errors
+    /// As [`effective_shape_outline`](Self::effective_shape_outline).
+    pub fn effective_shape_outline_reporting_lost_opacity(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(Option<LineSpec>, LostOpacities), PptxError> {
         let surface = surface.into();
+        let mut lost = 0usize;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
@@ -147,26 +187,27 @@ impl Presentation {
             let own = {
                 let doc = self.package.part_tree(&part)?;
                 match candidate_shape(doc, candidate)? {
-                    Some(shape) => shape_own_line(shape, &doc.interner, &scheme, &map)?,
+                    Some(shape) => shape_own_line(shape, &doc.interner, &scheme, &map, &mut lost)?,
                     None => OwnLine::Absent,
                 }
             };
 
             match own {
-                OwnLine::Resolved(spec) => return Ok(Some(spec)),
+                OwnLine::Resolved(spec) => return Ok((Some(spec), LostOpacities::new(lost))),
                 OwnLine::StyleRef(idx, color) => {
                     // Resolve the referenced theme line-style (theme-part interner), substituting phClr.
                     if let Some(theme_part) = &theme_part {
                         let doc = self.package.part_tree(theme_part)?;
                         let theme = Theme::from_xml(&doc.root, &doc.interner)?;
                         if let Some(style) = theme.line_style(idx) {
-                            return Ok(Some(resolve_line(
+                            let (spec, dropped) = resolve_line_reporting_lost_opacity(
                                 style,
                                 &scheme,
                                 &map,
                                 color,
                                 &doc.interner,
-                            )));
+                            );
+                            return Ok((Some(spec), LostOpacities::new(lost + dropped.count())));
                         }
                     }
                 }
@@ -174,7 +215,7 @@ impl Presentation {
             }
         }
 
-        Ok(None)
+        Ok((None, LostOpacities::new(lost)))
     }
 
     /// The **effective** effects of shape `shape_idx` on `surface`, as an interner-free
@@ -197,7 +238,27 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<EffectListSpec>, PptxError> {
+        Ok(self
+            .effective_shape_effects_reporting_lost_opacity(surface, shape_idx)?
+            .0)
+    }
+
+    /// [`effective_shape_effects`](Self::effective_shape_effects), and how many of the colours the
+    /// walk baked stated an opacity a resolved [`EffectListSpec`] cannot carry.
+    ///
+    /// The standard Office theme's third effect style is a shadow at 63 %, so this answers one for
+    /// every shape that takes its effects from a theme — see
+    /// [`effective_shape_fill_reporting_lost_opacity`](Self::effective_shape_fill_reporting_lost_opacity).
+    ///
+    /// # Errors
+    /// As [`effective_shape_effects`](Self::effective_shape_effects).
+    pub fn effective_shape_effects_reporting_lost_opacity(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(Option<EffectListSpec>, LostOpacities), PptxError> {
         let surface = surface.into();
+        let mut lost = 0usize;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
@@ -221,26 +282,29 @@ impl Presentation {
             let own = {
                 let doc = self.package.part_tree(&part)?;
                 match candidate_shape(doc, candidate)? {
-                    Some(shape) => shape_own_effects(shape, &doc.interner, &scheme, &map)?,
+                    Some(shape) => {
+                        shape_own_effects(shape, &doc.interner, &scheme, &map, &mut lost)?
+                    }
                     None => OwnEffects::Absent,
                 }
             };
 
             match own {
-                OwnEffects::Resolved(spec) => return Ok(Some(*spec)),
+                OwnEffects::Resolved(spec) => return Ok((Some(*spec), LostOpacities::new(lost))),
                 OwnEffects::StyleRef(idx, color) => {
                     // Resolve the referenced theme effect-style (theme-part interner), substituting phClr.
                     if let Some(theme_part) = &theme_part {
                         let doc = self.package.part_tree(theme_part)?;
                         let theme = Theme::from_xml(&doc.root, &doc.interner)?;
                         if let Some(style) = theme.effect_style(idx) {
-                            return Ok(Some(resolve_effects(
+                            let (spec, dropped) = resolve_effects_reporting_lost_opacity(
                                 style,
                                 &scheme,
                                 &map,
                                 color,
                                 &doc.interner,
-                            )));
+                            );
+                            return Ok((Some(spec), LostOpacities::new(lost + dropped.count())));
                         }
                     }
                 }
@@ -248,7 +312,7 @@ impl Presentation {
             }
         }
 
-        Ok(None)
+        Ok((None, LostOpacities::new(lost)))
     }
 
     /// The **effective** transform of shape `shape_idx` on `surface` — where the shape actually
@@ -1036,7 +1100,7 @@ pub(super) enum Candidate {
 ///
 /// Takes the document rather than the package so the caller owns the borrow and can extract what it
 /// needs before the next candidate is fetched.
-fn candidate_shape(
+pub(super) fn candidate_shape(
     doc: &RawDocument,
     candidate: Candidate,
 ) -> Result<Option<&RawElement>, PptxError> {
@@ -1067,12 +1131,14 @@ fn shape_own_fill(
     interner: &Interner,
     scheme: &SchemeColors,
     map: &ColorMap,
+    lost: &mut usize,
 ) -> Result<OwnFill, PptxError> {
     if let Some(fill_element) = slide::shape_fill(shape, interner) {
         let fill = Fill::from_xml(fill_element, interner)?;
-        return Ok(OwnFill::Resolved(resolve_fill(
-            &fill, scheme, map, None, interner,
-        )));
+        let (spec, dropped) =
+            resolve_fill_reporting_lost_opacity(&fill, scheme, map, None, interner);
+        *lost += dropped.count();
+        return Ok(OwnFill::Resolved(spec));
     }
     if let Some(reference) = slide::shape_fill_ref(shape, interner) {
         if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
@@ -1105,12 +1171,14 @@ fn shape_own_line(
     interner: &Interner,
     scheme: &SchemeColors,
     map: &ColorMap,
+    lost: &mut usize,
 ) -> Result<OwnLine, PptxError> {
     if let Some(line_element) = slide::shape_line(shape, interner) {
         let line = LineProperties::from_xml(line_element, interner)?;
-        return Ok(OwnLine::Resolved(resolve_line(
-            &line, scheme, map, None, interner,
-        )));
+        let (spec, dropped) =
+            resolve_line_reporting_lost_opacity(&line, scheme, map, None, interner);
+        *lost += dropped.count();
+        return Ok(OwnLine::Resolved(spec));
     }
     if let Some(reference) = slide::shape_line_ref(shape, interner) {
         if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
@@ -1218,7 +1286,7 @@ fn style_text_spec(
     }
     if let Some(color) = text_style.color(interner) {
         if let Some(resolved) = resolve_color(&color, scheme, map, None, interner) {
-            spec = spec.with_fill(FillSpec::Solid(ColorSpec::Srgb(resolved.to_hex())));
+            spec = spec.with_fill(FillSpec::Solid(resolved.to_spec()));
         }
     }
     spec
@@ -1245,12 +1313,14 @@ fn shape_own_effects(
     interner: &Interner,
     scheme: &SchemeColors,
     map: &ColorMap,
+    lost: &mut usize,
 ) -> Result<OwnEffects, PptxError> {
     if let Some(effect_element) = slide::shape_effects(shape, interner) {
         let effects = EffectList::from_xml(effect_element, interner)?;
-        return Ok(OwnEffects::Resolved(Box::new(resolve_effects(
-            &effects, scheme, map, None, interner,
-        ))));
+        let (spec, dropped) =
+            resolve_effects_reporting_lost_opacity(&effects, scheme, map, None, interner);
+        *lost += dropped.count();
+        return Ok(OwnEffects::Resolved(Box::new(spec)));
     }
     if let Some(reference) = slide::shape_effect_ref(shape, interner) {
         if let Some(idx) = reference.index().filter(|idx| *idx > 0) {

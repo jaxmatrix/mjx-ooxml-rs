@@ -7,6 +7,19 @@ condition is a formula, deciding it needs a calculation engine, and there is non
 planned. What follows is what that means in practice, stated plainly enough that nobody plans around
 a behaviour this crate does not have.
 
+> ⚠ **Scoped, not absolute, since MJXOFF-173.** *Something* in this workspace does decide these
+> rules — `mjx-layout-xlsx`, the box model, one rank above the format tier. It consumes the two
+> accessors on this page and re-models nothing; it composes the `dxf` layers in `@priority` order,
+> applies `stopIfTrue`, and interpolates colour scales, data bars and icon sets. What stays true
+> here, and is the reason the boundary is where it is: **a decided rule is a rendering fact, not a
+> document fact.** Folding a `dxf` into a cell's format inside this crate would put an answer that
+> depends on the cell's current value into the *write* path, so a workbook opened, resolved and
+> saved would carry formats its author never wrote.
+>
+> Two paths stay unanswerable even one tier up, and are reported as `partial` rather than faked: an
+> `expression` rule, whose whole condition is a formula, and any `cellIs` operand or `cfvo` `@val`
+> that is not a literal. See [Deliberate limitations](deliberate_limitations) §2.
+
 ## Rules come back as candidates, in priority order
 
 ECMA-376 Part 1 §18.3.1.10: *"The priority of this conditional formatting rule … Lower numeric

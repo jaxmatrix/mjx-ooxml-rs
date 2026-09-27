@@ -165,7 +165,7 @@ child-ordered from the XSD; a VML part is neither, and the round trip is the onl
 
 ## The generated vocabulary — `mjx-ooxml-types`
 
-**84,128 of this crate's 85,400 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
+**84,128 of this crate's 85,483 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
 nothing re-derived them.** `CLAUDE.md` decides that generated output is committed rather than built,
 which is right and has a cost: a generator defect is frozen into the repository rather than failing
 on the next build, and the committed file is the only artefact anyone reads. Five pages, written for
@@ -214,6 +214,65 @@ siblings and neither may see the other.
 | [Workbook checks](../validation/05-workbooks.md) | — | The per-check pages for every Excel validation area |
 | [The Office pass](../validation/06-the-office-pass.md) | — | The hand-off a person reads to run the pass against real Office |
 | [The Office-authored corpus](../../tests/office-authored/README.md) | — | What may be committed there, its redistribution rule, and why it is empty |
+| [The reference pack](../validation/07-the-reference-pack.md) | `mjx-reference-pack` | The renderer's half of the Office sitting: four files to export to PDF, and how they come back |
+| [The fidelity oracle](../validation/08-the-fidelity-oracle.md) | `mjx-render-oracle` | What the three assertion tiers prove, what they refuse to claim, and the approval only a person gives |
+| [The Office exports](../../tests/office-exports/README.md) | — | Where the four PDFs exported from the reference pack land, and why the directory ships empty |
+
+## The client platform
+
+The renderer, the viewport, the session and the chrome catalogue: the plan they were built from, the
+inventories that say what complete contains, and the checklists a person works through by hand.
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [The technical plan](../UI_PLATFORM_PLAN.md) | — | The client platform's architecture: box models, display list, painters, viewport, session and shell |
+| [Loop 1](../client-platform/BUILD_PLAN_LOOP_1.md) | — | The first execution loop: the renderer for all three formats and the chrome catalogue in Storybook |
+| [The Office feature inventory](../client-platform/OFFICE_FEATURE_INVENTORY.md) | — | What a complete renderer and editor contains, derived rather than recalled, and the ledger's row source |
+| [The parity ledger](../client-platform/PARITY_LEDGER.md) | — | Generated: every inventory row's state, derived from what the named suites actually check |
+| [The session](../client-platform/SESSION_AND_PERSISTENCE.md) | `mjx-session` | Recording every edit as an operation, coalescing them, and committing on a schedule |
+| [HTML in the canvas](../client-platform/HTML_BOX_MODEL.md) | `mjx-layout` | Which of three HTML-in-canvas problems is worth solving, as a second implementation of the box model |
+| [Design tokens](../client-platform/DESIGN_TOKENS.md) | `mjx-tokens` | The Allr token system as it actually is, and the three things an editor needs added to it |
+| [The in-canvas UI inventory](../client-platform/CANVAS_UI_INVENTORY.md) | `mjx-canvas-harness` | Every element the renderer draws that is not document content, and the harness that exercises it |
+| [The in-canvas UI audit](../client-platform/CANVAS_UI_AUDIT.md) | `mjx-canvas-harness` | Generated checklist, one line per in-canvas element, for the person doing the pass by hand |
+| [The ribbon review checklist](../client-platform/RIBBON_REVIEW_CHECKLIST.md) | — | The sixty ribbon tabs of the three applications, to be reviewed by hand against real Office |
+| [The component catalogue](../../ui/README.md) | — | The Phase U workspace outside the rank graph: custom elements, the token resolver and the audit harness |
+| [The bundled substitute faces](../../crates/mjx-text/assets/fonts/README.md) | `mjx-text` | Tier 2 of font resolution: the metric-compatible faces shipped so Office fonts paginate as Office does |
+
+## Render tests
+
+Each directory under `tests/render/` is one render case: an input, the pictures it produces, and a
+page saying what the picture must show. The suites that write them live in `mjx-reference-pack`;
+RC03's are the corporate fixtures that crate authors.
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [RC02 01 A shape whose fill cannot be answered](../../tests/render/RC02-losses/01-undecorated-shape/README.md) | `mjx-reference-pack` | Render-loss case: a shape whose fill cannot be answered |
+| [RC02 02 A run whose paint is defaulted](../../tests/render/RC02-losses/02-text-colour-default/README.md) | `mjx-reference-pack` | Render-loss case: a run whose paint is defaulted |
+| [RC02 03 An unresolved colour](../../tests/render/RC02-losses/03-unresolved-colour/README.md) | `mjx-reference-pack` | Render-loss case: an unresolved colour |
+| [RC02 04 A picture with no pixels](../../tests/render/RC02-losses/04-missing-image/README.md) | `mjx-reference-pack` | Render-loss case: a picture with no pixels |
+| [RC02 05 A glyph run the PDF cannot embed](../../tests/render/RC02-losses/05-pdf-glyph-run/README.md) | `mjx-reference-pack` | Render-loss case: a glyph run the PDF cannot embed |
+| [RC02 06 Effects the SVG cannot express](../../tests/render/RC02-losses/06-svg-effects/README.md) | `mjx-reference-pack` | Render-loss case: effects the SVG cannot express |
+| [RC02 07 Line ends that are not drawn](../../tests/render/RC02-losses/07-line-ends/README.md) | `mjx-reference-pack` | Render-loss case: line ends that are not drawn |
+| [RC02 08 A chart on a slide](../../tests/render/RC02-losses/08-slide-chart/README.md) | `mjx-reference-pack` | Render-loss case: a chart on a slide |
+| [RC02 09 A chart on a worksheet](../../tests/render/RC02-losses/09-sheet-chart/README.md) | `mjx-reference-pack` | Render-loss case: a chart on a worksheet |
+| [RC02 10 A SmartArt frame](../../tests/render/RC02-losses/10-diagram-frame/README.md) | `mjx-reference-pack` | Render-loss case: a SmartArt frame |
+| [RC02 11 An embedded OLE object](../../tests/render/RC02-losses/11-ole-frame/README.md) | `mjx-reference-pack` | Render-loss case: an embedded OLE object |
+| [RC02 12 An ink content part](../../tests/render/RC02-losses/12-ink-frame/README.md) | `mjx-reference-pack` | Render-loss case: an ink content part |
+| [RC02 13 Icon-set icons](../../tests/render/RC02-losses/13-excel-icons/README.md) | `mjx-reference-pack` | Render-loss case: icon-set icons |
+| [RC02 14 A diagonal border](../../tests/render/RC02-losses/14-excel-diagonal/README.md) | `mjx-reference-pack` | Render-loss case: a diagonal border |
+| [RC02 15 Flattened rich text](../../tests/render/RC02-losses/15-excel-rich-text/README.md) | `mjx-reference-pack` | Render-loss case: flattened rich text |
+| [RC02 16 The four painters agree](../../tests/render/RC02-losses/16-four-painters/README.md) | `mjx-reference-pack` | Render-loss case: the four painters agree |
+| [RC02 17 The real deck journey](../../tests/render/RC02-losses/17-real-deck/README.md) | `mjx-reference-pack` | Render-loss case: the real deck journey |
+| [RC02 18 The real worksheet journey](../../tests/render/RC02-losses/18-real-worksheet/README.md) | `mjx-reference-pack` | Render-loss case: the real worksheet journey |
+| [RC02 19 An unresolved worksheet outline](../../tests/render/RC02-losses/19-unresolved-outline/README.md) | `mjx-reference-pack` | Render-loss case: an unresolved worksheet outline |
+| [RC03 corporate docx](../../tests/render/RC03-corporate/docx/README.md) | `mjx-reference-pack` | The corporate document: themed styles, a header table, tracked changes, an equation and a page border |
+| [RC03 corporate pptx](../../tests/render/RC03-corporate/pptx/README.md) | `mjx-reference-pack` | The corporate deck: a master with a logo and gradient, and placeholders sized by the master's styles |
+| [RC03 corporate xlsx](../../tests/render/RC03-corporate/xlsx/README.md) | `mjx-reference-pack` | The corporate workbook: a styled table, number formats, three conditional kinds, a chart and frozen panes |
+| [RC04 01 Five opacities paint five different greys](../../tests/render/RC04-alpha/01-mid-alpha-fill/README.md) | `mjx-reference-pack` | Opacity case: five opacities paint five different greys |
+| [RC04 02 Straight in the display list, premultiplied in the readback](../../tests/render/RC04-alpha/02-premultiplication/README.md) | `mjx-reference-pack` | Opacity case: straight in the display list, premultiplied in the readback |
+| [RC04 03 Four painters carry the same opacities](../../tests/render/RC04-alpha/03-four-painters/README.md) | `mjx-reference-pack` | Opacity case: four painters carry the same opacities |
+| [RC04 04 A 63 % shadow is not a solid one](../../tests/render/RC04-alpha/04-theme-shadow/README.md) | `mjx-reference-pack` | Opacity case: a 63 % shadow is not a solid one |
+| [RC04 05 The corporate overlay lets the row beneath it through](../../tests/render/RC04-alpha/05-corporate-overlay/README.md) | `mjx-reference-pack` | Opacity case: the corporate overlay lets the row beneath it through |
 
 ## Design notes still in force
 

@@ -221,6 +221,12 @@ struct Document {
     /// first, because a crate's own docs write a roundtrip suite as a bare *tests/roundtrip.rs*
     /// where the repository path is `crates/mjx-docx/tests/roundtrip.rs`.
     crate_dir: Option<String>,
+    /// The JavaScript package directory that owns this file (`ui`, `site`) when no crate does. A
+    /// package's own pages write a suite as a bare *tests/ribbons.test.ts* exactly as a crate's do,
+    /// and without this the claim was resolved from the repository root's `tests/` and reported
+    /// missing (MJXOFF-349). Kept apart from `crate_dir` because every crate-set comparison below is
+    /// held against `Cargo.toml`'s members, and a package is not one.
+    package_dir: Option<String>,
     /// Every prose line, with its 1-based line number. A fenced code block is dropped **exactly
     /// when rustdoc compiles it** — see [`fence_is_a_rust_doctest`]. Every other fence is prose:
     /// a `python` or `js` block is run by its binding's harness, which exercises its calls and
@@ -381,12 +387,29 @@ fn crate_directories(tracked: &[String]) -> Vec<String> {
     directories
 }
 
+/// Every directory holding a tracked `package.json` that no crate owns, longest first.
+fn package_directories(tracked: &[String], crates: &[String]) -> Vec<String> {
+    let mut directories: Vec<String> = tracked
+        .iter()
+        .filter_map(|file| file.strip_suffix("/package.json"))
+        .filter(|directory| {
+            !crates
+                .iter()
+                .any(|crate_dir| directory.starts_with(&format!("{crate_dir}/")))
+        })
+        .map(str::to_owned)
+        .collect();
+    directories.sort_by_key(|d| std::cmp::Reverse(d.len()));
+    directories
+}
+
 /// Reads the corpus: every markdown page this tree holds, and the comments of every Rust, Python
 /// and JavaScript source file in it. See [`Kind`].
 fn corpus(tree: &WorkingTree) -> Vec<Document> {
     println!("{}", tree.census());
     let files = tree.paths();
     let crates = crate_directories(files);
+    let packages = package_directories(files, &crates);
     let root = repository_root();
     let mut documents = Vec::new();
     for file in files {
@@ -399,10 +422,19 @@ fn corpus(tree: &WorkingTree) -> Vec<Document> {
             .iter()
             .find(|directory| file.starts_with(&format!("{directory}/")))
             .cloned();
+        let package_dir = if crate_dir.is_none() {
+            packages
+                .iter()
+                .find(|directory| file.starts_with(&format!("{directory}/")))
+                .cloned()
+        } else {
+            None
+        };
         documents.push(Document {
             path: file.clone(),
             kind,
             crate_dir,
+            package_dir,
             lines: prose_lines(kind, &text),
         });
     }
@@ -940,8 +972,12 @@ impl Resolver {
         if claim.starts_with('.') {
             return self.resolve_link(claim, document);
         }
-        if let Some(crate_dir) = &document.crate_dir {
-            let inside = format!("{crate_dir}/{claim}");
+        if let Some(owner) = document
+            .crate_dir
+            .as_ref()
+            .or(document.package_dir.as_ref())
+        {
+            let inside = format!("{owner}/{claim}");
             if self.exists(&inside) {
                 return Resolution::Found(inside);
             }

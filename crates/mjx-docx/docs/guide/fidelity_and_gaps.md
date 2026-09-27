@@ -243,7 +243,7 @@ preserves rather than models.
 The one format this build detects and opens nowhere is **`.xlsb`**, whose main part is the MS-XLSB
 binary record stream rather than SpreadsheetML. That refusal is a decision, not a schedule.
 
-`.pptx` is complete and has [its own copy of this
+`.pptx` has [its own copy of this
 page](https://docs.rs/mjx-pptx/latest/mjx_pptx/guide/fidelity_and_gaps/).
 
 ### What used to be here

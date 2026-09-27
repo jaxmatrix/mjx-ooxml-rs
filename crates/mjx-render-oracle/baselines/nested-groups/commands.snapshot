@@ -1,0 +1,15 @@
+display-list page=320x213.33334 scale=1.3333334 bytes=416
+section commands count=9
+section clips count=1
+section paints count=4
+section strokes count=1
+section geometries count=4
+0000 fill rect[0,0,320,213.33334] with #ffffffff
+0001 push-clip [26.666668,26.666668,213.33334,160] geometry=none
+0002 push-opacity 0.5
+0003 fill rect[26.666668,26.666668,213.33334,160] with #10141cff
+0004 fill rect[80,66.66667,266.6667,200] with #244a8fff
+0005 fill rect[93.333336,80,146.66667,120] with #e0a830ff
+0006 stroke rect[93.333336,80,146.66667,120] with width=2 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#10141cff
+0007 pop
+0008 pop

@@ -165,6 +165,13 @@ impl ColorSpec {
             .collect()
     }
 
+    /// The opacity the colour states, as a proportion of one — `undefined` when it states none,
+    /// which is not the same as a colour stated at full opacity.
+    #[wasm_bindgen(getter, js_name = "alpha")]
+    pub fn alpha(&self) -> Option<f64> {
+        self.0.alpha().map(ooxml::Fraction::ratio)
+    }
+
     /// This colour with one more transform **appended**. Order is part of the markup, so this
     /// appends rather than merges: the same transforms in another order are another colour.
     #[wasm_bindgen(js_name = "withTransform")]

@@ -304,7 +304,7 @@ fn a_workbook_that_states_nothing_reports_the_schema_defaults() {
 /// `@localSheetId` names no tab, which is reported rather than repaired.
 #[test]
 fn defined_names_carry_their_scope_their_text_and_their_built_in_identity() {
-    let mut workbook = open(DISAGREEING);
+    let workbook = open(DISAGREEING);
     let names = workbook.defined_names().expect("the names read");
     assert_eq!(names.len(), 4);
 
@@ -363,7 +363,7 @@ fn defined_names_carry_their_scope_their_text_and_their_built_in_identity() {
 /// the two answers differ.
 #[test]
 fn a_local_sheet_id_is_a_list_index_and_not_a_sheet_id() {
-    let mut workbook = open(DISAGREEING);
+    let workbook = open(DISAGREEING);
     let by_sheet_id: Vec<u32> = workbook
         .sheets()
         .iter()

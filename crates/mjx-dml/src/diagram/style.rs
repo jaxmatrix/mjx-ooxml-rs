@@ -8,6 +8,7 @@
 //! makes for a point's `spPr` and property-set `style` — so [`StyleLabel`] types the one attribute
 //! that names *which* node kind a label formats and preserves everything else opaque. See the
 //! [module docs](super) for the full modelled-vs-preserved line.
+//! Owned by MJXOFF-335 (RC42), which lays diagram nodes out and styles them.
 
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode, Text};

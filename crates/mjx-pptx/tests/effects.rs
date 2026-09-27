@@ -363,14 +363,20 @@ fn reading_effective_effects_keeps_all_parts_byte_identical() {
 fn effective_effects_resolves_a_theme_effect_ref_shadow() {
     // The `effects_theme.pptx` fixture has a shape (index 1) with no explicit effectLst but a
     // `p:style > a:effectRef idx="3"` into a theme effect style whose outer shadow is `phClr`. The
-    // effectRef's accent1 substitutes the phClr, baking to the theme's 4472C4.
+    // effectRef's accent1 substitutes the phClr, baking to the theme's 4472C4 — and the style's own
+    // `<a:alpha val="63000"/>` travels with it as the one transform a resolved colour keeps
+    // (MJXOFF-243). A bare triplet here would be the 63 % shadow the standard Office theme puts on
+    // every styled shape rendered as a solid slab.
     let mut pres = Presentation::open(&fixture("effects_theme.pptx")).expect("open");
     let effective = pres
         .effective_shape_effects(0, 1)
         .expect("effective_shape_effects")
         .expect("some effects");
     let shadow = effective.outer_shadow.expect("outer shadow");
-    assert_eq!(shadow.color, ColorSpec::Srgb("4472C4".into()));
+    assert_eq!(
+        shadow.color,
+        ColorSpec::Srgb("4472C4".into()).with_alpha(Fraction::from_ratio(0.63))
+    );
     assert_eq!(shadow.blur_radius, Some(Emu::from_emu(40_000)));
     assert_eq!(shadow.distance, Some(Emu::from_emu(20_000)));
 }

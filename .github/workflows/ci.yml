@@ -18,7 +18,11 @@ jobs:
     name: fmt · clippy · test
     runs-on: ubuntu-latest
     steps:
+      # Full history: `xtask/tests/completion_claims.rs` reads every commit since the merge-base
+      # with `main`, and refuses a shallow clone rather than reading half of them (MJXOFF-349).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -50,29 +54,72 @@ jobs:
       # The codegen drift check (MJXOFF-224). Named for the reason the doc-gate step above is:
       # a gate whose job is only implied is the gate that turns out not to run.
       #
-      # **This job can only run the schema-free half of it, and that is not a switch away.** The
-      # full check regenerates `mjx-ooxml-types` and compares it with what is committed, which needs
-      # ECMA-376 **Part 1** (the Strict schema set, and `presetShapeDefinitions.xml`). No job here
-      # downloads Part 1: `.github/scripts/fetch-ecma-schemas.sh`'s ARCHIVES holds Part 4
-      # (Transitional) and Part 2 (OPC). So `MJX_REQUIRE_CODEGEN` is deliberately NOT set — setting
-      # it would redden this job rather than run the test — and the drift test skips here while the
-      # five beside it, which re-derive the committed output from the generator's own tables and
-      # need no schema at all, run. `--nocapture` so the skip notice is visible rather than implied.
+      # **This job can only run the schema-free half of it.** The full check regenerates
+      # `mjx-ooxml-types` and compares it with what is committed, which needs ECMA-376 **Part 1**
+      # (the Strict schema set, and `presetShapeDefinitions.xml`). So `MJX_REQUIRE_CODEGEN` is
+      # deliberately NOT set — setting it would redden this job rather than run the test — and the
+      # drift test skips here while the five beside it, which re-derive the committed output from
+      # the generator's own tables and need no schema at all, run. `--nocapture` so the skip notice
+      # is visible rather than implied.
       #
-      # Growing ARCHIVES is MJXOFF-197's, which owns the same download for `mjx-dml`'s
-      # preset-geometry sweep; one archive unlocks both, and this step is where the switch goes.
+      # ⚠ **The reason changed with the client-platform merge and the old one is worth recording.**
+      # This said Part 1 was not downloaded at all — `fetch-ecma-schemas.sh`'s ARCHIVES held Part 4
+      # and Part 2 only — and predicted that growing ARCHIVES was MJXOFF-197's and that "this step
+      # is where the switch goes". MJXOFF-197 did grow it: Part 1 now comes down with the Strict
+      # schemas, `presetShapeDefinitions.xml` and `presetCellStyles.xml` in one 42 MB download.
+      # The switch still does not go here, because **this job has no `References/` at all** — the
+      # fetch runs in the schema job below, and the escape belongs wherever the full check is
+      # eventually run from, not here.
       - name: codegen drift (schema-free tier; the full check needs References/)
         run: cargo test -p xtask --test codegen_drift -- --nocapture
       # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
       # broken crate is invisible until the first is fixed — one round trip per defect.
+      #
+      # `--nocapture`: **libtest swallows a passing test's output, and that is what made MJXOFF-197's
+      # defect survive.** `every_guide_of_every_preset_shape_definition_evaluates` skips when
+      # `References/` is absent and prints a named notice when it does — and this job has no
+      # `References/`, so the notice was swallowed and the line read `... ok`. The same name then
+      # appears four times across a green run (here, the vml run, `all-features`, and
+      # `schema-validity`) with **only the last of them having swept anything**, and nothing in the
+      # log distinguishes them. `schema-validity` prints a count for exactly this reason; these
+      # three now print the skip.
+      #
+      # The cost was measured rather than guessed, locally over this workspace: the captured run is
+      # 348 KB and the `--nocapture` run is 799 KB — 2.3×, about +450 KB a job. libtest writes the
+      # line immediately before its own test's `... ok`, so it is attributed rather than adrift in
+      # an interleaved stream, which was the reason to hesitate.
       - name: test
-        run: cargo test --workspace --no-fail-fast
+        run: cargo test --workspace --no-fail-fast -- --nocapture
       # The `vml` feature gates a whole surface — the typed VML model and the `spid` resolution an
       # OLE object's legacy fallback needs — so the default-feature run above compiles none of it.
       - name: clippy (vml feature)
         run: cargo clippy --workspace --all-targets --features mjx-pptx/vml -- -D warnings
       - name: test (vml feature)
-        run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast
+        run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast -- --nocapture
+      # `mjx-session`'s architectural claim is that everything in it outside `src/ooxml/` is
+      # document-agnostic — the journal, the schedule, the undo units and the recovery format name no
+      # format crate. Its rank (3.5) cannot hold that, because 3.5 is above 3.0 and
+      # `mjx-session -> mjx-pptx` is a legal downward edge for ever;
+      # `crates/mjx-session/tests/the_seam_holds.rs` holds it by name, and **this step is what makes
+      # it a build rather than a scan**: with the format crates genuinely absent, a line that reached
+      # one would not compile. The seam gate and the machinery's own suite both run here.
+      - name: test (mjx-session without the OOXML residencies)
+        run: cargo test -p mjx-session --no-default-features --no-fail-fast -- --nocapture
+      # `mjx-view`'s architectural claim is the same shape one rank higher, and its **default** build
+      # is the one that proves it: the crate declares `mjx-session` with `default-features = false`,
+      # so `cargo test -p mjx-view` resolves a session with no format crates behind it at all and a
+      # line that reached one would not compile. `cargo test --workspace` above does NOT prove that
+      # — feature unification turns `mjx-session/ooxml` on for the whole graph, because
+      # `mjx-session` is a workspace member in its own right — so the seam build has to be a
+      # `-p` invocation, and this is it.
+      #
+      # The second line is the other direction: the `ooxml` feature exists so that one consumer
+      # (`mjx-ooxml`'s future `render` feature) can turn the viewport and the residencies on
+      # together, and a feature nothing ever builds is a feature that stops compiling in silence.
+      - name: test (mjx-view with the format crates absent)
+        run: cargo test -p mjx-view --no-fail-fast -- --nocapture
+      - name: test (mjx-view forwarding the ooxml feature)
+        run: cargo test -p mjx-view --features ooxml --no-fail-fast -- --nocapture
 
   # Every feature of every crate at once. `lint-test` above runs the default features and the one
   # `vml` combination; neither compiles the binding crates' feature surface, and neither is what a
@@ -87,15 +134,21 @@ jobs:
     name: test (--all-features)
     runs-on: ubuntu-latest
     steps:
+      # Full history, for the reason `lint-test` gives: `completion_claims` refuses a shallow clone.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: clippy (--all-features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # `--nocapture` for the reason `lint-test`'s `test` step gives at length: this is the third of
+      # the four runs that report `every_guide_of_every_preset_shape_definition_evaluates ... ok`,
+      # and it is one of the three that swept nothing.
       - name: test (--all-features)
-        run: cargo test --workspace --all-features --no-fail-fast
+        run: cargo test --workspace --all-features --no-fail-fast -- --nocapture
 
   # The naming convention this repository is built on — a public identifier is self-explanatory to a
   # reader who does not have ECMA-376 open — has exactly one enforcement mechanism per rule that is
@@ -135,7 +188,7 @@ jobs:
   #
   # Why the schemas are fetched rather than committed: `References/` is git-ignored by a standing
   # rule of this repository, and whether ECMA-376 schema files may be redistributed inside the tree
-  # is a decision reserved for the repository owner. So the two published archives are downloaded,
+  # is a decision reserved for the repository owner. So the three published archives are downloaded,
   # verified against the committed SHA-256 manifest `.github/ecma-376-archives.sha256`, and
   # extracted into `References/` — exactly the layout a developer already has, and the one
   # `schema_validity.rs` discovers with no environment variables set.
@@ -144,6 +197,12 @@ jobs:
   # hit or miss: a truncated download or a poisoned cache entry is then a hard failure instead of a
   # silently different schema set. The cache key is the manifest's own hash, so pinning a different
   # archive re-fetches automatically.
+  #
+  # **The third archive is Part 1, and it is the expensive one** (MJXOFF-197): 42 MB of download and
+  # of cache, against Part 4's 2 MB and Part 2's 1.9 MB, because the outer archive is atomic and
+  # 35.3 MB of it is the part's PDF. What is extracted from it is ~1.5 MB — the Strict schemas and
+  # `presetShapeDefinitions.xml`. It buys the two steps at the end of this job, both of which had
+  # never executed in any CI run before it was added.
   #
   # MJX_REQUIRE_SCHEMA=1 turns a missing tool or schema tree into a hard failure, so this coverage
   # can never silently skip in CI — the same pattern office-open uses with MJX_REQUIRE_SOFFICE.
@@ -156,6 +215,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # `rustfmt` is a *runtime* dependency of this job, not a lint: the committed-geometry
+          # freshness check below formats the source it generates through the real `rustfmt` binary
+          # before comparing it byte for byte with what is committed, so the minimal profile this
+          # action installs by default would fail it with "spawning rustfmt".
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
 
       # xmllint is the validator. It ships in the current runner image, but installing it explicitly
@@ -213,6 +278,42 @@ jobs:
       - name: schema-validity suite (the validation harness, the Office corpus and the MCE seam)
         run: cargo test -p xtask --test validation_harness --test office_corpus --test mce_extension_seam --test published_markup
 
+      # MJXOFF-197. The sweep over the *entire* normative preset-shape corpus — every guide of every
+      # shape block of `presetShapeDefinitions.xml`, evaluated at a deliberately lopsided box — and
+      # it had **never once executed on CI**. Three individually-reasonable facts composed: it skips
+      # when `References/` is absent (correct), its escape was set by no workflow, and the only job
+      # that extracts `References/` never named `-p mjx-dml`. `mjx-dml` appeared in no job at all.
+      #
+      # The ordering is the part worth keeping: **the archive comes first.** Setting the variable
+      # before Part 1 was in `.github/ecma-376-archives.sha256` would have turned a silent skip into
+      # a hard failure over a file the runner did not have — a step that cannot execute, which is
+      # this gate's own defect one level up. It is executable now because Part 1 is fetched above.
+      #
+      # `--nocapture` is not decoration. `cargo test` swallows a passing test's output, so a green
+      # tick alone cannot distinguish "the corpus was swept" from "the corpus was absent and the
+      # sweep returned early". With it, the log carries the counts the run actually evaluated.
+      - name: the whole preset-shape corpus, with an absent one as a failure
+        env:
+          MJX_REQUIRE_PRESET_GEOMETRY: "1"
+        run: cargo test -p mjx-dml --test guide_formula -- --nocapture
+
+      # The other half of the same hole (MJXOFF-197). `the_committed_geometry_table_is_exactly_what_
+      # the_file_produces` re-derives `crates/mjx-geometry/src/generated.rs` from the file and
+      # compares it byte for byte, proving derivation *and* idempotence — and it lives in the xtask
+      # **binary's** unit tests, which no job here ran with `References/` present: `lint-test` runs
+      # `--workspace` but has no schema tree, and the steps above select integration targets by name
+      # (`--test …`), which never builds the binary's harness. So it skipped in both places.
+      #
+      # `cargo test -p xtask --bin xtask` is the selector that reaches it, and `MJX_REQUIRE_SCHEMA`
+      # (set for this job) is what makes an absent corpus a failure there rather than a skip.
+      #
+      # The sibling drift check over `mjx-ooxml-types` — the other programme's `codegen_drift.rs`,
+      # which needs the same Part 1 archive — is **not** in this tree. It is MJXOFF-227, whose
+      # stated precondition is the archive line this job now fetches; wiring it up belongs to
+      # whoever merges the two branches, and it is not silently missing here.
+      - name: the committed geometry table is what the file produces
+        run: cargo test -p xtask --bin xtask -- --nocapture
+
   # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
   # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or
   # flake the fast lane. MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this
@@ -243,6 +344,24 @@ jobs:
       - name: office-open canary
         run: cargo test -p mjx-pptx -p mjx-docx -p mjx-xlsx --test office_open
 
+      # The reference pack (MJXOFF-207). Three things are being held here and only the first is
+      # about LibreOffice: that the four artefacts a Windows sitting needs actually generate and
+      # convert, that every one of the 187 presets gets a row in the preliminary pass rather than
+      # being silently dropped, and that the four typography readers work on a PDF this project did
+      # not write. MJX_REQUIRE_SOFFICE and MJX_REQUIRE_TOOLS (set below) turn a missing converter or
+      # a missing poppler into a failure, so this coverage can never quietly skip.
+      #
+      # **What it deliberately does not gate on is agreement.** A LibreOffice disagreement is a
+      # thing to look at before the sitting, and making it a build failure would be the first step
+      # towards editing correct code until it matches a reference that is explicitly not
+      # authoritative. The suites assert that every plate has a row and that none of it is parity.
+      - name: the reference pack, and the preliminary pass over all 187 presets
+        env:
+          MJX_REQUIRE_TOOLS: "1"
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          cargo test -p mjx-reference-pack
+
       # The guide's headline example must produce a deck a real Office implementation opens.
       # Documentation that cannot be executed is a claim; this makes it a gate.
       - name: the guide's deck opens
@@ -269,6 +388,146 @@ jobs:
           cargo run -p mjx-ooxml --example build_a_workbook -- facade_workbook.xlsx
           soffice --headless --convert-to pdf --outdir . facade_workbook.xlsx
           test -s facade_workbook.pdf
+
+  # The painter, on a graphics device that actually exists (MJXOFF-163).
+  #
+  # **A GitHub-hosted runner has no GPU**, which is exactly the situation this job is written for. A
+  # rendering suite that treated "no adapter" as "nothing to do" would be green precisely when the
+  # work was skipped — this project's signature failure — so:
+  #
+  #   * `mesa-vulkan-drivers` installs `lavapipe`, a *real* Vulkan implementation that rasterises on
+  #     the processor. It is enumerated as an ordinary adapter, so nothing is faked and nothing is
+  #     forced: `force_fallback_adapter` stays `false` and the painter reports `device_type: Cpu`,
+  #     which is the honest answer and is what the suites print.
+  #   * `MJX_REQUIRE_GPU=1` turns a missing device into a **failure** rather than a skip, exactly as
+  #     `MJX_REQUIRE_SCHEMA` and `MJX_REQUIRE_SOFFICE` already do for their tools. Locally the same
+  #     suites skip cleanly and say so by name.
+  #   * `vulkaninfo --summary` runs first and is *reported*, so the log says which implementation the
+  #     frames were drawn by rather than leaving a reader to assume.
+  #
+  # `wgpu`'s null backend is deliberately not compiled into this workspace (see the `wgpu` feature
+  # list in `Cargo.toml`); with it, this job would pass on a machine with no graphics stack at all.
+  render:
+    name: render (software Vulkan)
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_GPU: "1"
+      # And the two **independent readers** the exporters are checked with (MJXOFF-164). Same shape,
+      # same reason: `pdftotext` reading a word back out of our PDF is the one assertion that
+      # separates text from a picture of text, and a suite that skipped it silently on a runner
+      # without poppler would be green precisely because it checked nothing. Checking our own export
+      # with our own reader would prove nothing whatever, which is why these are external tools.
+      MJX_REQUIRE_TOOLS: "1"
+      # Mesa's software rasteriser for the OpenGL path too, so that a `wgpu` build which prefers GL
+      # on this runner still finds something rather than reporting an absence that is not real.
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install a software Vulkan implementation and the two document readers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1-mesa-dri \
+            poppler-utils libxml2-utils
+      - name: which implementation is present
+        run: vulkaninfo --summary || true
+      - name: which readers are present
+        run: |
+          pdftotext -v || true
+          xmllint --version || true
+      - name: the painter's own suites, with a missing device or reader as a failure
+        run: cargo test -p mjx-paint --no-fail-fast -- --nocapture
+
+  # The fidelity oracle (MJXOFF-165). Its own job rather than a line in `lint-test`, for two
+  # reasons that are both about what a reviewer can see.
+  #
+  # **The external readers are the point.** `pdftotext` and `pdftoppm` check our own PDF export,
+  # `magick` reads our own PNG back — dimensions, pixels and the straight-alpha convention — and
+  # `sha256sum` reproduces the digest an approval record binds to. Checking our own output with our
+  # own reader proves nothing whatever, which is why all four are external and why
+  # `MJX_REQUIRE_TOOLS=1` turns a missing one into a **failure** rather than a named skip.
+  #
+  # **And the gallery is uploaded on failure.** MJXOFF-165's own constraint is that a failure a
+  # reviewer cannot see is a failure nobody fixes: a pixel-tier regression is a picture, and a
+  # number in a log is not one. The gallery is a single self-contained HTML file beside the plates,
+  # so the artefact opens on a machine with nothing installed.
+  #
+  # What this job deliberately does **not** gate on is fidelity. Every baseline it checks was
+  # produced by the code it is checking; that catches a regression and is not a parity claim, and
+  # `crates/mjx-render-oracle/src/lib.rs` says so at length.
+  oracle:
+    name: the fidelity oracle
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_TOOLS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install the readers this workspace did not write
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils imagemagick
+      # Both spellings, because they are the same program at two major versions: ImageMagick 7
+      # installs `magick` and ImageMagick 6 — which is what this runner's `imagemagick` package
+      # still is — installs `convert` and no `magick` at all. The suite asks for either; this step
+      # prints which one answered, so a log says what actually read the plates.
+      - name: which readers are present
+        run: |
+          pdftotext -v || true
+          pdftoppm -v || true
+          magick -version || convert -version || true
+      - name: the three tiers, the approval gates and the instruments
+        run: cargo test -p mjx-render-oracle --no-fail-fast -- --nocapture
+      - name: the plate gallery, so a failure can be looked at
+        if: always()
+        run: cargo run -p mjx-render-oracle -- gallery
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oracle-gallery
+          path: target/oracle-gallery
+          if-no-files-found: error
+
+  # The canvas UI harness (MJXOFF-166). Its own job for the same reason the oracle has one, one
+  # level in: what this gate produces is sixty-one pictures and a checklist, and *a failure a
+  # reviewer cannot see is a failure nobody fixes*.
+  #
+  # **It needs no graphics stack and no external reader.** Every image goes through `tiny-skia`,
+  # every plate is encoded by `mjx-render-oracle`'s own PNG writer, and the whole suite runs on a
+  # machine with nothing installed — which is what makes it a gate rather than a nightly.
+  #
+  # What it does **not** gate on, and this is worth reading before quoting a green run: whether
+  # anybody has looked at these images. Every baseline is stamped `approver = generator`, the
+  # checklist says `Human review: 0 of 61` on its own face, and the plate gallery says so at the
+  # top. That is a regression gate over a design nobody has approved yet, and MJXOFF-166's whole
+  # point is that the approval is a person's to give — from the harness, by hand, on a phone for
+  # the eleven touch entries.
+  canvas-harness:
+    name: the canvas UI harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: the completeness gate, the state matrix and the plates
+        run: cargo test -p mjx-canvas-harness --no-fail-fast -- --nocapture
+      - name: every plate against its approved baseline
+        run: cargo run -p mjx-canvas-harness -- check
+      - name: the plates and the gallery, so a failure can be looked at
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- plates target/canvas-plates
+      - name: the audit checklist, as the artefact a person picks up
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- checklist target/canvas-plates/CANVAS_UI_AUDIT.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canvas-plates
+          path: target/canvas-plates
+          if-no-files-found: error
 
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
@@ -323,9 +582,24 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
-      # `mjx-schema-gate` and `mjx-fixtures` are excluded for the same reason read the other way:
-      # they are test-only, `publish = false`, and nothing shipped depends on them, so building them
-      # for five targets would widen the claim this job makes rather than support it.
+      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack`, `mjx-render-oracle` and
+      # `mjx-canvas-harness` are excluded for the same reason read the other way: they are
+      # test-only, `publish = false`, and nothing shipped depends on them, so building them for five
+      # targets would widen the claim this job makes rather than support it. The reference pack was
+      # the first member here with a **binary**, and a binary has to *link*: the Android leg has no
+      # NDK linker, so `cargo build --target aarch64-linux-android` fed its object files to the host
+      # `ld` and got *"Relocations in generic ELF (EM: 183)"*. A library target only ever produces
+      # an `rlib` and never hits that. The fidelity oracle has a binary too, and the same exclusion
+      # for the same reason.
+      #
+      # **The canvas harness (MJXOFF-166) is the third, and it landed red because the pattern above
+      # was documented and not automated.** It is the same shape exactly — test-only, unranked,
+      # nothing depends on it, and `[[bin]] mjx-canvas-harness` is the thing a person runs — so it
+      # needs the same line. Worth stating for whoever adds the fourth: a new workspace member with
+      # a binary joins this list unless something shipped depends on it, and the Android leg is
+      # where forgetting shows up. There is deliberately no allow-list test enforcing that; the
+      # member table `xtask/tests/layering.rs` holds is the place a rule about membership belongs,
+      # and it has no opinion about linkers.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -335,6 +609,8 @@ jobs:
           cargo build --workspace --exclude xtask \
             --exclude mjx-python --exclude mjx-wasm \
             --exclude mjx-schema-gate --exclude mjx-fixtures \
+            --exclude mjx-reference-pack --exclude mjx-render-oracle \
+            --exclude mjx-canvas-harness \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of
@@ -377,6 +653,41 @@ jobs:
             exit 1
           fi
           echo "no hand-written \`unsafe\` in bindings/*/src or bindings/*/tests"
+
+      # The same claim, for the platform boundary (MJXOFF-163), and the same principle: a claim CI
+      # does not check is a claim that quietly stops being true. `mjx-paint` is the fourth crate with
+      # a local `#![allow(unsafe_code)]`, and unlike the bindings it *does* contain one hand-written
+      # unsafe block — the surface created from a window handle the shell supplied, which no safe API
+      # can express. So the rule here is not "none" but "exactly the marked one": any `unsafe`
+      # keyword in `crates/mjx-paint/src`, outside a comment and outside the crate-level attribute,
+      # must carry `MJX-PAINT-SURFACE-UNSAFE` on its own line.
+      #
+      # `grep -w` rather than a bare match, because `create_surface_unsafe` and
+      # `SurfaceTargetUnsafe` are identifiers: a scan that could not tell a keyword from an
+      # identifier would report the very call the crate is built around and fail for ever.
+      # `crates/mjx-paint/tests/the_seam_holds.rs` asserts the same rule with the same word-boundary
+      # definition, one round trip earlier, and additionally that exactly one line carries it.
+      - name: only the marked `unsafe` in the platform boundary
+        run: |
+          offenders=$(grep -rnw 'unsafe' crates/mjx-paint/src 2>/dev/null \
+            | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' \
+            | grep -vF '#![allow(unsafe_code)]' \
+            | grep -vF 'MJX-PAINT-SURFACE-UNSAFE' \
+            || true)
+          if [ -n "$offenders" ]; then
+            echo "unmarked hand-written \`unsafe\` in crates/mjx-paint/src:"
+            echo "$offenders"
+            echo
+            echo "\`mjx-paint\` carries \`#![allow(unsafe_code)]\` on the stated grounds that it has"
+            echo "exactly one unsafe block: the surface created from a window handle the shell"
+            echo "supplied, whose validity is the window system's invariant. Adding another needs"
+            echo "its own justification and its own review — and this check, and the crate's own"
+            echo "\`the_seam_holds.rs\`, updated to permit it explicitly."
+            exit 1
+          fi
+          marked=$(grep -rncw 'unsafe' crates/mjx-paint/src 2>/dev/null \
+            | awk -F: '{ total += $2 } END { print total + 0 }')
+          echo "crates/mjx-paint/src: $marked \`unsafe\` line(s), all carrying the marker"
 
       - name: build the Python extension module
         run: cargo build -p mjx-python --features extension-module --release

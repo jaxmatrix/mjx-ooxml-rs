@@ -1,0 +1,10 @@
+fragment-tree nodes=9 roots=9
+#0 box rect=[0,0,3810000,2540000] transform=TransformId(0) clip=none part=1 path=/0 decoration=1 cell=none
+#1 box rect=[228600,152400,3581400,2387600] transform=TransformId(0) clip=none part=1 path=/1 decoration=2 cell=none
+#2 box rect=[1219200,939800,2590800,1701800] transform=TransformId(0) clip=none part=1 path=/2 decoration=3 cell=none
+#3 shape rect=[1892300,139700,1917700,2400300] transform=TransformId(0) clip=none part=1 path=/3 geometry=1 decoration=4
+#4 shape rect=[215900,1257300,3594100,1282700] transform=TransformId(0) clip=none part=1 path=/4 geometry=2 decoration=5
+#5 box rect=[1860550,152400,1949450,201295] transform=TransformId(0) clip=none part=1 path=/5 decoration=6 cell=none
+#6 box rect=[228600,1225550,277495,1314450] transform=TransformId(0) clip=none part=1 path=/6 decoration=7 cell=none
+#7 box rect=[609600,431800,3200400,2108200] transform=TransformId(0) clip=none part=1 path=/7 decoration=8 cell=none
+#8 box rect=[330200,254000,3479800,2286000] transform=TransformId(0) clip=none part=1 path=/8 decoration=9 cell=none

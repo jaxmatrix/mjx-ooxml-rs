@@ -6,6 +6,9 @@ mod complex;
 mod geometry;
 mod namespaces;
 mod spec;
+/// The design-token pipeline (MJXOFF-156). It shares this module's `rustfmt`, its plain writer and
+/// its committed-output convention, and adds a subcommand rather than a second generator.
+pub mod tokens;
 mod xsd;
 
 // These two are `pub` rather than private since MJXOFF-224, and only these two. This module tree
@@ -26,13 +29,21 @@ use anyhow::{bail, Context, Result};
 
 use crate::codegen::naming::NameEngine;
 
-const STRICT_DIR: &str =
+pub(crate) const STRICT_DIR: &str =
     "References/ECMA-376-1_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Strict";
-const TRANSITIONAL_DIR: &str =
+pub(crate) const TRANSITIONAL_DIR: &str =
     "References/ECMA-376-4_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Transitional";
-const GEOMETRIES_XML: &str =
+pub(crate) const GEOMETRIES_XML: &str =
     "References/ECMA-376-1_5th_edition_december_2016/OfficeOpenXML-DrawingMLGeometries/presetShapeDefinitions.xml";
 
+/// Where the preset geometry table is committed.
+///
+/// Not beside the other generated modules, and deliberately: it is `mjx-geometry`'s data, written
+/// in `mjx-geometry`'s own row types, and the tier that reads it is four ranks above
+/// `mjx-ooxml-types`. What *is* shared is the guide row — both tables emit
+/// `mjx_ooxml_types::drawingml::PresetGuide`, so a shape's `gdLst` has one shape in this workspace
+/// and not two.
+pub(crate) const PRESET_GEOMETRY_RS: &str = "crates/mjx-geometry/src/generated.rs";
 /// One file this generator owns: where it belongs under the workspace root, and its exact
 /// contents.
 ///
@@ -154,6 +165,21 @@ pub fn artefacts(root: &Path) -> Result<Vec<Artefact>> {
             emitted
                 .source
                 .push_str(&geometry::emit_shape_adjustments(&geometries_xml)?);
+
+            // The whole geometry — every shape's `gdLst` and `pathLst` — into `mjx-geometry`, four
+            // ranks up. It is written from here, and not from a second subcommand, because it is
+            // the *same* parse of the *same* file that produced the adjustment table above, and the
+            // `ST_ShapeType` values it is checked against are this module's own.
+            //
+            // ⚠ It is an artefact rather than a direct write, and that is the merge of MJXOFF-224
+            // into this: `check` compares what the generator produces against what is committed,
+            // so a table that wrote itself here would be modified BY the check that exists to
+            // report whether it is current.
+            let shape_tokens = enumeration_values(&emitted, "ST_ShapeType")?;
+            out.push(rust_artefact(
+                root.join(PRESET_GEOMETRY_RS),
+                &geometry::emit_preset_geometry(&geometries_xml, &shape_tokens)?,
+            )?);
         }
 
         out.push(rust_artefact(
@@ -482,7 +508,28 @@ const PRESENTATIONML_TYPES: &[&str] = &[
     "ST_Direction",
 ];
 
-fn workspace_root() -> PathBuf {
+/// The enumeration values of one emitted simple type, in schema order.
+///
+/// # Errors
+///
+/// Fails when the module did not emit that type at all, or emitted it as something other than an
+/// enumeration — either of which would mean the caller is reasoning about a type that has changed
+/// shape under it.
+fn enumeration_values(module: &emit::EmittedModule, name: &str) -> Result<Vec<String>> {
+    let simple_type = module
+        .types
+        .iter()
+        .find(|candidate| candidate.name == name)
+        .with_context(|| format!("`{name}` was not emitted by this module"))?;
+    match &simple_type.kind {
+        xsd::SimpleKind::Enumeration { values, .. } => Ok(values.clone()),
+        other => bail!("`{name}` is {other:?}, not an enumeration"),
+    }
+}
+
+/// The workspace root, derived from this crate's manifest directory. Public for the same reason
+/// [`write_plain`] is: the binary's `ledger` module resolves its paths against the same root.
+pub fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is the xtask crate dir; the workspace root is its parent.
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -497,11 +544,13 @@ fn rust_artefact(path: PathBuf, src: &str) -> Result<Artefact> {
     Ok(Artefact { path, contents })
 }
 
-fn write_plain(path: &Path, contents: &str) -> Result<()> {
+/// Writes a file verbatim, creating its parent directory. Public because the binary's `ledger`
+/// module writes its artefact through the same helper the generator uses.
+pub fn write_plain(path: &Path, contents: &str) -> Result<()> {
     std::fs::write(path, contents).with_context(|| format!("writing {}", path.display()))
 }
 
-fn rustfmt(src: &str) -> Result<String> {
+pub(crate) fn rustfmt(src: &str) -> Result<String> {
     let mut child = Command::new("rustfmt")
         .args(["--edition", "2021"])
         .stdin(Stdio::piped())

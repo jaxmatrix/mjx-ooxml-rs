@@ -94,6 +94,7 @@ mod body;
 mod charts;
 mod drawing;
 mod effective;
+mod equations;
 mod fields;
 mod font_table;
 mod headers;
@@ -104,6 +105,7 @@ mod paragraph_properties;
 mod parts;
 mod property_macros;
 mod ranges;
+mod residency;
 mod revisions;
 mod run_properties;
 mod sections;
@@ -178,9 +180,24 @@ pub use paragraph_properties::{
     TextBoxTightWrapSetting, VerticalCharacterAlignment,
 };
 pub use parts::{DocumentParts, PartKind};
+// MJXOFF-174 (R19): the read-once, resolve-many surface a flow layout engine lays out — a separate
+// `pub use`, matching MJXOFF-136's and MJXOFF-138's precedent above, so this child's cluster stays a
+// single reviewable diff hunk.
+pub use equations::{EquationFormatting, EquationNode, EquationRun};
 pub use ranges::{
     covered_text, paragraphs_spanned, Bookmark, BookmarkResolution, MarkerLocation, Markup,
     MarkupRange, RangeIndex, RangeResolution,
+};
+pub use residency::{
+    AnchoredDrawing, AxisPlacement, BlockFormatting, CellFormatting, CellMarginsSpecification,
+    ColumnFormatting, DocumentFormatting, DocumentLayoutSettings, DrawingDistances,
+    DrawingFormatting, DrawingPlacement, FieldSpan, FloatingTableAnchoring, FramedContent,
+    HardBreak, HeaderFooterFormatting, HeaderFooterSlots, HorizontalAnchoring, NoteFormatting,
+    NoteReference, NumberingDefinition, NumberingLevelFormatting, ParagraphFormatting,
+    RevisionSpan, RowFormatting, RowHeightSpecification, RunFormatting, SectionColumns,
+    SectionFormatting, SectionLineNumbering, SectionNoteRules, SectionPageNumbering,
+    TableFormatting, VerticalAnchoring, WidthSpecification, WrapFormatting, NON_BREAKING_HYPHEN,
+    SOFT_HYPHEN,
 };
 pub use revisions::{
     math_control_properties, CellMergeTrackChange, CellPropertiesChange,
@@ -1809,6 +1826,41 @@ impl Document {
         })?;
         main.write_back(root, interner);
         Ok(())
+    }
+
+    /// Edits the paragraph properties (`w:pPr`) of the paragraph at `at`, creating an empty `w:pPr`
+    /// first if it carries none.
+    ///
+    /// The one primitive behind "give this paragraph a style", "keep it with the next one", "justify
+    /// it", "indent it" and every other `CT_PPrBase` member, exactly as
+    /// [`Document::edit_section_properties`] is the one primitive behind every `w:sectPr` member —
+    /// this method is that method's shape, applied one level down. Without it a caller could author a
+    /// paragraph's *text* and not its *layout*, which is the gap MJXOFF-174 (R19) found when it came
+    /// to lay one out.
+    ///
+    /// Only `word/document.xml` is dirtied, and only the paragraph `edit` touches: every other
+    /// paragraph, and everything inside this one that `edit` leaves alone, keeps its original bytes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `at` does not address a paragraph.
+    pub fn edit_paragraph_properties<R>(
+        &mut self,
+        at: impl Into<BlockPath>,
+        edit: impl FnOnce(&mut ParagraphProperties, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let path = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body
+            .paragraph_mut(&path)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+        let properties = paragraph.properties_or_insert(interner);
+        let result = edit(properties, interner);
+        main.write_back(root, interner);
+        Ok(result)
     }
 
     /// Inserts a new, empty paragraph so it becomes the paragraph at `at`, shifting every paragraph
@@ -4435,6 +4487,36 @@ impl Document {
         self.save_unchecked()
     }
 
+    /// The ZIP names of every part this document has dirtied — the **dirty set** a batched commit
+    /// walks ([`Package::dirty_part_names`](mjx_opc::Package::dirty_part_names)).
+    ///
+    /// A part is here exactly when [`save`](Self::save) would re-serialize it from its model rather
+    /// than re-emit the bytes it arrived with, so this is the honest count of what a save will
+    /// *work* at. It is what `mjx-session` reports as a commit's serialization count, and what makes
+    /// "twenty edits produced one part serialization" a measurement instead of a claim.
+    #[must_use]
+    pub fn dirty_parts(&self) -> Vec<String> {
+        self.package
+            .dirty_part_names()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Serializes every dirty part exactly once and settles it back to clean-but-resident, returning
+    /// the names it serialized ([`Package::settle_edited_parts`](mjx_opc::Package::settle_edited_parts)).
+    ///
+    /// This is the *commit* half of copy-on-write, for a caller that keeps this document open across
+    /// many edits: the model is authoritative from the first edit, and the XML is written once per
+    /// commit however many edits accumulated. A part nothing edited is not settled and still re-emits
+    /// the container's own bytes byte for byte, so the round-trip guarantee is untouched — only the
+    /// timing of the serialization moves.
+    ///
+    /// A caller that saves once and drops the document has no reason to call this: [`save`](Self::save)
+    /// serializes the same parts on its way out.
+    pub fn settle_dirty_parts(&mut self) -> Vec<String> {
+        self.package.settle_edited_parts()
+    }
     /// Serializes the document back to container bytes **without** checking its invariants.
     ///
     /// # Errors

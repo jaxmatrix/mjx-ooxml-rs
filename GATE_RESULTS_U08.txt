@@ -1,0 +1,17 @@
+MJXOFF-187 [U08] — pickers: the colour picker, and the font picker with its substitution warning
+branch:  epic/phase-r-renderer
+head:    831c91b
+node:    v24.20.0   npm: 11.19.0
+started: 2026-09-10T03:13:09+05:30
+
+tokens:check             exit=0   start=2026-09-10T03:13:09+05:30  finish=2026-09-10T03:13:10+05:30
+icons:check              exit=0   start=2026-09-10T03:13:10+05:30  finish=2026-09-10T03:13:10+05:30
+typecheck                exit=0   start=2026-09-10T03:13:10+05:30  finish=2026-09-10T03:13:13+05:30
+lint                     exit=0   start=2026-09-10T03:13:13+05:30  finish=2026-09-10T03:13:17+05:30
+test:unit                exit=0   start=2026-09-10T03:13:17+05:30  finish=2026-09-10T03:13:22+05:30
+build-storybook          exit=0   start=2026-09-10T03:13:22+05:30  finish=2026-09-10T03:13:24+05:30
+test:browser             exit=0   start=2026-09-10T03:13:24+05:30  finish=2026-09-10T03:21:20+05:30
+cargo metadata           exit=0   start=2026-09-10T03:21:21+05:30  finish=2026-09-10T03:21:31+05:30
+
+finished: 2026-09-10T03:21:31+05:30
+failures: 0

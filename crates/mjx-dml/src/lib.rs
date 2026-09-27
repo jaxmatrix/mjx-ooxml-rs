@@ -84,8 +84,9 @@ pub use nonvisual::{
 };
 pub use picture::{new_picture, Picture, PictureNonVisual};
 pub use resolve::{
-    resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
-    ResolvedColor, SchemeColors,
+    resolve_character_properties, resolve_color, resolve_effects,
+    resolve_effects_reporting_lost_opacity, resolve_fill, resolve_fill_reporting_lost_opacity,
+    resolve_line, resolve_line_reporting_lost_opacity, LostOpacities, ResolvedColor, SchemeColors,
 };
 pub use shape3d::{
     Backdrop, Bevel, BevelPreset, Camera, LightRig, LightRigDirection, LightRigType, Point3D,
@@ -112,9 +113,10 @@ pub use text::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
     BulletSize, BulletTypeface, CharacterProperties, CharacterPropertiesSpec, FieldContent,
     FontAlignment, FontSlot, LineBreakContent, Paragraph, ParagraphContent, ParagraphProperties,
-    ParagraphPropertiesSpec, RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody,
-    TextBodyContent, TextCapitalization, TextField, TextFont, TextLineBreak, TextListStyle,
-    TextRun, TextSpacing, TextStrike, TextUnderline, UnderlineFill, UnderlineLine,
+    ParagraphPropertiesSpec, RunContent, TabAlignment, TabStop, Text, TextAlignment, TextAutofit,
+    TextBody, TextBodyContent, TextBodyProperties, TextBodyPropertiesSpec, TextCapitalization,
+    TextField, TextFont, TextLineBreak, TextListStyle, TextRun, TextSpacing, TextStrike,
+    TextUnderline, TextWrapping, UnderlineFill, UnderlineLine,
 };
 pub use theme::{
     default_theme_xml, ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot,

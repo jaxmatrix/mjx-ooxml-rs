@@ -121,6 +121,14 @@ fn the_committed_output_is_what_the_generator_produces_today() {
     let root = workspace_root();
     if !codegen::references_are_present(&root) {
         assert!(
+            // MJX-ESCAPE-UNSET
+            //
+            // Deliberately set by no workflow. The full check regenerates `mjx-ooxml-types` and
+            // needs ECMA-376 Part 1, and the CI job that runs this test has no `References/` at
+            // all — the schema fetch happens in a different job. Setting the escape there would
+            // redden a job rather than run a test. Part 1 *is* downloaded now, by the job that
+            // does carry `References/`, so the switch is a real one and this is where its reason
+            // lives until somebody moves the full check to that job.
             std::env::var_os("MJX_REQUIRE_CODEGEN").is_none(),
             "MJX_REQUIRE_CODEGEN is set, but the local References/ tree at {} is incomplete — \
              codegen needs ECMA-376 Part 1 (Strict schemas + presetShapeDefinitions.xml) and \

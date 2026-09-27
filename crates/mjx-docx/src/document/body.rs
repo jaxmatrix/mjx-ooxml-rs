@@ -32,11 +32,11 @@
 //!
 //! [`Text`] never trims on read — significant whitespace an untouched file already carries survives
 //! regardless of `xml:space`, because reading never normalizes anything in this codebase.
-//! [`Text::set_text`] is the one place `xml:space="preserve"` is written or removed: it inspects the
-//! *new* string only, writing `preserve` when the text starts or ends with ASCII whitespace and
-//! removing the attribute otherwise, so a caller who never calls it never sees this element's
-//! attributes change, and a caller who does gets the one rule applied both ways — see [`Text`]'s own
-//! doc comment for the two tests this rule needs.
+//! [`Text::set_text`] is the one place `xml:space="preserve"` is written: it inspects the *new*
+//! string, writing `preserve` when the text starts or ends with ASCII whitespace and leaving any
+//! `xml:space` the element already carries alone otherwise, so a caller who never calls it never
+//! sees this element's attributes change, and a caller who does sees them change only when the new
+//! text would otherwise lose whitespace — see [`Text`]'s own doc comment.
 //!
 //! # `EG_RunInnerContent`'s 33 members
 //!
@@ -1593,15 +1593,20 @@ impl AttributeCodec for WhitespacePreservation {
 /// because nothing here ever normalizes on read (the same contract every typed attribute in this
 /// workspace keeps).
 ///
-/// **[`Text::set_text`] is the one write path, and it manages `xml:space` for the caller.** After
-/// setting the text, it writes `xml:space="preserve"` when the new string starts or ends with ASCII
-/// whitespace, and removes `xml:space` entirely otherwise. Two failure modes are what this guards
-/// against, symmetrically: writing whitespace-bearing text without the attribute silently loses it
-/// the next time something whitespace-collapses the file (the W3C rule `xml:space`'s own prose in
-/// ECMA-376 §17.3.3.31 names — "that whitespace ... is subject to the space preservation rules
-/// currently specified in that run's scope"); and leaving the attribute on text that no longer needs
-/// it churns markup a caller did not ask to touch. Both directions are exercised in
-/// `crates/mjx-docx/tests/roundtrip.rs`.
+/// **[`Text::set_text`] is the one write path, and it only ever adds `xml:space`.** After setting
+/// the text, it writes `xml:space="preserve"` when the new string starts or ends with ASCII
+/// whitespace and the element does not already preserve it: writing whitespace-bearing text without
+/// the attribute silently loses it the next time something whitespace-collapses the file (the W3C
+/// rule `xml:space`'s own prose in ECMA-376 §17.3.3.31 names — "that whitespace ... is subject to
+/// the space preservation rules currently specified in that run's scope"). Text that does not need
+/// the attribute leaves whatever `xml:space` the element carries exactly as the document wrote it.
+///
+/// Until MJXOFF-349 it also *removed* the attribute from text that no longer needed it. That
+/// rewrote markup the document carried — Word writes `xml:space="preserve"` on text with no edge
+/// whitespace freely — and the typed-edit ingest check in `xtask/src/validation/model.rs` caught it
+/// on the first fixture that did. A redundant `preserve` is harmless; a removed one is a byte the
+/// caller did not ask to change. Both halves are exercised in
+/// `crates/mjx-docx/tests/content_model.rs`.
 #[derive(
     Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
 )]
@@ -1649,7 +1654,11 @@ impl Text {
         self.empty = self.text.is_empty();
         let needs_preserve = text.starts_with(|c: char| c.is_ascii_whitespace())
             || text.ends_with(|c: char| c.is_ascii_whitespace());
-        self.set_preserve_whitespace(interner, needs_preserve.then_some(true));
+        // Add `preserve` only when the text needs it; an `xml:space` the element already carries is
+        // the document's, and text that does not need it leaves it exactly as written.
+        if needs_preserve && !matches!(self.preserve_whitespace(interner), Ok(Some(true))) {
+            self.set_preserve_whitespace(interner, Some(true));
+        }
     }
 }
 

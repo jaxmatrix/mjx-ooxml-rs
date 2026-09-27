@@ -163,6 +163,19 @@ const LEDGER: &[Entry] = &[
         reason: "The three `EG_Anchor` element kinds, told apart by element name, exactly as \
                  `AnchoredObject` above.",
     },
+    Entry {
+        file: "text/body_properties.rs",
+        ty: "TextBodyPropertiesSpec",
+        idiom: Idiom::Dispatcher,
+        reason: "A *spec* is the resolved view — the effective `a:bodyPr` after the placeholder \
+                 ladder has run — and its fields are `Option`s over effective values rather than \
+                 the element's own children. So it cannot be derived: a derive over those fields \
+                 would emit an `a:bodyPr` whose attribute set is the resolution's rather than the \
+                 file's. `to_properties` builds a real `TextBodyProperties` instead and this impl \
+                 hands the writing to that type's own derive, constructing no element of its own. \
+                 It exists so a caller holding a resolved spec can serialize without knowing two \
+                 types are involved.",
+    },
 ];
 
 // ===============================================================================================

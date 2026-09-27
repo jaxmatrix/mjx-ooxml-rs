@@ -30,7 +30,11 @@
 //! 1. [`every_workspace_member_has_a_declared_tier`] fails on a member with no entry **and** on an
 //!    entry naming no member, so the table cannot drift away from the workspace.
 //! 2. [`every_dependency_points_strictly_downward`] counts the edges it checked and refuses to pass
-//!    on none — a vacuous run is a failure, not a green.
+//!    on none — a vacuous run is a failure, not a green. It counts them **from both ends**, because
+//!    the floor of the graph and the data crates declare no dependency at all and so can only ever
+//!    be exercised as an edge's *target*; a list that only counted outgoing edges would leave
+//!    `mjx-ooxml-core`, `mjx-derive` and `mjx-tokens` unchecked in a workspace that is exactly
+//!    right, and would go on saying nothing if something later reached one of them upwards.
 //! 3. It was proved by mutation, each red naming both crates and both ranks:
 //!    `mjx-omml -> mjx-pptx` (upward, 2.2 -> 3.0), `mjx-sml -> mjx-chart` (an inversion inside the
 //!    shared-markup tier, 2.1 -> 2.2) and `mjx-chart -> mjx-vml` (equal rank, 2.2 -> 2.2, which is
@@ -62,8 +66,44 @@ enum Tier {
     /// `mjx-xml` — rank 0.1. The foundations are *not* flat: `mjx-xml` is built on
     /// `mjx-ooxml-core`'s `RawElement`/`Interner`, so it sits one step above it.
     FoundationsXml,
+    /// `mjx-tokens` — rank 0.2 (MJXOFF-156). The generated design-token table and its runtime
+    /// resolver. It is *data*: it declares no workspace dependency at all today, and its ceiling is
+    /// `mjx-ooxml-core`. The rank is about who may reach **it** — the client platform's renderer
+    /// crates, every one of which sits above the whole document graph, so a token table below
+    /// `mjx-ooxml-types` is reachable from all of them without an upward edge.
+    FoundationsTokens,
     /// `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` — rank 1.0.
     Packaging,
+    /// `mjx-text` — rank 1.5 (MJXOFF-157). Typography: face parsing and metrics, the system font
+    /// database, the metric-compatible substitution table and the per-document substitution
+    /// manifest. It sits *above* the packaging tier and *below* shared markup because it has never
+    /// heard of OOXML — a document's font *reference* is `mjx-dml`'s model of `<a:latin>`, and a
+    /// font *engine* is this, and the two meet above both. Its edges are what first exercise
+    /// `mjx-tokens`'s tier.
+    Typography,
+    /// `mjx-layout` — rank 1.6 (MJXOFF-160). The box model contract: the `BoxModel` trait, the
+    /// `FragmentTree` every box model produces, the checkpoint that makes flow layout resumable and
+    /// the spatial index that makes a hit test a query. It sits one step above `mjx-text`, which it
+    /// calls to measure text, and **below shared markup**, which is the whole point: `FragmentTree`
+    /// is the seam above which nothing has heard of OOXML, so a crate that may not name a
+    /// `.docx` must sit where it cannot reach one. Swapping the box model for a CSS or Markdown one
+    /// is what this rank buys.
+    BoxModel,
+    /// `mjx-scene` — rank 1.7 (MJXOFF-161). The display list: the command vocabulary, the paint and
+    /// effect vocabularies, the resource tables and the flat binary encoding a `FragmentTree`
+    /// becomes. It sits one step above the box model contract and **below `mjx-dml`**, and that is
+    /// the whole reason it has a rank at all.
+    ///
+    /// A reading of the stack would put it far higher — its consumers are painters, and
+    /// `docs/UI_PLATFORM_PLAN.md` §7 first wrote it at 2.6. That number is wrong, and wrong in the
+    /// way this file exists to prevent: this check only refuses an edge that points **up or
+    /// sideways**, so a `mjx-scene` above shared markup makes `mjx-scene -> mjx-dml` a legal
+    /// *downward* edge, and the guarantee the crate exists to hold — below a display list, nothing
+    /// has heard of a font, a layout algorithm or a document — would be enforced by nothing at all.
+    /// At 1.7 that edge is refused here by name, exactly as `mjx-layout`'s 1.6 refuses an edge to a
+    /// format crate. Everything `mjx-scene` actually depends on is below 1.7, so the rank costs it
+    /// nothing. **Do not raise it.**
+    DisplayList,
     /// `mjx-dml` — rank 2.0, the base of shared markup: every other markup crate may reach it.
     SharedMarkupBase,
     /// `mjx-sml` — rank 2.1. SpreadsheetML is shared markup because an embedded workbook is
@@ -72,12 +112,290 @@ enum Tier {
     SharedMarkupSpreadsheet,
     /// `mjx-chart`, `mjx-omml`, `mjx-vml` — rank 2.2.
     SharedMarkupUpper,
+    /// `mjx-geometry` — rank 2.5 (MJXOFF-202). The preset shape path tables and the
+    /// `GeometryProvider` that resolves them, which is what ends `mjx-scene`'s placeholder.
+    ///
+    /// Every other rank in this table is justified by what its crates may not *reach*. This one is
+    /// justified by what may not reach **it**, and it makes three things impossible:
+    ///
+    /// * **`mjx-scene` (1.7) cannot depend on it.** A preset path table names `ST_ShapeType`, is
+    ///   written in the guide-formula language and resolves through `mjx-dml`'s evaluator, so it
+    ///   lives at or above 2.0 — and a display list that could read one would be a display list
+    ///   that knows what a `.pptx` is. `mjx-scene` was put at 1.7 precisely so this check would
+    ///   refuse `mjx-scene -> mjx-dml` by name; at 2.5 it refuses `mjx-scene -> mjx-geometry` for
+    ///   the same arithmetic, which is what stops the provider being "just moved into `mjx-scene`"
+    ///   the first time the seam is inconvenient.
+    /// * **`mjx-layout` (1.6) cannot depend on it.** A box model issues a `GeometryRef` — a bare
+    ///   number — because it must not know what the number means. An edge from 1.6 to 2.5 would let
+    ///   it resolve its own handles and the seam would be decoration.
+    /// * **`mjx-dml` (2.0) cannot depend on it**, which keeps the fidelity model free of a
+    ///   rendering decision: how many cubics an `a:arcTo` becomes is a renderer's business, and
+    ///   `mjx-dml` resolves an arc to numbers and stops.
+    ///
+    /// **What it deliberately does not buy.** It is *below* the format tier, so `mjx-pptx` (3.0)
+    /// may legally depend on it — intended, because a format crate is allowed to know what its own
+    /// shapes look like. And it is below `mjx-paint` (5.5), so a painter could legally declare the
+    /// edge; that is the hole no rank can close at the top of the ladder, and it is closed the way
+    /// the painter's other seam is, by name in `crates/mjx-paint/tests/the_seam_holds.rs`.
+    ///
+    /// **Which half of the rule actually catches which edge, measured rather than assumed.** The
+    /// first two bullets above are true and this file is not what proves them *today*: because
+    /// `mjx-geometry` depends on `mjx-scene`, which depends on `mjx-layout`, both
+    /// `mjx-scene -> mjx-geometry` and `mjx-layout -> mjx-geometry` are **cycles**, and Cargo
+    /// refuses them before a test binary is built — exactly the division of labour this file's own
+    /// header describes. That is a stronger guarantee, not a weaker one, but it means the rank's
+    /// own work is the *acyclic* illegal edges, and those were the mutations used to prove it:
+    /// `mjx-sml -> mjx-geometry` (2.1 -> 2.5, upward, and not a cycle because nothing here reaches
+    /// SpreadsheetML) and `mjx-geometry -> mjx-pptx` (2.5 -> 3.0, upward). Both went red naming
+    /// both crates and both ranks. The rank is also what keeps the first two bullets true **if
+    /// `mjx-geometry` ever stops depending on `mjx-scene`** — a provider that answered in its own
+    /// vocabulary rather than in `ResolvedOutline` would do exactly that, and Cargo's cycle check
+    /// would go quiet on the day the architecture needed it most.
+    PresetGeometry,
     /// `mjx-pptx`, `mjx-docx`, `mjx-xlsx` — rank 3.0.
     Formats,
+    /// `mjx-session` — rank 3.5 (MJXOFF-167). The resident document: an operation journal recorded
+    /// the instant an edit happens, and a commit that serialises dirty parts on a *schedule* rather
+    /// than on every operation.
+    ///
+    /// It is above the format tier because it names all three format crates — a session holds a
+    /// `.pptx`, a `.docx` or an `.xlsx` open, and there is no way to do that from below them. It is
+    /// below the facade because `mjx-ooxml` is what projects it, and above all so that nothing in
+    /// the format tier can reach *back* into it: a format crate that could ask a session what it was
+    /// doing would be a batch library with an editor's state machine inside it.
+    ///
+    /// **What this rank deliberately does not buy, and what does the job instead.** The seam the
+    /// client platform is organised around is `mjx-layout`'s 1.6 — above a `FragmentTree`, nothing
+    /// has heard of OOXML — and a session sits far above that, so this number cannot stop editing
+    /// from becoming OOXML-shaped. What stops it is the crate's own construction: everything under
+    /// `crates/mjx-session/src/` outside `crates/mjx-session/src/ooxml/` is generic over
+    /// `ResidentDocument`, is written in `mjx-layout`'s address vocabulary, and compiles with the format crates absent
+    /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
+    /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
+    Session,
+    /// `mjx-layout-chart` — rank 3.55 (MJXOFF-178). The chart engine, and the SmartArt one: axis
+    /// scaling and tick selection, the plot-area negotiation, the geometry of every chart family,
+    /// data labels, legends, gridlines, trendlines and error bars, and the fragments all of that
+    /// becomes.
+    ///
+    /// **This rank is the whole ticket.** A chart in a `.pptx`, a `.docx` and an `.xlsx` is the same
+    /// chart — the same `c:chartSpace` part, reached three ways — so laying it out three times would
+    /// be building the largest shared subsystem in the programme three times. The three box models
+    /// sit at 3.6 and an edge between any two of them is *sideways*, which this file refuses by name;
+    /// a chart engine at 3.6 would therefore be reachable from **none** of them. At 3.55 it is
+    /// reachable from **all three**, each edge pointing strictly down, and "built once" is a fact of
+    /// the graph rather than a promise in prose.
+    ///
+    /// **What the rank buys**, in the order the argument runs:
+    ///
+    /// * **The three box models may reach it and it may reach none of them** (3.6 -> 3.55 down,
+    ///   3.55 -> 3.6 up). MJXOFF-176 hit the other half of this and reported it: it was told to
+    ///   consume MJXOFF-170's DrawingML shape layout, which lives in `mjx-layout-pptx` at 3.6, and
+    ///   the edge was sideways. A chart engine that could name one box model would be a chart engine
+    ///   the other two could not have.
+    /// * **The format tier (3.0) cannot reach it**, so `mjx-pptx` cannot grow a chart engine any
+    ///   more than it can grow a slide one. Charts are the one subsystem where that temptation is
+    ///   real, because all three format crates already own a chart *surface*.
+    /// * **`mjx-chart` (2.2) cannot reach it**, so the markup model stays a markup model: a
+    ///   `c:chartSpace` says what the file says and never says where a bar goes.
+    /// * **`mjx-session` (3.5) cannot reach it**, for the reason [`Tier::Session`] gives about the
+    ///   box models: an editing path that could ask a layout engine what it drew would be a batch
+    ///   library with a renderer inside it.
+    /// * **`mjx-layout` (1.6) cannot reach it**, so the box-model *contract* does not acquire a
+    ///   chart-shaped bulge. Everything this crate produces is said in `mjx-layout`'s vocabulary and
+    ///   nothing about charts is added to it.
+    ///
+    /// **What it deliberately does not buy.** At 3.55 every format crate, every markup crate and
+    /// `mjx-geometry` (2.5) are legal *downward* edges and always will be, so *a chart engine reads
+    /// no package and resolves no outline* is held by
+    /// `crates/mjx-layout-chart/tests/the_seam_holds.rs` and by nothing here. That gate refuses
+    /// `mjx-pptx`, `mjx-docx`, `mjx-xlsx`, `mjx-geometry`, `mjx-scene` and all three box models in
+    /// **both** dependency sections — the format crates included, because a suite that opened a
+    /// `.pptx` to get at a chart part would be a suite proving the engine can do the one thing its
+    /// position exists to stop it doing. The engine is handed the chart part's **bytes**, which is
+    /// what makes the refusal affordable: `chart_part_bytes` is already public on all three format
+    /// surfaces, so no host needs a new accessor and no host parses a chart itself.
+    LayoutChart,
+    /// `mjx-layout-pptx` — rank 3.6 (MJXOFF-169). PowerPoint's box model: the first implementation
+    /// of `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into
+    /// a `FragmentTree`.
+    ///
+    /// It is above the format tier because it **consumes** `mjx-pptx`'s effective-property ladder —
+    /// `effective_shape_bounds`, `effective_body_properties`, `effective_run_properties` — rather
+    /// than re-deriving it, and there is no way to do that from below. It is below `mjx-view` so a
+    /// viewport still cannot reach a format crate through it, and above `mjx-session` so that
+    /// nothing in the editing path can reach a layout engine.
+    ///
+    /// **What the rank buys** is one thing, and it is the one that matters most: `mjx-layout` at 1.6
+    /// cannot depend on this crate, so the box-model *contract* stays a contract rather than
+    /// quietly becoming PowerPoint's own shape. The same holds for `mjx-pptx`, which cannot grow a
+    /// layout engine, and for `mjx-dml`, which cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6,
+    /// `mjx-layout-pptx -> mjx-geometry` (2.5), `-> mjx-chart` (2.2) and `-> mjx-vml` (2.2) are all
+    /// legal *downward* edges and always will be, so the property the crate exists to hold — *a box
+    /// model says which shape at what size and never resolves an outline*, which is what keeps
+    /// `docs/UI_PLATFORM_PLAN.md` §4 L4's `GeometryProvider` swappable — is held by
+    /// `crates/mjx-layout-pptx/tests/the_seam_holds.rs` and by nothing here. That gate checks
+    /// **both** dependency sections, because a dev-dependency on `mjx-geometry` would let a test
+    /// resolve a preset path and call it proof that the box model does.
+    LayoutPresentation,
+    /// `mjx-layout-xlsx` — rank 3.6 (MJXOFF-171). Excel's box model: a worksheet's grid geometry,
+    /// its merged regions, its overflow rules and its panes, turned into a `FragmentTree`.
+    ///
+    /// **The same rank as `mjx-layout-pptx`, and that is the decision rather than an accident.** An
+    /// edge between two box models would be *sideways*, which this file refuses by name, and it is
+    /// exactly the edge that must never exist: a spreadsheet's box model has no business knowing
+    /// what a slide is, and a slide's none what a worksheet is. Word's will join them here.
+    ///
+    /// It is above the format tier for the same reason PowerPoint's is — it **consumes**
+    /// `mjx-xlsx`'s `SheetFormatting`/`SheetFormatResolver` and `mjx-sml`'s packed cell store rather
+    /// than re-deriving either — and below `mjx-view` so a viewport still reaches a `.xlsx` through
+    /// nothing.
+    ///
+    /// **What the rank buys** is the same one thing: `mjx-layout` at 1.6 cannot depend on it, so the
+    /// contract stays a contract rather than becoming a grid's shape; `mjx-sml` cannot grow a layout
+    /// engine; `mjx-xlsx` cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6 every markup crate is a
+    /// legal downward edge, so *a box model resolves no geometry and never paints* is held by
+    /// `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` — which also refuses `mjx-pptx`,
+    /// `mjx-layout-pptx` and `mjx-docx`, because the sideways refusal only covers the second of
+    /// those and the first would be a legal downward edge nobody wants.
+    LayoutSpreadsheet,
+    /// `mjx-layout-docx` — rank 3.6 (MJXOFF-174). Word's box model: a document's paragraphs, lines,
+    /// justification and pagination, turned into a `FragmentTree`. **The only one of the three that
+    /// reflows.**
+    ///
+    /// **The same rank as the other two, and for the third time that is the decision rather than an
+    /// accident.** An edge between any two box models is *sideways*, which this file refuses by
+    /// name, and it is exactly the edge that must never exist: a document's box model has no
+    /// business knowing what a slide is, a slide's none what a worksheet is, and a worksheet's none
+    /// what a document is. The prediction written on `LayoutSpreadsheet` above — *"Word's will join
+    /// them here"* — is what this variant makes true.
+    ///
+    /// It is above the format tier for the same reason the other two are: it **consumes**
+    /// `mjx-docx`'s `DocumentFormatting` — the whole effective-property ladder, resolved once for
+    /// the whole document — rather than re-deriving any rung of it. That residency was added by this
+    /// child and is the reason laying out a long document is affordable at all:
+    /// `Document::effective_paragraph_properties` re-parses `word/document.xml`, `word/styles.xml`
+    /// and the theme on **every call**, which is right for a caller asking one question and
+    /// quadratic for one asking per paragraph.
+    ///
+    /// **What the rank buys** is the same one thing: `mjx-layout` at 1.6 cannot depend on it, so the
+    /// contract — and above all its `Checkpoint`, of which this crate is the first real consumer —
+    /// stays a contract rather than becoming a document's shape; `mjx-docx` cannot grow a layout
+    /// engine and cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6 every markup crate is a
+    /// legal downward edge, so *a box model resolves no geometry and never paints* is held by
+    /// `crates/mjx-layout-docx/tests/the_seam_holds.rs` — which also refuses `mjx-pptx`, `mjx-xlsx`
+    /// and both sibling box models, and refuses `mjx-dml` besides: MJXOFF-174's own ticket lists
+    /// DrawingML as a dependency and the tree does not need it, because `mjx-docx` resolves every
+    /// theme reference before a value reaches the box model.
+    LayoutDocument,
+    /// `mjx-scene-pptx` — rank 3.7 (MJXOFF-170). PowerPoint's companion to the box model: the
+    /// `ResourceResolver` that turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints,
+    /// strokes and effects, and the `GeometryProvider` that turns its outline handles into
+    /// `mjx-geometry`'s preset paths.
+    ///
+    /// **It exists because `mjx-layout-pptx`'s own seam gate forbids the edge that would have made
+    /// it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *"the box
+    /// model's companion — the layer that issued the handles"*, and for PowerPoint that layer is the
+    /// box model itself; but `crates/mjx-layout-pptx/tests/the_seam_holds.rs` refuses `mjx-scene`
+    /// there by name, on the ground that a box model which built a display list would have merged
+    /// two stages the architecture separates on purpose. That gate is right, so the resolver got a
+    /// crate.
+    ///
+    /// **3.7 is the only rank it can have.** It must name `mjx-layout-pptx` (3.6) for the handles,
+    /// `mjx-scene` (1.7) for what they resolve into and `mjx-geometry` (2.5) for the outlines — one
+    /// step above the highest of the three — and it must stay below `mjx-view` (3.8), or a viewport
+    /// would reach PowerPoint through it and stop being format-agnostic.
+    ///
+    /// **What the rank does not buy**, as everywhere else in this ladder: at 3.7 every format crate
+    /// is a legal downward edge. *A resolver reads no document* is held by
+    /// `crates/mjx-scene-pptx/tests/the_seam_holds.rs`, which refuses `mjx-pptx` in
+    /// `[dependencies]` — and permits it in `[dev-dependencies]`, because a suite that proves a real
+    /// deck's fills resolve has to open one.
+    ScenePresentation,
+    /// `mjx-scene-xlsx` — rank 3.7 (MJXOFF-244). Excel's companion to the box model: the
+    /// `ResourceResolver` that turns the handles `mjx-layout-xlsx` issued into `mjx-scene`'s fills —
+    /// a cell's pattern or gradient, a border band's colour, and a run's own font colour.
+    ///
+    /// **It exists for the same reason `mjx-scene-pptx` does, run again on the same seam rather than
+    /// by analogy to it.** `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene`
+    /// there by name, on the ground that a box model which built a display list would have merged
+    /// two stages the architecture separates on purpose. That gate is right, so the resolver got a
+    /// crate.
+    ///
+    /// **The same rank as `mjx-scene-pptx`, and that is the decision rather than an accident.** It
+    /// must name the box model (3.6) for the handles and the display list (1.7) for what they
+    /// resolve into, so 3.7 is the lowest rank available; it must stay below `mjx-view` (3.8) or a
+    /// viewport would reach Excel through it. Sharing the rank with PowerPoint's companion makes an
+    /// edge between the two **sideways**, which this file refuses by name — exactly as it does
+    /// between the two box models at 3.6, and for the same reason: a spreadsheet's resolver has no
+    /// business knowing what a slide is, and a slide's none what a worksheet is. The two formats
+    /// meet at `mjx-scene`, which is the whole point of there being a display list.
+    ///
+    /// **What the rank buys**, beyond that refusal: `mjx-layout-xlsx` cannot grow a display-list
+    /// builder, `mjx-sml` cannot learn what a paint is, and `mjx-scene` cannot learn what a `.xlsx`
+    /// is.
+    ///
+    /// **What it deliberately does not buy.** At 3.7 every format crate is a legal downward edge, so
+    /// *a resolver reads no document* is held by `crates/mjx-scene-xlsx/tests/the_seam_holds.rs`,
+    /// which refuses `mjx-xlsx` in `[dependencies]` — and permits it in `[dev-dependencies]`,
+    /// because a suite that proves a real workbook's fills resolve has to open one. **It also does
+    /// not buy the *absence* of `mjx-geometry`**: 2.5 is below 3.7, so that edge is legal and always
+    /// will be. The crate does not declare it because a worksheet's fragment tree carries no
+    /// `ShapeFragment` at all — a cell is a rectangle and so is a border band — and its
+    /// `SheetGeometry` therefore refuses every handle rather than standing in. When MJXOFF-173 puts
+    /// `xdr:twoCellAnchor` drawings on a sheet, that edge is the one it will add, and the manifest
+    /// gate is where the addition has to be argued.
+    SceneSpreadsheet,
+    /// `mjx-view` — rank 3.8 (MJXOFF-168). Viewport windowing, byte-budgeted per-stage caches and
+    /// frame scheduling: the layer that makes a four-hundred-page document behave.
+    ///
+    /// It is above `mjx-session` because it consumes that crate's invalidation stream — the session
+    /// says what an edit dirtied and this crate drops exactly that, rather than diffing a document —
+    /// and below the facade because `mjx-ooxml` is what will project it, behind a non-default
+    /// `render` feature. What the rank buys is the same one thing `mjx-session`'s buys: nothing at
+    /// or below rank 3.5 can reach a viewport, so a `.pptx` reader with a scroll position inside it
+    /// is structurally impossible.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.8,
+    /// `mjx-view -> mjx-pptx` (3.0), `mjx-view -> mjx-dml` (2.0) and `mjx-view -> mjx-geometry`
+    /// (2.5) are all legal *downward* edges and always will be, so the property the crate exists to
+    /// hold — *a viewport has never heard of OOXML* — is held by its own construction and by
+    /// `crates/mjx-view/tests/the_seam_holds.rs`, and by nothing here. The construction is worth
+    /// naming because it is stronger than a scan: the crate is generic over `BoxModel` and
+    /// `SceneSource` and names no implementation of either, and it declares `mjx-session` with
+    /// `default-features = false`, so a plain `cargo test -p mjx-view` is a build in which the three
+    /// format crates are **not present** and a line that reached one would not compile.
+    Viewport,
     /// `mjx-ooxml` — rank 4.0.
     Facade,
     /// `bindings/*` — rank 5.0. Nothing may depend on a binding.
     Bindings,
+    /// `mjx-paint` — rank 5.5 (MJXOFF-163). **The platform boundary**: the `Painter` contract, the
+    /// `SurfaceHost` contract and the `wgpu` painter.
+    ///
+    /// Its rank sits **above the facade**, and that is the whole of what the rank buys — it says
+    /// who may reach *it*, and the answer is nothing in the document graph. No format crate, no
+    /// `mjx-ooxml`, and above all no binding can declare an edge to a crate that links Vulkan,
+    /// Metal or Direct3D; `bindings/mjx-python` must never grow a GPU dependency, and at 5.5 it
+    /// structurally cannot. **Do not lower it**: below the format tier the formats and the facade
+    /// would sit *above* it and could legally depend on it, which is the outcome this position
+    /// exists to prevent.
+    ///
+    /// **What the rank does not buy is the other direction, and this is worth reading before
+    /// relying on it.** This file refuses only an edge that points up or sideways, so at 5.5 every
+    /// crate in the workspace is a legal dependency of `mjx-paint` — `mjx-dml`, the format crates,
+    /// `mjx-text`, `mjx-layout`, all of them. The architecture's second seam (*below a display
+    /// list, nothing has heard of a font, a layout algorithm or a document*) is therefore held for
+    /// that crate by an explicit manifest gate, `crates/mjx-paint/tests/the_seam_holds.rs`, and by
+    /// nothing else. `mjx-scene` got 1.7 so this file could refuse its illegal edge by name; **no
+    /// rank can do the same job for a painter, in either direction.**
+    PlatformBoundary,
     /// `mjx-fixtures`: the committed corpus, **no dependencies at all**, so `mjx-opc`'s own suites
     /// can reach it without an upward edge. Outside the shipped graph.
     TestCorpus,
@@ -89,17 +407,113 @@ enum Tier {
     /// fuzz campaign and `mjx-sml`'s allocation gate) and nothing may depend on `xtask`. Outside
     /// the shipped graph.
     TestInstrument,
+    /// `mjx-reference-pack` (MJXOFF-207): the artefacts one Windows sitting needs, and the harness
+    /// that ingests what comes back. Outside the shipped graph, and outside it in the **opposite**
+    /// direction from the three above.
+    ///
+    /// `mjx-fixtures` and `mjx-allocation-counter` have no rank because they must be reachable from
+    /// *everywhere*, so they declare no dependencies at all. This one has no rank because it sits at
+    /// the **top**: it names the format tier (to author a `.pptx` and a `.docx`), `mjx-geometry` (to
+    /// know what a preset shape is) and `mjx-paint` (to export and rasterise our own side of a
+    /// comparison), which is a set of edges no shipped crate could legally declare together —
+    /// `mjx-paint` is rank 5.5 and `mjx-pptx` is 3.0, so a crate depending on both would have to be
+    /// above 5.5, and above 5.5 is where nothing in the document graph may go.
+    ///
+    /// **Giving it a rank of 6.0 would have been wrong**, and worth saying why: a rank is a promise
+    /// about who may reach *it*, and the answer for this crate is *nobody, ever*. That is stronger
+    /// than any rank can express and it is enforced directly, by
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`], which refuses the
+    /// edge from any ranked crate in either dependency section — a stricter rule than the one the
+    /// other three test-only crates live under, since those are legitimately `dev-dependencies` of
+    /// shipped crates and this is a dependency of nothing at all.
+    ReferencePack,
+    /// `mjx-render-oracle` (MJXOFF-165): the fidelity oracle — the three assertion tiers, the
+    /// perceptual metric, the committed baselines and their approval events, and the plate gallery.
+    /// Outside the shipped graph, at the top, one step **below** [`Tier::ReferencePack`].
+    ///
+    /// It is a rung of its own rather than a second `ReferencePack`, because the two live under
+    /// different rules and the difference is the reason the crate was split out at all. The pack
+    /// names the format tier — it authors a `.pptx` and a `.docx` — and **nothing may depend on
+    /// it**. The oracle names no format crate: it is `FragmentTree`, `DisplayList`, the geometry
+    /// provider and the painters, which is the rendering path with no document anywhere in it. That
+    /// is what lets exactly one crate depend on it.
+    ///
+    /// **No crate with a rank may reach it, in either section**, and
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`] is what refuses the
+    /// edge — including, deliberately, one from a ranked crate's `[dev-dependencies]`, which is the
+    /// section the other three test-only crates legitimately live in. A shipped crate that
+    /// dev-depended on this would pull `mjx-paint`, and therefore a graphics stack, into its test
+    /// build; a test build that links Vulkan is still a build that links Vulkan.
+    ///
+    /// **What it may have is a consumer above the graph, and that is the point.** MJXOFF-165 needed
+    /// the authority vocabulary MJXOFF-207 had already written — `ReferenceProvider`, the
+    /// three-state `Verdict`, the provider-attached exclusions — and the rule against a second
+    /// answer to *"how much is this reference worth"* is the same rule that put `ReferenceAuthority`
+    /// in `mjx-text` rather than in two crates. Since nothing may depend on the pack, the vocabulary
+    /// moved **down** into the oracle and the pack re-exports it. MJXOFF-166's canvas harness is
+    /// specified to reach the plate generator here rather than write a second PNG emitter, and it
+    /// will be the second such consumer; a rule that named `mjx-reference-pack` and nothing else
+    /// would have made that child amend this file before it could start.
+    ///
+    /// **Giving it a rank would have been wrong**, for the reason the pack's own comment gives: a
+    /// rank is a promise about who may reach it, and the answer here is *one named crate*, which is
+    /// not something a number can say.
+    RenderOracle,
+    /// `mjx-canvas-harness` (MJXOFF-166): the manual audit harness for the sixty-one in-canvas UI
+    /// elements. Outside the shipped graph, at the top, beside [`Tier::ReferencePack`] and above
+    /// [`Tier::RenderOracle`].
+    ///
+    /// It is a rung of its own rather than a second `ReferencePack` for the same reason the oracle
+    /// is: the two live under different rules. The pack names the format tier and nothing may reach
+    /// it; this crate names **no** format crate and no geometry table — it is the rendering path
+    /// with no document in it, exactly like the oracle — and it reaches
+    /// [`Tier::RenderOracle`] for the PNG encoder, the plate manifest and the baseline store.
+    ///
+    /// **It is the second consumer the oracle's rule was widened for**, and the first consumer of
+    /// the plate generator itself: `mjx-reference-pack` depends on the oracle for its authority
+    /// vocabulary and never renders a plate through it, so before this crate existed the
+    /// *permitted* direction of that rule was asserted and unexercised.
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`] now asserts both
+    /// edges by name.
+    ///
+    /// **Nothing may depend on it, in either section.** It is an application, not a library: it
+    /// reaches the platform boundary and the oracle together, which is a pair no ranked crate may
+    /// declare, and an edge into it would drag both into whatever declared it.
+    CanvasHarness,
     /// `xtask`: a host-only developer binary nothing depends on, so it may reach anything.
     Tooling,
 }
 
-/// A tier's position in the ladder, as `major.minor`. Ordered, and compared strictly.
+/// A tier's position in the ladder, as a major number and a **fraction in hundredths**. Ordered, and
+/// compared strictly.
+///
+/// # Why the fraction is hundredths and not tenths, which is a defect this file used to have
+///
+/// It held `major` and a bare `minor`, written `Rank(3, 6)` for 3.6, with a derived `Ord` comparing
+/// the pair. That is correct for exactly as long as every fraction has one digit, and MJXOFF-178 is
+/// the first rank with two: `mjx-layout-chart` sits at **3.55**, below the three box models at 3.6,
+/// and `Rank(3, 55)` compares **greater** than `Rank(3, 6)` because 55 is greater than 6. The gate
+/// went red naming `mjx-layout-pptx -> mjx-layout-chart` as *upward*, which is this file working —
+/// but a two-digit fraction was always going to arrive eventually, and the next one would have
+/// arrived the same way.
+///
+/// So the fraction is stated in hundredths at every call site: `Rank(3, 50)` is 3.5, `Rank(3, 55)`
+/// is 3.55 and `Rank(3, 60)` is 3.6, and the three now order the way a reader reads them.
+/// [`Display`](fmt::Display) trims the trailing zero, so a failure message still says `3.6` rather
+/// than `3.60` — the numbers in `CLAUDE.md`'s table are unchanged, and this is a change to how they
+/// are stored rather than to what they are.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Rank(u8, u8);
 
 impl fmt::Display for Rank {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.0, self.1)
+        // 50 -> "5", 55 -> "55", 0 -> "0". A hundredths fraction whose second digit is zero is a
+        // tenths fraction, and that is how every rank but one is written.
+        match self.1 {
+            0 => write!(f, "{}.0", self.0),
+            hundredths if hundredths % 10 == 0 => write!(f, "{}.{}", self.0, hundredths / 10),
+            hundredths => write!(f, "{}.{hundredths}", self.0),
+        }
     }
 }
 
@@ -109,17 +523,35 @@ impl Tier {
     fn rank(self) -> Option<Rank> {
         Some(match self {
             Self::FoundationsCore => Rank(0, 0),
-            Self::FoundationsXml => Rank(0, 1),
+            Self::FoundationsXml => Rank(0, 10),
+            Self::FoundationsTokens => Rank(0, 20),
             Self::Packaging => Rank(1, 0),
+            Self::Typography => Rank(1, 50),
+            Self::BoxModel => Rank(1, 60),
+            Self::DisplayList => Rank(1, 70),
             Self::SharedMarkupBase => Rank(2, 0),
-            Self::SharedMarkupSpreadsheet => Rank(2, 1),
-            Self::SharedMarkupUpper => Rank(2, 2),
+            Self::SharedMarkupSpreadsheet => Rank(2, 10),
+            Self::SharedMarkupUpper => Rank(2, 20),
+            Self::PresetGeometry => Rank(2, 50),
             Self::Formats => Rank(3, 0),
+            Self::Session => Rank(3, 50),
+            Self::LayoutChart => Rank(3, 55),
+            Self::LayoutPresentation => Rank(3, 60),
+            Self::LayoutSpreadsheet => Rank(3, 60),
+            Self::LayoutDocument => Rank(3, 60),
+            Self::ScenePresentation => Rank(3, 70),
+            Self::SceneSpreadsheet => Rank(3, 70),
+            Self::Viewport => Rank(3, 80),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
-            Self::TestCorpus | Self::TestGate | Self::TestInstrument | Self::Tooling => {
-                return None
-            }
+            Self::PlatformBoundary => Rank(5, 50),
+            Self::TestCorpus
+            | Self::TestGate
+            | Self::TestInstrument
+            | Self::ReferencePack
+            | Self::RenderOracle
+            | Self::CanvasHarness
+            | Self::Tooling => return None,
         })
     }
 
@@ -128,16 +560,33 @@ impl Tier {
         match self {
             Self::FoundationsCore => "foundations, core",
             Self::FoundationsXml => "foundations, XML",
+            Self::FoundationsTokens => "foundations, design tokens",
             Self::Packaging => "packaging/compatibility",
+            Self::Typography => "typography",
+            Self::BoxModel => "box model contract",
+            Self::DisplayList => "display list",
             Self::SharedMarkupBase => "shared markup, base",
             Self::SharedMarkupSpreadsheet => "shared markup, spreadsheet",
             Self::SharedMarkupUpper => "shared markup, upper",
+            Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
+            Self::Session => "the resident document",
+            Self::LayoutChart => "the chart engine",
+            Self::LayoutPresentation => "the box models",
+            Self::LayoutSpreadsheet => "the box models",
+            Self::LayoutDocument => "the box models",
+            Self::ScenePresentation => "the scene companions",
+            Self::SceneSpreadsheet => "the scene companions",
+            Self::Viewport => "the viewport",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
+            Self::PlatformBoundary => "platform boundary",
             Self::TestCorpus => "test-only corpus (outside the shipped graph)",
             Self::TestGate => "test-only gate (outside the shipped graph)",
             Self::TestInstrument => "test-only instrument (outside the shipped graph)",
+            Self::ReferencePack => "test-only reference pack (above the shipped graph)",
+            Self::RenderOracle => "test-only fidelity oracle (above the shipped graph)",
+            Self::CanvasHarness => "test-only canvas UI harness (above the shipped graph)",
             Self::Tooling => "host-only tooling (outside the shipped graph)",
         }
     }
@@ -158,23 +607,40 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-ooxml-core", Tier::FoundationsCore),
     ("mjx-derive", Tier::FoundationsCore),
     ("mjx-xml", Tier::FoundationsXml),
+    ("mjx-tokens", Tier::FoundationsTokens),
     ("mjx-ooxml-types", Tier::Packaging),
     ("mjx-opc", Tier::Packaging),
     ("mjx-mce", Tier::Packaging),
+    ("mjx-text", Tier::Typography),
+    ("mjx-layout", Tier::BoxModel),
+    ("mjx-scene", Tier::DisplayList),
     ("mjx-dml", Tier::SharedMarkupBase),
     ("mjx-sml", Tier::SharedMarkupSpreadsheet),
     ("mjx-chart", Tier::SharedMarkupUpper),
     ("mjx-omml", Tier::SharedMarkupUpper),
     ("mjx-vml", Tier::SharedMarkupUpper),
+    ("mjx-geometry", Tier::PresetGeometry),
     ("mjx-pptx", Tier::Formats),
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
+    ("mjx-session", Tier::Session),
+    ("mjx-layout-chart", Tier::LayoutChart),
+    ("mjx-layout-pptx", Tier::LayoutPresentation),
+    ("mjx-layout-xlsx", Tier::LayoutSpreadsheet),
+    ("mjx-layout-docx", Tier::LayoutDocument),
+    ("mjx-scene-pptx", Tier::ScenePresentation),
+    ("mjx-scene-xlsx", Tier::SceneSpreadsheet),
+    ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),
     ("mjx-wasm", Tier::Bindings),
+    ("mjx-paint", Tier::PlatformBoundary),
     ("mjx-fixtures", Tier::TestCorpus),
     ("mjx-schema-gate", Tier::TestGate),
     ("mjx-allocation-counter", Tier::TestInstrument),
+    ("mjx-render-oracle", Tier::RenderOracle),
+    ("mjx-reference-pack", Tier::ReferencePack),
+    ("mjx-canvas-harness", Tier::CanvasHarness),
     ("xtask", Tier::Tooling),
 ];
 
@@ -420,7 +886,8 @@ fn squeeze(text: &str) -> String {
 fn every_dependency_points_strictly_downward() {
     let members = workspace();
     let mut checked = 0usize;
-    let mut per_tier: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut per_source_tier: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut per_target_tier: BTreeMap<&str, usize> = BTreeMap::new();
 
     for member in &members {
         let Some(tier) = tier_of(&member.name) else {
@@ -466,49 +933,94 @@ fn every_dependency_points_strictly_downward() {
                 },
             );
             checked += 1;
-            *per_tier.entry(tier.label()).or_default() += 1;
+            *per_source_tier.entry(tier.label()).or_default() += 1;
+            *per_target_tier.entry(target_tier.label()).or_default() += 1;
         }
     }
 
     // A tier table no edge exercises is satisfied by a graph that never had a violation. These
     // floors are not a guess about workspace size: they are what the shipped graph carries today,
     // and a change that empties one of them is a change worth failing on.
+    //
+    // The check has **two** halves, because a tier can be exercised from either end and not every
+    // tier can be exercised from both.
+    //
+    // * `foundations, core` and `foundations, design tokens` declare no workspace dependency at all
+    //   — they are the floor and the data crate — so no edge ever *leaves* them, and listing them in
+    //   the first list would fail on a workspace that is exactly right. What can be asserted about
+    //   them is that something reaches them, which is the second list's job. MJXOFF-156 left a note
+    //   asking MJXOFF-157 to add `foundations, design tokens` to the exercised-tier list;
+    //   `mjx-text -> mjx-tokens` is that edge, and the second list is the one it belongs in.
+    // * `bindings` and `platform boundary` sit at the top and nothing may reach them — the former
+    //   by `nothing_depends_on_a_binding_or_on_the_tooling`, the latter because every crate that
+    //   would is in the document graph and must never link a GPU — so they appear only in the first
+    //   list.
+    // * `preset geometry` is in the first list only, and for a reason that will expire: MJXOFF-202
+    //   creates `mjx-geometry` and **nothing depends on it yet**, because its consumer is the
+    //   application in the second loop. Adding it to the incoming list today would fail on a
+    //   workspace that is exactly right, which is the same reason MJXOFF-161 left `display list`
+    //   out of that list and MJXOFF-163 put it in. The child that gives it a consumer adds it.
+    // * Everything between is in both. `display list` was added to the *incoming* list by
+    //   MJXOFF-163, which is the first child to depend on `mjx-scene`: MJXOFF-161 deliberately left
+    //   it out because nothing depended on the crate yet and the assertion would have failed, and
+    //   MJXOFF-162 was the same crate. `box model` was added by MJXOFF-161 for the same reason one
+    //   child earlier.
     assert!(
         checked >= 50,
         "only {checked} edges were checked, which is fewer than the shipped graph has — the walk \
          is not reaching the manifests"
     );
-    // Which tiers must have been exercised is **derived from `TIERS`**, not listed: every ranked
-    // tier except the lowest, because rank 0.0 is the floor of the workspace and declares no
-    // workspace dependency to check. Until MJXOFF-225 this was eight labels written out, which was
-    // the whole ranked set minus the floor when it was written and would have stayed eight the day
-    // a tenth rank appeared — the shape MJXOFF-224 found in `child_order.rs`.
-    let mut ranked: Vec<Tier> = Vec::new();
-    for (_, tier) in TIERS {
-        if tier.rank().is_some() && !ranked.iter().any(|known| known.label() == tier.label()) {
-            ranked.push(*tier);
-        }
-    }
-    ranked.sort_by_key(|tier| tier.rank());
-    assert!(
-        ranked.len() >= 6,
-        "only {} ranked tier(s) were read out of TIERS; the tier table has stopped matching and \
-         this exercise check would assert almost nothing",
-        ranked.len()
-    );
-    let floor = ranked.remove(0);
-    for tier in &ranked {
+    // ⚠ **MJXOFF-225 derived this list from `TIERS` instead of writing it out, and that
+    // derivation does not survive the client platform.** It removed the single lowest-ranked tier
+    // — rank 0.0, the floor, which declares no workspace dependency — and asserted an outgoing
+    // edge for every tier above it. That was exact for the document graph. It is wrong here,
+    // because `foundations, design tokens` (rank 0.2) also declares **no workspace dependency at
+    // all**: `mjx-tokens` is generated data whose ceiling is `mjx-ooxml-core` and which reaches
+    // nothing. A derived list would demand an edge out of it and fail on a workspace that is
+    // exactly right. Two dependency-free tiers cannot be found by taking the first one, so the
+    // lists stay written out and the reason is here rather than in a ticket.
+    for tier in [
+        "foundations, XML",
+        "packaging/compatibility",
+        "typography",
+        "box model contract",
+        "display list",
+        "shared markup, base",
+        "shared markup, spreadsheet",
+        "shared markup, upper",
+        "preset geometry",
+        "formats",
+        "facade",
+        "bindings",
+        "platform boundary",
+    ] {
         assert!(
-            per_tier.get(tier.label()).copied().unwrap_or_default() > 0,
-            "not one edge out of the `{}` tier was checked; the rule is unexercised there",
-            tier.label()
+            per_source_tier.get(tier).copied().unwrap_or_default() > 0,
+            "not one edge out of the `{tier}` tier was checked; the rule is unexercised there"
+        );
+    }
+    for tier in [
+        "foundations, core",
+        "foundations, XML",
+        "foundations, design tokens",
+        "packaging/compatibility",
+        "typography",
+        "box model contract",
+        "display list",
+        "shared markup, base",
+        "shared markup, spreadsheet",
+        "shared markup, upper",
+        "formats",
+    ] {
+        assert!(
+            per_target_tier.get(tier).copied().unwrap_or_default() > 0,
+            "not one edge *into* the `{tier}` tier was checked; nothing in the workspace reaches \
+             it, so its rank constrains nothing"
         );
     }
     println!(
-        "layering: {checked} workspace edges checked, all downward, exercising all {} ranked \
-         tier(s) above `{}`: {per_tier:?}",
-        ranked.len(),
-        floor.label()
+        "layering: {checked} workspace edges checked, all downward. Out of: {per_source_tier:?}. \
+         Into: {per_target_tier:?}."
     );
 }
 
@@ -528,6 +1040,61 @@ fn nothing_depends_on_a_binding_or_on_the_tooling() {
                 target_tier.describe(),
             );
         }
+    }
+}
+
+/// The rank arithmetic itself, because a rank that sorts wrongly makes every other test in this
+/// file assert the wrong thing (MJXOFF-178).
+///
+/// This is the assertion the old `Rank` would have failed: it compared its fraction as an integer,
+/// so 3.55 sorted *above* 3.6 and the chart engine's edge from a box model read as upward. The
+/// failure was loud, but it was loud only because a crate happened to be added at a two-digit rank —
+/// the arithmetic had been wrong for as long as the type had existed and nothing checked it.
+#[test]
+fn a_two_digit_fraction_sorts_and_prints_the_way_a_reader_reads_it() {
+    assert!(
+        Rank(3, 55) < Rank(3, 60),
+        "3.55 is below 3.6, which is the whole reason `mjx-layout-chart` can be reached by all \
+         three box models"
+    );
+    assert!(Rank(3, 50) < Rank(3, 55));
+    assert!(Rank(3, 60) < Rank(3, 70));
+    assert!(Rank(2, 50) < Rank(3, 0));
+
+    // And a message says the number the table says.
+    assert_eq!(Rank(3, 55).to_string(), "3.55");
+    assert_eq!(Rank(3, 60).to_string(), "3.6");
+    assert_eq!(Rank(3, 50).to_string(), "3.5");
+    assert_eq!(Rank(0, 10).to_string(), "0.1");
+    assert_eq!(Rank(3, 0).to_string(), "3.0");
+}
+
+/// **All three box models really do reach the chart engine** (MJXOFF-178).
+///
+/// Every other assertion in this file is a *refusal*: it says which edges may not exist. This one
+/// says which edges must, and it is here because R23's premise cannot be checked any other way from
+/// the graph.
+///
+/// The engine's rank at 3.55 makes it *possible* for all three box models to reach it and impossible
+/// for it to reach them, which is what makes "a chart is laid out once" structurally available. It
+/// does not make it *true*: a box model that quietly stopped declaring the edge and grew a chart
+/// implementation of its own would satisfy every rank rule in this file and every refusal in
+/// `crates/mjx-layout-chart/tests/the_seam_holds.rs`. The behavioural half is
+/// `xtask/tests/one_engine_three_formats.rs`, which compares what the three actually draw; this is
+/// the structural half, and it fails first and with a shorter message.
+#[test]
+fn all_three_box_models_reach_the_one_chart_engine() {
+    let members = workspace();
+    for consumer in ["mjx-layout-pptx", "mjx-layout-docx", "mjx-layout-xlsx"] {
+        let member = members
+            .iter()
+            .find(|member| member.name == consumer)
+            .unwrap_or_else(|| panic!("`{consumer}` is a workspace member"));
+        assert!(
+            member.edges.iter().any(|(target, kind)| target == "mjx-layout-chart"
+                && *kind == Kind::Normal),
+            "`{consumer}` does not declare `mjx-layout-chart` in `[dependencies]`. A chart in a              `.pptx`, a chart in a `.docx` and a chart on an `.xlsx` sheet are the same chart, and              a box model that stopped reaching the one engine would be a box model that had grown              a second one."
+        );
     }
 }
 
@@ -576,6 +1143,116 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
         }
     }
 
+    // **Nothing at all may depend on the reference pack, in either section.** It sits above every
+    // ranked crate — it names `mjx-pptx` (3.0) and `mjx-paint` (5.5) together, which no shipped
+    // crate could legally do — so an edge into it would drag the platform boundary into whatever
+    // declared it. This is stricter than the rule the other three test-only crates live under,
+    // because those are legitimately `dev-dependencies` of shipped crates and this is a dependency
+    // of nothing.
+    for member in &members {
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            assert!(
+                target_tier != Tier::ReferencePack,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and nothing may depend on it \
+                 in any section: it is the top of the workspace, and an edge into it would pull the \
+                 format tier and the platform boundary into whatever declared it",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+            );
+        }
+    }
+
+    // **No *ranked* crate may reach the fidelity oracle, in either dependency section.** The rule is
+    // stricter than the one the corpus, the gate and the instrument live under — those are
+    // legitimately `dev-dependencies` of shipped crates — because this crate depends on `mjx-paint`
+    // at rank 5.5, so any edge into it drags a graphics stack into whatever declared it. A
+    // `[dev-dependencies]` entry is no exemption: a test build that links Vulkan is still a test
+    // build that links Vulkan.
+    //
+    // It is *looser* than the reference pack's rule, which admits no consumer at all, and the
+    // looseness is deliberate rather than an oversight. **The oracle is meant to be consumed by the
+    // crates above the graph**: `mjx-reference-pack` needs the authority vocabulary it owns — a
+    // second copy of *"how much is this reference worth"* in one workspace would be one answer too
+    // many — and MJXOFF-166's canvas harness is specified to reach its plate generator rather than
+    // write a second PNG emitter. A rule that named `mjx-reference-pack` and nothing else would
+    // force that child to re-litigate this file before it could start, which is exactly the shape
+    // of hand-off this programme is trying not to leave.
+    //
+    // What the rule is actually about is therefore stated as what it is about: **a rank**. A crate
+    // with one is in the document graph and may not link a graphics stack; a crate without one is
+    // already above the whole graph and may.
+    for member in &members {
+        let source_has_a_rank = tier_of(&member.name).is_some_and(|tier| tier.rank().is_some());
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            if target_tier != Tier::RenderOracle {
+                continue;
+            }
+            assert!(
+                !source_has_a_rank,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and no crate with a rank may \
+                 reach it in any section — a `[dev-dependencies]` entry included. It depends on \
+                 `mjx-paint` at rank 5.5, so the edge would pull a graphics stack into `{}`'s own \
+                 build. Only a crate that is itself above the whole document graph may consume it.",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+                member.name,
+            );
+        }
+    }
+
+    // **Nothing at all may depend on the canvas harness either, in either section** (MJXOFF-166).
+    // It is an application rather than a library, and it names the platform boundary and the
+    // fidelity oracle together — the same shape of edge set that keeps the reference pack at the
+    // top — so an edge into it would drag both into whatever declared it.
+    for member in &members {
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            assert!(
+                target_tier != Tier::CanvasHarness,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and nothing may depend on it \
+                 in any section: it is an application at the top of the workspace, and an edge into \
+                 it would pull the platform boundary and the fidelity oracle into whatever declared \
+                 it",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+            );
+        }
+    }
+
+    // And the edges that must **exist**, so the exception above is not a hole nothing exercises. A
+    // rule written for one consumer, with no consumer, is a rule that would go on passing if the
+    // crate it governs were deleted.
+    //
+    // There are **two** consumers now, and they exercise different halves of the same permission.
+    // `mjx-reference-pack` reaches the oracle for the authority vocabulary it used to own; the
+    // canvas harness reaches it for the plate generator, the PNG encoder and the baseline store,
+    // which is the half MJXOFF-165 shipped asserted-but-unconsumed. Both are named, because a rule
+    // whose only exercised consumer uses one module would go quiet the day the other module lost
+    // its last caller.
+    for consumer in ["mjx-reference-pack", "mjx-canvas-harness"] {
+        let member = members
+            .iter()
+            .find(|member| member.name == consumer)
+            .unwrap_or_else(|| panic!("the workspace has `{consumer}`"));
+        assert!(
+            member
+                .edges
+                .iter()
+                .any(|(target, _)| target == "mjx-render-oracle"),
+            "`{consumer}` no longer depends on `mjx-render-oracle`, so the exception above is that \
+             much less exercised — and an unexercised exception is one nobody would notice going \
+             wrong"
+        );
+    }
+
     // The other half of "outside the graph": no shipped crate may *ship* one of them.
     for member in &members {
         let Some(tier) = tier_of(&member.name) else {
@@ -604,305 +1281,13 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
     }
 }
 
-/// Just enough JSON to read `cargo metadata`.
+/// Just enough JSON to read `cargo metadata`, shared with the design-token generator.
 ///
-/// `xtask` carries no JSON dependency and this is the only place in the workspace that wants one, so
-/// the reader is here rather than in the dependency graph. It is a complete value parser — not a
-/// scan for the fields of interest — because a scanner that misreads a nested string is a scanner
-/// that drops an edge, and dropping an edge is exactly how this gate would pass without doing
-/// anything.
-mod json {
-    /// A parsed JSON value.
-    ///
-    /// Booleans and numbers are recognised and **discarded**: `cargo metadata` has plenty of both
-    /// and this file reads none of them, so keeping their payloads would be a field nothing ever
-    /// looks at. They still have to be *parsed*, because a value skipped rather than parsed is a
-    /// value whose end is a guess.
-    pub(crate) enum Value {
-        Null,
-        Bool,
-        Number,
-        String(String),
-        Array(Vec<Value>),
-        Object(Vec<(String, Value)>),
-    }
-
-    impl Value {
-        /// The value at `key`, if this is an object that has one and it is not `null`.
-        pub(crate) fn get(&self, key: &str) -> Option<&Value> {
-            match self {
-                Value::Object(members) => members
-                    .iter()
-                    .find(|(name, _)| name == key)
-                    .map(|(_, value)| value)
-                    .filter(|value| !matches!(value, Value::Null)),
-                _ => None,
-            }
-        }
-
-        /// This value's elements, if it is an array.
-        pub(crate) fn array(&self) -> Option<&[Value]> {
-            match self {
-                Value::Array(items) => Some(items),
-                _ => None,
-            }
-        }
-
-        /// This value's text, if it is a string.
-        pub(crate) fn string(&self) -> Option<&str> {
-            match self {
-                Value::String(text) => Some(text),
-                _ => None,
-            }
-        }
-    }
-
-    /// Parses a whole JSON document, or reports the byte offset it gave up at.
-    pub(crate) fn parse(text: &str) -> Result<Value, String> {
-        let bytes = text.as_bytes();
-        let mut at = 0;
-        let value = value(bytes, &mut at)?;
-        skip_whitespace(bytes, &mut at);
-        if at != bytes.len() {
-            return Err(format!("trailing input at byte {at}"));
-        }
-        Ok(value)
-    }
-
-    fn skip_whitespace(bytes: &[u8], at: &mut usize) {
-        while *at < bytes.len() && matches!(bytes[*at], b' ' | b'\t' | b'\n' | b'\r') {
-            *at += 1;
-        }
-    }
-
-    fn expect(bytes: &[u8], at: &mut usize, byte: u8) -> Result<(), String> {
-        if bytes.get(*at) == Some(&byte) {
-            *at += 1;
-            Ok(())
-        } else {
-            Err(format!(
-                "expected `{}` at byte {at}",
-                char::from(byte),
-                at = *at
-            ))
-        }
-    }
-
-    fn value(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        skip_whitespace(bytes, at);
-        match bytes.get(*at) {
-            Some(b'{') => object(bytes, at),
-            Some(b'[') => array(bytes, at),
-            Some(b'"') => string(bytes, at).map(Value::String),
-            Some(b't') => literal(bytes, at, "true").map(|()| Value::Bool),
-            Some(b'f') => literal(bytes, at, "false").map(|()| Value::Bool),
-            Some(b'n') => literal(bytes, at, "null").map(|()| Value::Null),
-            Some(_) => number(bytes, at),
-            None => Err("unexpected end of input".to_owned()),
-        }
-    }
-
-    fn literal(bytes: &[u8], at: &mut usize, word: &str) -> Result<(), String> {
-        if bytes[*at..].starts_with(word.as_bytes()) {
-            *at += word.len();
-            Ok(())
-        } else {
-            Err(format!("expected `{word}` at byte {at}", at = *at))
-        }
-    }
-
-    fn number(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        let start = *at;
-        while *at < bytes.len()
-            && matches!(bytes[*at], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')
-        {
-            *at += 1;
-        }
-        if start == *at {
-            return Err(format!("expected a value at byte {start}"));
-        }
-        Ok(Value::Number)
-    }
-
-    fn string(bytes: &[u8], at: &mut usize) -> Result<String, String> {
-        expect(bytes, at, b'"')?;
-        let mut out = String::new();
-        loop {
-            let byte = *bytes
-                .get(*at)
-                .ok_or_else(|| "unterminated string".to_owned())?;
-            *at += 1;
-            match byte {
-                b'"' => return Ok(out),
-                b'\\' => {
-                    let escape = *bytes
-                        .get(*at)
-                        .ok_or_else(|| "unterminated escape".to_owned())?;
-                    *at += 1;
-                    match escape {
-                        b'"' => out.push('"'),
-                        b'\\' => out.push('\\'),
-                        b'/' => out.push('/'),
-                        b'b' => out.push('\u{8}'),
-                        b'f' => out.push('\u{c}'),
-                        b'n' => out.push('\n'),
-                        b'r' => out.push('\r'),
-                        b't' => out.push('\t'),
-                        b'u' => out.push(unicode_escape(bytes, at)?),
-                        other => {
-                            return Err(format!("unknown escape `\\{}`", char::from(other)));
-                        }
-                    }
-                }
-                // A raw byte of a multi-byte UTF-8 sequence lands here too; pushing the bytes and
-                // decoding at the end would be equivalent, but this keeps `out` a `String`
-                // throughout. The input came from `String::from_utf8`, so the sequence is valid.
-                _ => {
-                    let start = *at - 1;
-                    let width = utf8_width(byte);
-                    *at = start + width;
-                    let text = std::str::from_utf8(&bytes[start..*at])
-                        .map_err(|error| error.to_string())?;
-                    out.push_str(text);
-                }
-            }
-        }
-    }
-
-    /// How many bytes the UTF-8 sequence starting with `lead` occupies.
-    fn utf8_width(lead: u8) -> usize {
-        match lead {
-            0x00..=0x7f => 1,
-            0xc0..=0xdf => 2,
-            0xe0..=0xef => 3,
-            _ => 4,
-        }
-    }
-
-    /// A `\uXXXX` escape, with the surrogate pair a character outside the BMP is written as.
-    fn unicode_escape(bytes: &[u8], at: &mut usize) -> Result<char, String> {
-        let first = hex4(bytes, at)?;
-        if (0xd800..0xdc00).contains(&first) {
-            expect(bytes, at, b'\\')?;
-            expect(bytes, at, b'u')?;
-            let second = hex4(bytes, at)?;
-            let combined =
-                0x1_0000 + ((u32::from(first) - 0xd800) << 10) + (u32::from(second) - 0xdc00);
-            return char::from_u32(combined).ok_or_else(|| "invalid surrogate pair".to_owned());
-        }
-        char::from_u32(u32::from(first)).ok_or_else(|| "invalid escape".to_owned())
-    }
-
-    fn hex4(bytes: &[u8], at: &mut usize) -> Result<u16, String> {
-        let digits = bytes
-            .get(*at..*at + 4)
-            .ok_or_else(|| "truncated \\u escape".to_owned())?;
-        *at += 4;
-        let text = std::str::from_utf8(digits).map_err(|error| error.to_string())?;
-        u16::from_str_radix(text, 16).map_err(|error| error.to_string())
-    }
-
-    fn array(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        expect(bytes, at, b'[')?;
-        let mut items = Vec::new();
-        skip_whitespace(bytes, at);
-        if bytes.get(*at) == Some(&b']') {
-            *at += 1;
-            return Ok(Value::Array(items));
-        }
-        loop {
-            items.push(value(bytes, at)?);
-            skip_whitespace(bytes, at);
-            match bytes.get(*at) {
-                Some(b',') => *at += 1,
-                Some(b']') => {
-                    *at += 1;
-                    return Ok(Value::Array(items));
-                }
-                _ => return Err(format!("expected `,` or `]` at byte {at}", at = *at)),
-            }
-        }
-    }
-
-    fn object(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        expect(bytes, at, b'{')?;
-        let mut members = Vec::new();
-        skip_whitespace(bytes, at);
-        if bytes.get(*at) == Some(&b'}') {
-            *at += 1;
-            return Ok(Value::Object(members));
-        }
-        loop {
-            skip_whitespace(bytes, at);
-            let key = string(bytes, at)?;
-            skip_whitespace(bytes, at);
-            expect(bytes, at, b':')?;
-            members.push((key, value(bytes, at)?));
-            skip_whitespace(bytes, at);
-            match bytes.get(*at) {
-                Some(b',') => *at += 1,
-                Some(b'}') => {
-                    *at += 1;
-                    return Ok(Value::Object(members));
-                }
-                _ => return Err(format!("expected `,` or `}}` at byte {at}", at = *at)),
-            }
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        /// The reader has to survive the shapes `cargo metadata` actually emits: nested objects and
-        /// arrays, `null` (which is how a normal dependency's `kind` is spelled), escapes inside
-        /// strings, and non-ASCII text. A reader that mis-tracked a string's end would find the
-        /// wrong keys, so this is checked rather than assumed.
-        #[test]
-        fn the_reader_handles_the_shapes_cargo_emits() {
-            let text = r#"{
-                "packages": [
-                    {"name": "a", "kind": null, "path": "C:\\x\\y", "note": "a \"quoted\" ünïcode ☃ \u2603 \ud83d\ude00"},
-                    {"name": "b", "deps": [], "meta": {}, "n": -1.5e3, "ok": true}
-                ]
-            }"#;
-            let root = parse(text).expect("parses");
-            let packages = root.get("packages").and_then(Value::array).expect("array");
-            assert_eq!(packages.len(), 2);
-            assert_eq!(packages[0].get("name").and_then(Value::string), Some("a"));
-            // `null` reads as absent, which is exactly how a normal dependency's `kind` is meant to
-            // be understood.
-            assert!(packages[0].get("kind").is_none());
-            assert_eq!(
-                packages[0].get("path").and_then(Value::string),
-                Some(r"C:\x\y")
-            );
-            assert_eq!(
-                packages[0].get("note").and_then(Value::string),
-                Some("a \"quoted\" ünïcode ☃ ☃ 😀")
-            );
-            assert_eq!(packages[1].get("name").and_then(Value::string), Some("b"));
-            assert_eq!(
-                packages[1]
-                    .get("deps")
-                    .and_then(Value::array)
-                    .map(<[_]>::len),
-                Some(0)
-            );
-        }
-
-        #[test]
-        fn malformed_input_is_an_error_rather_than_a_wrong_answer() {
-            for bad in [
-                "{",
-                "{\"a\"}",
-                "[1,]",
-                "\"unterminated",
-                "{} trailing",
-                "{\"a\": \\}",
-            ] {
-                assert!(parse(bad).is_err(), "`{bad}` should not parse");
-            }
-        }
-    }
-}
+/// `xtask` carries no JSON dependency and nothing in the shipped graph wants one, so the reader
+/// lives at `xtask/src/json.rs` rather than in the dependency graph. It used to be a private module
+/// *here*, because this gate was its only consumer; MJXOFF-156's token generator became a second
+/// one, and an integration test cannot reach a binary crate's private modules — so the one file is
+/// pulled in by path rather than copied. A workspace with two JSON readers in it has one reader too
+/// many, and the copy that is not exercised is the one that is wrong.
+#[path = "../src/json.rs"]
+mod json;

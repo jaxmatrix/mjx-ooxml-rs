@@ -49,7 +49,8 @@ pub(crate) mod properties;
 pub(crate) mod sheets;
 pub(crate) mod views;
 
-use mjx_ooxml_core::{Interner, RawDocument, ToXml};
+use mjx_dml::{SchemeColors, Theme};
+use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_ooxml_types::namespaces::SML;
 use mjx_opc::{Package, PartName, TargetMode};
 use mjx_sml::{CalculationChain, WorkbookPart};
@@ -253,6 +254,62 @@ impl Workbook {
     /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or
     /// [`XlsxError::MalformedWorkbook`] if its root is not `x:workbook` — which
     /// [`from_package`](Self::from_package) has already ruled out for a workbook that opened.
+    /// The same read, from a shared reference.
+    ///
+    /// [`workbook_markup`](Self::workbook_markup) caches the parsed tree in the package, which is
+    /// why it takes `&mut self` even though its documentation says — correctly — that reading is
+    /// not a mutation. A caller that only holds a `&Workbook` cannot use it, and
+    /// [`date_system`](Self::date_system) already answers that by parsing the part's bytes instead.
+    /// This is the same answer generalised: the cache is given up, the borrow is not.
+    ///
+    /// # Errors
+    /// As [`workbook_markup`](Self::workbook_markup).
+    pub fn read_workbook_markup<R>(
+        &self,
+        read: impl FnOnce(&WorkbookPart, &Interner) -> R,
+    ) -> Result<R, XlsxError> {
+        let part = self.workbook_part.clone();
+        // ⚠ Two roads, and the second one is not an optimisation. A part that has been **edited**
+        // has no stored bytes at all — `PartBody::Edited` drops them and keeps the tree — so a
+        // reader that only knew about bytes would answer `MissingWorkbookPart` for a workbook whose
+        // `definedNames` this library had just written. `ZipEntry::tree` is the `&self` counterpart
+        // of `Package::part_tree`, and taking it here is what makes this method true of a workbook
+        // in every copy-on-write state rather than only of one freshly opened.
+        if let Some(bytes) = self.package().part_bytes(&part) {
+            let document = mjx_xml::fidelity::parse(bytes)?;
+            let Some(markup) = WorkbookPart::read_part(&document)? else {
+                return Err(XlsxError::MalformedWorkbook(
+                    "root element is not x:workbook",
+                ));
+            };
+            return Ok(read(&markup, &document.interner));
+        }
+        let Some(document) = self
+            .package()
+            .entries()
+            .iter()
+            .find(|entry| entry.name == part.zip_name())
+            .and_then(mjx_opc::ZipEntry::tree)
+        else {
+            return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
+        };
+        let Some(markup) = WorkbookPart::read_part(document)? else {
+            return Err(XlsxError::MalformedWorkbook(
+                "root element is not x:workbook",
+            ));
+        };
+        Ok(read(&markup, &document.interner))
+    }
+
+    /// Reads the modelled `xl/workbook.xml`, handing `read` the parsed [`WorkbookPart`] together
+    /// with the [`Interner`] it was parsed with, and **caching the parsed tree** in the package.
+    ///
+    /// **This is not a mutation.** The part keeps its container bytes and [`save`](Self::save) still
+    /// re-emits them verbatim; the `&mut` is the cache's and not the document's.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or
+    /// [`XlsxError::MalformedWorkbook`] if its root is not `x:workbook`.
     pub fn workbook_markup<R>(
         &mut self,
         read: impl FnOnce(&WorkbookPart, &Interner) -> R,
@@ -307,6 +364,75 @@ impl Workbook {
             ));
         };
         Ok(Some(read(&chain, &document.interner)))
+    }
+
+    /// The workbook's own colour scheme, resolved slot by slot, or `None` when it relates no theme
+    /// part.
+    ///
+    /// # Why this lives here rather than in whoever needs it
+    ///
+    /// A SpreadsheetML colour addresses the theme **by position** — `<color theme="4" tint="-0.25"/>`
+    /// is *the fifth slot of `<clrScheme>`, lightened* — so `mjx_sml::styles::resolve_color` takes a
+    /// [`SchemeColors`], and that type's own documentation says where it comes from: *"getting the
+    /// theme part out of the package is `mjx-xlsx`'s; this crate has never heard of one."* Until
+    /// MJXOFF-244 nothing here answered it, so every consumer that wanted a theme colour would have
+    /// had to resolve the relationship, parse a DrawingML part and build the bridge for itself —
+    /// which is a second reader of the package beside this one, and the shape of exactly the bug
+    /// that reading a document twice produces.
+    ///
+    /// **This is not a mutation.** The theme part keeps its container bytes and [`save`](Self::save)
+    /// re-emits them verbatim.
+    ///
+    /// # The theme is the user's, and it is never invented
+    ///
+    /// A workbook with no theme part answers `None` and every `@theme` colour then resolves to
+    /// nothing, which is the honest answer: a colour scheme made up here would paint a customer's
+    /// cells in a palette their document does not state.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the theme part cannot be read or is not well-formed DrawingML.
+    pub fn theme_colors(&mut self) -> Result<Option<SchemeColors>, XlsxError> {
+        let Some(part) = self.parts.theme.clone() else {
+            return Ok(None);
+        };
+        let document = self.package.part_tree(&part)?;
+        let theme = Theme::from_xml(&document.root, &document.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| SchemeColors::from_scheme(scheme, &document.interner)))
+    }
+
+    /// The workbook theme's six accent colours, resolved to RGB — the palette a chart on a sheet
+    /// hands out to series that state no fill of their own (MJXOFF-178).
+    ///
+    /// `Ok(None)` when the workbook relates to no theme part, or when its theme defines fewer than
+    /// all six accents. Both answers mean *this document states no palette*, and a caller that
+    /// invents one paints a customer's chart in colours their file does not carry.
+    ///
+    /// `mjx_pptx::Presentation` and `mjx_docx::Document` carry the identically named method over
+    /// the identical [`SchemeColors::accents`], so a chart's colours do not depend on which of the
+    /// three hosts it was opened from.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the theme part cannot be read or is not well-formed DrawingML.
+    ///
+    /// **Takes `&self`**, unlike [`theme_colors`](Self::theme_colors), and parses the theme part
+    /// from its bytes rather than through the package's cached tree. `mjx-layout-xlsx`'s
+    /// `SheetGrid::read` takes `&Workbook` — reading a sheet does not dirty a package, and it should
+    /// not need a mutable borrow to say what colour a chart's first series is either.
+    pub fn theme_accent_colors(&self) -> Result<Option<[[u8; 3]; 6]>, XlsxError> {
+        let Some(part) = self.parts.theme.as_ref() else {
+            return Ok(None);
+        };
+        let Some(bytes) = self.package().part_bytes(part) else {
+            return Ok(None);
+        };
+        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let theme = Theme::from_xml(&document.root, &document.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| SchemeColors::from_scheme(scheme, &document.interner))
+            .and_then(|colors| colors.accents()))
     }
 
     /// Edits the modelled `xl/workbook.xml` and writes it back, keeping the verbatim bytes of every
@@ -420,6 +546,36 @@ impl Workbook {
         self.save_unchecked()
     }
 
+    /// The ZIP names of every part this workbook has dirtied — the **dirty set** a batched commit
+    /// walks ([`Package::dirty_part_names`](mjx_opc::Package::dirty_part_names)).
+    ///
+    /// A part is here exactly when [`save`](Self::save) would re-serialize it from its model rather
+    /// than re-emit the bytes it arrived with, so this is the honest count of what a save will
+    /// *work* at. It is what `mjx-session` reports as a commit's serialization count, and what makes
+    /// "twenty edits produced one part serialization" a measurement instead of a claim.
+    #[must_use]
+    pub fn dirty_parts(&self) -> Vec<String> {
+        self.package
+            .dirty_part_names()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Serializes every dirty part exactly once and settles it back to clean-but-resident, returning
+    /// the names it serialized ([`Package::settle_edited_parts`](mjx_opc::Package::settle_edited_parts)).
+    ///
+    /// This is the *commit* half of copy-on-write, for a caller that keeps this workbook open across
+    /// many edits: the model is authoritative from the first edit, and the XML is written once per
+    /// commit however many edits accumulated. A part nothing edited is not settled and still re-emits
+    /// the container's own bytes byte for byte, so the round-trip guarantee is untouched — only the
+    /// timing of the serialization moves.
+    ///
+    /// A caller that saves once and drops the workbook has no reason to call this: [`save`](Self::save)
+    /// serializes the same parts on its way out.
+    pub fn settle_dirty_parts(&mut self) -> Vec<String> {
+        self.package.settle_edited_parts()
+    }
     /// Serializes the workbook back to container bytes **without** checking its invariants — the
     /// escape hatch for writing back a container that arrived broken.
     ///

@@ -170,6 +170,13 @@ impl ColorSpec {
             .collect()
     }
 
+    /// The opacity the colour states, as a proportion of one — `None` when it states none, which
+    /// is not the same as a colour stated at full opacity.
+    #[getter]
+    fn alpha(&self) -> Option<f64> {
+        self.0.alpha().map(ooxml::Fraction::ratio)
+    }
+
     /// This colour with one more transform **appended**. Order is part of the markup, so this
     /// appends rather than merges: the same transforms in another order are another colour.
     fn with_transform(&self, transform: &ColorTransform) -> Self {

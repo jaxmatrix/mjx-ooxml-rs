@@ -1,0 +1,13 @@
+# specimen: three_section_document.docx page 1
+# covers: and page two is the second section: a different sheet, two columns, and a page boundary the first section's end forced
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# paragraphs in the document: 5
+# pages reached: 2
+   0 box       part 0 [] [914400 914400 6645910 9777730]
+   1 box       part 0 [2] [914400 914400 3551555 1060450]
+   2 line      part 0 [2, 0] [914400 914400 3551555 1060450]
+   3 glyph run part 0 [2, 0, 0] [914400 914400 1563624 1060450]
+   4 box       part 0 [3] [914400 1060450 3551555 1206500]
+   5 line      part 0 [3, 0] [914400 1060450 3551555 1206500]
+   6 glyph run part 0 [3, 0, 0] [914400 1060450 1562227 1206500]

@@ -46,16 +46,19 @@
 //! sweep now reads `SIMPLE_TYPE_MODULES` and filters on `visibility == "pub(crate)"`, which is
 //! strictly better than registering the two module names it used to spell out.
 //!
-//! There is deliberately **no** variant for a subset chosen by hand and justified in prose. Every
-//! roster in this workspace turned out to be the whole of some derivable population once the
-//! population was named precisely enough, including the two that looked most arbitrary:
-//! `upper_markup_ledger.rs`'s calibration pair is exactly the shared markup below rank 2.2, and
-//! `package_writer.rs`'s forbidden-edge list is exactly the crates ranked above `mjx-sml`. The
-//! weaker form MJXOFF-225 offers — *state the subset in the name and assert its size against the
-//! whole* — is what you fall back to when the subset cannot be derived, and nothing here needed it.
-//! If a future site does, that is the moment to add the variant, and the reviewer should ask first
-//! whether the subset really has no derivation. The sweep prints how many rosters it compared, so
-//! the number lives where it stays true rather than in this paragraph.
+//! Until MJXOFF-349 there was **no** variant for a subset chosen by hand: every roster the sweep
+//! had seen turned out to be the whole of some derivable population once the population was named
+//! precisely enough — `upper_markup_ledger.rs`'s calibration pair is exactly the shared markup
+//! below rank 2.2, and `package_writer.rs`'s forbidden-edge list is exactly the crates ranked above
+//! `mjx-sml`. The client-platform crates then merged with rosters this sweep had never seen, and
+//! most of them are decisions rather than facts: a crate's exact permitted-dependency list, a
+//! baseline corpus whose every specimen carries a reason, the fixtures a pixel test was written
+//! about. So [`Population::Selection`] is the weaker form MJXOFF-225 offers — *state the subset and
+//! assert its size against the whole* — and a row of that kind must say in its note why the subset
+//! has no derivation. Where one had a derivation it was taken instead: `mjx-layout-chart`'s refusal
+//! list is now derived from the root manifest in place, and the box-model trio is registered as
+//! rank 3.6. The sweep prints how many rosters it compared, so the number lives where it stays
+//! true rather than in this paragraph.
 //!
 //! # The rank table is now load-bearing, so it is now checked
 //!
@@ -526,8 +529,8 @@ impl BasePopulation {
 
 /// The exact population a registered roster must equal.
 ///
-/// Each variant is *derived*; see this file's header for why there is no variant for a subset
-/// chosen by hand.
+/// Each variant but [`Population::Selection`] is *derived*; see this file's header for why that one
+/// exists and what it still holds.
 #[derive(Clone, Copy)]
 enum Population {
     /// Every workspace member.
@@ -545,6 +548,26 @@ enum Population {
     /// else. `xtask/tests/fixture_provenance.rs`'s `KNOWN_IMPERSONATORS` is the ledger that answers
     /// them, and it is the roster this population exists to hold.
     FixturesClaimingMicrosoftAuthorship,
+    /// The three `--format` tokens, whole.
+    ValidationArtefactFormats,
+    /// A strict subset of `of`, chosen by hand, with exactly `size` distinct members.
+    ///
+    /// This is the weaker form MJXOFF-225 offers for a subset that has no derivation — *state the
+    /// subset and assert its size against the whole* — and it was added by MJXOFF-349, when the
+    /// client-platform crates merged with rosters this sweep had never seen: a crate's exact
+    /// permitted-dependency list, a baseline corpus whose every specimen carries a written reason,
+    /// the three fixtures a pixel test was written about. None of those is a fact about the
+    /// repository; each is a decision the file records. The gate still holds two things: the row's
+    /// `size` must equal the list, so changing a selection is an act that touches this register,
+    /// and the list must be **strictly** smaller than `of`, so a selection that has quietly grown
+    /// into the whole population is reported as the whole — which then has a derivation. A row of
+    /// this kind must say, in its note, why the subset has none.
+    Selection {
+        /// The population the subset is drawn from.
+        of: BasePopulation,
+        /// How many distinct members the list names.
+        size: usize,
+    },
 }
 
 impl Population {
@@ -556,6 +579,8 @@ impl Population {
             }
             Self::FacadeHandleTypes => BasePopulation::FacadeHandleTypes,
             Self::FixturesClaimingMicrosoftAuthorship => BasePopulation::FixtureFiles,
+            Self::ValidationArtefactFormats => BasePopulation::ValidationArtefactFormats,
+            Self::Selection { of, .. } => of,
         }
     }
 
@@ -572,6 +597,12 @@ impl Population {
             Self::FixturesClaimingMicrosoftAuthorship => {
                 "every committed package fixture whose `docProps/app.xml` names Microsoft"
                     .to_owned()
+            }
+            Self::ValidationArtefactFormats => BasePopulation::ValidationArtefactFormats
+                .describe()
+                .to_owned(),
+            Self::Selection { of, size } => {
+                format!("a hand-chosen selection of {size} of {}", of.describe())
             }
         }
     }
@@ -590,6 +621,8 @@ impl Population {
                 "xtask::fixture_corpus::fixtures_claiming_microsoft_authorship, which \
                  xtask/tests/fixture_provenance.rs derives the same ledger from"
             }
+            Self::ValidationArtefactFormats => BasePopulation::ValidationArtefactFormats.source(),
+            Self::Selection { of, .. } => of.source(),
         }
     }
 
@@ -638,6 +671,8 @@ impl Population {
                 );
                 members
             }
+            Self::ValidationArtefactFormats => BasePopulation::ValidationArtefactFormats.members(),
+            Self::Selection { of, .. } => of.members(),
         }
     }
 }
@@ -752,6 +787,223 @@ const ROSTERS: &[Roster] = &[
         enumerates: Population::CratesRankedAtOrAbove("2.2"),
         note: "what `mjx-sml` (rank 2.1) may not depend on: everything ranked above it. Until \
                MJXOFF-225 the list named five of the nine and read as though it named all of them",
+    },
+    Roster {
+        file: "crates/mjx-layout-chart/tests/the_seam_holds.rs",
+        what: "the format crates the derived refusal list must contain",
+        enumerates: Population::CratesAtRanks(&["3.0"]),
+        note: "the anti-vacuity check on the refusal list that file derives from the root \
+               manifest: every format crate must be in it, because a chart engine is handed bytes",
+    },
+    Roster {
+        file: "crates/mjx-layout-chart/tests/the_seam_holds.rs",
+        what: "the three consumers",
+        enumerates: Population::CratesAtRanks(&["3.6"]),
+        note: "the box models at 3.6 are exactly the chart engine's consumers, so a fourth box \
+               model must be refused by name as well",
+    },
+    Roster {
+        file: "crates/mjx-layout-docx/tests/the_fragments_match_their_baselines.rs",
+        what: "CORPUS",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 9 },
+        note: "a baseline corpus: every specimen carries a written reason for being in it, and a \
+               fixture joins only with a committed, approved baseline",
+    },
+    Roster {
+        file: "crates/mjx-layout-docx/tests/the_seam_holds.rs",
+        what: "the other two box models",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 2 },
+        note: "the rank-3.6 crates other than this one; the population lacks a `minus self`, and a \
+               crate cannot depend on itself, so naming it would assert nothing",
+    },
+    Roster {
+        file: "crates/mjx-layout-pptx/tests/a_slide_becomes_fragments.rs",
+        what: "the decks laid out end to end",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 4 },
+        note: "four decks chosen for their slide variety (layouts, text levels, notes); the whole \
+               `.pptx` corpus is swept by the baseline and schema suites instead",
+    },
+    Roster {
+        file: "crates/mjx-layout-pptx/tests/the_fragments_match_their_baselines.rs",
+        what: "CORPUS",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 8 },
+        note: "a baseline corpus: every specimen carries a written reason for being in it, and a \
+               fixture joins only with a committed, approved baseline",
+    },
+    Roster {
+        file: "crates/mjx-layout-pptx/tests/the_seam_holds.rs",
+        what: "FORBIDDEN",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 11 },
+        note: "the crates whose refusal the file wants named one by one in its failure message; the \
+               `[dependencies]` section is already held exactly by the permitted list, so this adds a \
+               reason per name, and the names are chosen for the stage each would misplace",
+    },
+    Roster {
+        file: "crates/mjx-layout-xlsx/tests/a_cell_shows_its_formatted_value.rs",
+        what: "the all-text workbooks",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 2 },
+        note: "the two workbooks whose cells are all text, which is a property of their content that \
+               no corpus reader derives",
+    },
+    Roster {
+        file: "crates/mjx-layout-xlsx/tests/the_fragments_match_their_baselines.rs",
+        what: "CORPUS",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 7 },
+        note: "a baseline corpus: every specimen carries a written reason for being in it, and a \
+               fixture joins only with a committed, approved baseline",
+    },
+    Roster {
+        file: "crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs",
+        what: "the decks counted for stand-ins",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 3 },
+        note: "three decks chosen to reach pixels through the whole pipeline in reasonable time; the \
+               oracle owns the per-fixture sweep",
+    },
+    Roster {
+        file: "crates/mjx-reference-pack/tests/a_real_worksheet_reaches_pixels.rs",
+        what: "the workbooks counted for stand-ins",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 3 },
+        note: "three workbooks chosen to reach pixels through the whole pipeline in reasonable time",
+    },
+    Roster {
+        file: "crates/mjx-reference-pack/tests/the_corporate_fixtures_are_authored.rs",
+        what: "CORPORATE",
+        enumerates: Population::Selection { of: BasePopulation::FixtureFiles, size: 3 },
+        note: "the three fixtures RC03 authors, each paired with the writer that produces it; a \
+               fixture's author is not something the corpus records",
+    },
+    Roster {
+        file: "crates/mjx-reference-pack/tests/the_corporate_fixtures_are_corporate.rs",
+        what: "CORPORATE",
+        enumerates: Population::ValidationArtefactFormats,
+        note: "one corporate fixture per format, keyed by the format token, so the keys are the \
+               three formats",
+    },
+    Roster {
+        file: "crates/mjx-render-oracle/tests/the_plate_manifest_reaches_a_loader.rs",
+        what: "the manifest's format vocabulary",
+        enumerates: Population::ValidationArtefactFormats,
+        note: "the formats a plate manifest entry may name, which are the three artefact formats",
+    },
+    Roster {
+        file: "crates/mjx-scene-pptx/tests/the_seam_holds.rs",
+        what: "PERMITTED_DEPENDENCIES",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 7 },
+        note: "an exact permitted-dependency list: each entry is a decision with a written reason in the \
+               manifest, and no rank or tier yields it",
+    },
+    Roster {
+        file: "crates/mjx-scene-pptx/tests/the_seam_holds.rs",
+        what: "FORBIDDEN_IN_DEPENDENCIES",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 10 },
+        note: "the crates whose refusal the file wants named one by one in its failure message; the \
+               `[dependencies]` section is already held exactly by the permitted list, so this adds a \
+               reason per name, and the names are chosen for the stage each would misplace",
+    },
+    Roster {
+        file: "crates/mjx-scene-pptx/tests/the_seam_holds.rs",
+        what: "FORBIDDEN_EVERYWHERE",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 3 },
+        note: "the crates that would link a graphics stack into a test build — the platform boundary \
+               and the two crates above the graph that reach it — which no rank describes",
+    },
+    Roster {
+        file: "crates/mjx-scene-xlsx/tests/the_seam_holds.rs",
+        what: "PERMITTED_DEPENDENCIES",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 7 },
+        note: "an exact permitted-dependency list: each entry is a decision with a written reason in the \
+               manifest, and no rank or tier yields it",
+    },
+    Roster {
+        file: "crates/mjx-scene-xlsx/tests/the_seam_holds.rs",
+        what: "FORBIDDEN_IN_DEPENDENCIES",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 12 },
+        note: "the crates whose refusal the file wants named one by one in its failure message; the \
+               `[dependencies]` section is already held exactly by the permitted list, so this adds a \
+               reason per name, and the names are chosen for the stage each would misplace",
+    },
+    Roster {
+        file: "crates/mjx-scene-xlsx/tests/the_seam_holds.rs",
+        what: "FORBIDDEN_EVERYWHERE",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 3 },
+        note: "the crates that would link a graphics stack into a test build — the platform boundary \
+               and the two crates above the graph that reach it — which no rank describes",
+    },
+    Roster {
+        file: "crates/mjx-session/tests/the_seam_holds.rs",
+        what: "the optional dependencies",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 5 },
+        note: "the dependencies behind the default `ooxml` feature — a decision the manifest records, \
+               asserted exactly",
+    },
+    Roster {
+        file: "crates/mjx-session/tests/the_seam_holds.rs",
+        what: "the dev-dependencies",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 2 },
+        note: "the test-only crates the suites read their corpus and memory bound from, asserted \
+               exactly",
+    },
+    Roster {
+        file: "crates/mjx-view/tests/the_seam_holds.rs",
+        what: "FORBIDDEN",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 14 },
+        note: "the crates whose refusal the file wants named one by one in its failure message; the \
+               `[dependencies]` section is already held exactly by the permitted list, so this adds a \
+               reason per name — the format tier, shared markup, and the two that drag a document or \
+               a graphics stack in behind them",
+    },
+    Roster {
+        file: "xtask/tests/completion_claims.rs",
+        what: "FORMATS and the formats a sentence claims",
+        enumerates: Population::ValidationArtefactFormats,
+        note: "the formats a completion claim can name, and the expected answer for a claim about \
+               all three",
+    },
+    Roster {
+        file: "xtask/tests/completion_claims.rs",
+        what: "the formats a two-format sentence claims",
+        enumerates: Population::Selection { of: BasePopulation::ValidationArtefactFormats, size: 2 },
+        note: "the expected answer for a sentence that names two formats (Word and Excel); a \
+               test's expected value, not a sweep",
+    },
+    Roster {
+        file: "xtask/tests/fixture_coverage.rs",
+        what: "CORPORATE_FIXTURES",
+        enumerates: Population::ValidationArtefactFormats,
+        note: "one corporate fixture per format, keyed by the format token",
+    },
+    Roster {
+        file: "xtask/tests/ledger_checklist.rs",
+        what: "APPLICATION_FORMATS and FORMAT_CRATES' keys",
+        enumerates: Population::ValidationArtefactFormats,
+        note: "the three application formats a checklist row may belong to",
+    },
+    Roster {
+        file: "xtask/tests/ledger_checklist.rs",
+        what: "PowerPoint's own crates",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 3 },
+        note: "the crates whose suites are PowerPoint's alone — a judgement about which suites belong \
+               to one format, which no rank records",
+    },
+    Roster {
+        file: "xtask/tests/ledger_checklist.rs",
+        what: "Excel's own crates",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 4 },
+        note: "the crates whose suites are Excel's alone, `mjx-sml` included because SpreadsheetML's \
+               suites exercise the workbook — a judgement no rank records",
+    },
+    Roster {
+        file: "xtask/tests/layering.rs",
+        what: "the three consumers of the chart engine",
+        enumerates: Population::CratesAtRanks(&["3.6"]),
+        note: "the three box models, which are exactly the chart engine's consumers",
+    },
+    Roster {
+        file: "xtask/tests/layering.rs",
+        what: "the render oracle's two consumers",
+        enumerates: Population::Selection { of: BasePopulation::WorkspaceCrates, size: 2 },
+        note: "the two crates above the whole graph that may reach the oracle, each named because they \
+               use different halves of it; being unranked, no population derives them",
     },
 ];
 
@@ -1235,6 +1487,14 @@ fn every_roster_in_the_workspace_is_the_whole_of_a_derived_population() {
             .collect();
         let mut agreed: Option<()> = None;
         for row in &candidates {
+            if let Population::Selection { size, .. } = row.enumerates {
+                let whole = row.enumerates.members().len();
+                if written.len() == size && size < whole {
+                    agreed = Some(());
+                    break;
+                }
+                continue;
+            }
             let expected: BTreeSet<String> = row
                 .enumerates
                 .members()
@@ -1248,6 +1508,23 @@ fn every_roster_in_the_workspace_is_the_whole_of_a_derived_population() {
         }
         if agreed.is_none() {
             let row = candidates[0];
+            if let Population::Selection { size, of } = row.enumerates {
+                panic!(
+                    "{}:{} — `{}` is registered as a hand-chosen selection of {size} of {}, and the \
+                     list names {} distinct member(s) out of a population of {}: {:?}.\n\n{}\n\nA \
+                     selection that changed is a decision to record by updating the row's `size`; \
+                     one that now names the whole population is no longer a selection and must be \
+                     registered as the population it is.",
+                    roster.file,
+                    roster.line,
+                    row.what,
+                    of.describe(),
+                    written.len(),
+                    row.enumerates.members().len(),
+                    roster.elements,
+                    row.note
+                );
+            }
             let expected: BTreeSet<String> = row
                 .enumerates
                 .members()

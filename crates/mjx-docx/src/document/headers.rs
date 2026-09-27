@@ -140,6 +140,15 @@ impl HdrFtr {
         self.paragraphs().count()
     }
 
+    /// Every block of this header or footer, in document order — paragraphs and tables alike.
+    ///
+    /// [`HdrFtr::paragraphs`] is the projection of this that keeps only the top-level paragraphs;
+    /// a caller that has to lay a header out needs the tables too (MJXOFF-176).
+    #[must_use]
+    pub fn content(&self) -> &[BlockContent] {
+        &self.content
+    }
+
     /// Every paragraph in document order.
     pub fn paragraphs(&self) -> impl Iterator<Item = &Paragraph> {
         block_paragraphs(&self.content)

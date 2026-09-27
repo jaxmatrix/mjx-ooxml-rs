@@ -76,8 +76,9 @@ MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
 which validates every fixture part and every deck the library authors against the ECMA-376 Part 4
 Transitional and Part 2 OPC schemas via `xmllint`. It needs the reference schemas in the git-ignored
 `References/` tree (or `MJX_SCHEMA_DIR` / `MJX_OPC_SCHEMA_DIR`) and skips cleanly without them. To
-populate the tree — the same script the CI job runs, downloading the two published ECMA archives and
-verifying them against `.github/ecma-376-archives.sha256` before extracting:
+populate the tree — the same script the CI job runs, downloading the three published ECMA archives
+(Part 4 Transitional, Part 2 OPC, and Part 1 for the Strict schemas and `presetShapeDefinitions.xml`)
+and verifying them against `.github/ecma-376-archives.sha256` before extracting:
 
 ```sh
 .github/scripts/fetch-ecma-schemas.sh
@@ -87,6 +88,20 @@ The `schema-validity (ECMA-376 XSDs)` CI job sets `MJX_REQUIRE_SCHEMA=1`, so in 
 a missing `xmllint` is a hard failure and this coverage can never silently skip. **A new authoring
 path gets a case in that file**, or nothing checks the markup it emits.
 
+### Skips and their escape hatches
+
+`MJX_REQUIRE_SCHEMA` is one of a family. A suite that needs something the machine may not have — a
+licensed schema tree, LibreOffice, a graphics device, poppler — skips with a **named** notice, and
+carries an `MJX_REQUIRE_…` variable whose presence turns that absence into a hard failure. CI sets it,
+so "green" can never quietly mean "nothing ran".
+
+**If you add one, it must be either set by a workflow or explained where it is defined.**
+`cargo test -p xtask --test escape_hatches` enumerates every such variable in the tree, reads the
+workflows structurally, and fails on one that is neither — and its failure message says exactly which
+of the two to do. An escape nobody sets is a suite reporting coverage it does not have: the
+preset-shape geometry sweep sat in that state for the whole history of the repository, green every
+time, until MJXOFF-197. To leave one deliberately unset, write why in the comment block above one of
+its definition sites and mark that block `MJX-ESCAPE-UNSET`.
 ### Guide examples are copied, never typed
 
 A code block in the facade guide that shows Python or JavaScript is **a copy of a file a test runner
@@ -195,7 +210,15 @@ OOXML symbols are cryptic; our public API must not be. Applies to generated *and
 
 ## Code style
 
-- Pure-Rust dependencies only in shipped crates. `unsafe` is denied workspace-wide; if genuinely
-  required, `#[allow(unsafe_code)]` locally with a written safety justification.
+- Pure-Rust dependencies only **in the document graph** — ranks 0 through the facade. The rule used
+  to say *"in shipped crates"*, and MJXOFF-163 amended it, because a pixel cannot reach a screen
+  without the operating system's graphics stack: `mjx-paint` at rank 5.5 is a shipped crate, is the
+  declared platform boundary, and is the **only** crate that may link the platform's graphics API
+  (`wgpu`, and through it Vulkan, Metal or Direct3D). Everything below it stays pure Rust, which is
+  what keeps the headless, `wasm32`, export and test paths free of a GPU — and `tiny-skia` is a
+  *required* second painter so that a fully pure-Rust path to pixels always exists. See `CLAUDE.md`.
+- `unsafe` is denied workspace-wide; if genuinely required, `#[allow(unsafe_code)]` locally with a
+  written safety justification. Four crates have one and none of them is in the document graph; the
+  README's architecture section lists all four and a test holds that list to the tree.
 - No `unwrap`/`expect`/`panic` on untrusted input in library paths — return typed `thiserror` errors.
 - Respect the layering: dependencies point downward only (see `CLAUDE.md`).

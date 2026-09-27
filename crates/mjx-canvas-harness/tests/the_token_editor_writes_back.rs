@@ -1,0 +1,465 @@
+//! **The live token editor writes back, and changes nothing else.**
+//!
+//! MJXOFF-166's *Done when*: *"the live token editor writes back, proved by a round trip: change a
+//! value in the harness, show it in the token source, regenerate, and show it in all three
+//! generated artefacts."* The last two steps are `cargo run -p xtask -- tokens`, which this crate
+//! may not call — nothing may depend on `xtask` — so the round trip is split where the layering
+//! splits it:
+//!
+//! * **Here**: the write-back produces a source file that differs from the original in exactly one
+//!   span, that span is the token's own `$value`, and the new value parses through the platform's
+//!   own resolver. Both directions of a wrong write are refused — an unknown token and a malformed
+//!   value.
+//! * **`xtask/tests/tokens.rs`**: that the three artefacts are derived from the source, which is
+//!   already a gate and did not need a second one.
+//!
+//! # ⚠ The assertion that matters is the one about what did *not* change
+//!
+//! A test that checked *"the new value is in the file"* would pass for an editor that rewrote the
+//! whole file, reordered its keys, dropped its `$description` prose or reformatted every line — and
+//! `tokens.json` is the one hand-edited artefact in the pipeline, whose reviewability is the reason
+//! it is hand-edited. So [`the_write_back_changes_one_span_and_nothing_else`] compares the *whole
+//! file outside the replaced span*, byte for byte.
+
+use mjx_canvas_harness::tokens_source::{self, WriteBackError};
+use mjx_tokens::Tokens;
+
+/// The committed token source.
+fn source() -> String {
+    let path = tokens_source::source_path();
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()))
+}
+
+#[test]
+fn the_write_back_changes_one_span_and_nothing_else() {
+    let before = source();
+    // A token the canvas actually reads, so a person who changes it in the harness sees sixty-one
+    // images move: `document.light.selection-handle` is what every selection outline and every
+    // handle is drawn in.
+    let property = "--document-light-selection-handle";
+    let rewritten = tokens_source::rewrite(&before, property, "#c02a5f")
+        .expect("a hexadecimal colour is a colour");
+    let after = rewritten.text;
+
+    let (start, end) = tokens_source::value_span(&before, "document.light.selection-handle")
+        .expect("the token is in the source");
+    // The span is the **whole JSON value**, quotes included — here a `"{token.path}"` alias — and
+    // what replaces it is `"#c02a5f"`, nine bytes.
+    let written = "\"#c02a5f\"";
+    assert_eq!(
+        &before[..start],
+        &after[..start],
+        "everything before the token's value must be byte-identical"
+    );
+    assert_eq!(
+        &before[end..],
+        &after[start + written.len()..],
+        "everything after the token's value must be byte-identical"
+    );
+    assert_eq!(&after[start..start + written.len()], written);
+    // **The alias warning is live, and this token is the one that proves it.** Its committed value
+    // is an alias — a statement that the selection handle follows the accent, not a colour — so a
+    // write-back here changes the token *system* and the harness has to say so. Which alias it is
+    // is not written down: it was `{color.green-deep}` and MJXOFF-271 re-pointed it at
+    // `{theme.light.accent-pressed}`, the accent role rather than one ramp step, and a test that
+    // named the target broke on a re-seed rather than on a defect.
+    assert!(
+        rewritten.previous.starts_with('{') && rewritten.previous.ends_with('}'),
+        "the previous value should be a token reference, and it reads `{}`",
+        rewritten.previous
+    );
+    assert!(
+        rewritten.previous_was_alias,
+        "`document.light.selection-handle` is committed as an alias, and a write-back that did not \
+         notice would flatten it silently"
+    );
+    assert_eq!(
+        before.len() - (end - start) + written.len(),
+        after.len(),
+        "the file changed by more than the length of the value"
+    );
+
+    // And the file that came out is a file the platform can still read.
+    let mut tokens = Tokens::DEFAULTS.clone();
+    tokens
+        .set_custom_property(property, "#c02a5f")
+        .expect("the value the source now carries parses");
+    assert_eq!(
+        tokens
+            .custom_property(property)
+            .expect("the token has a value")
+            .to_string(),
+        "#c02a5f"
+    );
+}
+
+#[test]
+fn a_written_token_is_the_one_that_was_asked_for() {
+    // The walk descends key by key, so a segment name that also exists elsewhere cannot be
+    // answered by the wrong occurrence. `light` appears under both `theme` and `document`, and
+    // `background` under `theme.light` alone — the two are a real collision in this file, not a
+    // contrived one.
+    let before = source();
+    let theme = tokens_source::value_span(&before, "theme.light.background")
+        .expect("`theme.light.background` is in the source");
+    let document = tokens_source::value_span(&before, "document.light.backdrop")
+        .expect("`document.light.backdrop` is in the source");
+    assert_ne!(
+        theme, document,
+        "two different tokens resolved to the same span in the source"
+    );
+    // What the span holds is one of **three** things, and none of them is a colour. About a third
+    // of the source is written in the W3C alias form (`{color.paper}`) — the reason
+    // `Rewritten::previous_was_alias` exists and the reason the harness warns when a write-back
+    // flattens one — and since MJXOFF-271 the surfaces, text colours and strokes are `mix`
+    // *derivations*, whose `$value` is a whole nested object. A test that asserted every span begins
+    // with `#` would have been asserting something false about the file it reads.
+    let background = tokens_source::value_text(&before, "theme.light.background")
+        .expect("`theme.light.background` is in the source");
+    assert!(
+        background.contains("\"mix\""),
+        "`theme.light.background` is derived, so its `$value` is a mix; it reads `{background}`"
+    );
+    assert!(
+        background.ends_with('}'),
+        "the span must cover the whole nested object, not stop at the first brace: `{background}`"
+    );
+    let paper = tokens_source::value_text(&before, "theme.light.background-seed")
+        .expect("`theme.light.background-seed` is in the source");
+    assert!(
+        paper.starts_with('{') && paper.ends_with('}') && !paper.contains("\"mix\""),
+        "`theme.light.background-seed` is an alias to the palette; it reads `{paper}`"
+    );
+
+    // And a derived colour is **refused** rather than flattened. Replacing the expression with a
+    // literal would take the token out of the theme silently: the colour would stop following its
+    // seed, and every later skin change would miss it.
+    let refusal = tokens_source::rewrite(&before, "--theme-light-background", "#ff0000")
+        .expect_err("a derived colour has no literal to replace");
+    let message = refusal.to_string();
+    assert!(message.contains("derived"), "{message}");
+    assert!(
+        message.contains("--theme-light-background-seed"),
+        "the refusal must name a seed to adjust instead: {message}"
+    );
+
+    // Every token the generated table names must be findable in the source, or the editor would
+    // offer a control that cannot be committed.
+    let mut absent = Vec::new();
+    for identity in mjx_tokens::TOKENS {
+        if tokens_source::value_span(&before, identity.path).is_none() {
+            absent.push(identity.path);
+        }
+    }
+    assert!(
+        absent.is_empty(),
+        "{} token(s) the generated table names are not findable in {}: {}",
+        absent.len(),
+        tokens_source::SOURCE,
+        absent.join(", ")
+    );
+    println!(
+        "\n{} tokens, every one of them reachable in {} and editable in the harness.",
+        mjx_tokens::TOKENS.len(),
+        tokens_source::SOURCE
+    );
+}
+
+#[test]
+fn a_value_is_written_in_the_shape_its_own_type_calls_for() {
+    // **The ten tokens the first version of this editor could not write, and the reason it could
+    // not.** `$value` is a quoted string for a colour, a dimension, a duration, a font stack and an
+    // alias — and a *bare number* for `font-weight` and `leading`, and an *array* for `ease`. An
+    // editor that only knew about strings would offer a control for every token and commit only
+    // silently, which is precisely the shape of hole this phase keeps finding. The suite found it
+    // rather than a reader.
+    let before = source();
+
+    let weight = tokens_source::rewrite(&before, "--font-weight-medium", "600")
+        .expect("600 is a font weight");
+    let (start, end) = tokens_source::value_span(&before, "font-weight.medium")
+        .expect("`font-weight.medium` is in the source");
+    assert_eq!(
+        &before[start..end],
+        "500",
+        "it is a bare number in the source"
+    );
+    assert_eq!(
+        &weight.text[start..start + 3],
+        "600",
+        "a font weight must be written as a number, not as `\"600\"` — the source is `$type`-annotated"
+    );
+    assert!(!weight.previous_was_alias);
+
+    let leading =
+        tokens_source::rewrite(&before, "--leading-tight", "1.4").expect("1.4 is a number");
+    let (start, end) = tokens_source::value_span(&before, "leading.tight")
+        .expect("`leading.tight` is in the source");
+    assert_eq!(&before[start..end], "1.25");
+    assert_eq!(&leading.text[start..start + 3], "1.4");
+
+    let ease = tokens_source::rewrite(&before, "--ease-ink", "cubic-bezier(0.4, 0, 0.2, 1)")
+        .expect("a cubic bezier");
+    let (start, end) =
+        tokens_source::value_span(&before, "ease.ink").expect("`ease.ink` is in the source");
+    assert_eq!(&before[start..end], "[0.45, 0, 0.2, 1]");
+    assert_eq!(
+        &ease.text[start..start + "[0.4, 0, 0.2, 1]".len()],
+        "[0.4, 0, 0.2, 1]",
+        "an easing curve must be written as the array the source uses, not as its CSS spelling"
+    );
+
+    // And whatever shape it took, the file that came out is still JSON the platform reads: each of
+    // the three is written back into a source the walk can find again and parse.
+    for (rewritten, path, expected) in [
+        (&weight, "font-weight.medium", "600"),
+        (&leading, "leading.tight", "1.4"),
+        (&ease, "ease.ink", "[0.4, 0, 0.2, 1]"),
+    ] {
+        assert_eq!(
+            tokens_source::value_text(&rewritten.text, path).as_deref(),
+            Some(expected),
+            "`{path}` did not come back out of the file it was written into"
+        );
+    }
+}
+
+#[test]
+fn a_bad_write_is_refused_before_a_byte_reaches_the_file() {
+    let before = source();
+
+    let unknown = tokens_source::rewrite(&before, "--not-a-token", "#000000");
+    assert!(
+        matches!(unknown, Err(WriteBackError::UnknownToken { .. })),
+        "a name that is not a token must be refused, not written: {unknown:?}"
+    );
+
+    // And a literal is reported as a literal, so the warning is not simply always on.
+    let literal = tokens_source::rewrite(&before, "--color-ink", "#101010")
+        .expect("a hexadecimal colour is a colour");
+    assert!(
+        !literal.previous_was_alias,
+        "`color.ink` is committed as `{}`, which is not an alias",
+        literal.previous
+    );
+
+    let malformed = tokens_source::rewrite(&before, "--color-ink", "not a colour");
+    assert!(
+        matches!(malformed, Err(WriteBackError::Malformed(_))),
+        "a value that is not a colour must be refused: {malformed:?}"
+    );
+
+    // The refusal is what keeps the workspace buildable: a value the resolver rejects is a value
+    // that breaks `cargo run -p xtask -- tokens` for whoever runs it next.
+    let mut tokens = Tokens::DEFAULTS.clone();
+    assert!(tokens
+        .set_custom_property("--color-ink", "not a colour")
+        .is_err());
+}
+
+/// **The contrast rule, at the keystroke rather than at the next build** (audit pass 10, G4).
+///
+/// MJXOFF-166 validated a written value's *type* through `mjx_tokens::Tokens::set_custom_property`
+/// and said why in a comment: *"a value the resolver would reject is a value that breaks
+/// `cargo run -p xtask -- tokens` for whoever runs it next, which is a failure a long way from the
+/// keystroke that caused it."* The contrast rule of `DESIGN_TOKENS.md` §2.2 — the rule a design
+/// tweak is by far the most likely to trip — was **not** in that validation, because it lived in
+/// `xtask/src/codegen/tokens/model.rs` and this crate may not depend on `xtask`. So the editor said
+/// yes and the next generator run said no.
+///
+/// It now lives in `mjx-tokens` and both callers reach it. This test writes a contrast-failing text
+/// colour **through the editor's own path** and shows the refusal, with the measurement in it.
+#[test]
+fn a_text_colour_that_fails_the_contrast_rule_is_refused_by_the_editor() {
+    let before = source();
+
+    // `color.ink` is `on-light-text` measured against `color.paper`, and this is the shape of tweak
+    // the audit is for: a slightly-too-pale body text that looks fine in a swatch.
+    let refused = tokens_source::rewrite(&before, "--color-ink", "#9a9a9a");
+    let Err(WriteBackError::Contrast { token, detail }) = &refused else {
+        panic!(
+            "a text colour below 4.5 : 1 must be refused before it reaches the file, and \
+             `cargo run -p xtask -- tokens` refuses it one build later: {refused:?}"
+        );
+    };
+    assert_eq!(token, "color.ink");
+    assert!(
+        detail.contains("on-light-text")
+            && detail.contains("color.paper")
+            && detail.contains(": 1"),
+        "the refusal has to quote the measurement, or a person cannot tell how far off they are: \
+         {detail}"
+    );
+
+    // **The other half of the rule, and the half an editor is most likely to miss.** Darkening the
+    // background does not touch `color.ink` at all, and it breaks every `on-light-text` colour
+    // measured against it. An editor that only checked the token under the cursor would write this.
+    let background = tokens_source::rewrite(&before, "--color-paper", "#111111");
+    assert!(
+        matches!(&background, Err(WriteBackError::Contrast { .. })),
+        "the rule binds a pair, so either half moving has to be checked: {background:?}"
+    );
+
+    // And it is not simply always refusing: a legible text colour and an unrelated fill both go
+    // through, so the gate has two sides.
+    tokens_source::rewrite(&before, "--color-ink", "#1a1a1a")
+        .expect("a near-black body text is legible on paper");
+    tokens_source::rewrite(&before, "--color-green-tint", "#dff0e4")
+        .expect("a `fill-only` colour carries no contrast minimum");
+}
+
+/// The arithmetic the refusal above is made of is `mjx-tokens`'s, and there is one copy of it.
+///
+/// `DESIGN_TOKENS.md` §2.2 quotes two measurements by name. If this crate, `xtask` and the docs
+/// ever disagree about them, one of the three has grown a second implementation — which is the
+/// exact failure that produced G4 in the first place.
+#[test]
+fn the_contrast_arithmetic_is_the_one_the_generator_uses() {
+    let green = mjx_tokens::parse_color("--color-green", "#2e9e63").expect("a colour");
+    let deep = mjx_tokens::parse_color("--color-green-deep", "#1e7a49").expect("a colour");
+    let white = mjx_tokens::parse_color("--color-white", "#ffffff").expect("a colour");
+    // The two figures `DESIGN_TOKENS.md` §2.2 states, and `crates/mjx-tokens/src/generated.rs`
+    // repeats in `--color-green`'s and `--color-green-deep`'s own docs.
+    assert_eq!(
+        format!("{:.2}", mjx_tokens::contrast_ratio(green, white)),
+        "3.39"
+    );
+    assert_eq!(
+        format!("{:.2}", mjx_tokens::contrast_ratio(deep, white)),
+        "5.34"
+    );
+    // And the rule reads them the way the generator does: the fill-only accent is illegal as text
+    // on the same surface the deep step is legal on.
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::OnLightText,
+        green,
+        white,
+        "color.white"
+    )
+    .is_err());
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::OnLightText,
+        deep,
+        white,
+        "color.white"
+    )
+    .is_ok());
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::FillOnly,
+        green,
+        white,
+        "color.white"
+    )
+    .is_ok());
+}
+
+/// Every text-tagged token names a background, and the committed source passes its own rule.
+///
+/// The metadata is generated, so this is really a check that it *arrived*: before this pass
+/// `TokenIdentity` carried the usage only inside a doc comment, which a program cannot read, and
+/// the harness therefore could not apply the rule at all.
+#[test]
+fn the_generated_table_carries_the_contrast_metadata_as_data() {
+    let mut text_tagged = 0_usize;
+    for identity in mjx_tokens::TOKENS {
+        let Some(usage) = identity.usage else {
+            continue;
+        };
+        if !usage.colours_text() {
+            continue;
+        }
+        text_tagged += 1;
+        assert!(
+            identity.background.is_some(),
+            "`{}` is tagged `{usage}` and declares no background; an unmeasured text colour is the \
+             rule stated rather than enforced",
+            identity.path
+        );
+    }
+    assert!(
+        text_tagged >= 8,
+        "only {text_tagged} tokens are tagged for text, which cannot be this source — the \
+         metadata has stopped reaching the generated table"
+    );
+    // The committed source passes the sweep the write-back runs, so a refusal in this suite is
+    // about the value that was written and never about the file it was written into.
+    tokens_source::rewrite(&source(), "--color-ink", "#1a1a1a")
+        .expect("the committed source passes its own contrast rule");
+}
+
+#[test]
+fn the_editor_offers_every_token_and_says_what_kind_each_is() {
+    let tokens = Tokens::DEFAULTS.clone();
+    let editable = tokens_source::editable(&tokens);
+    assert_eq!(
+        editable.len(),
+        mjx_tokens::TOKENS.len(),
+        "the editor offers {} of the platform's {} tokens",
+        editable.len(),
+        mjx_tokens::TOKENS.len()
+    );
+    let colours = editable
+        .iter()
+        .filter(|token| token.kind == "color")
+        .count();
+    assert!(
+        colours > 40,
+        "only {colours} tokens are colours, which is fewer than the palette alone has"
+    );
+    // Every kind the panel can show must actually occur, or the branch that shows it is unreachable.
+    for kind in [
+        "color",
+        "dimension",
+        "duration",
+        "number",
+        "font-weight",
+        "font-stack",
+    ] {
+        assert!(
+            editable.iter().any(|token| token.kind == kind),
+            "no token is a `{kind}`, so the editor's control for one is unreachable"
+        );
+    }
+}
+
+#[test]
+fn a_token_the_canvas_reads_moves_every_scene_that_reads_it() {
+    // **The half of the round trip that makes the editor worth having.** A write-back that changed
+    // a file and not the picture would be a text editor with extra steps, so this changes the value
+    // in memory — exactly as `POST /api/tokens` does — and requires the renders to move.
+    use mjx_canvas_harness::inventory::INVENTORY;
+    use mjx_canvas_harness::render::{self, Overlays, Scene};
+    use mjx_canvas_harness::state::State;
+    use mjx_render_oracle::digest::sha256_hex;
+
+    let before = Tokens::DEFAULTS.clone();
+    let mut after = Tokens::DEFAULTS.clone();
+    after
+        .set_custom_property("--document-light-selection-handle", "#c02a5f")
+        .expect("a colour");
+
+    let mut moved = 0_usize;
+    for entry in &INVENTORY {
+        let one = Scene::build(entry, &before, State::CANONICAL);
+        let two = Scene::build(entry, &after, State::CANONICAL);
+        // The pixels rather than the encoded PNG, for the reason
+        // `tests/the_axes_are_not_identities.rs` gives: the encoder is deterministic, so the two
+        // answers agree, and one of them is a hand-written deflate over an LZ77 search.
+        let first = render::render(&one, Overlays::NONE).expect("renders");
+        let second = render::render(&two, Overlays::NONE).expect("renders");
+        if sha256_hex(&first.image.rgba) != sha256_hex(&second.image.rgba) {
+            moved += 1;
+        }
+    }
+    println!(
+        "\nchanging `--document-light-selection-handle` moves {moved} of the {} scenes.",
+        INVENTORY.len()
+    );
+    assert!(
+        moved >= 20,
+        "changing the selection-handle colour moved only {moved} scenes. It is the colour every \
+         selection outline and every handle is drawn in, so a small number here means scenes are \
+         carrying literal colours rather than reading the tokens."
+    );
+}

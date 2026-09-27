@@ -730,6 +730,64 @@ impl Axis {
             .and_then(TickLabelPosition::from_wire)
     }
 
+    /// The distance between major ticks the file states (`c:majorUnit`), or `None` when the axis
+    /// scales its ticks automatically — which is what nearly every real file says.
+    ///
+    /// Added by MJXOFF-178 for the same reason [`Self::minimum`](Scaling::minimum) exists: an engine
+    /// that laid ticks out without reading this would choose its own spacing over the one the
+    /// document states, which is the wrong way round.
+    #[must_use]
+    pub fn major_unit(&self, interner: &Interner) -> Option<f64> {
+        self.double(interner, "majorUnit")
+    }
+
+    /// The distance between minor ticks the file states (`c:minorUnit`).
+    #[must_use]
+    pub fn minor_unit(&self, interner: &Interner) -> Option<f64> {
+        self.double(interner, "minorUnit")
+    }
+
+    /// How many category labels are skipped between the ones that are drawn (`c:tickLblSkip`) —
+    /// `1` draws every label, `2` every other one. Category and date axes only.
+    #[must_use]
+    pub fn tick_label_skip(&self, interner: &Interner) -> Option<u32> {
+        self.number(interner, "tickLblSkip")
+    }
+
+    /// How many categories are skipped between drawn tick marks (`c:tickMarkSkip`).
+    #[must_use]
+    pub fn tick_mark_skip(&self, interner: &Interner) -> Option<u32> {
+        self.number(interner, "tickMarkSkip")
+    }
+
+    /// The value on *this* axis at which the partner axis crosses it (`c:crossesAt`), or `None`
+    /// when the file states a [`crosses`](Self::crosses) token instead or neither.
+    #[must_use]
+    pub fn crosses_at(&self, interner: &Interner) -> Option<f64> {
+        self.double(interner, "crossesAt")
+    }
+
+    /// Where the partner axis crosses this one, as the wire token `c:crosses@val` — `autoZero`,
+    /// `max` or `min`. Returned as its token because the three are a `ST_Crosses` this crate does
+    /// not otherwise model, and inventing an enumeration for one reader is worse than reporting the
+    /// string the file wrote.
+    #[must_use]
+    pub fn crosses(&self, interner: &Interner) -> Option<&str> {
+        self.scalar(interner, "crosses")
+    }
+
+    /// Whether the category axis' ticks fall *between* categories rather than on them
+    /// (`c:crossBetween@val` = `between`), which is what a bar chart wants and a line chart does
+    /// not. `None` when the file states nothing.
+    #[must_use]
+    pub fn crosses_between_categories(&self, interner: &Interner) -> Option<bool> {
+        match self.scalar(interner, "crossBetween")? {
+            "between" => Some(true),
+            "midCat" => Some(false),
+            _ => None,
+        }
+    }
+
     /// The axis' number format (`c:numFmt@formatCode`, e.g. `0.00%`), or `None` when it inherits.
     #[must_use]
     pub fn number_format(&self, interner: &Interner) -> Option<&str> {
@@ -915,6 +973,14 @@ impl Axis {
     fn number(&self, interner: &Interner, local: &str) -> Option<u32> {
         self.scalar(interner, local)
             .and_then(|value| value.trim().parse().ok())
+    }
+
+    /// A raw scalar child's `@val` parsed as a double, ignoring one that is not finite: an axis
+    /// whose stated major unit is `NaN` is an axis with no stated major unit.
+    fn double(&self, interner: &Interner, local: &str) -> Option<f64> {
+        self.scalar(interner, local)
+            .and_then(|value| value.trim().parse::<f64>().ok())
+            .filter(|value| value.is_finite())
     }
 }
 

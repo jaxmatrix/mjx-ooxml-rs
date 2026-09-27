@@ -4,9 +4,33 @@ members = [
     "crates/mjx-ooxml-core",
     "crates/mjx-xml",
     "crates/mjx-derive",
+    # The client platform's design tokens — rank 0.2. Generated from
+    # `docs/client-platform/data/tokens.json` by `cargo run -p xtask -- tokens`, because the chrome
+    # is HTML and the document canvas is Rust, and a canvas cannot inherit a CSS custom property.
+    # It is data: it declares no workspace dependency at all, and its rank says who may reach *it*.
+    "crates/mjx-tokens",
     "crates/mjx-ooxml-types",
     "crates/mjx-opc",
     "crates/mjx-mce",
+    # Typography — rank 1.5 (MJXOFF-157). Face parsing and metrics, the system font database, the
+    # metric-compatible substitution table and the per-document substitution manifest. It sits above
+    # the packaging tier and below shared markup because it has never heard of OOXML: it answers
+    # "which face, and what are its numbers", and a `.pptx` is not one of its inputs.
+    "crates/mjx-text",
+    # The box model contract — rank 1.6 (MJXOFF-160). The `BoxModel` trait, the `FragmentTree` every
+    # box model produces, the checkpoint that makes flow layout resumable and the spatial index that
+    # makes a hit test a query. It sits above `mjx-text`, which it calls to measure text, and below
+    # shared markup, because **no OOXML type may appear in its public API**: that is the seam the
+    # whole client platform is organised around, and `xtask/tests/layering.rs` is what holds it.
+    "crates/mjx-layout",
+    # The display list — rank 1.7 (MJXOFF-161). The command vocabulary, the paint/effect vocabulary,
+    # the resource tables and the flat binary encoding a `FragmentTree` becomes. It sits one step
+    # above the box model contract and **below `mjx-dml`**, which is the whole point: the layering
+    # gate only refuses an edge that points up or sideways, so a display list ranked above shared
+    # markup would make `mjx-scene -> mjx-dml` a legal downward edge and the guarantee this crate
+    # exists to hold — below a display list, nothing has heard of a font, a layout algorithm or a
+    # document — would be enforced by nothing at all.
+    "crates/mjx-scene",
     "crates/mjx-dml",
     # `mjx-sml` sits *beside* `mjx-dml` and *beneath* `mjx-chart` — shared markup, rank 2.1. An
     # embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx`, so the markup is shared even
@@ -16,11 +40,88 @@ members = [
     "crates/mjx-omml",
     "crates/mjx-chart",
     "crates/mjx-vml",
+    # Preset shape geometry — rank 2.5 (MJXOFF-202). The `presetShapeDefinitions` path tables and
+    # the `GeometryProvider` that ends `mjx-scene`'s placeholder. It sits **above** both crates it
+    # serves and that is the whole design: a preset table is DrawingML, so it must live above
+    # `mjx-dml` (2.0), and `mjx-scene` (1.7) must stay below it or `mjx-scene -> mjx-geometry`
+    # becomes a legal downward edge and the display list learns what a `.pptx` is. `mjx-paint` (5.5)
+    # is above it and so *could* depend on it; that hole is closed by name, in
+    # `crates/mjx-paint/tests/the_seam_holds.rs`, the same way the painter's other seam is.
+    "crates/mjx-geometry",
     "crates/mjx-pptx",
     "crates/mjx-docx",
     "crates/mjx-xlsx",
     # Test-only harness: the schema and child-order gate the three format crates share. It is a
     # `dev-dependency` of those crates and of nothing else, so it adds no edge to the shipped graph.
+    # The resident document — rank 3.5 (MJXOFF-167). A session owns a parsed, mutable document and
+    # keeps it; every mutation is recorded as an operation the instant it happens, and the document
+    # is serialised on a *schedule* rather than on every operation. It sits above the format tier
+    # because it names all three of them, and below the facade because `mjx-ooxml` is what projects
+    # it. Everything in it outside `src/ooxml/` is generic over `ResidentDocument` and names no
+    # format crate at all, so the box-model seam survives editing.
+    "crates/mjx-session",
+    # The chart engine — rank 3.55 (MJXOFF-178), one step **below** the three box models. A chart in
+    # a `.pptx`, a `.docx` and an `.xlsx` is the same chart, so it is laid out once; the rank is what
+    # makes that structural rather than intended. The three box models sit at 3.6, so an edge from
+    # any of them to this crate points down and an edge from this crate to any of them is refused.
+    # It is above the format tier so `mjx-pptx` cannot grow a chart engine, and above `mjx-session`
+    # so nothing in the editing path can reach one.
+    "crates/mjx-layout-chart",
+    # PowerPoint's box model — rank 3.6 (MJXOFF-169). The first implementation of
+    # `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into a
+    # `FragmentTree`: slide geometry, the shape tree in z-order, text-body layout, bullets and
+    # autofit. It sits above the format tier because it consumes `mjx-pptx`'s effective-property
+    # ladder rather than re-deriving it, and below `mjx-view` so a viewport still cannot reach a
+    # format crate through it. What the rank does **not** buy is the other direction: at 3.6 every
+    # markup crate is a legal downward edge, so *a box model resolves no geometry paths* is held by
+    # `crates/mjx-layout-pptx/tests/the_seam_holds.rs` naming `mjx-geometry`, and by nothing here.
+    "crates/mjx-layout-pptx",
+    # Excel's box model — rank 3.6 (MJXOFF-171), **beside** `mjx-layout-pptx` rather than above it.
+    # A grid, not absolute placement: row and column geometry as two sparse indices, merged regions,
+    # text that overflows into empty neighbours, wrap, shrink-to-fit, rotation, and frozen or split
+    # panes. The same rank as PowerPoint's is the point — an edge between two box models would be
+    # *sideways*, which the layering gate refuses by name, and a spreadsheet's box model has no
+    # business knowing what a slide is. What 3.6 does **not** buy is the other direction, exactly as
+    # for `mjx-layout-pptx`: at 3.6 every markup crate is a legal downward edge, so *a box model
+    # resolves no geometry paths and never paints* is held by
+    # `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` and by nothing here.
+    "crates/mjx-layout-xlsx",
+    # Word's box model — rank 3.6, beside the other two (MJXOFF-174). The only one of the three that
+    # **reflows**: a slide's pagination is its index and a sheet's is arithmetic over a row geometry,
+    # and a document's is emergent — where page 200 begins depends on everything before it. It is the
+    # first real consumer of `mjx-layout`'s `Checkpoint`, which exists for exactly this.
+    "crates/mjx-layout-docx",
+    # PowerPoint's companion to the box model — rank 3.7 (MJXOFF-170). The `ResourceResolver` that
+    # turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints, strokes and effects, and
+    # the `GeometryProvider` that turns its outline handles into `mjx-geometry`'s preset paths. It is
+    # a crate of its own rather than a module of the box model because
+    # `crates/mjx-layout-pptx/tests/the_seam_holds.rs` refuses `mjx-scene` there **by name**: a box
+    # model that built a display list would have merged two stages the architecture separates on
+    # purpose. Rank 3.7 is the only position from which one crate can name the box model (3.6), the
+    # display list (1.7) and the geometry tables (2.5) at once, and it is below `mjx-view` (3.8) so a
+    # viewport still reaches PowerPoint through nothing.
+    "crates/mjx-scene-pptx",
+    # Excel's companion to the box model — rank 3.7 (MJXOFF-244). The `ResourceResolver` that turns
+    # the handles `mjx-layout-xlsx` issued into `mjx-scene`'s fills and strokes: a cell's pattern or
+    # gradient, a border band's colour, and a run's own font colour — the last of which PowerPoint's
+    # companion still cannot answer, because a worksheet addresses a cell and a slide addresses a
+    # run inside a paragraph inside a shape. It exists for the same reason `mjx-scene-pptx` does and
+    # not by analogy: `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` refuses `mjx-scene` there
+    # **by name**. The **same rank** as PowerPoint's companion, deliberately — an edge between the
+    # two would be sideways, and `xtask/tests/layering.rs` refuses that; a spreadsheet's resolver has
+    # no business knowing what a slide is. It names no geometry table, because a worksheet's
+    # fragment tree carries no shape.
+    "crates/mjx-scene-xlsx",
+    # Viewport windowing, byte-budgeted per-stage caches and frame scheduling — rank 3.8
+    # (MJXOFF-168). It materialises the pages on screen plus a small prefetch ring, holds every
+    # stage that keeps something expensive under a declared byte ceiling, and gives a frame a time
+    # budget it defers rather than overruns. It sits above `mjx-session` because it consumes that
+    # crate's invalidation stream, and below the facade because `mjx-ooxml` is what will project it
+    # behind a non-default `render` feature. What the rank does **not** buy is the other direction:
+    # at 3.8 every format crate is a legal downward edge, so *a viewport has never heard of OOXML*
+    # is held by construction — generic over `BoxModel` and `SceneSource`, `mjx-session` named with
+    # `default-features = false` — and by `crates/mjx-view/tests/the_seam_holds.rs`.
+    "crates/mjx-view",
     "crates/mjx-schema-gate",
     # Test-only, dependency-free: the committed fixture corpus, so every suite in the workspace
     # derives it from one place instead of carrying a hand-maintained list.
@@ -30,6 +131,35 @@ members = [
     # `xtask`, so the one `unsafe impl GlobalAlloc` in the workspace lives where both can reach it.
     "crates/mjx-allocation-counter",
     "crates/mjx-ooxml",
+    # The platform boundary — rank 5.5 (MJXOFF-163). The `Painter` contract, the `SurfaceHost`
+    # contract and the `wgpu` painter. Its rank is **above the facade**, and that is the whole of
+    # what the rank buys: nothing in the document graph — no format crate, no facade, and above all
+    # no binding — can then declare an edge to a crate that links Vulkan, Metal or Direct3D. What
+    # the rank does *not* buy is the other direction: at 5.5 every crate in the workspace is a legal
+    # dependency of this one, so "below a display list, nothing has heard of a font, a layout
+    # algorithm or a document" is held here by an explicit manifest gate,
+    # `crates/mjx-paint/tests/the_seam_holds.rs`, and by nothing else.
+    "crates/mjx-paint",
+    # Test-only, outside the rank graph: the artefacts one Windows sitting needs and the harness that
+    # ingests what comes back (MJXOFF-207). It sits at the top of the workspace on purpose — it names
+    # the format tier to author the decks, `mjx-geometry` to know what a preset is, and `mjx-paint` to
+    # export and rasterise our own side of a comparison — and **nothing depends on it**, which is what
+    # keeps those three edges out of the shipped graph. `publish = false`.
+    # Test-only, outside the rank graph: the fidelity oracle (MJXOFF-165). The three assertion
+    # tiers, the perceptual metric, the committed baselines and their approval events, and the plate
+    # gallery R11 and U01 load. It sits **below** `mjx-reference-pack` and above everything ranked —
+    # the pack adds the format tier on top to author a `.pptx`, and both are above the whole document
+    # graph. Nothing ranked may reach either. `publish = false`.
+    "crates/mjx-render-oracle",
+    "crates/mjx-reference-pack",
+    # Test-only, outside the rank graph: the canvas UI harness (MJXOFF-166). The sixty-one in-canvas
+    # elements of `docs/client-platform/CANVAS_UI_INVENTORY.md`, each a synthetic `FragmentTree`, a
+    # state matrix reachable by clicking, a hit-test visualiser drawn from the spatial index and a
+    # live token editor that writes back to the token source. It sits at the top beside
+    # `mjx-reference-pack` and reaches `mjx-render-oracle` for the PNG encoder, the plate manifest
+    # and the baseline store — the second consumer that rule was widened for. Nothing depends on it.
+    # `publish = false`.
+    "crates/mjx-canvas-harness",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
     # number cover them too. The cross-build matrix excludes both: a PyO3 cdylib needs a Python
@@ -41,9 +171,20 @@ members = [
 
 [workspace.package]
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
-# PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
-# this one line. See CHANGELOG.md.
-version = "0.0.173"
+# PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so no member crate's
+# manifest has to move with this line. See CHANGELOG.md.
+#
+# ⚠ THREE FILES CARRY THIS VERSION, NOT ONE. A bump is not finished until all three say the same
+# thing:
+#   1. this line;
+#   2. `CHANGELOG.md`, a new entry;
+#   3. `bindings/mjx-wasm/npm/package.json`'s `"version"` — the npm package states its own, and
+#      `bindings/mjx-wasm/build-npm.sh` **refuses to build** when the two disagree, on purpose: a
+#      package that cannot be traced back to a commit is worse than one that will not build.
+# This is written here rather than only in `build-npm.sh` because that is where it was written
+# before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
+# children. `CLAUDE.md`'s versioning note says the same three things.
+version = "0.0.174"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -70,26 +211,129 @@ unicode-segmentation = "1"
 # Benchmarking only (MJXOFF-147): dev-dependency of the three format crates' `benches/`, never of a
 # shipped target. Pure Rust, no `unsafe` of its own.
 criterion = "0.8"
+# Typography (MJXOFF-157), used only by `mjx-text`. Both are pure Rust with no C dependency, which is
+# what lets a font engine live inside the shipped graph at all; `fontdb` is declared without default
+# features here so no member can pick up `memmap2` or a fontconfig C library by accident, and
+# `mjx-text` re-states the exact feature set it wants. `ttf-parser` keeps its defaults because
+# `variable-fonts` and the layout tables are read metrics, not extras.
+ttf-parser = "0.25"
+fontdb = { version = "0.24", default-features = false }
+# Shaping (MJXOFF-158), used only by `mjx-text`. A pure-Rust port of HarfBuzz, which is what Office
+# itself shapes with, so it is the one crate whose *behaviour* — not merely whose output format — is
+# the thing being matched. It parses fonts through the same `ttf-parser` 0.25 declared above, so the
+# two never disagree about a face. `Parley` is deliberately not adopted: see `mjx-text`'s `shaping`
+# module documentation.
+rustybuzz = "0.20"
+# Glyph rasterisation (MJXOFF-159), used only by `mjx-text`. Pure Rust — its own dependencies are
+# `skrifa` (font tables), `zeno` (path rasterisation) and `yazi` (the `inflate` a `CBDT` strike's PNG
+# needs), none of which links a C library — so the cross-compile matrix is unaffected and the
+# platform boundary stays where `docs/UI_PLATFORM_PLAN.md` §7 puts it. It is taken for the three
+# things this crate would otherwise have to write against untrusted glyph tables itself: the
+# TrueType hinting interpreter, the scan converter, and the compositor that turns a `COLR`/`CPAL`
+# layer stack into one RGBA image. It reads faces through `skrifa` rather than the `ttf-parser` the
+# rest of this crate uses, which is why `FontFace` hands out **bytes plus an index** and never a
+# parsed type: the two parsers each read the file for themselves and neither can be handed the
+# other's view.
+swash = "0.2"
+# UAX #9, the bidirectional algorithm. Pure Rust, `no_std`-capable, and it is the reference
+# implementation the CSS writing-modes specification is written against.
+unicode-bidi = "0.3"
+# UAX #14, line breaking. `mjx-text` layers Office's East Asian rules (JIS X 4051 *kinsoku* and
+# hanging punctuation) on top of it; see that crate's `line_breaking` module.
+unicode-linebreak = "0.1"
+# The character-to-script table (ISO 15924), for itemising a run so that each shaping call sees one
+# script. Data only — no algorithm this crate would have to trust.
+unicode-script = "0.5"
+# Path tessellation (MJXOFF-162), used only by `mjx-scene`. Pure Rust with no C dependency, which is
+# what lets it live inside the shipped graph at all, and it is taken for the one algorithm this
+# workspace should least like to write itself: a robust, self-intersection-aware trapezoidation of an
+# arbitrary path. `lyon_tessellation` carries `lyon_path` and `lyon_geom` with it and needs nothing
+# else; the meta-crate `lyon` is deliberately not used, because it also pulls the SVG parser and the
+# algorithm collection this crate has no call for. A tessellation pipeline — rather than a compute
+# shader — is also what makes the browser a target at all: `wgpu`'s WebGL2 backend has no compute
+# stage, and `docs/UI_PLATFORM_PLAN.md` §7 puts the browser inside the matrix.
+lyon_tessellation = "1"
+# The graphics stack (MJXOFF-163), used only by `mjx-paint`. **This is the one external dependency
+# in the workspace that is not pure Rust**, and it is why `CLAUDE.md`'s pure-Rust rule now names the
+# document graph rather than the whole workspace: `wgpu` links `ash` (Vulkan), `metal`/`objc2` and
+# `windows-rs`, because a pixel cannot reach a screen without the operating system's graphics stack.
+# `mjx-paint` at rank 5.5 is the declared platform boundary and the only crate that may declare this
+# edge; `mjx-scene` and everything below it stay pure Rust, so the headless, `wasm32`, export and
+# test paths never require a GPU.
+#
+# Features are stated in full rather than inherited, and two absences are deliberate:
+#
+# * **`noop` is not enabled.** wgpu 30 ships a null backend that reports success and draws nothing.
+#   Compiling it in would make "rendering succeeded" true on a machine with no graphics stack at
+#   all, which is precisely the failure this child's gates exist to refuse.
+# * **`webgl` is not enabled here.** It is a `wasm32`-only feature and pulls `wasm-bindgen`; the
+#   browser build asks for it in `mjx-paint`'s own target-specific section.
+#
+# `wgsl` is the shader language; `vulkan`/`metal`/`dx12`/`gles` are the four native backends the
+# cross-build matrix covers; `webgpu` is the browser's opportunistic upgrade over WebGL2.
+wgpu = { version = "30", default-features = false, features = [
+    "std",
+    "parking_lot",
+    "wgsl",
+    "vulkan",
+    "metal",
+    "dx12",
+    "gles",
+    "webgpu",
+] }
+# Adapter and device acquisition are futures on every target. On native they are already complete
+# when they are returned, and nothing in this workspace carries an async runtime, so a single-file
+# blocking executor is what turns them back into ordinary calls. Used only by `mjx-paint`.
+pollster = "0.4"
+# The software rasteriser (MJXOFF-164), used only by `mjx-paint`. **Pure Rust with no C dependency**,
+# which is the whole reason it is the second painter: `mjx-paint` is the crate where `CLAUDE.md`'s
+# pure-Rust rule stops governing, and the amendment that allowed `wgpu` in leans on there always
+# being a path to pixels that needs no graphics stack at all. Every golden image in R10 and R11, and
+# every render in continuous integration on a machine with no GPU, goes through this.
+#
+# `png-format` is deliberately **not** enabled. It is a `Pixmap::encode_png` convenience this crate
+# has no use for — a painter answers with `Pixels`, and a suite that wanted a file would write one —
+# and enabling it puts the `png` decoder in the dependency tree of a crate that decodes nothing.
+# `simd` is enabled: it is `core::simd`-free, portable, and is the difference between a software
+# painter that can back a test suite and one that cannot.
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
 mjx-xml = { path = "crates/mjx-xml" }
 mjx-derive = { path = "crates/mjx-derive" }
+mjx-tokens = { path = "crates/mjx-tokens" }
 mjx-ooxml-types = { path = "crates/mjx-ooxml-types" }
 mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }
+mjx-text = { path = "crates/mjx-text" }
+mjx-layout = { path = "crates/mjx-layout" }
+mjx-scene = { path = "crates/mjx-scene" }
 mjx-dml = { path = "crates/mjx-dml" }
 mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }
 mjx-chart = { path = "crates/mjx-chart" }
 mjx-vml = { path = "crates/mjx-vml" }
+mjx-geometry = { path = "crates/mjx-geometry" }
 mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
+mjx-session = { path = "crates/mjx-session" }
+mjx-layout-chart = { path = "crates/mjx-layout-chart" }
+mjx-layout-pptx = { path = "crates/mjx-layout-pptx" }
+mjx-layout-xlsx = { path = "crates/mjx-layout-xlsx" }
+mjx-layout-docx = { path = "crates/mjx-layout-docx" }
+mjx-scene-pptx = { path = "crates/mjx-scene-pptx" }
+mjx-scene-xlsx = { path = "crates/mjx-scene-xlsx" }
+mjx-view = { path = "crates/mjx-view" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }
 mjx-ooxml = { path = "crates/mjx-ooxml" }
+mjx-paint = { path = "crates/mjx-paint" }
+mjx-render-oracle = { path = "crates/mjx-render-oracle" }
+mjx-reference-pack = { path = "crates/mjx-reference-pack" }
+mjx-canvas-harness = { path = "crates/mjx-canvas-harness" }
 
 # --- binding toolkits (used only by `bindings/*`) ---
 pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }

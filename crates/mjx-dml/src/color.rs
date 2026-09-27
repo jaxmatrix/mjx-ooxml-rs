@@ -170,6 +170,41 @@ impl ColorSpec {
         self.with_transform(ColorTransform::Alpha(amount))
     }
 
+    /// The opacity this colour states, as a proportion of one — `None` when it states none.
+    ///
+    /// The transform sequence is folded in document order, exactly as [`crate::resolve_color`]
+    /// folds it: an `a:alpha` sets the opacity, an `a:alphaMod` multiplies it and an `a:alphaOff`
+    /// shifts it. So a colour written `<a:alpha val="80000"/><a:alphaMod val="50000"/>` answers
+    /// `0.4`, which is what it *is* rather than what it was written as.
+    ///
+    /// A colour carrying none of the three answers `None` rather than `1.0`, so a caller can tell
+    /// an opacity the document stated from one it did not.
+    ///
+    /// ```
+    /// use mjx_dml::{ColorSpec, Fraction};
+    ///
+    /// let overlay = ColorSpec::Srgb("1F3864".into()).with_alpha(Fraction::from_ratio(0.35));
+    /// assert_eq!(overlay.alpha(), Some(Fraction::from_ratio(0.35)));
+    /// assert_eq!(ColorSpec::Srgb("1F3864".into()).alpha(), None);
+    /// ```
+    #[must_use]
+    pub fn alpha(&self) -> Option<Fraction> {
+        let mut alpha: Option<f64> = None;
+        for transform in self.transforms() {
+            match transform {
+                ColorTransform::Alpha(value) => alpha = Some(value.ratio()),
+                ColorTransform::AlphaModulation(value) => {
+                    alpha = Some(alpha.unwrap_or(1.0) * value.ratio());
+                }
+                ColorTransform::AlphaOffset(value) => {
+                    alpha = Some(alpha.unwrap_or(1.0) + value.ratio());
+                }
+                _ => {}
+            }
+        }
+        alpha.map(|value| Fraction::from_ratio(value.clamp(0.0, 1.0)))
+    }
+
     /// This colour with an `a:lumMod` appended — its luminance multiplied by `amount`.
     #[must_use]
     pub fn with_luminance_modulation(self, amount: Fraction) -> Self {

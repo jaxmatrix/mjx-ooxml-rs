@@ -1,0 +1,154 @@
+MJXOFF-271 — the design tokens, re-seeded from hermes-universal
+================================================================================
+
+Version 0.0.156. Branch `pipeline/token-reseed`, cut from `epic/phase-r-renderer`
+at 831c91b. Machine: `-j2`, one cargo invocation at a time, with a peer session
+building in the repository root and a Node build in `ui/`.
+
+Every command below was run ONCE, after the last edit, in the order listed. Both
+red passes that preceded it are recorded underneath: a record that mentions only
+the green run is not a record.
+
+
+================================================================================
+THE GREEN PASS
+================================================================================
+
+--- cargo fmt --all -- --check
+    start  2026-09-10T00:40:49Z
+    finish 2026-09-10T00:40:54Z
+    exit   0
+
+--- cargo test --workspace
+    start  2026-09-10T00:40:54Z
+    finish 2026-09-10T00:51:30Z
+    exit   0
+
+--- cargo clippy --workspace --all-targets -- -D warnings
+    start  2026-09-10T00:51:30Z
+    finish 2026-09-10T00:51:35Z
+    exit   0
+
+--- cargo test -p xtask --test layering
+    start  2026-09-10T00:51:35Z
+    finish 2026-09-10T00:51:35Z
+    exit   0
+    | test result: ok. 9 passed; 0 failed
+
+--- cargo test -p xtask --test escape_hatches
+    start  2026-09-10T00:51:35Z
+    finish 2026-09-10T00:51:36Z
+    exit   0
+    | test result: ok. 9 passed; 0 failed
+
+--- cargo test -p xtask --test unsafe_allowance
+    start  2026-09-10T00:51:36Z
+    finish 2026-09-10T00:51:36Z
+    exit   0
+    | test result: ok. 3 passed; 0 failed
+
+--- cargo run -p xtask -- tokens --check
+    start  2026-09-10T00:51:37Z
+    finish 2026-09-10T00:51:37Z
+    exit   0
+    | tokens: 4 artefacts match docs/client-platform/data/tokens.json
+
+--- bash .github/scripts/check-suppress-naming.sh
+    start  2026-09-10T00:51:37Z
+    finish 2026-09-10T00:51:37Z
+    exit   0
+
+--- cargo doc --workspace --no-deps
+    (RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links
+                   -D rustdoc::private_intra_doc_links", as CI sets it)
+    start  2026-09-10T00:51:37Z
+    finish 2026-09-10T00:51:38Z
+    exit   0
+
+
+Four more, beyond the list I was given, because this change touches all of them:
+
+--- node ui/tokens/chromium-agreement.mjs        ← THE gate this ticket is about
+    start  2026-09-10T00:51:38Z
+    finish 2026-09-10T00:51:39Z
+    exit   0
+    | Chromium agrees with mjx_tokens::color_mix for all 13 derived tokens in
+    | both schemes (26 comparisons), and a seed override re-derives through the
+    | cascade.
+
+--- cargo run -p mjx-canvas-harness -- check     ← CI runs this; the re-seed moved every plate
+    start  2026-09-10T00:51:39Z
+    finish 2026-09-10T00:52:46Z
+    exit   0
+    | all 61 plates match their approved baselines.
+    | ⚠ 61 of 61 carry NO HUMAN REVIEW — every one is stamped
+    |   `approver = generator`. Regenerating did not create that state and does
+    |   not change it; nobody has looked at these images, before or after.
+
+--- cargo run -p mjx-render-oracle -- check      ← unaffected, checked anyway
+    start  2026-09-10T00:52:46Z
+    finish 2026-09-10T00:52:49Z
+    exit   0
+    | 5 of 5 matched on all three tiers.
+
+--- node ui/scripts/check-tokens.mjs             ← the third divergence gate, U-owned, untouched
+    start  2026-09-10T00:52:49Z
+    finish 2026-09-10T00:52:49Z
+    exit   0
+    | ui/tokens agrees with the source: 150 tokens, 150 custom properties,
+    | 50 scheme aliases.
+
+
+================================================================================
+THE RED PASSES, AND WHAT EACH ONE FOUND
+================================================================================
+
+RED 1 — 2026-09-09T23:07:42Z
+  cargo fmt --all -- --check ............................. exit 1
+  Stopped there. My canvas-harness edits were unformatted. No finding.
+
+RED 2 — 2026-09-09T23:53:23Z
+  cargo test --workspace ................................ exit 101
+    `mjx-canvas-harness --test the_token_editor_writes_back`, 2 failures, and
+    both were real:
+      · `value_span("theme.light.background")` returned None. A LATENT DEFECT in
+        the harness's JSON path walk that this change exposed: `object_of` took
+        "the first `{` anywhere after the colon" as the object, and
+        `$extensions.mjx.background` is a key spelled exactly `"background"`
+        whose value is an alias such as `"{theme.light.background}"`. The walk
+        matched an earlier token's contrast metadata and took the `{` from
+        inside that string. It had looked right for two children only because
+        the token of that name always came first; a seed carrying the metadata
+        now precedes it. Fixed by requiring the object to be the value
+        immediately after the colon.
+      · a test asserting `previous == "{color.green-deep}"` — a committed value
+        written into a suite. Rewritten to assert the property (it is an alias)
+        rather than which alias.
+  cargo doc ............................................. exit 101
+    One broken intra-doc link I wrote, `[Derivation::nodes]`, on a field the
+    enum refactor removed.
+
+RED 3 — 2026-09-10T00:08:26Z
+  cargo test --workspace ................................ exit 101
+    · `mjx-tokens --test artefacts_agree`: MY OWN new gate, and it was too
+      blunt. It scanned `tokens.ts` for the literal `color-mix` and found it —
+      in the generated doc comments, which explain where each derived value came
+      from. Prose read as code. Fixed by stripping comments first, which is the
+      same defect the coordinator reported in `ui/`'s own lint rule.
+    · `xtask --test ledger`: the parity ledger counts assertions per suite, and
+      I had added tests. Regenerated.
+
+
+================================================================================
+NOT RUN, AND WHY
+================================================================================
+
+  ui/ suites (vitest, Playwright, Storybook, eslint, tsc)
+    U09 owns that tree and I was told not to. Instead I replayed every ui/ gate
+    whose verdict depends on token VALUES against the regenerated
+    `ui/tokens/tokens.css` — offline, read-only, no cargo, no node_modules
+    writes — using each gate's own algorithm read out of `ui/src`. The
+    measurements are in the report.
+
+  MJX_REQUIRE_SCHEMA=1 schema suites, the fuzz campaign, the corpus
+    Untouched by this change and gated on `References/`.

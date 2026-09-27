@@ -228,18 +228,6 @@ impl Report {
 pub(crate) const NEVER_EXERCISED: &[(Api, &str, &str)] = &[
     (
         Api::Deck,
-        "paragraph_field_text",
-        "No `.pptx` fixture carries a text field (`a:fld`) — a slide number, a date — and the `Deck` \
-         surface authors none, so no preparation can create one either. A fixture with a slide-number \
-         placeholder retires this.",
-    ),
-    (
-        Api::Deck,
-        "paragraph_field_type",
-        "As `paragraph_field_text`: the corpus has no `a:fld`.",
-    ),
-    (
-        Api::Deck,
         "refresh_chart_workbook",
         "A refresh writes only where the embedded workbook disagrees with the chart's cached data. \
          `charts.pptx`'s workbook already agrees with its cache, and a chart this suite authors is \

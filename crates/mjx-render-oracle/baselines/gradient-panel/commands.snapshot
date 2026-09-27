@@ -1,0 +1,8 @@
+display-list page=320x213.33334 scale=1.3333334 bytes=292
+section commands count=2
+section paints count=2
+section gradients count=1
+section gradient stops count=3
+section geometries count=2
+0000 fill rect[0,0,320,213.33334] with #ffffffff
+0001 fill rect[32,32,288,181.33334] with gradient[Linear angle=0 stops=0@#244a8fff,5000@#ffffffff,10000@#10141cff]

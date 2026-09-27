@@ -120,16 +120,33 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 ```
 0.0  Foundations      mjx-ooxml-core  ·  mjx-derive
 0.1  Foundations      mjx-xml
+0.2  Foundations      mjx-tokens  (design tokens — generated defaults + the runtime resolver)
 1.0  Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
+1.5  Typography       mjx-text    (fonts, substitution, shaping, bidi, line breaking)
+1.6  Box model        mjx-layout  (the BoxModel contract, FragmentTree, Checkpoint, spatial index)
+1.7  Display list    mjx-scene   (the display-list IR and its flat binary encoding — below
+                                  mjx-dml on purpose, so mjx-scene -> mjx-dml stays illegal)
 2.0  Shared markup    mjx-dml
 2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
 2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml
+2.5  Preset geometry  mjx-geometry (the presetShapeDefinitions path tables and the GeometryProvider
+                                  that resolves them — above mjx-dml because a preset table *is*
+                                  DrawingML, and therefore out of mjx-scene's reach)
 3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
+3.5  Resident document mjx-session (a document held open, an operation journal recorded the instant
+                                  an edit happens, and a commit that serialises dirty parts on a
+                                  schedule rather than on every operation)
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
-     Tooling          xtask       (schema codegen)
-     Test-only        mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
-                      (never published, never a runtime dependency)
+5.5  Platform boundary mjx-paint  (the Painter contract and the wgpu painter — the one crate that
+                                  may link the platform's graphics API, and the reason the
+                                  pure-Rust rule now names the *document graph*)
+     Tooling          xtask       (schema and token codegen)
+     Test-only, BELOW their consumers — no rank, so they are reachable from anywhere:
+                      mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
+     Test-only, ABOVE the whole graph — no rank, so nothing may reach THEM:
+                      mjx-render-oracle  ·  mjx-reference-pack  ·  mjx-canvas-harness
+                                  (all six never published, never a runtime dependency)
 ```
 
 An edge is legal **iff** it points to a *strictly* lower rank, which makes sideways as illegal as
@@ -155,8 +172,32 @@ ranked graph, so nothing shipped acquires an edge to a test-only crate.
 so `mjx-opc`'s byte-identity suites — which sit below the gate — read the same corpus without any
 edge pointing upwards. Neither is published and nothing shipped depends on either.
 
-The two binding crates are the only ones in the workspace that carry `#![allow(unsafe_code)]`, for
-macro-generated `unsafe` only; CI greps them to keep that claim true.
+The other three test-only crates are outside the graph in the **opposite** direction — above every
+ranked crate rather than below them, because each names a set of edges no ranked crate could legally
+declare. `mjx-render-oracle` is the fidelity oracle (the three assertion tiers, the perceptual
+metric, the baselines and their approval events); `mjx-reference-pack` authors the artefacts one
+Windows sitting needs and is the top of the workspace, reachable by nothing; `mjx-canvas-harness` is
+the manual audit surface for every in-canvas UI element
+`docs/client-platform/CANVAS_UI_INVENTORY.md` lists, and is the oracle's second consumer. Having no rank means the layering test's downward rule holds nothing about what they
+depend on, so each of the last two carries its own seam gate —
+`crates/mjx-render-oracle/tests/the_seam_holds.rs` and
+`crates/mjx-canvas-harness/tests/the_seam_holds.rs` — asserting its dependency set exactly — see `CLAUDE.md` before adding one.
+
+**Four crates** carry a local `#![allow(unsafe_code)]` against a workspace that denies it, and **no
+crate in the document graph is one of them**. The two bindings allow it for macro-generated `unsafe`
+only — every block comes from `#[pyclass]` or `#[wasm_bindgen]`, and CI greps `bindings/*/src` and
+`bindings/*/tests` to keep that claim true. `mjx-paint` allows it for **exactly one** hand-written
+block, the surface created from a window handle the shell supplied, which carries the marker
+`MJX-PAINT-SURFACE-UNSAFE` and which CI greps for in the same job.
+`mjx-allocation-counter` allows it for one `unsafe impl GlobalAlloc` whose every method forwards its
+arguments unchanged to `std::alloc::System`.
+
+Four crates and **five files**: `bindings/mjx-wasm` carries the attribute in
+`bindings/mjx-wasm/src/lib.rs` and again in `bindings/mjx-wasm/tests/browser.rs`, which runs the binding inside a real WebAssembly runtime. Both are inside the
+grep. `xtask/tests/unsafe_allowance.rs` holds this paragraph to the tree, because the sentence it
+replaced said *"the two binding crates are the only ones"* and had been false since MJXOFF-163 —
+while ending *"CI greps them to keep that claim true"*, which made a stale claim look mechanically
+guarded.
 
 See [`PLAN.md`](PLAN.md) for what each crate does and the phase it lands in.
 
@@ -170,9 +211,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 The ECMA-376 reference schemas live under `References/` (git-ignored). They are read by `xtask` to
 regenerate `mjx-ooxml-types` — the generated source is committed, so normal builds do **not** need
-`References/` present — and by the schema-validity suite below. To populate the tree (the two
-published ECMA archives, verified against a committed SHA-256 manifest and extracted; the same script
-CI runs):
+`References/` present — and by the schema-validity suite below. To populate the tree (the three
+published ECMA archives — Part 4 Transitional, Part 2 OPC, and Part 1 for the Strict schemas and the
+preset-shape geometry addendum — verified against a committed SHA-256 manifest and extracted; the
+same script CI runs). It downloads 42 MB for Part 1 alone, of which ~1.5 MB is kept:
 
 ```sh
 .github/scripts/fetch-ecma-schemas.sh
@@ -282,11 +324,22 @@ Each format also carries a deep **effective-properties** reference, one page per
 says what each of `Deck`, `Document` and `Workbook` can reach of the shared-markup crates, with
 a written reason beside every asymmetry and a test that fails when the table and the code disagree.
 
+**What the renderer actually covers** is
+[the parity ledger](docs/client-platform/PARITY_LEDGER.md) — one row per capability of
+[the Office feature inventory](docs/client-platform/OFFICE_FEATURE_INVENTORY.md), in five states,
+**generated from the test suites** by `cargo run -p xtask -- ledger` and never written by hand. Read
+its header before its table: it is a ledger of what was *checked*, not of what is *true*. **Nobody
+has run Microsoft Office**, so a green row is coverage and never parity, and every expectation the
+evidence rests on says whether it came from the specification, from an external definition, or from
+this engine agreeing with itself.
+
 ### Examples
 
-Forty-seven runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
-measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
-it**, because an example that only produced a file would prove nothing. CI runs every one on every
+The workspace builds forty-nine runnable programs. Every one but three **reopens what it wrote and
+asserts something about it**, because an example that only produced a file would prove nothing. The
+three are `mjx-xml`'s `mjx248_measure` — the serialization measurement `docs/BENCHMARKS.md`
+reproduces — and `mjx-geometry`'s two preset galleries, which draw every preset for a person to look
+at and say in their own documentation that a picture is not verification. CI runs every one on every
 push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
 disagree.
 
@@ -350,6 +403,10 @@ cargo run -p mjx-ooxml --example guide_the_round_trip_contract
 
 # The serialization measurement docs/BENCHMARKS.md reproduces
 cargo run -p mjx-xml --example mjx248_measure
+
+# Every preset shape on one sheet, for a person to look at — not verification
+cargo run -p mjx-geometry --example plate_gallery -- /tmp/presets.svg
+cargo run -p mjx-geometry --example painted_gallery -- /tmp/painted
 ```
 
 ## Contributing
