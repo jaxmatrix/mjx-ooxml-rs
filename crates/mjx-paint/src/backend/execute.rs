@@ -253,8 +253,8 @@ impl Painter for WgpuPainter {
 
         // Upload only what changed. A frame that drew the same words as the last one takes a delta
         // with nothing in it and uploads nothing, which is what `atlas_bytes_uploaded` reports and
-        // what `tests/the_atlas_delta_reaches_the_painter.rs` asserts over **two** frames — one
-        // frame cannot tell an incremental upload from a wholesale one.
+        // what `tests/the_identity_values_are_not_the_only_values.rs` asserts over **two** frames —
+        // one frame cannot tell an incremental upload from a wholesale one.
         {
             let mut uploader = AtlasUploader {
                 device: &self.device,

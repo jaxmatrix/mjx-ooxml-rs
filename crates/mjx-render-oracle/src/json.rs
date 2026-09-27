@@ -3,7 +3,7 @@
 //! # Why both halves
 //!
 //! Writing it is the easy half and the one a manifest needs. Reading it is what makes the manifest a
-//! *contract*: `tests/the_plate_manifest_is_loadable.rs` writes the manifest, parses it back with
+//! *contract*: `tests/the_plate_manifest_reaches_a_loader.rs` writes the manifest, parses it back with
 //! this reader, and asserts every field R11's Storybook loader will look for — from the consumer's
 //! side. A generator checked by asserting on the string it just produced proves that `format!`
 //! works. The question a hand-off has to answer is not *"is this produced?"* but *"does it reach

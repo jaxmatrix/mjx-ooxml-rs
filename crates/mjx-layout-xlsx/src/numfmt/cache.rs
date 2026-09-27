@@ -22,7 +22,7 @@
 //!
 //! [`FormatCache::requests`], [`FormatCache::compilations`] and [`FormatCache::evaluations`] are
 //! public so a suite can assert the hit rather than assume it.
-//! `tests/the_format_cache_hits.rs` lays out a band whose cells share formats and asserts that the
+//! `tests/a_cell_shows_its_formatted_value.rs` lays out a band whose cells share formats and asserts that the
 //! compilation count is the number of *distinct codes* rather than the number of cells — which is
 //! the measurement that tells a cache from a field nothing reads.
 

@@ -168,8 +168,8 @@ enum Tier {
     /// client platform is organised around is `mjx-layout`'s 1.6 — above a `FragmentTree`, nothing
     /// has heard of OOXML — and a session sits far above that, so this number cannot stop editing
     /// from becoming OOXML-shaped. What stops it is the crate's own construction: everything under
-    /// `crates/mjx-session/src/` outside `src/ooxml/` is generic over `ResidentDocument`, is written
-    /// in `mjx-layout`'s address vocabulary, and compiles with the format crates absent
+    /// `crates/mjx-session/src/` outside `crates/mjx-session/src/ooxml/` is generic over
+    /// `ResidentDocument`, is written in `mjx-layout`'s address vocabulary, and compiles with the format crates absent
     /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
     /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
     Session,

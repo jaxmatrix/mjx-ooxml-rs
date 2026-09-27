@@ -37,9 +37,11 @@
 //! documentation warns that *"their indices may be issued again later, so a painter must release
 //! the storage it held for one before honouring a creation that reuses it"*. Two collections cannot
 //! express that on their own, so this adapter is where the order is imposed: **every release, then
-//! every creation, then every write.** `tests/the_atlas_delta_reaches_the_painter.rs` is what holds
-//! it, because getting it the other way round overwrites a live page with a new one's storage and
-//! is invisible until an atlas is full enough to evict.
+//! every creation, then every write.** Getting it the other way round overwrites a live page with a
+//! new one's storage and is invisible until an atlas is full enough to evict — and ⚠ no suite yet
+//! provokes a reissued index, so the order is held by [`deliver`]'s shape alone.
+//! `tests/the_identity_values_are_not_the_only_values.rs` asserts only that a delta is uploaded
+//! once and that a second frame uploads nothing.
 
 use mjx_text::{AtlasDelta, GlyphAtlas};
 

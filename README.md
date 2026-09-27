@@ -179,8 +179,9 @@ metric, the baselines and their approval events); `mjx-reference-pack` authors t
 Windows sitting needs and is the top of the workspace, reachable by nothing; `mjx-canvas-harness` is
 the manual audit surface for the sixty-one in-canvas UI elements, and is the oracle's second
 consumer. Having no rank means the layering test's downward rule holds nothing about what they
-depend on, so each of the last two carries its own `tests/the_seam_holds.rs` asserting its
-dependency set exactly — see `CLAUDE.md` before adding one.
+depend on, so each of the last two carries its own seam gate —
+`crates/mjx-render-oracle/tests/the_seam_holds.rs` and
+`crates/mjx-canvas-harness/tests/the_seam_holds.rs` — asserting its dependency set exactly — see `CLAUDE.md` before adding one.
 
 **Four crates** carry a local `#![allow(unsafe_code)]` against a workspace that denies it, and **no
 crate in the document graph is one of them**. The two bindings allow it for macro-generated `unsafe`
@@ -191,8 +192,8 @@ block, the surface created from a window handle the shell supplied, which carrie
 `mjx-allocation-counter` allows it for one `unsafe impl GlobalAlloc` whose every method forwards its
 arguments unchanged to `std::alloc::System`.
 
-Four crates and **five files**: `bindings/mjx-wasm` carries the attribute in `src/lib.rs` and again
-in `tests/browser.rs`, which runs the binding inside a real WebAssembly runtime. Both are inside the
+Four crates and **five files**: `bindings/mjx-wasm` carries the attribute in
+`bindings/mjx-wasm/src/lib.rs` and again in `bindings/mjx-wasm/tests/browser.rs`, which runs the binding inside a real WebAssembly runtime. Both are inside the
 grep. `xtask/tests/unsafe_allowance.rs` holds this paragraph to the tree, because the sentence it
 replaced said *"the two binding crates are the only ones"* and had been false since MJXOFF-163 —
 while ending *"CI greps them to keep that claim true"*, which made a stale claim look mechanically

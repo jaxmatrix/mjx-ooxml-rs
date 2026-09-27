@@ -192,7 +192,7 @@ fn standing_facts(out: &mut String, rows: &[Assessed], evidence: &Evidence) {
     let word_scene = evidence.crates.contains("mjx-scene-docx");
     let _ = writeln!(
         out,
-        "\n**Word cannot reach pixels at all.** `crates/mjx-scene-docx` {}, so a Word \
+        "\n**Word cannot reach pixels at all.** The crate `mjx-scene-docx` {}, so a Word \
          `FragmentTree` has nothing that turns it into a display list. PowerPoint and Excel both \
          do, and their rows say so. This is derived from the crate directory rather than stated: \
          the day the crate exists, this sentence changes.",

@@ -5,7 +5,7 @@
 //!
 //! R11's canvas harness and U01's Storybook gallery both load these plates, and neither of them is
 //! Rust. So the contract is a **file layout and a JSON manifest**, stated here, with a reader in
-//! `tests/the_plate_manifest_is_loadable.rs` that asks it every question a loader will ask. A
+//! `tests/the_plate_manifest_reaches_a_loader.rs` that asks it every question a loader will ask. A
 //! manifest checked by asserting on the string that produced it proves that `format!` works; one
 //! checked by parsing it back proves it reaches somebody.
 //!
@@ -22,7 +22,8 @@
 //!   landed this number was non-zero for every preset shape in the workspace, and a gallery that
 //!   said *"these shapes are stand-ins"* in prose would go on saying it after they stopped being
 //!   stand-ins, or stop saying it before. It is zero for every plate here and
-//!   `tests/every_plate_draws_the_document_and_not_a_stand_in.rs` is what makes that a gate.
+//!   `every_plate_draws_the_document_and_not_a_stand_in` in
+//!   `tests/the_plate_manifest_reaches_a_loader.rs` is what makes that a gate.
 //! * `drawCalls` and `covered` — beside it, because **zero placeholders is also true of a page that
 //!   drew nothing.** MJXOFF-206's finding, one level up.
 //! * `provider`, `authority` and `excluded` — where the reference came from and whether it may

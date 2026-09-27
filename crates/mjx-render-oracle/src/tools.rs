@@ -438,7 +438,7 @@ pub fn word_boxes(pdf: &Path) -> Result<Vec<WordBox>, String> {
 /// only behind `mjx-xml`, and reaching for `mjx-xml`'s *fidelity* parser to read another program's
 /// diagnostic output would put a document model in front of six numbers. The shape being read is
 /// poppler's own generated markup — one element per line, four numeric attributes in a fixed order —
-/// and `tests/the_readers_answer_from_a_real_export.rs` holds it to a recorded sample so the scan
+/// and `tests/the_identity_values_are_not_the_only_values.rs` holds it to a recorded sample so the scan
 /// cannot quietly stop matching.
 #[must_use]
 pub fn parse_bbox_layout(xhtml: &str) -> Vec<WordBox> {

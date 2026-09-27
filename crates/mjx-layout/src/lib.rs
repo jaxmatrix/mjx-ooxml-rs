@@ -49,8 +49,9 @@
 //! arithmetic on a length saturates ([`Emu`](mjx_ooxml_core::measure::Emu)'s operators do it for
 //! free), every division checks its divisor, and every failure a caller can provoke is a
 //! [`LayoutError`] or a [`FontError`](mjx_text::FontError). There is no `unwrap`, `expect`, `panic!`
-//! or slice index on any layout path, and `tests/no_panic_on_a_layout_path.rs` holds that true by
-//! scanning the source recursively rather than by assertion.
+//! or slice index on any layout path, and `nothing_on_a_layout_path_panics` in
+//! `tests/the_seam_holds.rs` holds that true by scanning the source recursively rather than by
+//! assertion.
 //!
 //! # Where the pieces meet
 //!

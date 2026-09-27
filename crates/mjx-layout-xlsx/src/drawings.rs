@@ -15,7 +15,7 @@
 //! and one crossing it grows; a one-cell anchor below it moves and keeps its size; an absolute
 //! anchor does neither. Three separate fixtures each assert that a mode produced *a* rectangle;
 //! one fixture that perturbs the geometry asserts that it produced *the right* rectangle, and
-//! `tests/three_anchor_modes.rs` is that fixture.
+//! `tests/three_anchor_modes_move_differently.rs` is that fixture.
 //!
 //! # Why this is not `Workbook::sheet_anchor_bounds`
 //!

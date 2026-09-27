@@ -6,7 +6,7 @@
 //! A public surface nothing calls is a surface nobody has checked — it compiles, its documentation
 //! reads well, and the first caller finds out what it actually does. This programme's audit found a
 //! 591-line HTTP router no test reached, and `mjx-scene` already keeps a file of this shape
-//! (`tests/public_surface_is_reachable.rs`) for the same reason.
+//! (`crates/mjx-scene/tests/public_surface_is_reachable.rs`) for the same reason.
 //!
 //! Two of the items below are the ones this file was written for, and neither would have been
 //! reached by the behavioural suites:

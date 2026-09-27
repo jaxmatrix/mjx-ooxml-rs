@@ -19,8 +19,8 @@
 //! colours across a stop that fades to transparent is the classic dark-halo bug: a fade from opaque
 //! red to transparent black passes through half-alpha *dark* red, which is a grey edge nobody asked
 //! for. Interpolating premultiplied ones does not. So the conversion happens before the
-//! interpolation, here, and `tests/the_gradient_ramp_is_a_ramp.rs` holds it with a fade to
-//! transparency whose midpoint has to stay red.
+//! interpolation, here, and `tests/the_tables_are_tables.rs` holds it with a fade to transparency
+//! whose midpoint has to stay red.
 
 use mjx_scene::{Color, Gradient, GradientStop};
 

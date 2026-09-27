@@ -17,8 +17,8 @@
 //!
 //! **There is no reference page count from Word here, and there cannot be.** The ticket asks for one
 //! and the honest answer is that nobody has run Word: what is asserted is *internal consistency*,
-//! which is a change detector and not evidence. See `tests/provenance.rs`, which says so with a
-//! label rather than a comment.
+//! which is a change detector and not evidence. See `tests/the_provenance_is_declared.rs`, which
+//! says so with a label rather than a comment.
 
 mod support;
 

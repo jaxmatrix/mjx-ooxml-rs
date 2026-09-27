@@ -12,7 +12,7 @@
 //! `2.67` where Excel prints `2.68`. Rounding the fifteen-digit decimal instead gives Excel's answer
 //! for the same reason Excel gives it.
 //!
-//! `tests/the_excel_quirks_are_reproduced.rs` asserts both, and a renderer that "fixes" either fails
+//! `tests/the_format_language_is_evaluated.rs` asserts both, and a renderer that "fixes" either fails
 //! there deliberately.
 //!
 //! # ⚠ `General` is width-dependent in Excel and is not here

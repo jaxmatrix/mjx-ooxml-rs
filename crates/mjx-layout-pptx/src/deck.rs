@@ -259,7 +259,7 @@ pub struct ShapeDecoration {
     /// triplet, which has no alpha channel. The standard Office theme puts
     /// `<a:alpha val="63000"/>` on the shadow of every shape, so that loss was universal rather
     /// than exotic — a solid slab under every styled shape.
-    /// `mjx-scene-pptx`'s `tests/the_opacity_is_lost_at_the_spec_boundary.rs`, kept under its old
+    /// `crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs`, kept under its old
     /// name, now asserts the preservation off the same real fixture.
     pub effects: Option<EffectListSpec>,
     /// How many of the colours above stated an opacity the resolution could not carry — **zero**,

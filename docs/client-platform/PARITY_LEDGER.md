@@ -39,7 +39,7 @@ From `OFFICE_FEATURE_INVENTORY.md` §7, and enforced rather than quoted:
 | `solid-panels` | `generator` |
 | `stroked-frames` | `generator` |
 
-**Word cannot reach pixels at all.** `crates/mjx-scene-docx` does not exist, so a Word `FragmentTree` has nothing that turns it into a display list. PowerPoint and Excel both do, and their rows say so. This is derived from the crate directory rather than stated: the day the crate exists, this sentence changes.
+**Word cannot reach pixels at all.** The crate `mjx-scene-docx` does not exist, so a Word `FragmentTree` has nothing that turns it into a display list. PowerPoint and Excel both do, and their rows say so. This is derived from the crate directory rather than stated: the day the crate exists, this sentence changes.
 
 **Not every provenance ledger could be read.** These files declare a `Provenance` enum in a form the generator's scanner does not understand — most often because the tiers are passed through a `use` alias rather than written out — so their expectations are **absent from the provenance columns below**. They are named here rather than skipped silently, which is the difference between a known gap and a quiet one:
 

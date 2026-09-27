@@ -107,7 +107,8 @@ pub struct GradientMapping {
 impl GradientMapping {
     /// Where `t` is at a point, exactly as the shader computes it.
     ///
-    /// Public because it is what `tests/the_gradient_ramp_is_a_ramp.rs` checks the mapping with:
+    /// Public because it is what `tests/the_identity_values_are_not_the_only_values.rs` checks the
+    /// mapping with:
     /// a shader cannot be unit-tested and this arithmetic can, and the two are the same arithmetic
     /// written twice on purpose — the WGSL is three lines and this is its executable specification.
     #[must_use]

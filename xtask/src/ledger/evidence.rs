@@ -580,8 +580,8 @@ fn crate_directories(root: &Path) -> Result<BTreeSet<String>> {
 
 /// The source of every integration suite: a `.rs` file **directly** inside some crate's `tests/`.
 ///
-/// Depth one is deliberate. `tests/support/mod.rs` and `tests/common/mod.rs` are helpers compiled
-/// *into* a suite rather than suites, and counting their assertions against a capability would
+/// Depth one is deliberate. A `support/mod.rs` or `common/mod.rs` under `tests/` is a helper
+/// compiled *into* a suite rather than a suite, and counting their assertions against a capability would
 /// credit a fixture builder with checking something. They are still read, as part of the suite
 /// that pulls them in, because a double a helper supplies is a double the suite draws through.
 ///

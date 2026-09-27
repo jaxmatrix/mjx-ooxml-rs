@@ -50,7 +50,7 @@
 //! **Determinism is a requirement, not a nicety.** The same pixels must produce the same bytes, or a
 //! baseline's digest would change without its image changing and every approval would expire on the
 //! next machine. There is no time, no randomness and no capacity-dependent behaviour anywhere below;
-//! `tests/the_baselines_are_approved_and_reproducible.rs` encodes the same image twice and compares.
+//! `tests/the_instruments_measure_what_they_claim.rs` encodes the same image twice and compares.
 
 use mjx_paint::Pixels;
 

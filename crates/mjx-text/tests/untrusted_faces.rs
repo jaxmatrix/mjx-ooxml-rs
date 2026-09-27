@@ -242,7 +242,7 @@ fn an_embedded_face_with_a_broken_key_or_broken_bytes_is_refused() {
 /// # The walk is recursive on purpose (MJXOFF-158)
 ///
 /// It used to read only the top level of `src/`, and the floor below it was `>= 9` against a crate
-/// that had ten flat files. A crate laid out as `src/shaping/mod.rs` would therefore have been
+/// that had ten flat files. A crate with a module in a directory of its own would therefore have been
 /// green over code the walk never opened, and the floor would still have passed on the files it
 /// could see. That is a gate that reports success for work it did not check, so the walk descends
 /// and the floor is the crate's real file count.
@@ -317,7 +317,7 @@ fn the_parse_path_contains_no_unwrap_expect_or_panic() {
 /// Every `.rs` file under `directory`, at any depth.
 ///
 /// Recursive so that the grep above is not a constraint on how the crate is organised: a module in
-/// `src/shaping/mod.rs` must be read like one in `src/shaping.rs`.
+/// a directory with a `mod.rs` must be read like one in a single file beside it.
 fn collect_rust_sources(directory: &std::path::Path, into: &mut Vec<std::path::PathBuf>) {
     let listing = std::fs::read_dir(directory).expect("a source directory is readable");
     for entry in listing {

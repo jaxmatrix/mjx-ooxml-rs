@@ -103,7 +103,7 @@ impl GraphicsDevice {
     /// The same, on an instance and a backend set the caller chose.
     ///
     /// Public so a gate can prove the failure path: pointing this at
-    /// [`wgpu::Backends::empty()`] is how `tests/a_skipped_gpu_is_a_loud_skip.rs` shows that a
+    /// [`wgpu::Backends::empty()`] is how `tests/a_missing_gpu_is_a_loud_skip.rs` shows that a
     /// missing adapter is a named error rather than a silently green frame.
     ///
     /// # Errors

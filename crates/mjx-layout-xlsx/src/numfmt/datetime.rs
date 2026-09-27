@@ -23,7 +23,7 @@
 //! | 60 | **1900-02-29** |
 //! | 61 .. | 1899-12-30 + serial |
 //!
-//! `tests/the_excel_quirks_are_reproduced.rs` asserts serial 60 and the day either side of it, and
+//! `tests/the_format_language_is_evaluated.rs` asserts serial 60 and the day either side of it, and
 //! a "fix" fails it deliberately.
 //!
 //! The weekday is *not* derived from that table. It is a function of the serial alone —

@@ -20,7 +20,7 @@
 //! * **The twelve percentages are derived, not drawn.** The name states a coverage and an ordered
 //!   (Bayer) dither realises exactly that coverage over sixty-four cells, so
 //!   [`PATTERN_MASKS`]`[Percent25]` has exactly sixteen bits set and cannot drift.
-//!   `tests/the_pattern_table_is_a_table.rs` asserts the relationship rather than the numbers, and
+//!   `tests/the_tables_are_tables.rs` asserts the relationship rather than the numbers, and
 //!   separately asserts that [`BAYER_8X8`] is a permutation of `0..64`, which is the hand-entered
 //!   part.
 //! * **The line, grid, checker, diagonal and brick families are derived from what their names

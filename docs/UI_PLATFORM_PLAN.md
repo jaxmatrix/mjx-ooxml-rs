@@ -473,7 +473,7 @@ whole of what this unit owes that one.
    it, which is what a reader means by "where I am"; a document offset means the same thing only
    while the pages before it keep the heights they were guessed at. Correct a height and the extent
    changes, the pages after it move, and the anchor's screen position does not.
-   `tests/scroll_stability.rs` asserts all three at once, because the third alone is an identity.
+   `crates/mjx-view/tests/scroll_stability.rs` asserts all three at once, because the third alone is an identity.
 4. **The frame budget is checked *between* tasks and never before the first.** A frame that found
    its budget already spent and ran nothing would never run anything again; so a single page costing
    more than a whole frame still runs, and the frame reports the overrun rather than dropping the
@@ -845,7 +845,8 @@ refusal arrived a build later.
 
 **Two seams that a rank cannot hold, and now do not have to.** This crate and `mjx-render-oracle`
 have no rank, so `xtask/tests/layering.rs` holds nothing about what either depends on. Each carries
-its own `tests/the_seam_holds.rs` asserting its dependency set exactly: the harness names **no**
+its own seam gate — `crates/mjx-canvas-harness/tests/the_seam_holds.rs` and
+`crates/mjx-render-oracle/tests/the_seam_holds.rs` — asserting its dependency set exactly: the harness names **no**
 format crate, facade, packaging tier or shared markup — the geometry table included — which is what
 makes *"the harness needs no document and no fixture"* true and lets in-canvas design be settled
 while the format renderers are still being built; the oracle names DrawingML for one specimen and no

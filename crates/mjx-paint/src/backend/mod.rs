@@ -59,8 +59,9 @@ use crate::surface::{SurfaceHost, SurfaceTarget, Viewport};
 /// Which branch of the fragment function a draw takes.
 ///
 /// **Mirrored by the `KIND_*` constants in `shaders.wgsl`**, and the two are held in step by
-/// `tests/the_shader_and_the_painter_agree.rs`: a shader that disagreed with its own uniform about
-/// what `3` means would draw a picture where a hatch belongs, and nothing would fail to compile.
+/// `every_paint_kind_carries_the_number_its_shader_constant_carries` in
+/// `tests/the_tables_are_tables.rs`: a shader that disagreed with its own uniform about what `3`
+/// means would draw a picture where a hatch belongs, and nothing would fail to compile.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum PaintKind {
     /// One colour.

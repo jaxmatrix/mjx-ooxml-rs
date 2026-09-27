@@ -11,7 +11,7 @@
 //!
 //! All three pass [`NominalMetrics`], which measures a string from a per-character advance table
 //! rather than from shaped glyphs. It is deterministic, needs no font, and is therefore what makes
-//! `tests/one_engine_three_formats.rs` an *equality* rather than an approximate comparison — but it
+//! `xtask/tests/one_engine_three_formats.rs` an *equality* rather than an approximate comparison — but it
 //! is an estimate, and a chart whose longest tick label is a long currency string will reserve a few
 //! percent too much or too little of its width. Handing in a real metric is one `impl` per host and
 //! changes nothing else here; `tests/fragments_reach_the_tree.rs` proves the seam is live by passing

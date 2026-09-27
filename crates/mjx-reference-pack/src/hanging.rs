@@ -155,7 +155,7 @@ pub fn paragraphs() -> Vec<HangingParagraph> {
 /// `Document` exposes text editing and no `w:pPr` writer — deliberately, by `mjx-docx`'s own stated
 /// precedent that *"a child adding typed properties does not also add a `Document`-level surface for
 /// them"*. The typed [`mjx_docx::ParagraphProperties`] is public and is edited through the package,
-/// which is exactly how that crate's own `tests/paragraph_properties.rs` exercises it. So this
+/// which is exactly how `crates/mjx-docx/tests/paragraph_properties.rs` exercises it. So this
 /// authors the text with `Document`, saves, reopens the *package*, and sets the three paragraphs'
 /// properties on the typed model.
 ///
